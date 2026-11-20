@@ -497,7 +497,8 @@ async function main() {
         // Warehouse entry permission must never imply administrative cancellation.
         await applyActor(tx, actors.staff);
         const [staffCancelDecision] = await tx.unsafe(
-          "select public.current_actor_has_capability('inventory.count.cancel') as allowed",
+          "select public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
+          [fixture.warehouse_id],
         );
         assert.equal(staffCancelDecision.allowed, false,
           "a warehouse staff member must not receive the independent stock-count cancellation capability");
@@ -520,99 +521,42 @@ async function main() {
         assert.equal(staffCancelAudit.count, 0,
           "unauthorized cancellation must not create an audit event");
 
-        // The cancellation RPC is governed by a dedicated organization-level V2 capability.
-        // Use the administrator actor for this test-fixture cleanup; the manager's
-        // count-entry and Maker/Checker permissions remain independently asserted.
-        await applyActor(tx, actors.admin);
-        const [adminCancelContext] = await tx.unsafe(
-          "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
-          "public.current_organization_id()::text as organization_id, " +
-          "public.current_actor_has_capability('inventory.count.cancel') as can_cancel",
-        );
-        assert.equal(adminCancelContext.auth_user_id, actors.admin.auth_user_id,
-          "stock-count cancellation must use the authenticated administrator JWT: " + JSON.stringify(adminCancelContext));
-        assert.equal(adminCancelContext.profile_id, actors.admin.profile_id,
-          "stock-count cancellation must resolve the administrator profile: " + JSON.stringify(adminCancelContext));
-        assert.equal(adminCancelContext.organization_id, organizationId,
-          "stock-count cancellation must resolve the manager organization: " + JSON.stringify(adminCancelContext));
-        assert.equal(adminCancelContext.can_cancel, true,
-          "the active administrator must hold the dedicated stock-count cancellation capability: " +
-            JSON.stringify(adminCancelContext));
+        // Cancellation is independent from maker-checker finalization and
+        // requires the manager's explicit assignment to this exact warehouse.
+        await applyActor(tx, actors.manager);
+        const cancelCapability = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel',$1::uuid) as decision," +
+          "public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        ))[0]);
+        assert.equal(cancelCapability.decision.decision, "PERMIT",
+          "the assigned manager must receive the distinct warehouse-scoped cancellation capability");
+        assert.equal(cancelCapability.allowed, true);
+        const unassignedCancelCapability = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel',$1::uuid) as decision",
+          [otherWarehouse.warehouse_id],
+        ))[0].decision);
+        assert.equal(unassignedCancelCapability.decision, "DENY",
+          "the same manager must not cancel a count in an unassigned warehouse");
         const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
-        let cancellationResult;
-        let cancellationError;
-        try {
-          cancellationResult = await tx.savepoint(async (savepoint) => savepoint.unsafe(
-            "select public.cancel_stock_count($1::uuid,$2::text) as result",
-            [countSession.id,cancellationReason],
-          ));
-        } catch (error) {
-          cancellationError = error;
-        }
-        if (cancellationError) {
-          const [cancelRoutine] = await tx.unsafe(
-            "select pg_catalog.pg_get_functiondef('public.cancel_stock_count(uuid,text)'::regprocedure) as definition, " +
-            "pg_catalog.pg_get_userbyid(p.proowner) as owner, r.rolbypassrls as owner_bypasses_rls, p.prosecdef as security_definer " +
-            "from pg_catalog.pg_proc p join pg_catalog.pg_roles r on r.oid=p.proowner " +
-            "where p.oid='public.cancel_stock_count(uuid,text)'::regprocedure",
-          );
-          const cancelTriggers = await tx.unsafe(
-            "select t.tgname as trigger_name, pg_catalog.pg_get_triggerdef(t.oid) as trigger_definition, " +
-            "p.proname as trigger_function, p.prosrc as trigger_source " +
-            "from pg_catalog.pg_trigger t join pg_catalog.pg_proc p on p.oid=t.tgfoid " +
-            "where t.tgrelid='public.stock_count_sessions'::regclass and not t.tgisinternal order by t.tgname",
-          );
-          const routinesWithSameGuard = await tx.unsafe(
-            "select n.nspname as schema_name,p.proname as function_name,pg_catalog.pg_get_function_identity_arguments(p.oid) as arguments " +
-            "from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace " +
-            "where p.prosrc ilike '%administrator or manager permission required to cancel a stock count%' " +
-            "order by n.nspname,p.proname",
-          );
-          const [liveActor] = await tx.unsafe(
-            "select current_user as current_user,session_user as session_user," +
-            "current_setting('role',true) as active_role,auth.uid()::text as auth_user_id," +
-            "public.current_profile_id()::text as profile_id,public.current_organization_id()::text as organization_id," +
-            "public.operational_tasks_can_manage() as can_manage",
-          );
-          throw new Error(
-            "Stock-count cancellation failed; live routine/trigger evidence: " +
-            JSON.stringify({
-              pg: {
-                code: cancellationError.code,
-                message: cancellationError.message,
-                detail: cancellationError.detail,
-                hint: cancellationError.hint,
-                where: cancellationError.where,
-                routine: cancellationError.routine,
-              },
-              actor: liveActor,
-              routine: {
-                owner: cancelRoutine.owner,
-                owner_bypasses_rls: cancelRoutine.owner_bypasses_rls,
-                security_definer: cancelRoutine.security_definer,
-                definition: cancelRoutine.definition,
-              },
-              triggers: cancelTriggers,
-              routines_with_same_guard: routinesWithSameGuard,
-            }),
-            { cause: cancellationError },
-          );
-        }
-        const cancelledCount = decodeJson(cancellationResult[0].result);
+        const cancelledCount = decodeJson((await tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text) as result",
+          [countSession.id,cancellationReason],
+        ))[0].result);
         assert.equal(cancelledCount.status,"cancelled");
         const [cancelledCountState] = await tx.unsafe(
           "select status,cancelled_by,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
           [countSession.id],
         );
         assert.equal(cancelledCountState.status,"cancelled");
-        assert.equal(cancelledCountState.cancelled_by,actors.admin.profile_id);
+        assert.equal(cancelledCountState.cancelled_by,actors.manager.profile_id);
         assert.equal(cancelledCountState.cancellation_reason,cancellationReason);
         const [cancelledCountMovements] = await tx.unsafe(
           "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
           [countSession.id],
         );
         assert.equal(cancelledCountMovements.count,0,
-          "administrative cancellation of an unfinalized count must not create inventory movements");
+          "warehouse-scoped cancellation of an unfinalized count must not create inventory movements");
         const cancellationAudits = await tx.unsafe(
           "select count(*)::integer as count from public.audit_logs " +
           "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
