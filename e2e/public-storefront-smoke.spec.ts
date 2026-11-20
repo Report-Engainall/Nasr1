@@ -484,6 +484,28 @@ test("advanced search sends brand, sale-unit and price-display filters to server
     call.p_unit === "كرتون" &&
     call.p_price_displayable_only === true
   )).toBe(true);
+
+  // The predictive header search must preserve the active advanced-search filters.
+  const headerSearch = page.getByRole("combobox", { name: "ابحث عن منتج", exact: true }).first();
+  await expect(headerSearch).toBeVisible();
+  await headerSearch.fill("رز");
+  await headerSearch.press("Enter");
+  await expect.poll(() => {
+    const params = new URL(page.url()).searchParams;
+    return [
+      params.get("brand"),
+      params.get("unit"),
+      params.get("priced"),
+      params.get("q"),
+    ];
+  }).toEqual([brandId, "كرتون", "1", "رز"]);
+  await expect.poll(() => catalogCalls.some((call) =>
+    call.p_search === "رز" &&
+    call.p_brand_id === brandId &&
+    call.p_unit === "كرتون" &&
+    call.p_price_displayable_only === true
+  )).toBe(true);
+
   expect(pageErrors).toEqual([]);
 });
 
