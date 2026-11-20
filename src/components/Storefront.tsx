@@ -15,6 +15,8 @@ import { ProductComparison } from '@/components/store/ProductComparison';
 import { CartQuantityControl } from '@/components/store/CartQuantityControl';
 import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-products';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
+import { ProductDataQualityPanel } from '@/components/store/ProductDataQualityPanel';
+import { formatProductUpdatedAt } from '@/lib/storefront-product-data-quality';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
@@ -1072,6 +1074,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         {view === 'product' && (selectedProduct
           ? <ProductDetail
               product={selectedProduct}
+              isStaff={user?.isStaff === true}
               relatedProducts={(products ?? []).filter((candidate) =>
                 selectedProduct.category_id !== null
                 && candidate.id !== selectedProduct.id
@@ -1410,6 +1413,7 @@ export function ProductGrid({
 
 export function ProductDetail({
   product,
+  isStaff,
   relatedProducts = [],
   priceVisibilityPolicy,
   inWishlist,
@@ -1425,6 +1429,7 @@ export function ProductDetail({
   onOpenRelated,
 }: {
   product: ProductWithInventory;
+  isStaff: boolean;
   relatedProducts: ProductWithInventory[];
   priceVisibilityPolicy: unknown;
   inWishlist: boolean;
@@ -1452,6 +1457,7 @@ export function ProductDetail({
     product.image_url,
     ...(Array.isArray(product.image_gallery_urls) ? product.image_gallery_urls : []),
   ].filter((url): url is string => isSafeStorefrontImageUrl(url))));
+  const productUpdatedAtLabel = formatProductUpdatedAt(product.updated_at);
   const [alternateUnits, setAlternateUnits] = useState<ProductAlternateUnit[]>([]);
   const [alternateUnitsLoading, setAlternateUnitsLoading] = useState(true);
   const [alternateUnitsError, setAlternateUnitsError] = useState('');
@@ -1622,6 +1628,20 @@ export function ProductDetail({
           <h2>{product.name}</h2>
           {product.name_en ? <p dir="auto" style={{ margin: '-4px 0 12px', color: '#5f777b', fontSize: 14, fontWeight: 500 }}>{product.name_en}</p> : null}
           <p className="sf-detail-description">{product.description || 'لا يوجد وصف متاح لهذا المنتج.'}</p>
+          {productUpdatedAtLabel ? (
+            <p style={{ margin: "-4px 0 12px", color: "#71817f", fontSize: 11 }}>
+              آخر تحديث للمعلومات: <time dateTime={product.updated_at}>{productUpdatedAtLabel}</time>
+            </p>
+          ) : null}
+          {isStaff ? (
+            <ProductDataQualityPanel
+              imageCount={galleryUrls.length}
+              description={product.description}
+              salesUnit={product.unit}
+              alternateUnitCount={alternateUnits.length}
+              alternateUnitState={alternateUnitsLoading ? "loading" : alternateUnitsError ? "error" : "ready"}
+            />
+          ) : null}
           <StorefrontPricePresentation
             policyValue={priceVisibilityPolicy}
             serverUnitPrice={product.display_price}
