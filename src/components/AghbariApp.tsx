@@ -54,6 +54,7 @@ const PricingGrid = lazy(async () => ({ default: (await import('@/components/Pri
 const AdminOrderCreationDialog = lazy(async () => ({ default: (await import('@/components/AdminOrderCreationDialog')).AdminOrderCreationDialog }));
 const ProductUnitConversionsEditor = lazy(async () => ({ default: (await import('@/components/ProductUnitConversionsEditor')).ProductUnitConversionsEditor }));
 const AdminAuditLog = lazy(async () => ({ default: (await import('@/components/AdminAuditLog')).AdminAuditLog }));
+const AdminCatalogChangeHistory = lazy(async () => ({ default: (await import('@/components/AdminCatalogChangeHistory')).AdminCatalogChangeHistory }));
 const AdminCustomer360 = lazy(async () => ({ default: (await import('@/components/AdminCustomer360')).AdminCustomer360 }));
 const CustomerServiceDesk = lazy(async () => ({ default: (await import('@/components/CustomerServiceDesk')).CustomerServiceDesk }));
 const CustomerActivationInvitationDialog = lazy(async () => ({ default: (await import('@/components/CustomerActivationInvitationDialog')).CustomerActivationInvitationDialog }));
@@ -1047,6 +1048,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const [catalogReviewError, setCatalogReviewError] = useState('');
   const [catalogReviewBusy, setCatalogReviewBusy] = useState(false);
   const [catalogExportBusy, setCatalogExportBusy] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState<ProductWithInventory | null>(null);
   const [showReviewModeration, setShowReviewModeration] = useState(false);
   const [showQuestionModeration, setShowQuestionModeration] = useState(false);
   const [page, setPage] = useState(1);
@@ -1574,6 +1576,8 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions">
               {canManageProductLifecycle && <button aria-label={'تعديل ' + p.name} title="تعديل المنتج والأسعار" onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>}
+              {canManageProductLifecycle && <button aria-label={'سجل تغييرات ' + p.name} title="سجل تغييرات المنتج" onClick={() => setHistoryProduct(p)}><ScrollText size={15} /></button>}
+              {p.status === 'active' && <a aria-label={'معاينة المنتج ' + p.name} title="معاينة صفحة المنتج كما يراها زائر المتجر" href={'/product/' + encodeURIComponent(p.id)} target="_blank" rel="noopener noreferrer"><Store size={15} /></a>}
               {canManageProductLifecycle && p.status === 'active' && <button aria-label={'أرشفة ' + p.name} title="أرشفة المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void archive(p)}><Trash2 size={15} /></button>}
               {canManageProductLifecycle && p.status === 'inactive' && <button aria-label={'إعادة تفعيل ' + p.name} title="إعادة تفعيل المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void restore(p)}><Check size={15} /></button>}
             </div></td>
@@ -1612,6 +1616,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
         <div className="modal-actions"><Button variant="outline" type="button" disabled={bulkSaving} onClick={() => setBulkDialog(false)}>إلغاء</Button><Button type="submit" disabled={bulkSaving || selectedRows.length === 0 || (bulkStatus === 'unchanged' && bulkCategory === 'unchanged' && !bulkApplyUnit && !bulkApplyDescription && bulkFeatured === 'unchanged')}>{bulkSaving ? 'جارٍ حفظ المنتجات…' : 'تطبيق التعديلات على المحدد'}</Button></div>
       </form>
     </Modal>}
+    {historyProduct && <Modal title={'سجل تغييرات المنتج: ' + historyProduct.name} onClose={() => setHistoryProduct(null)}><Suspense fallback={<Loading />}><AdminCatalogChangeHistory entityType="product" entityId={historyProduct.id} /></Suspense></Modal>}
     {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); void refreshProducts(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
