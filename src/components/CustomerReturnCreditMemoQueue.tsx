@@ -513,7 +513,7 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
                     {memo.reversal_journal_status === "draft" ? (
                       <>
                         <p style={{ ...muted, color: "#805413", fontWeight: 800 }}>مسودة قيد العكس بانتظار مُرحِّل مستقل. لم تتغير الذمم أو النقدية أو المخزون بعد.</p>
-                        <p style={muted}>منشئ المسودة: {memo.reversal_created_at ?? "وقت غير متاح"} · مرجع الترحيل يجب أن يختلف عن منشئ المسودة.</p>
+                        <p style={muted}>تاريخ إعداد المسودة: {memo.reversal_created_at ?? "وقت غير متاح"} · مرجع الترحيل يجب أن يختلف عن منشئ المسودة.</p>
                         <button type="button" style={primary} disabled={busyId !== null || loading} onClick={() => void postReversal(memo)}>ترحيل قيد العكس</button>
                       </>
                     ) : memo.reversal_journal_status === "posted" ? (
