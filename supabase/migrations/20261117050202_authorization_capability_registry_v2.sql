@@ -84,33 +84,13 @@ VALUES
 ('finance.journal.create_draft','finance','journal_entry','create_draft','financial','organization','none',false,'{"creates_status":"draft"}',NULL),
 ('finance.journal.post','finance','journal_entry','post','financial','organization','maker_checker',true,'{"required_status":"draft"}',NULL),
 ('finance.journal.reverse','finance','journal_entry','reverse','financial','organization','maker_checker',true,'{"requires_posted_source_and_reason":true}',NULL)
-ON CONFLICT(capability_key) DO UPDATE SET
- domain=EXCLUDED.domain,resource=EXCLUDED.resource,action=EXCLUDED.action,sensitivity=EXCLUDED.sensitivity,
- scope_kind=EXCLUDED.scope_kind,approval_mode=EXCLUDED.approval_mode,
- separation_of_duties=EXCLUDED.separation_of_duties,state_requirements=EXCLUDED.state_requirements,
- legacy_operation_id=EXCLUDED.legacy_operation_id,is_active=true,updated_at=statement_timestamp();
+-- Preserve warehouse/resource scope, deliberate disablement and metadata on upgrades.
+ON CONFLICT(capability_key) DO NOTHING;
 
-INSERT INTO public.authorization_role_capabilities(role,capability_key,grant_source) VALUES
-('admin','pricing.edit_draft','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','pricing.edit_draft','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','pricing.propose','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','pricing.propose','legacy-role-parity:ADMIN_OPERATION_RULES'),('staff','pricing.propose','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','pricing.approve','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','pricing.approve','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','catalog.product.lifecycle','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','catalog.product.lifecycle','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','inventory.reorder_point.write','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','inventory.reorder_point.write','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),('staff','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),('staff','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','inventory.count.finalize','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','inventory.count.finalize','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','customers.lifecycle.write','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','customers.lifecycle.write','legacy-role-parity:ADMIN_OPERATION_RULES'),('customer_manager','customers.lifecycle.write','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','customers.account.activate','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','customers.account.activate','legacy-role-parity:ADMIN_OPERATION_RULES'),('staff','customers.account.activate','legacy-role-parity:ADMIN_OPERATION_RULES'),('customer_manager','customers.account.activate','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','customers.read_financial','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','customers.read_financial','legacy-role-parity:ADMIN_OPERATION_RULES'),('accountant','customers.read_financial','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','imports.batch.stage','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','imports.batch.stage','legacy-role-parity:ADMIN_OPERATION_RULES'),('staff','imports.batch.stage','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','imports.batch.publish','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','imports.batch.publish','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','purchasing.orders.manage','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','purchasing.orders.manage','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','operations.task.status.write','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','operations.task.status.write','legacy-role-parity:ADMIN_OPERATION_RULES'),('staff','operations.task.status.write','legacy-role-parity:ADMIN_OPERATION_RULES'),('accountant','operations.task.status.write','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','finance.workspace.manage','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','finance.workspace.manage','legacy-role-parity:ADMIN_OPERATION_RULES'),('accountant','finance.workspace.manage','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','identity.roles.assign','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','audit.intelligence.read','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','audit.intelligence.read','legacy-role-parity:ADMIN_OPERATION_RULES'),
-('admin','catalog.internal_prices.read','server-boundary:staff-product-financial-projection'),('manager','catalog.internal_prices.read','server-boundary:staff-product-financial-projection')
-ON CONFLICT(role,capability_key) DO NOTHING;
+-- Role grants are seeded exactly once by the prerequisite migration when the
+-- registry table is first created. Replaying this canonical function migration
+-- must never restore a deliberately revoked role capability.
+
 
 CREATE OR REPLACE FUNCTION public.current_authorization_decision(p_capability_key text)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
