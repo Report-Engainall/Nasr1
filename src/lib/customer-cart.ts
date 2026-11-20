@@ -1,7 +1,5 @@
 import { supabase } from '@/lib/supabase';
 
-export const CUSTOMER_CART_SYNCED_EVENT = "aghbari:customer-cart-synced";
-
 export type CustomerCartLine = { product_id: string; quantity: number };
 export type CustomerCartSnapshot = { items: CustomerCartLine[]; updated_at: string | null };
 
