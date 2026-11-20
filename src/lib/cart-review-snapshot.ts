@@ -148,6 +148,58 @@ export function compareCartPricingSnapshots(
   return changes;
 }
 
+export type CartAvailabilityQuantityRule = {
+  product_id: string;
+  min_order_quantity?: number | null;
+  order_quantity_multiple?: number | null;
+};
+export type CartAvailabilityAdjustment = {
+  product_id: string;
+  previous_quantity: number;
+  next_quantity: number | null;
+  action: "keep" | "reduce" | "remove" | "blocked";
+};
+
+export function planCartAvailabilityAdjustments(
+  cartLines: readonly CartReviewLine[],
+  changes: readonly CartAvailabilityChange[],
+  rules: readonly CartAvailabilityQuantityRule[],
+): CartAvailabilityAdjustment[] {
+  const changesById = new Map(changes.map((change) => [change.product_id.toLowerCase(), change]));
+  const rulesById = new Map(rules.map((rule) => [rule.product_id.toLowerCase(), rule]));
+
+  return cartLines.map((line) => {
+    const change = changesById.get(line.product_id.toLowerCase());
+    if (!change) {
+      return { product_id: line.product_id, previous_quantity: line.quantity, next_quantity: line.quantity, action: "keep" };
+    }
+    if (change.current_status !== "active") {
+      return { product_id: line.product_id, previous_quantity: line.quantity, next_quantity: null, action: "remove" };
+    }
+    if (change.current_available === null) {
+      return { product_id: line.product_id, previous_quantity: line.quantity, next_quantity: null, action: "blocked" };
+    }
+    if (line.quantity <= change.current_available) {
+      return { product_id: line.product_id, previous_quantity: line.quantity, next_quantity: line.quantity, action: "keep" };
+    }
+
+    const rule = rulesById.get(line.product_id.toLowerCase());
+    const minimum = Number.isSafeInteger(rule?.min_order_quantity) && Number(rule?.min_order_quantity) >= 1
+      ? Number(rule?.min_order_quantity)
+      : 1;
+    const multiple = Number.isSafeInteger(rule?.order_quantity_multiple) && Number(rule?.order_quantity_multiple) >= 1
+      ? Number(rule?.order_quantity_multiple)
+      : 1;
+    const nextQuantity = change.current_available >= minimum
+      ? minimum + Math.floor((change.current_available - minimum) / multiple) * multiple
+      : 0;
+
+    return nextQuantity >= minimum
+      ? { product_id: line.product_id, previous_quantity: line.quantity, next_quantity: nextQuantity, action: "reduce" }
+      : { product_id: line.product_id, previous_quantity: line.quantity, next_quantity: null, action: "remove" };
+  });
+}
+
 export function buildCartAvailabilitySnapshot(
   productIds: readonly string[],
   products: readonly CartAvailabilityProduct[],
