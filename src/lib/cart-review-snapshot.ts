@@ -30,8 +30,9 @@ export type CartPriceChange = {
   previous_quantity: number;
   previous_unit_price: number;
   current_unit_price: number;
-  currency: string;
-  kind: "increase" | "decrease" | "terms";
+  previous_currency: string;
+  current_currency: string;
+  kind: "increase" | "decrease" | "terms" | "currency";
 };
 
 type StoredSnapshot<T> = { signature: string; capturedAt: number; value: T };
@@ -117,19 +118,20 @@ export function compareCartPricingSnapshots(
   previous: CustomerOrderPricingPresentation | null,
   current: CustomerOrderPricingPresentation | null,
 ): CartPriceChange[] {
-  if (!previous?.visible || !current?.visible || previous.currency !== current.currency) return [];
+  if (!previous?.visible || !current?.visible) return [];
   const oldById = new Map(previous.items.map((line) => [line.product_id.toLowerCase(), line]));
   const changes: CartPriceChange[] = [];
   for (const line of current.items) {
     const oldLine = oldById.get(line.product_id.toLowerCase());
     if (!oldLine) continue;
+    const currencyChanged = previous.currency !== current.currency;
     const netPriceChanged = oldLine.unit_price !== line.unit_price;
     const termsChanged =
       oldLine.original_unit_price !== line.original_unit_price ||
       oldLine.discount_per_unit !== line.discount_per_unit ||
-      oldLine.discount_amount !== line.discount_amount ||
+      (oldLine.quantity === line.quantity && oldLine.discount_amount !== line.discount_amount) ||
       oldLine.promotion_title !== line.promotion_title;
-    if (!netPriceChanged && !termsChanged) continue;
+    if (!currencyChanged && !netPriceChanged && !termsChanged) continue;
     changes.push({
       product_id: line.product_id,
       name: line.name,
@@ -137,12 +139,15 @@ export function compareCartPricingSnapshots(
       previous_quantity: oldLine.quantity,
       previous_unit_price: oldLine.unit_price,
       current_unit_price: line.unit_price,
-      currency: current.currency ?? previous.currency ?? "YER",
-      kind: line.unit_price > oldLine.unit_price
-        ? "increase"
-        : line.unit_price < oldLine.unit_price
-          ? "decrease"
-          : "terms",
+      previous_currency: previous.currency ?? "YER",
+      current_currency: current.currency ?? previous.currency ?? "YER",
+      kind: currencyChanged
+        ? "currency"
+        : line.unit_price > oldLine.unit_price
+          ? "increase"
+          : line.unit_price < oldLine.unit_price
+            ? "decrease"
+            : "terms",
     });
   }
   return changes;
