@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.skip(!process.env.E2E_PRICE_FIXTURE_BASE_URL, "This localStorage reload acceptance runs in the dedicated Vite public UI harness.");
+
 type BankLineRequest = {
   statementId: string;
   lineNumber: number;
