@@ -16,8 +16,10 @@ DECLARE
   v_preserved_block text :=
     '  -- Preserve expectedMetric evidence resolved above; append fact evidence below.' || pg_catalog.chr(10)
     || '  FOR v_item IN SELECT f.value FROM pg_catalog.jsonb_array_elements(p_snapshot->''facts'') f(value)';
-  v_expected_append text :=
+  v_old_expected_append text :=
     'v_evidence_records := v_evidence_records || v_expected_resolved->''records'';';
+  v_expected_append text :=
+    'v_evidence_records := v_evidence_records || (v_expected_resolved->''records'');';
   v_fact_append text :=
     'v_evidence_records := v_evidence_records || (v_resolved->''records'');';
   v_owner text;
@@ -37,8 +39,18 @@ BEGIN
     v_after := pg_catalog.replace(v_after,v_reset_block,v_preserved_block);
   END IF;
 
+  -- Parenthesize JSONB extraction: -> and || are equal-precedence,
+  -- left-associative PostgreSQL operators.
+  IF pg_catalog.strpos(v_after,v_expected_append)=0 THEN
+    IF pg_catalog.strpos(v_after,v_old_expected_append)=0 THEN
+      RAISE EXCEPTION 'expected metric evidence append expression was not found';
+    END IF;
+    v_after := pg_catalog.replace(v_after,v_old_expected_append,v_expected_append);
+  END IF;
+
   IF pg_catalog.strpos(v_after,v_reset_block)>0
      OR pg_catalog.strpos(v_after,v_preserved_block)=0
+     OR pg_catalog.strpos(v_after,v_old_expected_append)>0
      OR pg_catalog.strpos(v_after,v_expected_append)=0
      OR pg_catalog.strpos(v_after,v_fact_append)=0 THEN
     RAISE EXCEPTION 'expected and fact evidence are not both preserved by the decision-memory save command';
