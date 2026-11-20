@@ -23,7 +23,7 @@ function diagnoseUndefinedSqlParameters(client, label) {
           if (Array.isArray(parameters)) {
             const index = parameters.findIndex((parameter) => parameter === undefined);
             if (index >= 0) {
-              const sqlShape = String(query).replace(/\\s+/g, " ").trim().slice(0, 220);
+              const sqlShape = String(query).replace(/\s+/g, " ").trim().slice(0, 220);
               throw new Error(
                 "UNDEFINED_SQL_PARAMETER: client=" + label +
                 ", parameter=$" + (index + 1) +
@@ -330,7 +330,7 @@ async function main() {
     await expectCode("a commitment cannot be rejected before source evidence is registered",
       ()=>reject(adminDb,rejected.id,rejectionReason,randomUUID()),"22023");
     const rejectedEvidence=await uploadEvidence(managerToken,rejected.id);
-    await registerEvidence(managerDb,rejected.id,rejectedEvidence);
+    const rejectedRegisteredEvidence=await registerEvidence(managerDb,rejected.id,rejectedEvidence);
     await expectCode("commitment creator cannot reject their own request",
       ()=>reject(managerDb,rejected.id,rejectionReason,randomUUID()),"42501");
     await expectCode("accountant cannot reject an expense commitment",
@@ -338,7 +338,7 @@ async function main() {
     const rejectionKey=randomUUID();
     await expectCode("direct rejection RPC rejects an unreviewed source document",
       ()=>reject(adminDb,rejected.id,rejectionReason,rejectionKey),"22023");
-    const rejectionReview=await reviewEvidence(adminDb,rejected.id,rejectedEvidence.id,rejectedEvidence.sha,randomUUID());
+    const rejectionReview=await reviewEvidence(adminDb,rejected.id,rejectedRegisteredEvidence.id,rejectedEvidence.sha,randomUUID());
     assert.equal(rejectionReview.reviewed_by_profile_id,admin.id);
     const rejectedResult=await reject(adminDb,rejected.id,rejectionReason,rejectionKey);
     assert.equal(rejectedResult.status,"rejected");
