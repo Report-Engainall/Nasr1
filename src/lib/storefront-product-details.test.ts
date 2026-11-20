@@ -68,6 +68,30 @@ describe("storefront product facts contract", () => {
     expect(facts).not.toHaveProperty("tier_prices");
   });
 
+  it("withholds signed, credential-bearing and non-HTTPS recommendation images", () => {
+    const facts = parseStorefrontProductFactsRow(publicRow({
+      alternatives: [{
+        id: alternativeId,
+        name: "منتج بديل",
+        item_code: "ALT-01",
+        unit: "قطعة",
+        image_url: "https://cdn.example.test/alternative.webp?token=private-token",
+        brand_name: null,
+      }],
+      complements: [{
+        id: complementId,
+        name: "منتج مكمل",
+        item_code: "COMP-01",
+        unit: "قطعة",
+        image_url: "https://cdn.example.test/complement.webp?X-Amz-Signature=private-signature",
+        brand_name: null,
+      }],
+    }), productId);
+
+    expect(facts.alternatives[0]?.image_url).toBeNull();
+    expect(facts.complements[0]?.image_url).toBeNull();
+  });
+
   it("does not infer brands, origins or recommendations from missing values", () => {
     const facts = parseStorefrontProductFactsRow(publicRow({
       brand_id: null,
