@@ -109,7 +109,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await expect(row).toBeVisible();
 
       await test.step("manager downloads and verifies the real current-queue XLSX", async () => {
-        const exportButton = reviewSection.getByRole("button", { name: "تصدير قائمة المراجعة الحالية", exact: true });
+        const exportButton = reviewSection.getByRole("button", { name: "تصدير كل النتائج المطابقة", exact: true });
         await expect(exportButton).toBeEnabled();
         const downloadPromise = staff.waitForEvent("download");
         await exportButton.click();
