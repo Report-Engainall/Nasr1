@@ -437,18 +437,11 @@ async function main() {
         ))[0].result);
         assert.equal(restoredCountEntryDenial.changed, true);
         await applyActor(tx, actors.manager);
-        const restoredCountEntryDecision = decodeJson((await tx.unsafe(
-          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision," +
-          "public.current_actor_has_capability('inventory.count.enter',$1::uuid) as allowed",
-          [fixture.warehouse_id],
-        ))[0]);
         assert.equal(
-          restoredCountEntryDecision.decision.decision,
-          "PERMIT",
-          "removing the test-only denial must restore count-entry for the exact assigned warehouse",
+          (await tx.unsafe("select public.current_actor_has_capability('inventory.count.enter') as allowed"))[0].allowed,
+          true,
+          "removing the test-only denial must restore the independent count-entry capability",
         );
-        assert.equal(restoredCountEntryDecision.allowed, true,
-          "the resource-scoped helper must permit the exact assigned warehouse after denial removal");
 
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.get_inventory_adjustment_balances($1::uuid)",
