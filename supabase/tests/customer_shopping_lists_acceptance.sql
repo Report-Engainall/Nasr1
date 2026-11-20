@@ -237,6 +237,7 @@ DECLARE
   v_list_id uuid;
   v_monthly_id uuid;
   v_other_list_id uuid;
+  v_wrap_list_id uuid;
   v_run_id uuid;
   v_manual_run uuid;
   v_data jsonb;
@@ -255,7 +256,11 @@ BEGIN
      OR has_function_privilege('authenticated','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
      OR has_function_privilege('anon','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
      OR has_function_privilege('service_role','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
-     OR NOT has_function_privilege('postgres','public.run_due_customer_shopping_list_scheduler()','EXECUTE') THEN
+     OR NOT has_function_privilege('postgres','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
+     OR has_table_privilege('authenticated','public.customer_shopping_list_scheduler_state','SELECT')
+     OR has_table_privilege('anon','public.customer_shopping_list_scheduler_state','SELECT')
+     OR has_table_privilege('service_role','public.customer_shopping_list_scheduler_state','SELECT')
+     OR NOT has_table_privilege('postgres','public.customer_shopping_list_scheduler_state','UPDATE') THEN
     RAISE EXCEPTION 'shopping-list direct table boundary or RPC grant is incorrect';
   END IF;
 
@@ -348,6 +353,29 @@ BEGIN
     FROM pg_catalog.jsonb_array_elements(v_data) AS entry(value)
    WHERE entry.value->>'id'=v_list_id::text;
   IF v_run_id IS NULL THEN RAISE EXCEPTION 'recurring review snapshot not visible to list owner'; END IF;
+
+  -- The persistent cursor must wrap to an earlier tenant after the previous batch
+  -- ended at the last tenant; new due work cannot be starved by stable tenant ordering.
+  v_wrap_list_id:=public.save_customer_shopping_list(
+    NULL,'قائمة بعد المؤشر','warehouse',false,'weekly',v_today,
+    '[{"product_id":"a2000000-0000-4000-8000-000000000001","quantity":2,"unit_name":"كيس","base_units_per_unit":1}]'::jsonb
+  );
+  v_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_result->>'created_runs')::integer<>1
+     OR (v_result->>'processed_customers')::integer<>1
+     OR NOT EXISTS (
+       SELECT 1 FROM public.customer_shopping_list_runs
+        WHERE list_id=v_wrap_list_id AND due_on=v_today
+          AND created_by_profile_id='a4000000-0000-4000-8000-000000000001'
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.customer_shopping_list_scheduler_state
+        WHERE singleton_id=true
+          AND last_organization_id='a0000000-0000-4000-8000-000000000001'
+          AND last_customer_id='a5000000-0000-4000-8000-000000000001'
+     ) THEN
+    RAISE EXCEPTION 'scheduler cursor did not wrap fairly to the earlier due tenant: %',v_result;
+  END IF;
 
   -- A buyer member can read and apply a shared editable list, while the owner remains the company owner.
   PERFORM pg_catalog.set_config('app.profile_id','a4000000-0000-4000-8000-000000000002',false);
