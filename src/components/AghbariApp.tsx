@@ -1032,6 +1032,16 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const canUploadProductImages = Boolean(user?.roles.some((role) => ['admin', 'manager', 'staff'].includes(role)));
   const canManageReorderPoint = canManageProductLifecycle;
   const [lifecycleBusyId, setLifecycleBusyId] = useState<string | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(() => new Set());
+  const [bulkDialog, setBulkDialog] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<'unchanged' | 'active' | 'inactive'>('unchanged');
+  const [bulkCategory, setBulkCategory] = useState('unchanged');
+  const [bulkApplyUnit, setBulkApplyUnit] = useState(false);
+  const [bulkUnit, setBulkUnit] = useState('');
+  const [bulkApplyDescription, setBulkApplyDescription] = useState(false);
+  const [bulkDescription, setBulkDescription] = useState('');
+  const [bulkFeatured, setBulkFeatured] = useState<'unchanged' | 'yes' | 'no'>('unchanged');
   const [showReviewModeration, setShowReviewModeration] = useState(false);
   const [showQuestionModeration, setShowQuestionModeration] = useState(false);
   const [page, setPage] = useState(1);
@@ -1069,6 +1079,9 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     }, 180);
     return () => window.clearTimeout(timer);
   }, [query]);
+  useEffect(() => {
+    setSelectedProductIds(new Set());
+  }, [page, debouncedQuery, statusFilter, categoryFilter]);
   async function refreshProducts() {
     await refetch();
     setCatalogRevision((revision) => revision + 1);
@@ -1093,6 +1106,9 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const [thresholdError, setThresholdError] = useState('');
   const thresholdRequestSequence = useRef(0);
   const rows = data?.items ?? [];
+  const selectedRows = rows.filter((product) => selectedProductIds.has(product.id));
+  const allVisibleProductsSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const someVisibleProductsSelected = selectedRows.length > 0 && !allVisibleProductsSelected;
   async function archive(product: ProductWithInventory) {
     if (!canManageProductLifecycle || lifecycleBusyId) return;
     if (!window.confirm('أرشفة ' + product.name + '؟ لن يظهر المنتج في المتجر، ويمكن إعادة تفعيله لاحقًا.')) return;
@@ -1115,7 +1131,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     if (!window.confirm('إعادة تفعيل ' + product.name + '؟ سيعود المنتج إلى الكتالوج وفق قواعد المتجر.')) return;
     setLifecycleBusyId(product.id);
     try {
-      const saved = await updateProduct(product.id, { status: 'active' });
+      const saved = await updateProduct(product.id, { status: 'active', is_active: true });
       if (saved.id !== product.id) {
         throw new Error('لم يؤكد الخادم إعادة تفعيل المنتج؛ حدّث القائمة قبل إعادة المحاولة.');
       }
@@ -1125,6 +1141,74 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       onNotice(cause instanceof Error ? cause.message : 'تعذر إعادة تفعيل المنتج.');
     } finally {
       setLifecycleBusyId(null);
+    }
+  }
+
+  function toggleProductSelection(productId: string, checked: boolean) {
+    setSelectedProductIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(productId);
+      else next.delete(productId);
+      return next;
+    });
+  }
+
+  function resetBulkEditor() {
+    setBulkStatus('unchanged');
+    setBulkCategory('unchanged');
+    setBulkApplyUnit(false);
+    setBulkUnit('');
+    setBulkApplyDescription(false);
+    setBulkDescription('');
+    setBulkFeatured('unchanged');
+  }
+
+  async function applyBulkProductChanges(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canManageProductLifecycle || bulkSaving || selectedRows.length === 0) return;
+    const patch: Partial<ProductWithInventory> = {};
+    if (bulkStatus !== 'unchanged') {
+      patch.status = bulkStatus;
+      patch.is_active = bulkStatus === 'active';
+    }
+    if (bulkCategory !== 'unchanged') patch.category_id = bulkCategory === '__none__' ? null : bulkCategory;
+    if (bulkApplyUnit) {
+      const unit = bulkUnit.trim();
+      if (!unit || unit.length > 40) { onNotice('الوحدة مطلوبة ولا تتجاوز 40 حرفًا.'); return; }
+      patch.unit = unit;
+    }
+    if (bulkApplyDescription) {
+      const description = bulkDescription.trim();
+      if (description.length > 2000) { onNotice('وصف المنتج لا يتجاوز 2000 حرف.'); return; }
+      patch.description = description || null;
+    }
+    if (bulkFeatured !== 'unchanged') patch.is_featured = bulkFeatured === 'yes';
+    if (Object.keys(patch).length === 0) { onNotice('حدد تغييرًا واحدًا على الأقل قبل التطبيق.'); return; }
+    const targets = [...selectedRows];
+    if (!window.confirm(`سيُحفظ التعديل لكل منتج على حدة عبر أمر الكتالوج الخادمي وسجل التدقيق. عدد المنتجات: ${targets.length}. قد يتوقف التنفيذ عند أول خطأ مع الاحتفاظ بالمنتجات التي اكتمل حفظها. متابعة؟`)) return;
+    setBulkSaving(true);
+    let completed = 0;
+    let failedProduct = '';
+    try {
+      for (const product of targets) {
+        failedProduct = product.name;
+        const saved = await updateProduct(product.id, patch);
+        if (saved.id !== product.id) throw new Error('لم يؤكد الخادم حفظ المنتج المحدد.');
+        completed += 1;
+      }
+      setSelectedProductIds(new Set());
+      setBulkDialog(false);
+      resetBulkEditor();
+      onNotice(`اكتمل التعديل الجماعي: تم حفظ ${completed} من ${targets.length} منتجات عبر أوامر الخادم.`);
+    } catch (cause) {
+      const failureMessage = cause instanceof Error ? cause.message : 'تعذر تأكيد الحفظ.';
+      setSelectedProductIds(new Set());
+      setBulkDialog(false);
+      resetBulkEditor();
+      onNotice(`توقف التعديل الجماعي عند «${failedProduct}». اكتمل حفظ ${completed} من ${targets.length} منتجات؛ لم يُعلن نجاح الباقي. السبب: ${failureMessage}`);
+    } finally {
+      await refreshProducts().catch(() => undefined);
+      setBulkSaving(false);
     }
   }
   function openTransfer(product: ProductWithInventory) {
@@ -1354,9 +1438,20 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
         </button>
       )}
     </div>
+    {canManageProductLifecycle && rows.length > 0 && <section className="panel" aria-label="تحديد المنتجات وإدارتها جماعيًا" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <input type="checkbox" aria-label="تحديد كل منتجات الصفحة الحالية" checked={allVisibleProductsSelected} ref={(element) => { if (element) element.indeterminate = someVisibleProductsSelected; }} disabled={loading || bulkSaving} onChange={(event) => { const checked = event.target.checked; setSelectedProductIds((current) => { const next = new Set(current); if (checked) rows.forEach((product) => next.add(product.id)); else rows.forEach((product) => next.delete(product.id)); return next; }); }} />
+        <span>تحديد منتجات الصفحة الحالية ({formatNumber(rows.length)})</span>
+      </label>
+      <div className="toolbar-actions">
+        <span className="toolbar-note">المحدد: {formatNumber(selectedRows.length)}</span>
+        <Button variant="outline" disabled={selectedRows.length === 0 || bulkSaving} onClick={() => { resetBulkEditor(); setBulkDialog(true); }}>تعديل جماعي / تغيير النشر</Button>
+        <Button variant="outline" disabled={selectedRows.length === 0 || bulkSaving} onClick={() => setSelectedProductIds(new Set())}>إلغاء التحديد</Button>
+      </div>
+    </section>}
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
-        <thead><tr><th>المنتج</th><th>الصور</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
+        <thead><tr>{canManageProductLifecycle && <th><span className="sr-only">تحديد</span></th>}<th>المنتج</th><th>الصور</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
           const qty = p.inventory?.quantity_available;
           const reorderPoint = p.inventory?.reorder_point ?? p.min_stock_level;
@@ -1365,6 +1460,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
           const imageStatus = getProductImageDisplayStatus(p.image_url, p.image_gallery_urls);
           const primaryImageUrl = imageStatus.hasPrimary && typeof p.image_url === 'string' ? p.image_url.trim() : null;
           return <tr key={p.id}>
+            {canManageProductLifecycle && <td><input type="checkbox" aria-label={'تحديد المنتج ' + p.name} checked={selectedProductIds.has(p.id)} disabled={bulkSaving || lifecycleBusyId === p.id} onChange={(event) => toggleProductSelection(p.id, event.target.checked)} /></td>}
             <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td>
             <td>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 132 }}>
@@ -1405,6 +1501,30 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
         </div>
       </div>
     </section>
+    {bulkDialog && <Modal title={`تعديل جماعي — ${formatNumber(selectedRows.length)} منتج`} onClose={() => { if (!bulkSaving) setBulkDialog(false); }}>
+      <form onSubmit={applyBulkProductChanges} style={{ display: 'grid', gap: 12 }}>
+        <p className="form-note">تُطبّق الحقول المحددة فقط. كل منتج يُحفظ بأمر خادمي مستقل مع التحقق من الأسعار الحالية وسجل التدقيق؛ هذه دفعة متتابعة وليست معاملة واحدة شاملة.</p>
+        <Field label="حالة النشر">
+          <select value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as 'unchanged' | 'active' | 'inactive')} disabled={bulkSaving}>
+            <option value="unchanged">الإبقاء على الحالة الحالية</option><option value="active">نشر / تفعيل المنتجات المحددة</option><option value="inactive">إيقاف النشر / أرشفة المحدد</option>
+          </select>
+        </Field>
+        <Field label="التصنيف">
+          <select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value)} disabled={bulkSaving || categoriesLoading || Boolean(categoriesError)}>
+            <option value="unchanged">الإبقاء على تصنيف كل منتج</option><option value="__none__">إزالة التصنيف</option>
+            {(categories ?? []).filter((category) => category.is_active !== false).map((category) => <option key={category.id} value={category.id}>{category.parent_id ? '— ' : ''}{category.name}</option>)}
+          </select>
+        </Field>
+        <label style={{ display: 'grid', gap: 6 }}><span><input type="checkbox" checked={bulkApplyUnit} disabled={bulkSaving} onChange={(event) => setBulkApplyUnit(event.target.checked)} /> تطبيق وحدة موحدة</span><input value={bulkUnit} onChange={(event) => setBulkUnit(event.target.value)} maxLength={40} placeholder="مثال: كرتون" disabled={!bulkApplyUnit || bulkSaving} /></label>
+        <label style={{ display: 'grid', gap: 6 }}><span><input type="checkbox" checked={bulkApplyDescription} disabled={bulkSaving} onChange={(event) => setBulkApplyDescription(event.target.checked)} /> تطبيق وصف موحد (اتركه فارغًا لمسح الوصف)</span><textarea value={bulkDescription} onChange={(event) => setBulkDescription(event.target.value)} maxLength={2000} rows={3} disabled={!bulkApplyDescription || bulkSaving} /></label>
+        <Field label="تمييز المنتج في المتجر">
+          <select value={bulkFeatured} onChange={(event) => setBulkFeatured(event.target.value as 'unchanged' | 'yes' | 'no')} disabled={bulkSaving}>
+            <option value="unchanged">الإبقاء على قيمة كل منتج</option><option value="yes">تمييز المنتجات المحددة</option><option value="no">إزالة التمييز</option>
+          </select>
+        </Field>
+        <div className="modal-actions"><Button variant="outline" type="button" disabled={bulkSaving} onClick={() => setBulkDialog(false)}>إلغاء</Button><Button type="submit" disabled={bulkSaving || selectedRows.length === 0 || (bulkStatus === 'unchanged' && bulkCategory === 'unchanged' && !bulkApplyUnit && !bulkApplyDescription && bulkFeatured === 'unchanged')}>{bulkSaving ? 'جارٍ حفظ المنتجات…' : 'تطبيق التعديلات على المحدد'}</Button></div>
+      </form>
+    </Modal>}
     {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); void refreshProducts(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
