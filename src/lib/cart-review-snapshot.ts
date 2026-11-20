@@ -93,15 +93,22 @@ export function rememberCartPricingSnapshot(
   if (!owner) return;
   const signature = stableIdSignature(lines.map((line) => line.product_id));
   const key = owner + ":price:" + signature;
-  if (!presentation?.visible) {
-    priceSnapshots.delete(key);
-    return;
-  }
+  if (!presentation?.visible) return;
   const requested = new Map(lines.map((line) => [line.product_id.toLowerCase(), line.quantity]));
   if (presentation.items.length !== requested.size || presentation.items.some(
     (line) => requested.get(line.product_id.toLowerCase()) !== line.quantity,
   )) return;
   remember(priceSnapshots, key, signature, presentation);
+}
+
+export function clearCartPricingSnapshot(
+  identity: CartReviewIdentity,
+  lines: readonly CartReviewLine[],
+): void {
+  const owner = identityKey(identity);
+  if (!owner) return;
+  const signature = stableIdSignature(lines.map((line) => line.product_id));
+  priceSnapshots.delete(owner + ":price:" + signature);
 }
 
 export function getCartPricingSnapshot(
