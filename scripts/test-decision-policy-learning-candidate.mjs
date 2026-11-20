@@ -161,7 +161,7 @@ async function main() {
 
       const invoiceRows = await tx.unsafe(
         "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount,due_at) " +
-        "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',transaction_timestamp()-interval '1 second','YER',$5,0,$5,$6::date) returning id",
+        "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',transaction_timestamp()-interval '1 minute','YER',$5,0,$5,$6::date) returning id",
         [manager.organization_id, customerId, orderId, invoiceNumber, amount, periodFrom],
       );
       assert.equal(invoiceRows.length, 1, "the rollback-only invoice source must be created");
@@ -482,6 +482,14 @@ async function main() {
       // produce a candidate; the expected and actual snapshots are not comparable.
       await setActor(tx, managerClaims);
       const mismatchAsOf = new Date(Date.parse(asOf) - 30_000).toISOString();
+      const mismatchSourceRows = await tx.unsafe(
+        "select issued_at <= $2::timestamptz as predates_mismatched_as_of " +
+        "from public.customer_invoices where id=$1::uuid and organization_id=$3::uuid",
+        [invoiceId, mismatchAsOf, manager.organization_id],
+      );
+      assert.equal(mismatchSourceRows.length, 1);
+      assert.equal(mismatchSourceRows[0].predates_mismatched_as_of, true,
+        "the source invoice must predate both the original and deliberately mismatched decision-memory timestamps");
       const mismatchedMemory = {
         ...memorySnapshot,
         asOf: mismatchAsOf,
