@@ -559,17 +559,36 @@ async function main() {
         assert.equal(unassignedCancelCapability.decision, "DENY",
           "the same manager must not cancel a count in an unassigned warehouse");
 
-        // A role grant is only an eligibility preflight. A valid session in an
-        // unassigned warehouse must still fail the full resource authorization.
-        await tx.unsafe("reset role");
-        const unassignedSessionKey = "rbac-cancel-unassigned-" + process.pid + "-" + Date.now();
-        const [unassignedSession] = await tx.unsafe(
-          "insert into public.stock_count_sessions(organization_id,warehouse_id,idempotency_key,started_by,notes) " +
-          "values ($1::uuid,$2::uuid,$3::text,$4::uuid,$5::text) returning id::text as id",
-          [organizationId, otherWarehouse.warehouse_id, unassignedSessionKey, actors.admin.profile_id,
-            "Authorization acceptance: manager has no assignment to this warehouse"],
+        // Create an authentic open session through the authorized staff RPC on
+        // warehouse B, then switch to the manager who has no B assignment.
+        // This keeps the session trigger enabled and exercises the real path.
+        await applyActor(tx, actors.admin);
+        const staffScopes = decodeJson((await tx.unsafe(
+          "select public.list_authorization_profile_scopes($1::uuid) as scopes",
+          [actors.staff.profile_id],
+        ))[0].scopes);
+        const staffOtherWarehouseScope = staffScopes.find((scope) =>
+          scope.scope_kind === "warehouse" &&
+          scope.scope_resource_id === otherWarehouse.warehouse_id
         );
-        assert.ok(unassignedSession?.id);
+        const staffOtherWarehouseAssignment = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.staff.profile_id, otherWarehouse.warehouse_id,
+            "Temporary isolated count creator scope for cross-warehouse cancellation denial",
+            staffOtherWarehouseScope ? Number(staffOtherWarehouseScope.revision) : 0],
+        ))[0].result);
+        assert.equal(staffOtherWarehouseAssignment.is_active, true);
+        await applyActor(tx, actors.staff);
+        const staffOtherWarehouseStart = decodeJson((await tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+          [otherWarehouse.warehouse_id,
+            "rbac-cancel-unassigned-" + process.pid + "-" + Date.now(),
+            "Authorization acceptance: staff-created open count in warehouse B"],
+        ))[0].result);
+        assert.equal(staffOtherWarehouseStart.status, "open");
+        assert.equal(staffOtherWarehouseStart.started_by, actors.staff.profile_id);
+        const unassignedSession = { id: staffOtherWarehouseStart.id };
+        assert.ok(unassignedSession.id);
         await applyActor(tx, actors.manager);
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text)",
@@ -591,6 +610,13 @@ async function main() {
           "unassigned cancellation must not produce an audit event");
         await tx.unsafe("reset role");
         await tx.unsafe("delete from public.stock_count_sessions where id=$1::uuid", [unassignedSession.id]);
+        await applyActor(tx, actors.admin);
+        await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer)",
+          [actors.staff.profile_id, otherWarehouse.warehouse_id,
+            "Revoke temporary isolated cancellation fixture scope",
+            Number(staffOtherWarehouseAssignment.revision)],
+        );
         await applyActor(tx, actors.manager);
 
         // An explicit profile denial overrides both the manager role grant
