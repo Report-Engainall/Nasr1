@@ -8,6 +8,7 @@ import {
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { projectOnyxSnapshotPreviewRow } from "@/lib/onyx-snapshot-preview";
+import { isOnyxSnapshotReadyForApplication } from "@/lib/onyx-snapshot-acceptance";
 import { buildOnyxWarehouseItemKey, validateOnyxStockBalanceRow } from "@/lib/onyx-stock-balance-import";
 import { buildOnyxProductUnitKey, validateOnyxProductUnitRow } from "@/lib/onyx-product-unit-import";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
@@ -851,7 +852,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       await refetch();
       onNotice(result.status === "completed" ? "اكتمل الاستيراد بجودة " + result.data_quality_score + "/100" : "انتهت الدفعة بالحالة: " + result.status);
       if ((selectedImportKind === "inventory" || selectedImportKind === "product_units") &&
-          (result.status !== "completed" || !result.snapshot_id)) {
+          !isOnyxSnapshotReadyForApplication(selectedImportKind, result.status, result.snapshot_id)) {
         setStatusMessage(selectedImportKind === "inventory"
           ? "لم تُنشأ لقطة StockBalances جاهزة للمصالحة؛ نتيجة الجودة " + result.data_quality_score +
             "/100 والحالة " + result.status + ". صحح الصفوف المرفوضة أو أكمل المراجعة ثم أعد المعالجة؛ لم تتغير أرصدة المخازن."
