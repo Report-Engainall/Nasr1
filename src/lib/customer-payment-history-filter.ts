@@ -46,8 +46,8 @@ export type ValidatedCustomerPaymentHistory = {
 const CUSTOMER_PAYMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_CUSTOMER_PAYMENT_INVOICES = 200;
 const MAX_CUSTOMER_PAYMENT_ROWS = 500;
-const PAYMENT_AMOUNT_DECIMAL = /^\\d{1,13}(?:\\.\\d{1,2})?$/;
-const PAYMENT_TIMESTAMP = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/;
+const PAYMENT_AMOUNT_DECIMAL = /^\d{1,13}(?:\.\d{1,2})?$/;
+const PAYMENT_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 function paymentPayloadRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
