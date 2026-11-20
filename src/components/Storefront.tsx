@@ -287,6 +287,54 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
   const cart = cartRestored ? cartState.items : [];
+  const { data: emptyCartRecommendationSnapshot, loading: emptyCartRecommendationsLoading, error: emptyCartRecommendationsError, refetch: refetchEmptyCartRecommendations } =
+    useFetch<{ identityKey: string; items: ProductWithInventory[] } | null>(async () => {
+      if (view !== 'cart' || !cartRestored || cart.length > 0 || !authReady) return null;
+
+      const expectedAuthUserId = user?.id ?? null;
+      const anonymousContext = !expectedAuthUserId && !user?.profileId;
+      if (!anonymousContext && !expectedAuthUserId) {
+        throw new Error('هوية الحساب غير مكتملة؛ لم يتم تحميل ترشيحات الكتالوج.');
+      }
+
+      const readSessionUserId = async () => {
+        const response = await supabase.auth.getSession();
+        if (!response || response.error) throw new Error('تعذر التحقق من جلسة الحساب.');
+        return response.data?.session?.user?.id ?? null;
+      };
+      const sessionBefore = await readSessionUserId();
+      if ((anonymousContext && sessionBefore !== null) || (!anonymousContext && sessionBefore !== expectedAuthUserId)) {
+        throw new Error('تغيرت جلسة الحساب؛ أُهملت ترشيحات المنتجات لمنع خلط بيانات المؤسسات.');
+      }
+
+      const page = await fetchStorefrontCatalogPage({
+        search: '',
+        categoryId: null,
+        page: 1,
+        pageSize: 4,
+        availableOnly: true,
+      });
+      const sessionAfter = await readSessionUserId();
+      if ((anonymousContext && sessionAfter !== null) ||
+          (!anonymousContext && sessionAfter !== expectedAuthUserId) ||
+          !authReady ||
+          (user?.id ?? null) !== expectedAuthUserId) {
+        throw new Error('تغيرت جلسة الحساب أثناء تحميل الترشيحات؛ أُهملت النتائج.');
+      }
+
+      return {
+        identityKey: storefrontIdentityKey,
+        items: page.items.filter((product) =>
+          product.is_active === true &&
+          product.status === 'active' &&
+          typeof product.inventory?.quantity_available === 'number' &&
+          product.inventory.quantity_available > 0,
+        ).slice(0, 4),
+      };
+    }, [view, cartRestored, cart.length, authReady, storefrontIdentityKey]);
+  const emptyCartRecommendations = emptyCartRecommendationSnapshot?.identityKey === storefrontIdentityKey
+    ? emptyCartRecommendationSnapshot.items
+    : [];
   const cartProductIdsKey = cart.map((item) => item.product.id).sort().join('|');
   const cartProductIds = useMemo(
     () => cartProductIdsKey ? cartProductIdsKey.split('|') : [],
@@ -1278,7 +1326,45 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                 )}
               </div>
             )}
-            {!cart.length ? <div className="sf-empty"><ShoppingCart size={30} /><span>سلتك فارغة</span><p>ابدأ بإضافة أصناف من الكتالوج، أو أعد استخدام قائمة مشتريات محفوظة.</p><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>تصفح المنتجات</button><Link className="sf-btn-secondary" to="/reorder">استعادة قائمة مشتريات محفوظة</Link></div></div> :
+            {!cart.length ? <>
+              <div className="sf-empty">
+                <ShoppingCart size={30} />
+                <span>سلتك فارغة</span>
+                <p>ابدأ بإضافة الأصناف المناسبة لاحتياجك، أو استعد قائمة مشتريات محفوظة من طلب سابق.</p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>تصفح الكتالوج الكامل</button>
+                  <Link className="sf-btn-secondary" to="/reorder">استعادة قائمة مشتريات محفوظة</Link>
+                </div>
+              </div>
+              <section className="sf-products" aria-label="منتجات متاحة للعودة إلى التسوق">
+                <div className="sf-products-head">
+                  <div><h2>منتجات متاحة لتبدأ من جديد</h2><span>أصناف نشطة ومتاحة حاليًا من كتالوج المتجر</span></div>
+                </div>
+                {emptyCartRecommendationsLoading ? (
+                  <div className="sf-empty" role="status">جار تحميل المنتجات المتاحة...</div>
+                ) : emptyCartRecommendationsError ? (
+                  <div className="sf-empty" role="alert">
+                    <strong>تعذر تحميل ترشيحات المنتجات</strong>
+                    <small>{emptyCartRecommendationsError}</small>
+                    <button type="button" className="sf-btn-secondary" onClick={() => void refetchEmptyCartRecommendations()}>إعادة المحاولة</button>
+                  </div>
+                ) : (
+                  <ProductGrid
+                    products={emptyCartRecommendations}
+                    priceVisibilityPolicy={settings?.show_price_on_cards}
+                    wishlist={wishlist}
+                    compare={compare}
+                    emptyTitle="لا توجد منتجات متاحة حاليًا"
+                    emptyDescription="يمكنك تصفح الكتالوج الكامل أو استعادة قائمة مشتريات محفوظة."
+                    onOpen={openProduct}
+                    onAdd={(product, quantity) => addToCart(product, quantity)}
+                    cartQuantities={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))}
+                    onWishlist={toggleWishlist}
+                    onCompare={toggleCompare}
+                  />
+                )}
+              </section>
+            </> :
             !cartProductDetailsLoaded ? (
               <div className="sf-empty" role={cartProductDetailsState.error ? 'alert' : 'status'}>
                 <span>{cartProductDetailsState.error ?? 'جار استعادة تفاصيل أصناف سلتك...'}</span>
