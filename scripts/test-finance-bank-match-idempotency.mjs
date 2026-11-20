@@ -252,7 +252,7 @@ async function main() {
       bankAccountId, openingEquityId, 1000,
     );
     assert.equal(openingJournal.status, "draft");
-    const openingPosted = await postJournal(adminDb, openingJournal.journal_entry_id);
+    const openingPosted = await postJournal(adminDb, openingJournal.id);
     assert.equal(openingPosted.status, "posted");
     const openingEvidence = await uploadAndRegisterEvidence({
       managerDb: managerA, mappingId, evidenceKind: "opening_balance",
