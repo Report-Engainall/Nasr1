@@ -1167,7 +1167,12 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   for(const [actor,sql] of deniedCommands) {
    await assert.rejects(
     ()=>withActor(db,actor,tx=>tx.unsafe(sql)),
-    error=>error&&String(error.code)==="42501",
+    error=>{
+      assert.equal(String(error?.code),"42501",
+        "unauthorized "+actor.roles.join(",")+" RPC must fail closed before payload validation; SQL: "+sql+
+        "; actual SQLSTATE: "+String(error?.code)+"; message: "+String(error?.message));
+      return true;
+    },
     "the V2 command capability must reject unauthorized RPC execution before validating payload or writing"
    );
   }
