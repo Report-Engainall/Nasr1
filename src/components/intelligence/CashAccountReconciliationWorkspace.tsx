@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import {
   createBankStatement,
@@ -16,11 +16,12 @@ import {
   type CashEvidenceKind,
   type CashReconciliationWorkspace,
 } from "@/lib/finance-cash-account-reconciliation";
-import { getOrCreateBoundIdempotencyKey } from "@/lib/bound-idempotency-key";
+import { supabase } from "@/lib/supabase";
 import {
-  getOrCreatePendingBankStatementLine,
+  clearPersistentFinanceRetry,
+  getOrCreatePersistentBankStatementLineRetry,
+  getOrCreatePersistentOpeningBalanceRetry,
   normalizeFinanceAmountInput,
-  type PendingBankStatementLine,
 } from "@/lib/finance-cash-reconciliation-idempotency";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -53,9 +54,6 @@ export function CashAccountReconciliationWorkspace() {
   const [reviewReason, setReviewReason] = useState("");
   const [candidates, setCandidates] = useState<Record<string, BankMatchCandidate[]>>({});
   const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({});
-  // Keep retry keys until the write and its follow-up refresh are both confirmed.
-  const openingIdempotencyKeys = useRef(new Map<string, string>());
-  const pendingStatementLines = useRef(new Map<string, PendingBankStatementLine>());
 
   const refresh = useCallback(async (): Promise<boolean> => {
     setLoading(true);
@@ -132,19 +130,24 @@ export function CashAccountReconciliationWorkspace() {
       return;
     }
 
-    const fingerprint = JSON.stringify({
-      mappingId,
-      evidenceId: openingEvidenceId,
-      asOfDate: openingDate,
-      openingBalance: normalizedAmount,
-    });
-    const storedKey = openingIdempotencyKeys.current.get(fingerprint);
-    const boundKey = getOrCreateBoundIdempotencyKey(
-      storedKey ? { fingerprint, key: storedKey } : null,
-      fingerprint,
-      () => globalThis.crypto.randomUUID(),
-    );
-    openingIdempotencyKeys.current.set(fingerprint, boundKey.key);
+    let retry;
+    try {
+      const { data: authState } = await supabase.auth.getSession();
+      const actorUserId = authState.session?.user.id;
+      if (!actorUserId) throw new Error("انتهت جلسة الدخول؛ سجّل الدخول قبل إرسال الرصيد الافتتاحي.");
+      const fingerprint = JSON.stringify({
+        actorUserId, mappingId, evidenceId: openingEvidenceId,
+        asOfDate: openingDate, openingBalance: normalizedAmount,
+      });
+      retry = await getOrCreatePersistentOpeningBalanceRetry(
+        globalThis.localStorage,
+        fingerprint,
+        () => globalThis.crypto.randomUUID(),
+      );
+    } catch (cause) {
+      setError(errorMessage(cause));
+      return;
+    }
 
     const result = await perform(
       () => submitCashOpeningBalance({
@@ -152,14 +155,14 @@ export function CashAccountReconciliationWorkspace() {
         evidenceId: openingEvidenceId,
         asOfDate: openingDate,
         openingBalance: normalizedAmount,
-        idempotencyKey: boundKey.key,
+        idempotencyKey: retry.idempotencyKey,
       }),
       (saved) => saved.replayed
         ? "استُعيد طلب الرصيد الافتتاحي نفسه بعد إعادة المحاولة؛ لم يُنشأ طلب مكرر."
         : "تم تسجيل مقترح الرصيد الافتتاحي؛ ينتظر مراجعة شخص آخر ومطابقة دفتر الأستاذ.",
     );
     if (result) {
-      openingIdempotencyKeys.current.delete(fingerprint);
+      clearPersistentFinanceRetry(globalThis.localStorage, retry);
       setOpeningAmount("");
       setOpeningEvidenceId("");
     }
@@ -206,11 +209,13 @@ export function CashAccountReconciliationWorkspace() {
       description: lineDescription.trim(),
       signedAmount,
     };
-    let pending: PendingBankStatementLine;
+    let pending;
     try {
-      pending = getOrCreatePendingBankStatementLine(
-        pendingStatementLines.current,
-        payload,
+      const { data: authState } = await supabase.auth.getSession();
+      if (!authState.session?.user.id) throw new Error("انتهت جلسة الدخول؛ سجّل الدخول قبل إضافة حركة كشف البنك.");
+      pending = await getOrCreatePersistentBankStatementLineRetry(
+        globalThis.localStorage,
+        { ...payload, actorUserId: authState.session.user.id },
         selectedStatement.lineCount + 1,
         () => globalThis.crypto.randomUUID(),
       );
@@ -218,7 +223,6 @@ export function CashAccountReconciliationWorkspace() {
       setError(errorMessage(cause));
       return;
     }
-    pendingStatementLines.current.set(pending.fingerprint, pending);
 
     const result = await perform(
       () => recordBankStatementLine({
@@ -231,7 +235,7 @@ export function CashAccountReconciliationWorkspace() {
         : "تم حفظ حركة كشف البنك دون إنشاء قيد محاسبي.",
     );
     if (result) {
-      pendingStatementLines.current.delete(pending.fingerprint);
+      clearPersistentFinanceRetry(globalThis.localStorage, pending);
       setLineReference("");
       setLineDescription("");
       setLineAmount("");
