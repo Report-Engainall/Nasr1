@@ -176,11 +176,22 @@ async function main() {
     assert.equal(countFinalize.state_requirements.requires_active_warehouse_assignment, true);
     assert.equal(countFinalize.state_requirements.reviewer_must_differ_from_counter, true);
 
-    for (const role of ["admin", "manager"]) {
-      const decision = await capabilityDecision(db, actors.get(role), "inventory.balance.adjust");
-      assert.deepEqual(decision, { decision: "PERMIT", allowed: true },
-        role + " must retain the approved inventory.balance.adjust capability");
-    }
+    const adminDecision = await capabilityDecision(db, actors.get("admin"), "inventory.balance.adjust");
+    assert.deepEqual(adminDecision, { decision: "PERMIT", allowed: true },
+      "admin must retain the approved inventory.balance.adjust capability");
+
+    const managerDenial = await db.unsafe(
+      "select is_active,reason from public.authorization_profile_denials " +
+      "where organization_id=$1::uuid and profile_id=$2::uuid and capability_key='inventory.balance.adjust'",
+      [organizationId, actors.get("manager").profile_id],
+    );
+    assert.equal(managerDenial.length, 1, "the isolated P2 fixture must retain its explicit manager denial");
+    assert.equal(managerDenial[0].is_active, true,
+      "the isolated manager denial must remain active during acceptance");
+    const managerDecision = await capabilityDecision(db, actors.get("manager"), "inventory.balance.adjust");
+    assert.deepEqual(managerDecision, { decision: "DENY", allowed: false },
+      "an explicit manager denial must override the persisted legacy role grant");
+
     for (const role of ["staff", "accountant", "customer_manager", "customer"]) {
       const decision = await capabilityDecision(db, actors.get(role), "inventory.balance.adjust");
       assert.deepEqual(decision, { decision: "DENY", allowed: false },
