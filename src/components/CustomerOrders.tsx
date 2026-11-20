@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
+import { ArrowRight, Copy, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
@@ -550,6 +550,32 @@ function OrderInvoiceInner({ id }: { id: string }) {
     };
   }, [id]);
 
+  const previousOrderStatusRef = useRef<{ orderId: string; status: string } | null>(null);
+  const [statusChangeNotice, setStatusChangeNotice] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!data?.order) return;
+    const orderId = data.order.id;
+    const nextStatus = data.order.status;
+    const previous = previousOrderStatusRef.current;
+    previousOrderStatusRef.current = { orderId, status: nextStatus };
+
+    // A deep-link navigation to another order establishes a new baseline; it is not
+    // a status transition for the newly opened order.
+    if (previous?.orderId !== orderId) {
+      setStatusChangeNotice(null);
+      return;
+    }
+    if (previous.status !== nextStatus) {
+      const previousLabel = ORDER_STATUS_LABELS[previous.status] ?? previous.status;
+      const nextLabel = ORDER_STATUS_LABELS[nextStatus] ?? nextStatus;
+      setStatusChangeNotice(
+        `تغيّرت حالة الطلب ${data.order.order_number} من ${previousLabel} إلى ${nextLabel}.`,
+      );
+    }
+  }, [data?.order?.id, data?.order?.status, data?.order?.order_number]);
+
   const hasUnsavedAmendmentDraft = useMemo(() => {
     if (amendmentBusy || amendmentNote.trim()) return true;
     return (data?.items ?? []).some((item) => {
@@ -634,6 +660,45 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const printDocument = projectCustomerOrderPrintDocument(
     printOrder, printLines, printHistory, printCustomer, user?.name ?? null,
   );
+
+  async function copyOrderReference() {
+    const reference = String(order.order_number ?? '').trim();
+    if (!reference) {
+      setCopyFeedback({ kind: 'error', message: 'لا يوجد رقم طلب صالح لنسخه.' });
+      return;
+    }
+
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(reference);
+        copied = true;
+      }
+    } catch {
+      // Clipboard permission may be unavailable; try the browser's selection fallback below.
+    }
+
+    if (!copied && typeof document.execCommand === 'function') {
+      const input = document.createElement('textarea');
+      input.value = reference;
+      input.setAttribute('readonly', '');
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      try {
+        input.select();
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      } finally {
+        input.remove();
+      }
+    }
+
+    setCopyFeedback(copied
+      ? { kind: 'success', message: 'تم نسخ رقم الطلب إلى الحافظة.' }
+      : { kind: 'error', message: 'تعذر النسخ التلقائي. حدّد رقم الطلب وانسخه يدويًا.' });
+  }
 
   function exportOrderWorkbook() {
     setExportFeedback(null);
@@ -822,8 +887,29 @@ function OrderInvoiceInner({ id }: { id: string }) {
           </button>
         </div>
       ) : null}
+      {statusChangeNotice ? (
+        <div
+          className="no-print"
+          role="status"
+          aria-live="polite"
+          aria-label="إشعار تحديث حالة الطلب"
+          style={{ ...card, marginBottom: 12, borderColor: '#9bcfc1', background: '#f0faf6', color: '#185b49' }}
+        >
+          <strong>{statusChangeNotice}</strong>
+          <Link to="/notifications" className="sf-link" style={{ display: 'inline-flex', marginInlineStart: 10 }}>
+            فتح مركز التنبيهات
+          </Link>
+        </div>
+      ) : null}
+      {copyFeedback ? (
+        <p className="no-print" role={copyFeedback.kind === 'error' ? 'alert' : 'status'} style={{ margin: '0 0 12px', color: copyFeedback.kind === 'error' ? '#9b2929' : '#17684d' }}>
+          {copyFeedback.message}
+        </p>
+      ) : null}
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
+        <Link to="/notifications" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>مركز التنبيهات</Link>
+        <button type="button" className="sf-btn-secondary" aria-label="نسخ رقم الطلب" onClick={() => void copyOrderReference()}><Copy size={16} /> {copyFeedback?.kind === 'success' ? 'تم نسخ الرقم' : 'نسخ رقم الطلب'}</button>
         <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>
         <button
           type="button"
