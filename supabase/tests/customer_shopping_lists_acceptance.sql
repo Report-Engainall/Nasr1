@@ -247,6 +247,12 @@ DECLARE
   v_rejected boolean;
   v_before_cart jsonb;
   v_after_cart jsonb;
+  v_batch_customer record;
+  v_batch_result jsonb;
+  v_batch_list_id uuid;
+  v_batch_expected_organization uuid;
+  v_batch_expected_customer uuid;
+  v_batch_carts_before integer;
 BEGIN
   IF has_table_privilege('authenticated','public.customer_shopping_lists','SELECT')
      OR has_table_privilege('authenticated','public.customer_shopping_list_items','INSERT')
@@ -514,6 +520,139 @@ BEGIN
     SELECT 1 FROM public.customer_shopping_lists WHERE name='قائمة خاطئة'
   ) THEN
     RAISE EXCEPTION 'cross-tenant product reference created a shopping list';
+  END IF;
+
+  -- Prove the hard 100-customer batch boundary across 101 independent companies.
+  -- Each tenant gets its own owner identity and catalog item; the first invocation
+  -- must process exactly 100, persist its cursor, and the next invocation must
+  -- process the last tenant rather than starving it behind stable UUID ordering.
+  CREATE TEMP TABLE scheduler_batch_fixtures (
+    organization_id uuid PRIMARY KEY,
+    profile_id uuid NOT NULL UNIQUE,
+    auth_user_id uuid NOT NULL UNIQUE,
+    customer_id uuid NOT NULL UNIQUE,
+    product_id uuid NOT NULL UNIQUE
+  ) ON COMMIT PRESERVE ROWS;
+
+  INSERT INTO pg_temp.scheduler_batch_fixtures(
+    organization_id,profile_id,auth_user_id,customer_id,product_id
+  )
+  SELECT pg_catalog.gen_random_uuid(),pg_catalog.gen_random_uuid(),
+         pg_catalog.gen_random_uuid(),pg_catalog.gen_random_uuid(),
+         pg_catalog.gen_random_uuid()
+    FROM pg_catalog.generate_series(1,101);
+
+  INSERT INTO public.organizations(id)
+  SELECT organization_id FROM pg_temp.scheduler_batch_fixtures;
+  INSERT INTO public.profiles(id,auth_user_id,organization_id)
+  SELECT profile_id,auth_user_id,organization_id
+    FROM pg_temp.scheduler_batch_fixtures;
+  INSERT INTO public.customers(id,organization_id,profile_id,status)
+  SELECT customer_id,organization_id,profile_id,'approved'
+    FROM pg_temp.scheduler_batch_fixtures;
+  INSERT INTO public.products(
+    id,organization_id,name,item_code,unit,status,min_order_quantity,order_quantity_multiple
+  )
+  SELECT product_id,organization_id,'منتج اختبار الدفعة',
+         'BATCH-' || pg_catalog.substr(product_id::text,1,12),
+         'قطعة','active',1,1
+    FROM pg_temp.scheduler_batch_fixtures;
+
+  FOR v_batch_customer IN
+    SELECT organization_id,profile_id,auth_user_id,customer_id,product_id
+      FROM pg_temp.scheduler_batch_fixtures
+     ORDER BY organization_id,customer_id
+  LOOP
+    PERFORM pg_catalog.set_config('app.profile_id',v_batch_customer.profile_id::text,false);
+    PERFORM pg_catalog.set_config('app.organization_id',v_batch_customer.organization_id::text,false);
+    PERFORM pg_catalog.set_config('request.jwt.claim.sub',v_batch_customer.auth_user_id::text,false);
+    v_batch_list_id:=public.save_customer_shopping_list(
+      NULL,'قائمة دفعة ' || v_batch_customer.customer_id::text,
+      'warehouse',false,'weekly',v_today,
+      pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'product_id',v_batch_customer.product_id,
+        'quantity',1,
+        'unit_name','قطعة',
+        'base_units_per_unit',1
+      ))
+    );
+    IF v_batch_list_id IS NULL THEN
+      RAISE EXCEPTION 'a due list was not created for batch tenant %',v_batch_customer.organization_id;
+    END IF;
+  END LOOP;
+
+  UPDATE public.customer_shopping_list_scheduler_state
+     SET last_organization_id=NULL,last_customer_id=NULL,updated_at=pg_catalog.now()
+   WHERE singleton_id=true;
+  SELECT organization_id,customer_id
+    INTO v_batch_expected_organization,v_batch_expected_customer
+    FROM pg_temp.scheduler_batch_fixtures
+   ORDER BY organization_id,customer_id
+   OFFSET 99 LIMIT 1;
+  SELECT count(*) INTO v_batch_carts_before FROM public.customer_carts;
+
+  v_batch_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_batch_result->>'processed_customers')::integer<>100
+     OR (v_batch_result->>'created_runs')::integer<>100
+     OR (v_batch_result->>'batch_limit')::integer<>100 THEN
+    RAISE EXCEPTION 'first scheduler invocation must process exactly 100 of 101 due tenants: %',v_batch_result;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.customer_shopping_list_scheduler_state
+     WHERE singleton_id=true
+       AND last_organization_id=v_batch_expected_organization
+       AND last_customer_id=v_batch_expected_customer
+  ) THEN
+    RAISE EXCEPTION 'first scheduler batch did not persist its exact 100th-tenant cursor';
+  END IF;
+  SELECT count(*) INTO v_count
+    FROM public.customer_shopping_lists
+   WHERE name LIKE 'قائمة دفعة %' AND next_run_on<=v_today;
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'exactly one due tenant must remain after a 100-customer batch; found %',v_count;
+  END IF;
+
+  v_batch_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_batch_result->>'processed_customers')::integer<>1
+     OR (v_batch_result->>'created_runs')::integer<>1 THEN
+    RAISE EXCEPTION 'second scheduler invocation starved the 101st tenant: %',v_batch_result;
+  END IF;
+  SELECT count(*) INTO v_count
+    FROM public.customer_shopping_list_runs r
+    JOIN public.customer_shopping_lists l ON l.id=r.list_id
+   WHERE l.name LIKE 'قائمة دفعة %' AND r.due_on=v_today;
+  IF v_count<>101 THEN
+    RAISE EXCEPTION 'all 101 tenants must receive exactly one due review; found %',v_count;
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM public.customer_shopping_list_runs r
+      JOIN public.customer_shopping_lists l ON l.id=r.list_id
+     WHERE l.name LIKE 'قائمة دفعة %'
+       AND r.created_by_profile_id IS DISTINCT FROM l.owner_profile_id
+  ) THEN
+    RAISE EXCEPTION 'batch scheduler wrote a review under another tenant owner identity';
+  END IF;
+  SELECT count(*) INTO v_count
+    FROM public.audit_logs a
+    JOIN public.customer_shopping_list_runs r ON r.id=a.entity_id
+    JOIN public.customer_shopping_lists l ON l.id=r.list_id
+   WHERE a.action='customer.shopping_list.recurrence_due'
+     AND l.name LIKE 'قائمة دفعة %';
+  IF v_count<>101 THEN
+    RAISE EXCEPTION 'each of the 101 batch review snapshots must have exactly one audit record; found %',v_count;
+  END IF;
+  IF public.get_customer_cart()->'items' IS DISTINCT FROM v_before_cart->'items' THEN
+    RAISE EXCEPTION 'background batch scheduling must never mutate the active customer cart';
+  END IF;
+  IF (SELECT count(*) FROM public.customer_carts)<>v_batch_carts_before THEN
+    RAISE EXCEPTION 'background batch scheduling created or removed customer carts';
+  END IF;
+
+  v_batch_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_batch_result->>'processed_customers')::integer<>0
+     OR (v_batch_result->>'created_runs')::integer<>0 THEN
+    RAISE EXCEPTION 'scheduler replay after draining 101 tenants must be idempotent: %',v_batch_result;
   END IF;
 
   -- Direct reads and writes to tables stay closed; callers only receive the guarded RPC surface.
