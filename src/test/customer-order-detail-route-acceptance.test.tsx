@@ -131,6 +131,7 @@ describe("customer order detail real route acceptance", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(router.state.location.pathname).toBe("/orders/33333333-3333-4333-8333-333333333333");
+    return router;
   }
 
   it("gates a guest before reading any order, item, history or customer record", async () => {
@@ -254,6 +255,37 @@ describe("customer order detail real route acceptance", () => {
     ]) expect(printable?.textContent).not.toContain(privateValue);
   });
 
+  it("does not announce a status transition when a different order is opened by deep link", async () => {
+    mocks.user = CUSTOMER;
+    const firstOrderId = "33333333-3333-4333-8333-333333333333";
+    const nextOrderId = "66666666-6666-4666-8666-666666666666";
+    mocks.results = {
+      orders: { data: [{
+        id: firstOrderId, order_number: "SO-FIRST-001", customer_id: CUSTOMER.profileId,
+        status: "pending", total_items: 0, notes: null,
+        created_at: "2026-11-20T05:00:00.000Z", delivery_address_snapshot: null,
+      }], error: null },
+      order_items: { data: [], error: null },
+      order_status_history: { data: [], error: null },
+      customers: { data: [{ customer_code: "C-NEXT-01", business_name: "شركة الاختبار", contact_name: null }], error: null },
+    };
+    const router = await mountOrderRoute();
+    mocks.results.orders = { data: [{
+      id: nextOrderId, order_number: "SO-NEXT-001", customer_id: CUSTOMER.profileId,
+      status: "confirmed", total_items: 0, notes: null,
+      created_at: "2026-11-20T05:05:00.000Z", delivery_address_snapshot: null,
+    }], error: null };
+
+    await act(async () => {
+      await router.navigate({ to: "/orders/$id", params: { id: nextOrderId } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(router.state.location.pathname).toBe("/orders/" + nextOrderId);
+    expect(host?.textContent).toContain("SO-NEXT-001");
+    expect(host?.querySelector('[aria-label="إشعار تحديث حالة الطلب"]')).toBeNull();
+  });
+
   it("automatically shows management approval without polling while hidden or offline", async () => {
     mocks.user = CUSTOMER;
     const orderId = "33333333-3333-4333-8333-333333333333";
@@ -351,6 +383,9 @@ describe("customer order detail real route acceptance", () => {
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
       expect(host?.textContent).toContain("الحالة: مؤكد");
+      expect(host?.querySelector('[aria-label="إشعار تحديث حالة الطلب"]')?.textContent)
+        .toContain("تغيّرت حالة الطلب SO-AUTO-001 من بانتظار المراجعة إلى مؤكد");
+      expect(host?.querySelector('a[href="/notifications"]')).not.toBeNull();
       expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[0]?.querySelector('[aria-label="مكتمل"]')).not.toBeNull();
       expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[1]?.querySelector('[aria-label="الحالة الحالية"]')).not.toBeNull();
       expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[2]?.querySelector('[aria-label="لم يكتمل"]')).not.toBeNull();
