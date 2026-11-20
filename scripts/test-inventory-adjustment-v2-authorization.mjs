@@ -344,7 +344,7 @@ async function main() {
           "select public.start_stock_count($1::uuid,$2::text,$3::text)",
           [otherWarehouse.warehouse_id,unassignedCountKey,"unassigned warehouse must be rejected"],
         ),"a manager cannot start a stock count in an unassigned warehouse");
-        const unassignedCountSessions=await db.unsafe(
+        const unassignedCountSessions=await tx.unsafe(
           "select id from public.stock_count_sessions where organization_id=$1::uuid and idempotency_key=$2::text",
           [organizationId,unassignedCountKey],
         );
