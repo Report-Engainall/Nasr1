@@ -238,7 +238,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await postedRow.getByRole("button", { name: "ترحيل القيد", exact: true }).click();
       await expect(postedRow.getByText("مرحل", { exact: true })).toBeVisible();
       await expect(postedRow.getByRole("button", { name: "ترحيل القيد", exact: true })).toHaveCount(0);
-      await expect(postedRow.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toBeVisible();
+      await expect(postedRow.getByRole("button", { name: "إعداد مسودة قيد العكس", exact: true })).toBeVisible();
 
       await tasksPage.goto("/admin/tasks");
       await tasksPage.getByLabel("الحالة").selectOption("completed");
@@ -282,14 +282,14 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await openAccountantReversalFinance.click();
       const accountantReversalDialog = accountantReversalPage.getByRole("dialog", { name: "مساحة إشعارات المرتجعات الدائنة" });
       const accountantReversalSection = accountantReversalDialog.locator('section[aria-labelledby="return-credit-heading"]');
-      const postedRow = accountantReversalSection.locator("article").filter({ hasText: orderNumber });
-      await expect(postedRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.")).toBeVisible();
-      await postedRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true }).click();
-      await expect(postedRow.getByText("معكوس ماليًا", { exact: true })).toBeVisible();
-      await expect(postedRow).toContainText("رقم قيد العكس:");
-      await expect(postedRow).toContainText(reversalReason);
-      await expect(postedRow).toContainText("لم يُنشأ استرداد نقدي أو حركة مخزون.");
-      await expect(postedRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true })).toHaveCount(0);
+      const accountantReversalRow = accountantReversalSection.locator("article").filter({ hasText: orderNumber });
+      await expect(accountantReversalRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.")).toBeVisible();
+      await accountantReversalRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true }).click();
+      await expect(accountantReversalRow.getByText("معكوس ماليًا", { exact: true })).toBeVisible();
+      await expect(accountantReversalRow).toContainText("رقم قيد العكس:");
+      await expect(accountantReversalRow).toContainText(reversalReason);
+      await expect(accountantReversalRow).toContainText("لم يُنشأ استرداد نقدي أو حركة مخزون.");
+      await expect(accountantReversalRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true })).toHaveCount(0);
       completedStages.push("credit_memo_reversal_posted_by_independent_checker_and_visible_from_ui");
       await accountantReversalPage.close();
     });
