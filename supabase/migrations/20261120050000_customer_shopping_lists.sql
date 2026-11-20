@@ -989,6 +989,8 @@ COMMENT ON TABLE public.customer_shopping_list_runs IS
   'Recurring and manual shopping-list review snapshots. A run never creates an order; one atomic RPC can load it into the current cart exactly once after fresh stock and price validation.';
 COMMENT ON FUNCTION public.materialize_due_customer_shopping_list_runs() IS
   'Materializes each due weekly/monthly period at most once on the next authorized owner/buyer list read; if the due date passes while nobody opens the list, the next access materializes every missed period up to the bounded catch-up limit. This is review-only lazy evaluation, not a background cron job; it stores no prices and never submits an order, checks out a cart, or posts inventory/finance.';
+COMMENT ON FUNCTION public.save_customer_shopping_list(uuid,text,text,boolean,text,date,jsonb) IS
+  'Validates active company scope, unique product ids, exact catalog unit-conversion factors and server-side order quantity policies before replacing list rows. The client supplies no price, inventory balance, discount or order status.';
 COMMENT ON FUNCTION public.apply_customer_shopping_list_run_to_cart(uuid) IS
   'Atomically rechecks active membership, list run state, exact unit conversions, order quantities, selected-warehouse availability and current server price preview, then syncs cart and marks the run loaded. Never places an order or posts finance/inventory movements.';
 

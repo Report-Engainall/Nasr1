@@ -190,7 +190,7 @@ function sheetRows(doc: Document, sharedStrings: string[]): Array<Map<number, st
       } else if (type === "inlineStr") {
         const inline = cell.getElementsByTagNameNS("*", "is")[0];
         value = inline ? xmlText(inline) : "";
-      } else if (type === "str" || type === undefined || type === "n") {
+      } else if (type === "str" || type === null || type === undefined || type === "n") {
         value = firstText(cell, "v");
       } else if (type === "b") {
         value = firstText(cell, "v");

@@ -87,7 +87,7 @@ describe("customer shopping-list XLSX archive parser", () => {
       },
     } as File;
     const result = await parseCustomerShoppingListXlsx(file, products);
-    expect(result.imported_rows).toBe(1);
+    expect(result.imported_rows).toBe(1); // The quantity cell intentionally omits the optional OOXML type attribute.
     expect(result.lines).toEqual([{
       product_id: products[0].id,
       quantity: 2,
