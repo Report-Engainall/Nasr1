@@ -17,6 +17,29 @@ describe("task intelligence report RPC failure boundary", () => {
     fetchQuality.mockReset();
   });
 
+  it.each([
+    { kind: "DAILY" as const, from: "2026-11-20", to: "2026-11-20" },
+    { kind: "MANAGER" as const, from: "2026-11-20", to: "2026-11-20" },
+    { kind: "WEEKLY" as const, from: "2026-11-14", to: "2026-11-20" },
+    { kind: "MONTHLY" as const, from: "2026-11-01", to: "2026-11-20" },
+  ])("requests the exact UTC window for $kind reports", async ({ kind, from, to }) => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-11-20T12:00:00.000Z"));
+      rpc.mockResolvedValue({ data: null, error: { code: "PGRST202" } });
+
+      await fetchTaskIntelligenceReport(kind);
+
+      expect(rpc).toHaveBeenCalledWith("fetch_task_intelligence_report", {
+        p_report_kind: kind,
+        p_from: from,
+        p_to: to,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it.each(["42501", "28000", "PGRST301"])(
     "maps authorization SQLSTATE %s to DENIED without fabricating an empty report",
     async code => {
