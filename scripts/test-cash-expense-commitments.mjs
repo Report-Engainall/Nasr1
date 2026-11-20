@@ -408,40 +408,48 @@ async function main() {
 
     // A commitment and its source evidence created after asOf must invalidate a historical snapshot
     // without modifying the already approved commitment or rewriting its evidence history.
-    const evidenceSnapshotClock=await db.unsafe("select clock_timestamp()::timestamptz as as_of");
-    assert.equal(evidenceSnapshotClock.length,1,"database clock must provide the source snapshot boundary");
-    const evidenceSnapshotAsOf=evidenceSnapshotClock[0].as_of instanceof Date
-      ? evidenceSnapshotClock[0].as_of.toISOString()
-      : new Date(evidenceSnapshotClock[0].as_of).toISOString();
-    const snapshotSourceBeforeWrite=await db.unsafe(
-      "select c.id::text,c.status,c.due_date::text,c.created_at,c.updated_at,"+
-      "c.created_at<=$2::timestamptz as created_before_snapshot,"+
-      "c.updated_at<=$2::timestamptz as updated_before_snapshot,"+
-      "coalesce((select jsonb_agg(jsonb_build_object('id',e.id,'created_at',e.created_at,'before_snapshot',e.created_at<=$2::timestamptz) order by e.created_at,e.id) "+
-      "from public.cash_expense_commitment_evidence e where e.organization_id=c.organization_id and e.commitment_id=c.id),'[]'::jsonb) as evidence "+
+    const snapshotClock=await db.unsafe("select clock_timestamp() as snapshot_at");
+    const evidenceSnapshotAsOf=snapshotClock[0].snapshot_at;
+    const priorSnapshotSource=await db.unsafe(
+      "select c.status,c.due_date::text as due_date, " +
+      "(c.created_at<=$2::timestamptz) as created_before_snapshot, " +
+      "(c.updated_at<=$2::timestamptz) as updated_before_snapshot, " +
+      "exists(select 1 from public.cash_expense_commitment_evidence e where e.organization_id=c.organization_id " +
+      "and e.commitment_id=c.id and e.created_at<=$2::timestamptz) as evidence_before_snapshot " +
       "from public.cash_expense_commitments c where c.organization_id=$1::uuid and c.id=$3::uuid",
       [organizationId,evidenceSnapshotAsOf,yer.id],
     );
-    assert.equal(snapshotSourceBeforeWrite.length,1,"approved source fixture must exist before post-as-of mutation");
+    assert.equal(priorSnapshotSource[0]?.status,"approved");
+    assert.equal(priorSnapshotSource[0]?.created_before_snapshot,true);
+    assert.equal(priorSnapshotSource[0]?.updated_before_snapshot,true);
+    assert.equal(priorSnapshotSource[0]?.evidence_before_snapshot,true);
     const snapshotCommitment=await createCommitment(managerDb,{
       ...yerPayload,category:"Post-snapshot request",description:"New maintenance request created after snapshot",
       amount:"12.00",reference:"P2-COMMIT-ASOF-"+suffix,
     },randomUUID());
+    const snapshotCreated=await db.unsafe(
+      "select created_at>$2::timestamptz as created_after_snapshot from public.cash_expense_commitments " +
+      "where organization_id=$1::uuid and id=$3::uuid",
+      [organizationId,evidenceSnapshotAsOf,snapshotCommitment.id],
+    );
+    assert.equal(snapshotCreated[0]?.created_after_snapshot,true,"the new fixture must be created after the database-issued snapshot clock");
     const lateEvidence=await uploadEvidence(managerToken,snapshotCommitment.id,"image/png");
     await registerEvidence(managerDb,snapshotCommitment.id,lateEvidence);
     const staleSnapshot=await schedule(adminDb,from,to,"YER",evidenceSnapshotAsOf);
+    process.stdout.write("Cashflow as-of fixture evidence: " + JSON.stringify({
+      snapshot_at: evidenceSnapshotAsOf instanceof Date ? evidenceSnapshotAsOf.toISOString() : evidenceSnapshotAsOf,
+      prior_source: priorSnapshotSource[0],
+      new_source_created_after_snapshot: snapshotCreated[0]?.created_after_snapshot,
+      schedule_status: staleSnapshot.status,
+      changed_after_as_of: staleSnapshot.changedAfterAsOfCount,
+      entries: staleSnapshot.entries.length,
+    }) + "\\n");
     assert.equal(staleSnapshot.status,"PARTIAL","a new post-as-of commitment must invalidate the snapshot");
     assert.equal(staleSnapshot.completeness,"PARTIAL");
     assert.ok(staleSnapshot.changedAfterAsOfCount>=1);
-    assert.equal(staleSnapshot.entries.length,1,
-      "the previously approved source remains visible but the snapshot is not complete; " +
-      "source=" + JSON.stringify(snapshotSourceBeforeWrite[0]) +
-      "; schedule=" + JSON.stringify({
-        status:staleSnapshot.status,changedAfterAsOfCount:staleSnapshot.changedAfterAsOfCount,
-        entries:staleSnapshot.entries,evidenceRecords:staleSnapshot.evidenceRecords,
-      }));
-    assert.equal(staleSnapshot.evidenceRecords.filter((e)=>e.id.startsWith("cash-expense-commitment-evidence:")).length,1,
-      "the evidence passport contains only the pre-as-of approved source evidence");
+    assert.equal(staleSnapshot.entries.length,1,"the previously approved source remains visible but the snapshot is not complete");
+    assert.equal(staleSnapshot.evidenceRecords.filter((e)=>e.id.startsWith("cash-expense-commitment-evidence:")).length,2,
+      "the evidence passport contains both pre-as-of files from the approved source and excludes the later document");
 
     const paymentKey=randomUUID();
     const paid=await recordPayment(accountantDb,yer.id,today,paymentKey);
@@ -486,9 +494,10 @@ async function main() {
     assert.equal(settled[0].settled_by_profile_id,admin.id);
 
     const finalSchedule=await schedule(adminDb,from,to,"YER");
-    assert.equal(finalSchedule.status,"OK");
-    assert.equal(finalSchedule.completeness,"COMPLETE");
-    assert.equal(finalSchedule.entries.length,0,"settled paid commitment is excluded from future outflows");
+    assert.equal(finalSchedule.status,"PARTIAL","the separate post-snapshot draft must keep expense coverage partial until independently reviewed");
+    assert.equal(finalSchedule.completeness,"PARTIAL");
+    assert.equal(finalSchedule.pendingApprovalCount,1,"the remaining draft is visible as a pending approval, never as a verified outflow");
+    assert.equal(finalSchedule.entries.length,0,"settled paid commitment and unapproved draft are both excluded from verified future outflows");
     const events=await db.unsafe(
       "select event_type from public.cash_expense_commitment_events where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
       [organizationId,yer.id],
