@@ -270,6 +270,29 @@ async function main() {
         lessons: ["تُراجع نتيجة المتابعة وفق قياس موثق."],
         expectedMetric: { key: "cashflow.expected_collections", currency: "YER" },
       };
+      const memoryPreflight = await tx.unsafe(
+        "select o.created_at as outcome_created_at, o.state as outcome_state, now() as database_now, " +
+          "($2::jsonb->>'asOf')::timestamptz as requested_as_of, " +
+          "(($2::jsonb->>'asOf')::timestamptz > now()) as as_of_is_future, " +
+          "(($2::jsonb->>'asOf')::timestamptz > o.created_at) as as_of_after_outcome_creation, " +
+          "(($2::jsonb->'period'->>'from')::date < ((($2::jsonb->>'asOf')::timestamptz at time zone 'UTC')::date) as period_starts_before_as_of, " +
+          "(($2::jsonb->'period'->>'to')::date > ((($2::jsonb->>'asOf')::timestamptz at time zone 'UTC')::date + 90) as period_exceeds_90_days, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'period') as period_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'factsReviewed') as facts_reviewed_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'facts') as facts_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'opinions') as opinions_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'hypotheses') as hypotheses_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'assumptions') as assumptions_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'alternatives') as alternatives_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'assumptionsReviewed') as assumptions_reviewed_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'lessonsReviewed') as lessons_reviewed_type, " +
+          "pg_catalog.jsonb_typeof($2::jsonb->'lessons') as lessons_type, " +
+          "(o.state='MEASURED' and $2::jsonb->'lessonsReviewed' <> 'true'::jsonb) as measured_without_lessons_review " +
+        "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
+        [outcomeId, memorySnapshot, manager.organization_id],
+      );
+      process.stdout.write("Decision memory save preflight: " + JSON.stringify(memoryPreflight[0] ?? null) + "\\n");
+
       const memoryRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,0,$2::jsonb,NULL,$3::text) as result",
         [outcomeId, memorySnapshot, randomUUID()],
