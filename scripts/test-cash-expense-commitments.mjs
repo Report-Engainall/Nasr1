@@ -408,7 +408,11 @@ async function main() {
 
     // A commitment and its source evidence created after asOf must invalidate a historical snapshot
     // without modifying the already approved commitment or rewriting its evidence history.
-    const evidenceSnapshotAsOf=new Date(Date.now()-1500).toISOString();
+    const evidenceSnapshotClock=await db.unsafe("select clock_timestamp()::timestamptz as as_of");
+    assert.equal(evidenceSnapshotClock.length,1,"database clock must provide the source snapshot boundary");
+    const evidenceSnapshotAsOf=evidenceSnapshotClock[0].as_of instanceof Date
+      ? evidenceSnapshotClock[0].as_of.toISOString()
+      : new Date(evidenceSnapshotClock[0].as_of).toISOString();
     const snapshotSourceBeforeWrite=await db.unsafe(
       "select c.id::text,c.status,c.due_date::text,c.created_at,c.updated_at,"+
       "c.created_at<=$2::timestamptz as created_before_snapshot,"+
