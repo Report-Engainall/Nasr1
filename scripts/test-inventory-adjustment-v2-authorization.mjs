@@ -100,6 +100,8 @@ async function main() {
       "from public.products p join public.inventory_balances ib on ib.product_id=p.id " +
       "join public.warehouses w on w.id=ib.warehouse_id and w.is_active=true " +
       "where p.organization_id=$1::uuid and p.status='active' and ib.quantity_on_hand<999999999999.999 " +
+      "and not exists (select 1 from public.stock_count_sessions c " +
+      "where c.organization_id=p.organization_id and c.warehouse_id=w.id and c.status='open') " +
       "and not exists (select 1 from public.authorization_profile_scopes s " +
       "where s.organization_id=p.organization_id and s.profile_id=$2::uuid and s.scope_kind='warehouse' " +
       "and s.warehouse_id=w.id and s.is_active=true and s.valid_from<=statement_timestamp() " +
