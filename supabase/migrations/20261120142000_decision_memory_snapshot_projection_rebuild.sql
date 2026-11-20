@@ -123,6 +123,8 @@ BEGIN
           );
 
           -- Merge both calculated fields into the existing snapshot object atomically.
+          -- Parenthesize the -> extraction: PostgreSQL otherwise groups the JSONB || operator
+          -- with the extraction operator before selecting the records key.
           -- This avoids a second jsonb_set call turning the entire projection SQL NULL.
           v_result := v_result || pg_catalog.jsonb_build_object(
             'actualMetric', v_actual_metric,
@@ -131,7 +133,7 @@ BEGIN
                 WHEN pg_catalog.jsonb_typeof(v_result->'evidenceRecords') = 'array'
                   THEN v_result->'evidenceRecords'
                 ELSE '[]'::jsonb
-              END) || v_resolved->'records'
+              END) || (v_resolved->'records')
           );
         END IF;
       END IF;
