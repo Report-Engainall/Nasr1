@@ -172,9 +172,9 @@ async function approveCustomerOrderAsManager(
   await signIn(page, email, password);
   await page.goto("/admin/orders");
   await expect(page.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
-  const orderRow = page.getByRole("row").filter({ hasText: orderNumber });
-  await expect(orderRow, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
-  await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+  const orderCard = page.locator("article").filter({ hasText: orderNumber });
+  await expect(orderCard, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
+  await orderCard.getByRole("button", { name: "تفاصيل الطلب ومراجعته", exact: true }).click();
   await expect(page.getByRole("heading", { name: "الطلب #" + orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
 
   const approve = page.getByRole("button", { name: "اعتماد الكميات وتأكيد الطلب", exact: true });
