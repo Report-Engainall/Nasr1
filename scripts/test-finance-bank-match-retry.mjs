@@ -43,6 +43,23 @@ async function actorCall(client, actor, canManageFinance, input) {
   });
 }
 
+async function actorRecordBankStatementLine(client, actor, canManageFinance, input) {
+  return client.begin(async (tx) => {
+    await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)", [actor.authUserId]);
+    await tx.unsafe("select set_config('test.finance_profile_id',$1,true)", [actor.profileId]);
+    await tx.unsafe("select set_config('test.can_manage_finance',$1,true)", [String(canManageFinance)]);
+    await tx.unsafe("set local role authenticated");
+    const rows = await tx.unsafe(
+      "select public.record_finance_bank_statement_line($1::uuid,$2::integer,$3::date,$4::text,$5::text,$6::numeric,$7::uuid) as result",
+      [input.statementId, input.lineNumber, input.transactionDate, input.externalReference,
+        input.description, input.signedAmount, input.idempotencyKey],
+    );
+    const value = typeof rows[0]?.result === "string" ? JSON.parse(rows[0].result) : rows[0]?.result;
+    assert.ok(value && typeof value === "object", "the server must return a bank-line acknowledgement");
+    return value;
+  });
+}
+
 async function main() {
   const db = postgres(requiredLocalDatabaseUrl(), { max: 8, prepare: false, idle_timeout: 5 });
   const peer = postgres(requiredLocalDatabaseUrl(), { max: 4, prepare: false, idle_timeout: 5 });
@@ -92,7 +109,11 @@ async function main() {
         external_reference text,
         description text,
         signed_amount numeric(18,2) NOT NULL,
-        UNIQUE (organization_id, statement_id, line_number)
+        idempotency_key uuid,
+        payload_fingerprint text,
+        created_by_profile_id uuid,
+        UNIQUE (organization_id, statement_id, line_number),
+        UNIQUE (organization_id, idempotency_key)
       );
       CREATE TABLE public.finance_bank_statement_line_matches (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -144,20 +165,23 @@ async function main() {
       GRANT EXECUTE ON FUNCTION public.can_manage_finance() TO authenticated;
     `);
 
-    const migrationPath = fileURLToPath(new URL("../supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql", import.meta.url));
-    const migrationSource = await readFile(migrationPath, "utf8");
-    const migrationSql = migrationSource
-      .replace(/^\\s*BEGIN;\\s*$/im, "")
-      .replace(/^\\s*COMMIT;\\s*$/im, "");
-    if (/^\\s*BEGIN;\\s*$/im.test(migrationSql) || /^\\s*COMMIT;\\s*$/im.test(migrationSql)) {
-      throw new Error("Could not remove standalone transaction wrappers from the tested bank-match migration.");
+    const migrationPaths = [
+      "../supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql",
+      "../supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql",
+    ];
+    for (const relativePath of migrationPaths) {
+      const migrationPath = fileURLToPath(new URL(relativePath, import.meta.url));
+      const migrationSource = await readFile(migrationPath, "utf8");
+      const migrationSql = migrationSource
+        .replace(/^\\s*BEGIN;\\s*$/im, "")
+        .replace(/^\\s*COMMIT;\\s*$/im, "");
+      if (/^\\s*BEGIN;\\s*$/im.test(migrationSql) || /^\\s*COMMIT;\\s*$/im.test(migrationSql)) {
+        throw new Error("Could not remove standalone transaction wrappers from " + relativePath + ".");
+      }
+      await db.begin(async (tx) => tx.unsafe(migrationSql));
+      // Reapply both definitions to prove they remain replay-safe.
+      await db.begin(async (tx) => tx.unsafe(migrationSql));
     }
-    // The actual migration body is replayed atomically through postgres.js's
-    // managed transaction API; raw SQL must not issue nested BEGIN/COMMIT.
-    await db.begin(async (tx) => tx.unsafe(migrationSql));
-    // Reapplying the function definition must be safe; this also guards against
-    // accidental one-shot migration behavior in the retry contract.
-    await db.begin(async (tx) => tx.unsafe(migrationSql));
 
     const privilege = await db.unsafe(
       "select has_function_privilege('anon','public.match_finance_bank_statement_line(uuid,uuid,uuid,integer)','EXECUTE') as anon_exec," +
@@ -241,6 +265,60 @@ async function main() {
       "an exact retry must acknowledge the original match even after the statement is verified and closed");
     assert.equal(await auditCount(first.match_id), 1, "an exact retry must not duplicate the audit event");
 
+    const recordStatementId = randomUUID();
+    await db.unsafe(
+      "insert into public.finance_bank_statements(id,organization_id,settlement_account_mapping_id,period_from,period_to) values($1::uuid,$2::uuid,$3::uuid,'2026-01-01','2026-12-31')",
+      [recordStatementId, organizationId, mappingId],
+    );
+    const recordInput = {
+      statementId: recordStatementId,
+      lineNumber: 1,
+      transactionDate: "2026-11-20",
+      externalReference: "REC-RETRY-1",
+      description: "bank statement retry fixture",
+      signedAmount: "725.00",
+      idempotencyKey: randomUUID(),
+    };
+    const firstRecorded = await actorRecordBankStatementLine(db, actor, true, recordInput);
+    assert.equal(firstRecorded.replayed, false, "the first bank-line request must create a new row");
+    assert.ok(firstRecorded.line_id, "the first bank-line request must return its persisted line identity");
+    const recordedAuditCount = async (lineId) => {
+      const rows = await db.unsafe(
+        "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='finance.bank_statement_line_recorded' and entity_type='finance_bank_statement_line' and entity_id=$2::uuid",
+        [organizationId, lineId],
+      );
+      return rows[0].count;
+    };
+    assert.equal(await recordedAuditCount(firstRecorded.line_id), 1,
+      "the first bank-line write must append exactly one audit event");
+    await db.unsafe(
+      "insert into public.finance_bank_statement_reconciliation_runs(organization_id,statement_id,outcome) values($1::uuid,$2::uuid,'VERIFIED')",
+      [organizationId, recordStatementId],
+    );
+    const replayedRecorded = await actorRecordBankStatementLine(db, actor, true, recordInput);
+    assert.equal(replayedRecorded.line_id, firstRecorded.line_id,
+      "an exact bank-line retry must return the original row after statement verification");
+    assert.equal(replayedRecorded.replayed, true,
+      "an exact bank-line retry must be acknowledged after a statement becomes closed");
+    assert.equal(await recordedAuditCount(firstRecorded.line_id), 1,
+      "an exact bank-line retry after closure must not duplicate the audit event");
+    await expectSqlState(
+      actorRecordBankStatementLine(db, actor, true, { ...recordInput, description: "changed retry payload" }),
+      "23505",
+      "a reused bank-line idempotency key with changed content must remain a conflict after statement closure",
+    );
+    await expectSqlState(
+      actorRecordBankStatementLine(db, actor, true, { ...recordInput, idempotencyKey: randomUUID(), lineNumber: 2 }),
+      "55000",
+      "a new bank-line write must still be rejected after statement closure",
+    );
+    const recordedRows = await db.unsafe(
+      "select count(*)::integer as count from public.finance_bank_statement_lines where organization_id=$1::uuid and statement_id=$2::uuid",
+      [organizationId, recordStatementId],
+    );
+    assert.equal(recordedRows[0].count, 1,
+      "closed-statement exact replay and rejected new writes must preserve the single original line");
+    
     const journal2 = randomUUID();
     await createBalancedJournal(journal2);
     await expectSqlState(
@@ -321,7 +399,7 @@ async function main() {
     );
 
     process.stdout.write(
-      "PASS finance bank match PostgreSQL 17: tenant/finance authorization, exact closed-statement replay, alternate-match rejection, single-use GL enforcement, concurrent exact replay, concurrent double-consumption prevention, and one audit event per committed match.\\n",
+      "PASS finance bank match PostgreSQL 17: tenant/finance authorization, exact closed-statement match and line-record replay, alternate-match rejection, single-use GL enforcement, concurrent exact replay, concurrent double-consumption prevention, and one audit event per committed match.\\n",
     );
   } finally {
     await Promise.all([
