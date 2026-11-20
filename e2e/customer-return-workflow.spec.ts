@@ -127,7 +127,8 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
         expect(workbookXml).toContain("طلبات المراجعة");
         expect(workbookXml).toContain("أصناف المرتجعات");
         expect(summaryXml).toContain(orderNumber);
-        expect(summaryXml).toContain("حتى 50 طلباً");
+        expect(summaryXml).toContain("جميع طلبات المراجعة المفتوحة المطابقة للمرشحات وقت القراءة");
+        expect(summaryXml).toContain("الحد الآمن 1000 طلب و25000 سطر صنف");
         expect(summaryXml).toContain("ليست سجلاً تاريخياً كاملاً");
         expect(detailsXml).toContain(itemName);
         const exportedXml = summaryXml + "\n" + detailsXml;
@@ -146,7 +147,8 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
             workbookSheets: ["طلبات المراجعة", "أصناف المرتجعات"],
             orderNumber,
             itemName,
-            maxReturnedRequests: 50,
+            maxReturnedRequests: 1000,
+            maxItemRows: 25000,
             scope: "current open manager queue only",
             internalUuidOrTenantIdPresent: false,
             formulaCellsPresent: false
