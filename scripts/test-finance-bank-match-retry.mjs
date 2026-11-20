@@ -8,8 +8,11 @@ function requiredLocalDatabaseUrl() {
   const value = process.env.TEST_DATABASE_URL?.trim();
   if (!value) throw new Error("TEST_DATABASE_URL is required for finance bank-match acceptance.");
   const url = new URL(value);
-  if (!["127.0.0.1", "localhost"].includes(url.hostname) || !/^\\d+$/.test(url.port)) {
-    throw new Error("Finance bank-match acceptance refuses non-loopback PostgreSQL endpoints.");
+  const hostname = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+  const port = url.port || "5432";
+  const isLoopback = hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+  if (!isLoopback || !/^\\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+    throw new Error("Finance bank-match acceptance refuses non-loopback PostgreSQL endpoints (host=" + hostname + ", port=" + port + ").");
   }
   return value;
 }
