@@ -427,7 +427,8 @@ async function main() {
    "select domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active from public.authorization_capabilities where capability_key='inventory.count.cancel'"
   );
   assert.equal(cancelCapability.length,1,"stock-count cancellation must have a real V2 capability definition");
-  assert.deepEqual(cancelCapability[0],{
+  const {state_requirements:cancelRequirements,...cancelMetadata}=cancelCapability[0];
+  assert.deepEqual(cancelMetadata,{
    domain:"inventory",
    resource:"stock_count",
    action:"cancel",
@@ -435,10 +436,17 @@ async function main() {
    scope_kind:"warehouse",
    approval_mode:"none",
    separation_of_duties:false,
-   state_requirements:{requires_reason:true,required_status:"open"},
    legacy_operation_id:null,
    is_active:true
   });
+  assert.equal(cancelRequirements.requires_reason,true,
+   "stock-count cancellation must record an explicit reason");
+  assert.equal(cancelRequirements.required_status,"open",
+   "only an open stock-count draft may be cancelled");
+  assert.equal(cancelRequirements.requires_active_warehouse_assignment,true,
+   "cancellation must require assignment to the exact active warehouse");
+  assert.equal(cancelRequirements.does_not_move_stock,true,
+   "cancelling an unfinalized stock count must never move canonical inventory");
   const cancelGrantRows=await db.unsafe(
    "select role from public.authorization_role_capabilities where capability_key='inventory.count.cancel' order by role"
   );
