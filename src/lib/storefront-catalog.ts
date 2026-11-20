@@ -13,12 +13,24 @@ function invokeCatalogRpc(name: string, args: Record<string, unknown>): Promise<
   return (supabase as unknown as { rpc: CatalogRpcInvoker }).rpc(name, args);
 }
 
+export interface StorefrontCatalogBrandOption {
+  id: string;
+  name: string;
+  name_en: string | null;
+}
+
+export interface StorefrontCatalogFilters {
+  brands: StorefrontCatalogBrandOption[];
+  units: string[];
+}
+
 export interface StorefrontCatalogPage {
   page: number;
   pageSize: number;
   totalCount: number;
   totalPages: number;
   items: ProductWithInventory[];
+  filters: StorefrontCatalogFilters;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -30,6 +42,46 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function finiteNumber(value: unknown, fallback = 0): number {
   const result = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(result) ? result : fallback;
+}
+
+export function parseStorefrontCatalogFilters(value: unknown): StorefrontCatalogFilters {
+  const filters = asRecord(value);
+  if (!filters || !Array.isArray(filters.brands) || !Array.isArray(filters.units)
+      || filters.brands.length > 2000 || filters.units.length > 2000) {
+    throw new Error('قوائم فلاتر الكتالوج غير مكتملة أو غير صالحة.');
+  }
+
+  const brands = filters.brands.map((item) => {
+    const brand = asRecord(item);
+    if (!brand || typeof brand.id !== 'string' || !UUID.test(brand.id)
+        || typeof brand.name !== 'string' || !brand.name.trim() || brand.name.trim().length > 120
+        || (brand.name_en !== null && brand.name_en !== undefined
+          && (typeof brand.name_en !== 'string' || brand.name_en.trim().length > 120))) {
+      throw new Error('أعاد الخادم خيار علامة تجارية غير صالح؛ لم يُعرض.');
+    }
+    return {
+      id: brand.id,
+      name: brand.name.trim(),
+      name_en: typeof brand.name_en === 'string' && brand.name_en.trim()
+        ? brand.name_en.trim()
+        : null,
+    };
+  });
+  if (new Set(brands.map((brand) => brand.id)).size !== brands.length) {
+    throw new Error('أعاد الخادم علامات تجارية مكررة؛ لم تُعرض.');
+  }
+
+  const units = filters.units.map((value) => {
+    if (typeof value !== 'string' || !value.trim() || value.trim().length > 40) {
+      throw new Error('أعاد الخادم وحدة بيع غير صالحة؛ لم تُعرض.');
+    }
+    return value.trim();
+  });
+  if (new Set(units.map((unit) => unit.toLocaleLowerCase('ar'))).size !== units.length) {
+    throw new Error('أعاد الخادم وحدات بيع مكررة؛ لم تُعرض.');
+  }
+
+  return { brands, units };
 }
 
 export function parseStorefrontCartProductDetailsRow(value: unknown): ProductWithInventory {
@@ -163,6 +215,7 @@ export async function fetchStorefrontCatalogPage(input: {
   }
 
   const items = payload.items.map(parseStorefrontCartProductDetailsRow);
+  const filters = parseStorefrontCatalogFilters(payload.filters);
   const totalCount = finiteNumber(payload.total_count, Number.NaN);
   const totalPages = finiteNumber(payload.total_pages, Number.NaN);
   const resolvedPage = finiteNumber(payload.page, Number.NaN);
@@ -183,5 +236,6 @@ export async function fetchStorefrontCatalogPage(input: {
     totalCount,
     totalPages,
     items,
+    filters,
   };
 }

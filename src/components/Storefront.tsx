@@ -49,7 +49,16 @@ const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 type CartItem = { product: ProductWithInventory; quantity: number };
 type ProductUnitSelection = { unit_name: string; base_units_per_unit: number; selected_quantity: number };
 type StorefrontProductsSnapshot =
-  | ({ mode: 'paged'; identityKey: string; search: string; categoryId: string | null; availableOnly: boolean } & StorefrontCatalogPage)
+  | ({
+      mode: 'paged';
+      identityKey: string;
+      search: string;
+      categoryId: string | null;
+      availableOnly: boolean;
+      brandId: string | null;
+      unit: string | null;
+      priceDisplayableOnly: boolean;
+    } & StorefrontCatalogPage)
   | { mode: 'full'; items: ProductWithInventory[]; identityKey: string; publicCacheable: boolean };
 
 function pendingCartProduct(productId: string): ProductWithInventory {
@@ -107,6 +116,9 @@ type StorefrontProps = {
   initialQuery?: string;
   initialCategoryId?: string;
   initialAvailableOnly?: boolean;
+  initialBrandId?: string;
+  initialUnit?: string;
+  initialPriceDisplayableOnly?: boolean;
 };
 
 /**
@@ -138,7 +150,17 @@ function describeCustomerCartSyncState(state: string, isOnline: boolean): string
   return 'سلة الحساب تُزامن تلقائيًا عند فتحها أو تعديلها.';
 }
 
-function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: StorefrontProps) {
+function StorefrontSession({
+  onExit,
+  initialView = 'shop',
+  initialProductId,
+  initialQuery,
+  initialCategoryId,
+  initialAvailableOnly,
+  initialBrandId,
+  initialUnit,
+  initialPriceDisplayableOnly,
+}: StorefrontProps) {
   const { user, ready: authReady } = useAuth();
   const effectiveRoles = Array.isArray(user?.roles) ? [...user.roles].sort() : [];
   const storefrontIdentityKey = JSON.stringify({
@@ -153,6 +175,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
   const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
+  const [brandId, setBrandId] = useState<string>(initialBrandId ?? '');
+  const [unit, setUnit] = useState<string>(initialUnit ?? '');
+  const [priceDisplayableOnly, setPriceDisplayableOnly] = useState<boolean>(initialPriceDisplayableOnly ?? false);
   const [catalogPage, setCatalogPage] = useState(1);
   const [debouncedQuery, setDebouncedQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const isPagedView = initialView === 'shop' && view === 'shop';
@@ -161,7 +186,22 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       // The Supabase session is authoritative. useAuth can briefly lag a sign-in,
       // sign-out, account switch, or token refresh; all catalog modes fail closed on mismatch.
       const emptySnapshot = (): StorefrontProductsSnapshot => isPagedView
-        ? { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [] }
+        ? {
+            mode: 'paged',
+            identityKey: storefrontIdentityKey,
+            search: debouncedQuery,
+            categoryId: activeCat || null,
+            availableOnly,
+            brandId: brandId || null,
+            unit: unit || null,
+            priceDisplayableOnly,
+            page: catalogPage,
+            pageSize: 24,
+            totalCount: 0,
+            totalPages: 0,
+            items: [],
+            filters: { brands: [], units: [] },
+          }
         : { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
       if (view === 'cart' || view === 'checkout') return emptySnapshot();
       if (!authReady) return emptySnapshot();
@@ -204,6 +244,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           page: catalogPage,
           pageSize: 24,
           availableOnly,
+          brandId: brandId || null,
+          unit: unit || null,
+          priceDisplayableOnly,
         });
         let sessionUserAfter: string | null;
         try {
@@ -212,7 +255,17 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
         }
         assertLiveIdentity(sessionUserAfter, 'after');
-        return { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, ...page };
+        return {
+          mode: 'paged',
+          identityKey: storefrontIdentityKey,
+          search: debouncedQuery,
+          categoryId: activeCat || null,
+          availableOnly,
+          brandId: brandId || null,
+          unit: unit || null,
+          priceDisplayableOnly,
+          ...page,
+        };
       }
 
       const items = await fetchProducts();
@@ -224,7 +277,18 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       }
       assertLiveIdentity(sessionUserAfter, 'after');
       return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable: anonymousContext };
-    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, storefrontIdentityKey]);
+    }, [
+      view,
+      catalogPage,
+      debouncedQuery,
+      activeCat,
+      availableOnly,
+      brandId,
+      unit,
+      priceDisplayableOnly,
+      initialView,
+      storefrontIdentityKey,
+    ]);
   // useFetch retains its previous result while a new request is pending or fails.
   // Only use data produced under the current session/role identity.
   const snapshotMatchesIdentity = productSnapshot?.identityKey === storefrontIdentityKey;
@@ -365,8 +429,23 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   }, [initialAvailableOnly]);
 
   useEffect(() => {
+    setBrandId(initialBrandId ?? '');
     setCatalogPage(1);
-  }, [debouncedQuery, activeCat, availableOnly]);
+  }, [initialBrandId]);
+
+  useEffect(() => {
+    setUnit(initialUnit ?? '');
+    setCatalogPage(1);
+  }, [initialUnit]);
+
+  useEffect(() => {
+    setPriceDisplayableOnly(initialPriceDisplayableOnly ?? false);
+    setCatalogPage(1);
+  }, [initialPriceDisplayableOnly]);
+
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [debouncedQuery, activeCat, availableOnly, brandId, unit, priceDisplayableOnly]);
 
   useEffect(() => {
     cachedProductsRef.current = cachedProducts;
@@ -1036,7 +1115,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             )}
 
             <section className="sf-products">
-              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
+              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب البحث والتصنيف والفلاتر`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
                 : productsError && !products.length
