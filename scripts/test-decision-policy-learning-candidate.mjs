@@ -270,38 +270,12 @@ async function main() {
         lessons: ["تُراجع نتيجة المتابعة وفق قياس موثق."],
         expectedMetric: { key: "cashflow.expected_collections", currency: "YER" },
       };
-      await tx.unsafe("reset role");
-      const memoryPreflight = await tx.unsafe(
-        "WITH input AS (" +
-          "SELECT $2::jsonb AS snapshot, " +
-            "($2::jsonb->>'asOf')::timestamptz AS as_of, " +
-            "($2::jsonb #>> '{period,from}')::date AS period_from, " +
-            "($2::jsonb #>> '{period,to}')::date AS period_to" +
-        ") " +
-        "SELECT o.created_at AS outcome_created_at, o.state AS outcome_state, now() AS database_now, " +
-          "i.as_of AS requested_as_of, " +
-          "(i.as_of > now()) AS as_of_is_future, " +
-          "(i.as_of > o.created_at) AS as_of_after_outcome_creation, " +
-          "(i.period_from < (i.as_of AT TIME ZONE 'UTC')::date) AS period_starts_before_as_of, " +
-          "(i.period_to > ((i.as_of AT TIME ZONE 'UTC')::date + 90)) AS period_exceeds_90_days, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'period') AS period_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'factsReviewed') AS facts_reviewed_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'facts') AS facts_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'opinions') AS opinions_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'hypotheses') AS hypotheses_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'assumptions') AS assumptions_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'alternatives') AS alternatives_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'assumptionsReviewed') AS assumptions_reviewed_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'lessonsReviewed') AS lessons_reviewed_type, " +
-          "pg_catalog.jsonb_typeof(i.snapshot->'lessons') AS lessons_type, " +
-          "(o.state='MEASURED' AND i.snapshot->'lessonsReviewed' <> 'true'::jsonb) AS measured_without_lessons_review, " +
-          "(i.snapshot->>'problem' IS NOT NULL AND pg_catalog.char_length(i.snapshot->>'problem') > 2000) AS problem_too_long, " +
-          "(i.snapshot->>'actionTaken' IS NOT NULL AND pg_catalog.char_length(i.snapshot->>'actionTaken') > 2000) AS action_too_long " +
-        "FROM public.decision_outcomes o CROSS JOIN input i " +
-        "WHERE o.id=$1::uuid AND o.organization_id=$3::uuid",
-        [outcomeId, memorySnapshot, manager.organization_id],
-      );
-      process.stdout.write("Decision memory save preflight: " + JSON.stringify(memoryPreflight[0] ?? null) + "\\n");
+      process.stdout.write("Decision memory save preflight: " + JSON.stringify({
+        asOf,
+        period: { from: periodFrom, to: periodTo },
+        snapshotFields: Object.keys(memorySnapshot).sort(),
+        role: "authenticated manager via existing save RPC",
+      }) + "\\n");
       await setActor(tx, managerClaims);
 
       const memoryRows = await tx.unsafe(
@@ -315,101 +289,28 @@ async function main() {
       assert.equal(memoryResult.snapshot.version, 1,
         "the first decision-memory capture must return version one");
 
-      // Diagnose the source-backed projection with the local database owner,
-      // without weakening authenticated behavior or exposing any non-test data.
-      await tx.unsafe("reset role");
-      const sourceDiagnostics = await tx.unsafe(
-        "select " +
-          "o.measured_outcome is not null as has_measured_outcome, " +
-          "o.measured_outcome as measured_payload, " +
-          "pg_catalog.jsonb_typeof(o.measured_outcome) as measured_payload_type, " +
-          "o.measured_outcome->>'metricKey' as measured_metric_key, " +
-          "o.measured_outcome->>'unit' as measured_unit, " +
-          "o.measured_outcome->>'status' as measured_status, " +
-          "o.measured_outcome->>'completeness' as measured_completeness, " +
-          "o.measured_outcome->>'quality' as measured_quality, " +
-          "pg_catalog.jsonb_typeof(o.measured_outcome->'period') as measured_period_type, " +
-          "pg_catalog.jsonb_typeof(o.measured_outcome->'evidenceIds') as measured_evidence_type, " +
-          "o.measured_outcome->>'asOf' as measured_as_of, " +
-          "o.measured_outcome->'evidenceIds' as measured_evidence_ids, " +
-          "(select count(*)::integer from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as matching_invoice_count, " +
-          "(select i.issued_at <= (o.measured_outcome->>'asOf')::timestamptz from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as invoice_is_before_as_of, " +
-          "(select p.provolatile from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_volatility, " +
-          "(select pg_catalog.pg_get_userbyid(p.proowner) from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_owner, " +
-          "(select p.prosecdef from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_security_definer, " +
-          "(select r.rolbypassrls from pg_catalog.pg_roles r where r.rolname=(select pg_catalog.pg_get_userbyid(p.proowner) from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure)) as snapshot_owner_bypasses_rls, " +
-          "(select c.relrowsecurity from pg_catalog.pg_class c where c.oid='public.decision_memory_snapshots'::regclass) as snapshot_table_rls, " +
-          "(select c.relforcerowsecurity from pg_catalog.pg_class c where c.oid='public.decision_memory_snapshots'::regclass) as snapshot_table_force_rls, " +
-          "(select count(*)::integer from public.decision_memory_snapshots s join public.decision_outcomes x on x.id=s.decision_outcome_id and x.organization_id=s.organization_id where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as snapshot_join_rows, " +
-          "current_user::text as diagnostic_current_user,session_user::text as diagnostic_session_user, " +
-          "public._decision_memory_resolve_evidence($3::uuid,ARRAY['invoice:'||$2::text],'decision-learning-acceptance-debug', " +
-          "jsonb_build_object('from',$4::date,'to',$5::date),(o.measured_outcome->>'asOf')::timestamptz) as resolved_evidence, " +
-          "public._decision_memory_snapshot($3::uuid,$1::uuid) as reloaded_memory_snapshot, " +
-          "public._decision_memory_snapshot($3::uuid,$1::uuid)->'actualMetric' as reloaded_actual_metric, " +
-          "(select count(*)::integer from public.decision_memory_snapshots s where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_row_count, " +
-          "(select count(*)::integer from public.decision_memory_snapshots s join public.decision_outcomes o on o.id=s.decision_outcome_id and o.organization_id=s.organization_id where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_join_count, " +
-          "(select jsonb_agg(jsonb_build_object('snapshot_id',s.id,'snapshot_org',s.organization_id,'snapshot_decision',s.decision_outcome_id,'outcome_id',o.id,'outcome_org',o.organization_id) order by s.version desc) from public.decision_memory_snapshots s left join public.decision_outcomes o on o.id=s.decision_outcome_id where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_join_diagnostics, " +
-          "(select public._decision_memory_snapshot(s.organization_id,s.decision_outcome_id) from public.decision_memory_snapshots s where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid order by s.version desc limit 1) as direct_snapshot_using_persisted_keys, " +
-          "pg_catalog.pg_get_functiondef('public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_function_definition " +
-        "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
-        [outcomeId, invoiceId, manager.organization_id, periodFrom, periodTo],
+      // Re-read the immutable snapshot through the same tenant-scoped,
+      // authenticated RPC used by the product. Do not bypass table ACL/RLS
+      // with direct test-only reads of decision_outcomes or snapshot internals.
+      const outcomeReadRows = await tx.unsafe(
+        "select public.fetch_decision_outcomes(100,0) as result",
       );
-      process.stdout.write("Decision source projection diagnostic: " + JSON.stringify(sourceDiagnostics[0] ?? null) + "\\n");
-      assert.equal(sourceDiagnostics.length, 1, "the measured decision must retain its same-tenant source row");
-      assert.equal(Number(sourceDiagnostics[0].memory_snapshot_row_count), 1,
-        "the subsequent statement must see exactly one persisted immutable memory snapshot");
-      assert.equal(Number(sourceDiagnostics[0].memory_snapshot_join_count), 1,
-        "the snapshot must remain joined to its same-tenant decision outcome");
-      assert.equal(sourceDiagnostics[0].has_measured_outcome, true,
-        "the terminal MEASURE event must persist a structured outcome");
-      assert.equal(Number(sourceDiagnostics[0].matching_invoice_count), 1,
-        "the evidence ID must resolve to exactly one invoice in the active organization");
-      assert.equal(sourceDiagnostics[0].invoice_is_before_as_of, true,
-        "the measured invoice must exist at or before the source as-of timestamp");
-      assert.equal(sourceDiagnostics[0].snapshot_helper_volatility,"v",
-        "the snapshot helper must use a fresh command snapshot for same-statement read-after-write");
-      const resolvedActualEvidence = decode(sourceDiagnostics[0].resolved_evidence);
-      assert.equal(resolvedActualEvidence?.ids?.length, 1,
-        "the evidence resolver must return every requested same-tenant invoice ID");
-      assert.ok(sourceDiagnostics[0].reloaded_actual_metric,
-        "a subsequent SQL statement must reload the source-backed actual metric; measured payload="+
-        JSON.stringify({
-          payload: sourceDiagnostics[0].measured_payload,
-          payloadType: sourceDiagnostics[0].measured_payload_type,
-          metricKey: sourceDiagnostics[0].measured_metric_key,
-          unit: sourceDiagnostics[0].measured_unit,
-          status: sourceDiagnostics[0].measured_status,
-          completeness: sourceDiagnostics[0].measured_completeness,
-          quality: sourceDiagnostics[0].measured_quality,
-          periodType: sourceDiagnostics[0].measured_period_type,
-          evidenceType: sourceDiagnostics[0].measured_evidence_type,
-          evidenceIds: sourceDiagnostics[0].measured_evidence_ids,
-          resolved: resolvedActualEvidence,
-          helperVolatility: sourceDiagnostics[0].snapshot_helper_volatility,
-          helperOwner: sourceDiagnostics[0].snapshot_helper_owner,
-          helperSecurityDefiner: sourceDiagnostics[0].snapshot_helper_security_definer,
-          ownerBypassesRls: sourceDiagnostics[0].snapshot_owner_bypasses_rls,
-          snapshotTableRls: sourceDiagnostics[0].snapshot_table_rls,
-          snapshotTableForceRls: sourceDiagnostics[0].snapshot_table_force_rls,
-          snapshotJoinRows: sourceDiagnostics[0].snapshot_join_rows,
-          diagnosticCurrentUser: sourceDiagnostics[0].diagnostic_current_user,
-          diagnosticSessionUser: sourceDiagnostics[0].diagnostic_session_user,
-          snapshotRows: sourceDiagnostics[0].memory_snapshot_row_count,
-          reloadedSnapshot: sourceDiagnostics[0].reloaded_memory_snapshot
-        }));
-      assert.equal(Number(sourceDiagnostics[0].reloaded_actual_metric.value), amount,
-        "the reloaded actual metric must retain the server-measured amount");
-      assert.equal(sourceDiagnostics[0].reloaded_actual_metric.status, "VERIFIED");
-      assert.ok(Array.isArray(sourceDiagnostics[0].reloaded_memory_snapshot?.evidenceRecords),
-        "a reloaded decision snapshot must normalize a stored JSON null evidenceRecords field to an array");
-      assert.ok(sourceDiagnostics[0].reloaded_memory_snapshot.evidenceRecords.some((record) =>
-        record.id === "dmactual:" + sourceDiagnostics[0].reloaded_memory_snapshot.id + ":invoice:" + invoiceId
-      ), "reloaded evidenceRecords must include the full tenant-resolved source invoice");
-      assertCompleteEvidenceProjection(
-        decode(sourceDiagnostics[0].reloaded_memory_snapshot),
-        "reloaded decision snapshot",
-      );
-      await setActor(tx, managerClaims);
+      const outcomeRead = decode(outcomeReadRows[0].result);
+      const persistedOutcome = outcomeRead?.items?.find((item) => item.id === outcomeId);
+      assert.ok(persistedOutcome,
+        "the authenticated tenant-scoped outcome read must return the saved decision");
+      const reloadedMemorySnapshot = decode(persistedOutcome.memorySnapshot);
+      assert.ok(reloadedMemorySnapshot && typeof reloadedMemorySnapshot.id === "string",
+        "the authenticated outcome read must return the persisted immutable memory snapshot");
+      assert.equal(Number(reloadedMemorySnapshot.actualMetric?.value), amount,
+        "the persisted actualMetric must be reloaded through the authorized outcome read");
+      assert.equal(reloadedMemorySnapshot.actualMetric.status, "VERIFIED");
+      assert.ok(Array.isArray(reloadedMemorySnapshot.evidenceRecords),
+        "the authenticated outcome read must return evidenceRecords as an array");
+      assert.ok(reloadedMemorySnapshot.evidenceRecords.some((record) =>
+        record.id === "dmactual:" + reloadedMemorySnapshot.id + ":invoice:" + invoiceId
+      ), "the reloaded evidenceRecords must include the tenant-resolved measured invoice");
+      assertCompleteEvidenceProjection(reloadedMemorySnapshot, "authenticated reloaded decision snapshot");
 
       assert.ok(memoryResult?.snapshot && typeof memoryResult.snapshot.id === "string",
         "save_decision_memory_snapshot must return the row it just inserted");
