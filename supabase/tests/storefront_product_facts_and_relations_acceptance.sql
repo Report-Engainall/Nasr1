@@ -136,6 +136,14 @@ GRANT USAGE ON SCHEMA auth TO anon,authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO anon,authenticated;
 GRANT USAGE ON SCHEMA public TO anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.save_admin_product_with_metadata(uuid,jsonb) TO authenticated;
+CREATE OR REPLACE FUNCTION public.test_read_product_name(p_product_id uuid)
+RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $function$
+  SELECT p.name FROM public.products p WHERE p.id=p_product_id
+$function$;
+GRANT EXECUTE ON FUNCTION public.test_read_product_name(uuid) TO authenticated;
+
 
 INSERT INTO public.organizations(id) VALUES
 ('a0000000-0000-4000-8000-000000000001'),('b0000000-0000-4000-8000-000000000002');
@@ -340,7 +348,7 @@ BEGIN
     );
   EXCEPTION WHEN SQLSTATE '22023' THEN v_rejected:=true; END;
   IF NOT v_rejected THEN RAISE EXCEPTION 'combined write accepted invalid facts'; END IF;
-  SELECT name INTO v_name FROM public.products WHERE id='a4000000-0000-4000-8000-000000000001';
+  SELECT public.test_read_product_name('a4000000-0000-4000-8000-000000000001') INTO v_name;
   IF v_name<>'منتج رئيسي' THEN RAISE EXCEPTION 'combined product save failed to roll back: %',v_name; END IF;
 END
 $atomic$;
