@@ -101,7 +101,7 @@ async function main() {
         period_to date NOT NULL
       );
       CREATE TABLE public.finance_bank_statement_lines (
-        id uuid PRIMARY KEY,
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         organization_id uuid NOT NULL,
         statement_id uuid NOT NULL,
         line_number integer NOT NULL,
