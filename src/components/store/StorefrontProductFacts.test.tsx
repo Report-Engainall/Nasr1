@@ -90,8 +90,8 @@ describe("storefront product facts presentation", () => {
 
     expect(await screen.findByText("لا توجد حالياً حقائق موثقة للعلامة أو المنشأ أو التغليف لهذا الصنف."))
       .toBeInTheDocument();
-    expect(screen.getByText("لم تُسجّل علامة لهذا المنتج")).toBeInTheDocument();
-    expect(screen.getByText("غير معتمد")).toBeInTheDocument();
+    expect(screen.queryByText("لم تُسجّل علامة لهذا المنتج")).not.toBeInTheDocument();
+    expect(screen.queryByText("غير معتمد")).not.toBeInTheDocument();
     expect(screen.getByText("لم تُسجّل مواصفات معتمدة لهذا الصنف.")).toBeInTheDocument();
     expect(screen.getByText("لا توجد منتجات بديلة مرتبطة ومنشورة لهذا الصنف.")).toBeInTheDocument();
     expect(screen.getByText("لا توجد منتجات مكملة مرتبطة ومنشورة لهذا الصنف.")).toBeInTheDocument();
