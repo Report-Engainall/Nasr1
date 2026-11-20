@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { parseCustomerShoppingListXlsx } from "@/lib/customer-shopping-lists-xlsx";
 
@@ -74,9 +73,18 @@ function makeXlsxWithDataDescriptors(): Uint8Array {
 
 describe("customer shopping-list XLSX archive parser", () => {
   it("imports an XLSX sheet with ZIP data descriptors and inline Arabic headers", async () => {
-    const file = new File([makeXlsxWithDataDescriptors()], "products.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
+    const bytes = makeXlsxWithDataDescriptors();
+    // The parser needs only the standard File name/size/arrayBuffer contract.
+    // Vitest's jsdom File lacks arrayBuffer(), so use a deterministic standards-shaped fixture.
+    const file = {
+      name: "products.xlsx",
+      size: bytes.byteLength,
+      arrayBuffer: async (): Promise<ArrayBuffer> => {
+        const buffer = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(buffer).set(bytes);
+        return buffer;
+      },
+    } as File;
     const result = await parseCustomerShoppingListXlsx(file, products);
     expect(result.imported_rows).toBe(1);
     expect(result.lines).toEqual([{

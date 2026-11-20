@@ -259,7 +259,11 @@ BEGIN
   PERFORM public.share_customer_shopping_list(v_list_id,'a4000000-0000-4000-8000-000000000002','edit');
   PERFORM public.share_customer_shopping_list(v_list_id,'a4000000-0000-4000-8000-000000000003','view');
 
+  v_before_cart:=public.get_customer_cart();
   v_result:=public.materialize_due_customer_shopping_list_runs();
+  IF public.get_customer_cart()->'items' IS DISTINCT FROM v_before_cart->'items' THEN
+    RAISE EXCEPTION 'materializing weekly/monthly reviews must never edit the cart or submit an order';
+  END IF;
   IF (v_result->>'created_runs')::integer<>2 THEN
     RAISE EXCEPTION 'weekly and monthly due schedules were not materialized exactly once: %',v_result;
   END IF;
