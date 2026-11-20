@@ -88,7 +88,7 @@ export function StorefrontProductFacts({
     return () => { active = false; };
   }, [productId]);
 
-  if (loading || !facts || facts.productId !== productId) {
+  if (loading || (!facts && !error) || (facts !== null && facts.productId !== productId)) {
     return <section className="sf-related-products" aria-live="polite" role="status">جار تحميل العلامة والمواصفات والعلاقات المعتمدة...</section>;
   }
   if (error || !facts) {

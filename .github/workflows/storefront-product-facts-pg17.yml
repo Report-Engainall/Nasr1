@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: storefront-product-facts-pg17-\${{ github.event.pull_request.number || github.ref }}-\${{ github.sha }}
+  group: storefront-product-facts-pg17-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
       - name: Checkout exact tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
       - name: Install PostgreSQL client
         run: |
