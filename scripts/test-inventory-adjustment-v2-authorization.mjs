@@ -513,10 +513,66 @@ async function main() {
           "the active administrator in the current organization must satisfy the existing cancel guard: " +
             JSON.stringify(adminCancelContext));
         const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
-        const cancelledCount = decodeJson((await tx.unsafe(
-          "select public.cancel_stock_count($1::uuid,$2::text) as result",
-          [countSession.id,cancellationReason],
-        ))[0].result);
+        let cancellationResult;
+        let cancellationError;
+        try {
+          cancellationResult = await tx.savepoint(async (savepoint) => savepoint.unsafe(
+            "select public.cancel_stock_count($1::uuid,$2::text) as result",
+            [countSession.id,cancellationReason],
+          ));
+        } catch (error) {
+          cancellationError = error;
+        }
+        if (cancellationError) {
+          const [cancelRoutine] = await tx.unsafe(
+            "select pg_catalog.pg_get_functiondef('public.cancel_stock_count(uuid,text)'::regprocedure) as definition, " +
+            "pg_catalog.pg_get_userbyid(p.proowner) as owner, r.rolbypassrls as owner_bypasses_rls, p.prosecdef as security_definer " +
+            "from pg_catalog.pg_proc p join pg_catalog.pg_roles r on r.oid=p.proowner " +
+            "where p.oid='public.cancel_stock_count(uuid,text)'::regprocedure",
+          );
+          const cancelTriggers = await tx.unsafe(
+            "select t.tgname as trigger_name, pg_catalog.pg_get_triggerdef(t.oid) as trigger_definition, " +
+            "p.proname as trigger_function, p.prosrc as trigger_source " +
+            "from pg_catalog.pg_trigger t join pg_catalog.pg_proc p on p.oid=t.tgfoid " +
+            "where t.tgrelid='public.stock_count_sessions'::regclass and not t.tgisinternal order by t.tgname",
+          );
+          const routinesWithSameGuard = await tx.unsafe(
+            "select n.nspname as schema_name,p.proname as function_name,pg_catalog.pg_get_function_identity_arguments(p.oid) as arguments " +
+            "from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace " +
+            "where p.prosrc ilike '%administrator or manager permission required to cancel a stock count%' " +
+            "order by n.nspname,p.proname",
+          );
+          const [liveActor] = await tx.unsafe(
+            "select current_user as current_user,session_user as session_user," +
+            "current_setting('role',true) as active_role,auth.uid()::text as auth_user_id," +
+            "public.current_profile_id()::text as profile_id,public.current_organization_id()::text as organization_id," +
+            "public.operational_tasks_can_manage() as can_manage",
+          );
+          throw new Error(
+            "Stock-count cancellation failed; live routine/trigger evidence: " +
+            JSON.stringify({
+              pg: {
+                code: cancellationError.code,
+                message: cancellationError.message,
+                detail: cancellationError.detail,
+                hint: cancellationError.hint,
+                where: cancellationError.where,
+                routine: cancellationError.routine,
+              },
+              actor: liveActor,
+              routine: {
+                owner: cancelRoutine.owner,
+                owner_bypasses_rls: cancelRoutine.owner_bypasses_rls,
+                security_definer: cancelRoutine.security_definer,
+                definition: cancelRoutine.definition,
+              },
+              triggers: cancelTriggers,
+              routines_with_same_guard: routinesWithSameGuard,
+            }),
+            { cause: cancellationError },
+          );
+        }
+        const cancelledCount = decodeJson(cancellationResult[0].result);
         assert.equal(cancelledCount.status,"cancelled");
         const [cancelledCountState] = await tx.unsafe(
           "select status,cancelled_by,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
