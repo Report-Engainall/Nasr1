@@ -450,6 +450,13 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(taskPagination).toBeVisible();
     await expect(taskPagination.getByRole("button", { name: "التالي", exact: true })).toBeEnabled();
     await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
+    const firstTaskCard = manager.locator(".task-center-list .task-card").first();
+    await expect(firstTaskCard.getByRole("button", { name: "فتح مراجعة الجودة", exact: true })).toHaveAttribute("aria-expanded", "false");
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
+    await firstTaskCard.getByRole("button", { name: "فتح مراجعة الجودة", exact: true }).click();
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toBeVisible();
+    await firstTaskCard.getByRole("button", { name: "إخفاء مراجعة الجودة", exact: true }).click();
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
     await taskPagination.getByRole("button", { name: "التالي", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ٢");
     await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
