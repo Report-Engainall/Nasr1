@@ -224,6 +224,8 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState<OperationalTaskRole | 'all'>(financeOnly ? 'accountant' : 'all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'all' | OperationalTaskStatus>('open');
+  const [taskPage, setTaskPage] = useState(1);
+  const TASK_PAGE_SIZE = 10;
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'unassigned' | string>('all');
   const [createdFrom, setCreatedFrom] = useState('');
@@ -345,6 +347,13 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
     () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
     [filteredWithoutRole,roleFilter],
   );
+  const taskPageCount = Math.max(1, Math.ceil(filtered.length / TASK_PAGE_SIZE));
+  const visibleTasks = useMemo(
+    () => filtered.slice((taskPage - 1) * TASK_PAGE_SIZE, taskPage * TASK_PAGE_SIZE),
+    [filtered, taskPage],
+  );
+  useEffect(() => { setTaskPage(1); }, [statusFilter, roleFilter, priorityFilter, assigneeFilter, createdFrom, createdTo, dueFrom, dueTo, overdueOnly, search]);
+  useEffect(() => { if (taskPage > taskPageCount) setTaskPage(taskPageCount); }, [taskPage, taskPageCount]);
   const printable = useMemo(
     () => filterTasksForPrint(
       printScope === 'selected' ? roleScopedTasks : filteredWithoutRole,
@@ -833,7 +842,16 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
     {error && <div className="task-center-error" role="alert"><AlertTriangle size={17} /> {error}</div>}
     {loading ? <div className="panel task-center-empty">جارٍ تحميل المهام المقيّدة بصلاحيات حسابك…</div> : filtered.length===0 ? (
       <div className="panel task-center-empty"><ClipboardList size={30} /><strong>لا توجد مهام مطابقة للفلاتر</strong><span>غيّر الفلاتر أو نفّذ المصالحة مع سجلات التشغيل المحفوظة.</span></div>
-    ) : <div className="task-center-list">{filtered.map((task) => {
+    ) : <>
+      <nav className="task-center-pagination" aria-label="صفحات المهام" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', margin: '12px 0' }}>
+        <span role="status">عرض {((taskPage - 1) * TASK_PAGE_SIZE + 1).toLocaleString('ar-YE')}–{Math.min(taskPage * TASK_PAGE_SIZE, filtered.length).toLocaleString('ar-YE')} من {filtered.length.toLocaleString('ar-YE')} مهمة</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" className="btn secondary" onClick={() => setTaskPage((page) => Math.max(1, page - 1))} disabled={taskPage <= 1}>السابق</button>
+          <span aria-live="polite">صفحة {taskPage.toLocaleString('ar-YE')} من {taskPageCount.toLocaleString('ar-YE')}</span>
+          <button type="button" className="btn secondary" onClick={() => setTaskPage((page) => Math.min(taskPageCount, page + 1))} disabled={taskPage >= taskPageCount}>التالي</button>
+        </div>
+      </nav>
+      <div className="task-center-list">{visibleTasks.map((task) => {
       const late=isLate(task);
       const source=task.source_entity_type?(entityLabels[task.source_entity_type]??task.source_entity_type):'مهمة يدوية';
       const sourceId=task.source_entity_id?task.source_entity_id.slice(0,8):'—';
@@ -1035,7 +1053,8 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
           {canManage&&['completed','cancelled'].includes(task.status)&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'pending')}><RefreshCw size={15}/> إعادة فتح</button>}
         </div>
       </article>;
-    })}</div>}
+    })}</div>
+    </>}
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
       <header><h1>{operationalTaskPrintTitle()}</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
