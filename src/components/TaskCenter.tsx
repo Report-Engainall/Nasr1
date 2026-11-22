@@ -849,7 +849,15 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
       <label><span>إلى موعد الاستحقاق</span><input type="date" value={dueTo} min={dueFrom || undefined} onChange={(event) => setDueTo(event.target.value)} /></label>
       <label className="task-overdue-filter"><input type="checkbox" checked={overdueOnly} onChange={(event) => setOverdueOnly(event.target.checked)} /><span>المتأخرة فقط</span></label>
     </section>
-    {error && <div className="task-center-error" role="alert"><AlertTriangle size={17} /> {error}</div>}
+    {error && (
+      <div className="task-center-error" role="alert" aria-live="assertive">
+        <AlertTriangle size={17} />
+        <span>{error}</span>
+        <button type="button" className="btn secondary" onClick={() => void loadTasks()} disabled={loading}>
+          {loading ? 'جارٍ إعادة المحاولة…' : 'إعادة تحميل المهام'}
+        </button>
+      </div>
+    )}
     {loading ? <div className="panel task-center-empty">جارٍ تحميل المهام المقيّدة بصلاحيات حسابك…</div> : filtered.length===0 ? (
       <div className="panel task-center-empty"><ClipboardList size={30} /><strong>لا توجد مهام مطابقة للفلاتر</strong><span>غيّر الفلاتر أو نفّذ المصالحة مع سجلات التشغيل المحفوظة.</span></div>
     ) : <>
