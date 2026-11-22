@@ -256,6 +256,7 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
   const [bulkDetailsDueAt, setBulkDetailsDueAt] = useState('');
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [qualityRefreshToken, setQualityRefreshToken] = useState(0);
+  const [expandedQualityTaskIds, setExpandedQualityTaskIds] = useState<Set<string>>(() => new Set());
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -388,6 +389,15 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
     })).filter((row) => row.total > 0),
     [allowedRoles,printable],
   );
+
+  function toggleQualityReview(taskId: string) {
+    setExpandedQualityTaskIds((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
 
   function toggleTaskSelection(taskId: string, checked: boolean) {
     setSelectedTaskIds((current) => {
@@ -929,12 +939,25 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
         </div>
         {canManage && (
           <div className="task-card-quality-review" style={{ marginTop: 14 }}>
-            <TaskQualityReviewForm
-              key={task.id}
-              taskId={task.id}
-              taskUpdatedAt={task.updated_at}
-              onSaved={refreshQualityAfterReview}
-            />
+            <button
+              type="button"
+              className="btn secondary"
+              aria-expanded={expandedQualityTaskIds.has(task.id)}
+              aria-controls={'task-quality-review-' + task.id}
+              onClick={() => toggleQualityReview(task.id)}
+            >
+              {expandedQualityTaskIds.has(task.id) ? 'إخفاء مراجعة الجودة' : 'فتح مراجعة الجودة'}
+            </button>
+            {expandedQualityTaskIds.has(task.id) ? (
+              <div id={'task-quality-review-' + task.id} className="mt-3">
+                <TaskQualityReviewForm
+                  key={task.id}
+                  taskId={task.id}
+                  taskUpdatedAt={task.updated_at}
+                  onSaved={refreshQualityAfterReview}
+                />
+              </div>
+            ) : null}
           </div>
         )}
         <div className="task-card-actions">
