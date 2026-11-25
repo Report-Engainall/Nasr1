@@ -343,6 +343,8 @@ on:
       - "src/lib/unified-import-quality.test.ts"
       - "src/components/AdminOrderCreationDialog.tsx"
       - "src/components/AdminOrderCreationDialog.test.tsx"
+      - "src/components/CustomerMyDevicesPage.tsx"
+      - "src/test/customer-my-devices-pagination.test.tsx"
       - "src/components/TaskCenter.tsx"
       - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"
       - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
