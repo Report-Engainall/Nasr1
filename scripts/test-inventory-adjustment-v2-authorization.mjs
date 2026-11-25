@@ -1234,8 +1234,8 @@ async function main() {
         await applyActor(tx, actors.manager);
         const batchTransferKey = "p2-transfer-batch-" + process.pid + "-" + Date.now();
         const batchTransferArgs = [
-          otherWarehouse.warehouse_id, fixture.warehouse_id, transferReason,
-          JSON.stringify([{ product_id: fixture.product_id, quantity: 1 }]), batchTransferKey,
+          otherWarehouse.warehouse_id, fixture.warehouse_id, batchTransferKey,
+          JSON.stringify([{ product_id: fixture.product_id, quantity: 1 }]), transferReason,
         ];
         const batchTransfer = decodeJson((await tx.unsafe(
           "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
@@ -1277,6 +1277,14 @@ async function main() {
           [organizationId, batchTransfer.batch_id],
         );
         assert.equal(batchTransferLines[0].lines, 1, "batch-transfer replay must not duplicate transfer lines");
+        const batchTransferMovements = await tx.unsafe(
+          "select count(*)::integer as movements from public.inventory_movements m " +
+          "join public.inventory_transfers t on t.id=m.reference_id and t.organization_id=m.organization_id " +
+          "where m.reference_type='inventory_transfer' and t.batch_id=$1::uuid",
+          [batchTransfer.batch_id],
+        );
+        assert.equal(batchTransferMovements[0].movements, 2,
+          "batch-transfer replay must not duplicate source and destination stock movements");
 
         throw rollbackSentinel;
       });
