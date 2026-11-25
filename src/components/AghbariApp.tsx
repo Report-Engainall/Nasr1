@@ -19,6 +19,7 @@ import type { CustomerTierPricePreview } from '@/lib/api';
 import { StorefrontProductReviewModeration } from '@/components/StorefrontProductReviewModeration';
 import { StorefrontProductQuestionModeration } from '@/components/StorefrontProductQuestionModeration';
 import { archiveAdminCatalogProduct, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
+import { buildAdminProductCatalogCsv, reviewAdminProductCatalog, type AdminProductCatalogReview } from '@/lib/admin-product-catalog-review';
 import { useFetch } from '@/lib/useFetch';
 import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { ADMIN_NAV_GROUPS, ADMIN_NAV_PATHS, rolesCanAccessView } from '@/lib/admin-access-matrix';
@@ -28,6 +29,7 @@ import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/li
 import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { normalizePricingRuleTargetTier, PRICING_RULE_TARGET_OPTIONS } from '@/lib/pricing-rule-tiers';
+import { findPotentialPricingRuleConflicts } from '@/lib/pricing-rule-conflicts';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -53,6 +55,7 @@ const PricingGrid = lazy(async () => ({ default: (await import('@/components/Pri
 const AdminOrderCreationDialog = lazy(async () => ({ default: (await import('@/components/AdminOrderCreationDialog')).AdminOrderCreationDialog }));
 const ProductUnitConversionsEditor = lazy(async () => ({ default: (await import('@/components/ProductUnitConversionsEditor')).ProductUnitConversionsEditor }));
 const AdminAuditLog = lazy(async () => ({ default: (await import('@/components/AdminAuditLog')).AdminAuditLog }));
+const AdminCatalogChangeHistory = lazy(async () => ({ default: (await import('@/components/AdminCatalogChangeHistory')).AdminCatalogChangeHistory }));
 const AdminCustomer360 = lazy(async () => ({ default: (await import('@/components/AdminCustomer360')).AdminCustomer360 }));
 const CustomerServiceDesk = lazy(async () => ({ default: (await import('@/components/CustomerServiceDesk')).CustomerServiceDesk }));
 const CustomerActivationInvitationDialog = lazy(async () => ({ default: (await import('@/components/CustomerActivationInvitationDialog')).CustomerActivationInvitationDialog }));
@@ -1032,6 +1035,21 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const canUploadProductImages = Boolean(user?.roles.some((role) => ['admin', 'manager', 'staff'].includes(role)));
   const canManageReorderPoint = canManageProductLifecycle;
   const [lifecycleBusyId, setLifecycleBusyId] = useState<string | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(() => new Set());
+  const [bulkDialog, setBulkDialog] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<'unchanged' | 'active' | 'inactive'>('unchanged');
+  const [bulkCategory, setBulkCategory] = useState('unchanged');
+  const [bulkApplyUnit, setBulkApplyUnit] = useState(false);
+  const [bulkUnit, setBulkUnit] = useState('');
+  const [bulkApplyDescription, setBulkApplyDescription] = useState(false);
+  const [bulkDescription, setBulkDescription] = useState('');
+  const [bulkFeatured, setBulkFeatured] = useState<'unchanged' | 'yes' | 'no'>('unchanged');
+  const [catalogReview, setCatalogReview] = useState<AdminProductCatalogReview | null>(null);
+  const [catalogReviewError, setCatalogReviewError] = useState('');
+  const [catalogReviewBusy, setCatalogReviewBusy] = useState(false);
+  const [catalogExportBusy, setCatalogExportBusy] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState<ProductWithInventory | null>(null);
   const [showReviewModeration, setShowReviewModeration] = useState(false);
   const [showQuestionModeration, setShowQuestionModeration] = useState(false);
   const [page, setPage] = useState(1);
@@ -1069,9 +1087,37 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     }, 180);
     return () => window.clearTimeout(timer);
   }, [query]);
+  useEffect(() => {
+    setSelectedProductIds(new Set());
+  }, [page, debouncedQuery, statusFilter, categoryFilter]);
   async function refreshProducts() {
     await refetch();
     setCatalogRevision((revision) => revision + 1);
+  }
+  async function loadCompleteAdminCatalog(input: { search?: string; status?: 'all' | 'active' | 'inactive'; categoryId?: string }): Promise<ProductWithInventory[]> {
+    const complete: ProductWithInventory[] = [];
+    const seenIds = new Set<string>();
+    for (let requestedPage = 1; requestedPage <= 2500; requestedPage += 1) {
+      const result = await fetchAdminProductsPage({
+        page: requestedPage,
+        search: input.search ?? '',
+        status: input.status ?? 'all',
+        categoryId: input.categoryId,
+      });
+      if (result.page !== requestedPage || result.items.length > result.pageSize) {
+        throw new Error('تسلسل صفحات الكتالوج غير متسق؛ أوقفنا الفحص والتصدير.');
+      }
+      if (result.hasNextPage && result.items.length !== result.pageSize) {
+        throw new Error('أعلن الخادم عن صفحة لاحقة مع صفحة حالية غير مكتملة؛ تعذر إثبات اكتمال الكتالوج.');
+      }
+      for (const product of result.items) {
+        if (seenIds.has(product.id)) throw new Error('تكرر منتج بين صفحات الكتالوج؛ أوقفنا العملية بدل إصدار نتيجة غير موثوقة.');
+        seenIds.add(product.id);
+        complete.push(product);
+      }
+      if (!result.hasNextPage) return complete;
+    }
+    throw new Error('تجاوز الكتالوج الحد الأعلى لعدد الصفحات؛ لم نصدر تقريرًا أو ملفًا جزئيًا.');
   }
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<ProductWithInventory | null>(null);
@@ -1093,6 +1139,9 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const [thresholdError, setThresholdError] = useState('');
   const thresholdRequestSequence = useRef(0);
   const rows = data?.items ?? [];
+  const selectedRows = rows.filter((product) => selectedProductIds.has(product.id));
+  const allVisibleProductsSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const someVisibleProductsSelected = selectedRows.length > 0 && !allVisibleProductsSelected;
   async function archive(product: ProductWithInventory) {
     if (!canManageProductLifecycle || lifecycleBusyId) return;
     if (!window.confirm('أرشفة ' + product.name + '؟ لن يظهر المنتج في المتجر، ويمكن إعادة تفعيله لاحقًا.')) return;
@@ -1115,7 +1164,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     if (!window.confirm('إعادة تفعيل ' + product.name + '؟ سيعود المنتج إلى الكتالوج وفق قواعد المتجر.')) return;
     setLifecycleBusyId(product.id);
     try {
-      const saved = await updateProduct(product.id, { status: 'active' });
+      const saved = await updateProduct(product.id, { status: 'active', is_active: true });
       if (saved.id !== product.id) {
         throw new Error('لم يؤكد الخادم إعادة تفعيل المنتج؛ حدّث القائمة قبل إعادة المحاولة.');
       }
@@ -1127,6 +1176,116 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       setLifecycleBusyId(null);
     }
   }
+
+  function toggleProductSelection(productId: string, checked: boolean) {
+    setSelectedProductIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(productId);
+      else next.delete(productId);
+      return next;
+    });
+  }
+
+  function resetBulkEditor() {
+    setBulkStatus('unchanged');
+    setBulkCategory('unchanged');
+    setBulkApplyUnit(false);
+    setBulkUnit('');
+    setBulkApplyDescription(false);
+    setBulkDescription('');
+    setBulkFeatured('unchanged');
+  }
+
+  async function applyBulkProductChanges(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canManageProductLifecycle || bulkSaving || selectedRows.length === 0) return;
+    const patch: Partial<ProductWithInventory> = {};
+    if (bulkStatus !== 'unchanged') {
+      patch.status = bulkStatus;
+      patch.is_active = bulkStatus === 'active';
+    }
+    if (bulkCategory !== 'unchanged') patch.category_id = bulkCategory === '__none__' ? null : bulkCategory;
+    if (bulkApplyUnit) {
+      const unit = bulkUnit.trim();
+      if (!unit || unit.length > 40) { onNotice('الوحدة مطلوبة ولا تتجاوز 40 حرفًا.'); return; }
+      patch.unit = unit;
+    }
+    if (bulkApplyDescription) {
+      const description = bulkDescription.trim();
+      if (description.length > 2000) { onNotice('وصف المنتج لا يتجاوز 2000 حرف.'); return; }
+      patch.description = description || null;
+    }
+    if (bulkFeatured !== 'unchanged') patch.is_featured = bulkFeatured === 'yes';
+    if (Object.keys(patch).length === 0) { onNotice('حدد تغييرًا واحدًا على الأقل قبل التطبيق.'); return; }
+    const targets = [...selectedRows];
+    if (!window.confirm(`سيُحفظ التعديل لكل منتج على حدة عبر أمر الكتالوج الخادمي وسجل التدقيق. عدد المنتجات: ${targets.length}. قد يتوقف التنفيذ عند أول خطأ مع الاحتفاظ بالمنتجات التي اكتمل حفظها. متابعة؟`)) return;
+    setBulkSaving(true);
+    let completed = 0;
+    let failedProduct = '';
+    try {
+      for (const product of targets) {
+        failedProduct = product.name;
+        const saved = await updateProduct(product.id, patch);
+        if (saved.id !== product.id) throw new Error('لم يؤكد الخادم حفظ المنتج المحدد.');
+        completed += 1;
+      }
+      setSelectedProductIds(new Set());
+      setBulkDialog(false);
+      resetBulkEditor();
+      onNotice(`اكتمل التعديل الجماعي: تم حفظ ${completed} من ${targets.length} منتجات عبر أوامر الخادم.`);
+    } catch (cause) {
+      const failureMessage = cause instanceof Error ? cause.message : 'تعذر تأكيد الحفظ.';
+      setSelectedProductIds(new Set());
+      setBulkDialog(false);
+      resetBulkEditor();
+      onNotice(`توقف التعديل الجماعي عند «${failedProduct}». اكتمل حفظ ${completed} من ${targets.length} منتجات؛ لم يُعلن نجاح الباقي. السبب: ${failureMessage}`);
+    } finally {
+      await refreshProducts().catch(() => undefined);
+      setBulkSaving(false);
+    }
+  }
+  async function reviewCatalogQuality() {
+    if (!canUploadProductImages || catalogReviewBusy) return;
+    setCatalogReviewBusy(true);
+    setCatalogReviewError('');
+    setCatalogReview(null);
+    try {
+      const products = await loadCompleteAdminCatalog({ status: 'all' });
+      const review = reviewAdminProductCatalog(products, canManageProductLifecycle);
+      setCatalogReview(review);
+      onNotice(`اكتمل فحص الكتالوج: ${formatNumber(review.totalProducts)} منتج، ${formatNumber(review.productsWithIssues.length)} سجل يحتاج مراجعة.`);
+    } catch (cause) {
+      setCatalogReviewError(cause instanceof Error ? cause.message : 'تعذر إكمال فحص الكتالوج.');
+    } finally {
+      setCatalogReviewBusy(false);
+    }
+  }
+
+  async function exportCatalog() {
+    if (!canUploadProductImages || catalogExportBusy) return;
+    setCatalogExportBusy(true);
+    try {
+      const products = await loadCompleteAdminCatalog({ search: debouncedQuery, status: statusFilter, categoryId: categoryFilter === 'all' ? undefined : categoryFilter });
+      if (products.length === 0) { onNotice('لا توجد منتجات مطابقة للتصدير.'); return; }
+      const csv = buildAdminProductCatalogCsv(products, canManageProductLifecycle);
+      const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `aghbari-products-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      onNotice(`تم تجهيز ملف CSV كامل يضم ${formatNumber(products.length)} منتج. ${canManageProductLifecycle ? 'يتضمن سعر الأساس المسموح للدور.' : 'استُبعدت جميع الأسعار وفق صلاحية الدور.'}`);
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر تصدير الكتالوج كاملًا.');
+    } finally {
+      setCatalogExportBusy(false);
+    }
+  }
+
   function openTransfer(product: ProductWithInventory) {
     setTransferProduct(product);
     setTransferSource(product.inventory?.warehouse_id ?? warehouses?.[0]?.id ?? '');
@@ -1288,7 +1447,22 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}{canUploadProductImages && <><Button variant="outline" disabled={catalogReviewBusy} onClick={() => void reviewCatalogQuality()}>{catalogReviewBusy ? 'جار فحص الكتالوج…' : 'فحص جودة ومكررات الكتالوج'}</Button><Button variant="outline" disabled={catalogExportBusy} onClick={() => void exportCatalog()}>{catalogExportBusy ? 'جار تجهيز الملف…' : 'تصدير الكتالوج CSV'}</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+    {catalogReviewError && <div className="form-error" role="alert">{catalogReviewError}</div>}
+    {catalogReview && <section className="panel" aria-label="نتائج جودة الكتالوج" style={{ marginBottom: 16 }}>
+      <div className="panel-head"><div><h2>مراجعة جودة الكتالوج</h2><p>فحص {formatNumber(catalogReview.totalProducts)} منتج من جميع صفحات الكتالوج. لا تُعامل الأسعار المخفية على أنها صفر.</p></div><Button variant="outline" onClick={() => setCatalogReview(null)}>إغلاق التقرير</Button></div>
+      <div className="report-grid">
+        <article className="report-metric"><span>بلا صورة رئيسية</span><strong>{formatNumber(catalogReview.missingPrimaryImage.length)}</strong></article>
+        <article className="report-metric"><span>بلا وحدة بيع</span><strong>{formatNumber(catalogReview.missingUnit.length)}</strong></article>
+        <article className="report-metric"><span>بلا وصف</span><strong>{formatNumber(catalogReview.missingDescription.length)}</strong></article>
+        <article className="report-metric"><span>سعر أساس غير متاح</span><strong>{catalogReview.missingBasePrice === null ? 'غير متاح بالصلاحية' : formatNumber(catalogReview.missingBasePrice.length)}</strong></article>
+        <article className="report-metric"><span>مفاتيح تعريف مكررة</span><strong>{formatNumber(catalogReview.duplicateIdentifiers.length)}</strong></article>
+        <article className="report-metric"><span>منتجات تحتاج مراجعة</span><strong>{formatNumber(catalogReview.productsWithIssues.length)}</strong></article>
+      </div>
+      {catalogReview.productsWithIssues.length > 0 ? <TableWrap><table><thead><tr><th>المنتج</th><th>الرمز</th><th>الملاحظات</th></tr></thead><tbody>{catalogReview.productsWithIssues.slice(0, 100).map((product) => <tr key={product.id}><td>{product.name}</td><td><code>{product.item_code}</code></td><td>{product.issues.join('، ')}</td></tr>)}</tbody></table>{catalogReview.productsWithIssues.length > 100 && <p className="report-note">يظهر أول 100 سجل؛ العدد الإجمالي محفوظ في المؤشر أعلاه.</p>}</TableWrap> : <p role="status">لم يرصد الفحص أي نقص أو تكرار في حقول الجودة التي أمكن التحقق منها.</p>}
+      {catalogReview.duplicateIdentifiers.length > 0 && <details><summary>تفاصيل المفاتيح المكررة</summary><ul>{catalogReview.duplicateIdentifiers.slice(0, 100).map((duplicate) => <li key={duplicate.kind + ':' + duplicate.value}>{duplicate.kind}: <code>{duplicate.value}</code> — {duplicate.products.map((product) => product.name).join('، ')}</li>)}</ul></details>}
+      <p className="report-note">نطاق التحليل: كل صفحات الكتالوج التي أعاد الخادم اكتمالها وقت الفحص. يشمل فحص السعر سعر الأساس فقط عندما تسمح صلاحية الدور بعرضه؛ لا يستنتج المحرك سعرًا مخفيًا أو سعر شريحة غير معادة.</p>
+    </section>}
     <BulkProductImageUploader
       loadProducts={fetchProducts}
       catalogRevision={catalogRevision}
@@ -1354,9 +1528,20 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
         </button>
       )}
     </div>
+    {canManageProductLifecycle && rows.length > 0 && <section className="panel" aria-label="تحديد المنتجات وإدارتها جماعيًا" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <input type="checkbox" aria-label="تحديد كل منتجات الصفحة الحالية" checked={allVisibleProductsSelected} ref={(element) => { if (element) element.indeterminate = someVisibleProductsSelected; }} disabled={loading || bulkSaving} onChange={(event) => { const checked = event.target.checked; setSelectedProductIds((current) => { const next = new Set(current); if (checked) rows.forEach((product) => next.add(product.id)); else rows.forEach((product) => next.delete(product.id)); return next; }); }} />
+        <span>تحديد منتجات الصفحة الحالية ({formatNumber(rows.length)})</span>
+      </label>
+      <div className="toolbar-actions">
+        <span className="toolbar-note">المحدد: {formatNumber(selectedRows.length)}</span>
+        <Button variant="outline" disabled={selectedRows.length === 0 || bulkSaving} onClick={() => { resetBulkEditor(); setBulkDialog(true); }}>تعديل جماعي / تغيير النشر</Button>
+        <Button variant="outline" disabled={selectedRows.length === 0 || bulkSaving} onClick={() => setSelectedProductIds(new Set())}>إلغاء التحديد</Button>
+      </div>
+    </section>}
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
-        <thead><tr><th>المنتج</th><th>الصور</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
+        <thead><tr>{canManageProductLifecycle && <th><span className="sr-only">تحديد</span></th>}<th>المنتج</th><th>الصور</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
           const qty = p.inventory?.quantity_available;
           const reorderPoint = p.inventory?.reorder_point ?? p.min_stock_level;
@@ -1365,6 +1550,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
           const imageStatus = getProductImageDisplayStatus(p.image_url, p.image_gallery_urls);
           const primaryImageUrl = imageStatus.hasPrimary && typeof p.image_url === 'string' ? p.image_url.trim() : null;
           return <tr key={p.id}>
+            {canManageProductLifecycle && <td><input type="checkbox" aria-label={'تحديد المنتج ' + p.name} checked={selectedProductIds.has(p.id)} disabled={bulkSaving || lifecycleBusyId === p.id} onChange={(event) => toggleProductSelection(p.id, event.target.checked)} /></td>}
             <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td>
             <td>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 132 }}>
@@ -1391,6 +1577,8 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions">
               {canManageProductLifecycle && <button aria-label={'تعديل ' + p.name} title="تعديل المنتج والأسعار" onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>}
+              {canManageProductLifecycle && <button aria-label={'سجل تغييرات ' + p.name} title="سجل تغييرات المنتج" onClick={() => setHistoryProduct(p)}><ScrollText size={15} /></button>}
+              {p.status === 'active' && <a aria-label={'معاينة المنتج ' + p.name} title="معاينة صفحة المنتج كما يراها زائر المتجر" href={'/product/' + encodeURIComponent(p.id)} target="_blank" rel="noopener noreferrer"><Store size={15} /></a>}
               {canManageProductLifecycle && p.status === 'active' && <button aria-label={'أرشفة ' + p.name} title="أرشفة المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void archive(p)}><Trash2 size={15} /></button>}
               {canManageProductLifecycle && p.status === 'inactive' && <button aria-label={'إعادة تفعيل ' + p.name} title="إعادة تفعيل المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void restore(p)}><Check size={15} /></button>}
             </div></td>
@@ -1405,6 +1593,31 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
         </div>
       </div>
     </section>
+    {bulkDialog && <Modal title={`تعديل جماعي — ${formatNumber(selectedRows.length)} منتج`} onClose={() => { if (!bulkSaving) setBulkDialog(false); }}>
+      <form onSubmit={applyBulkProductChanges} style={{ display: 'grid', gap: 12 }}>
+        <p className="form-note">تُطبّق الحقول المحددة فقط. كل منتج يُحفظ بأمر خادمي مستقل مع التحقق من الأسعار الحالية وسجل التدقيق؛ هذه دفعة متتابعة وليست معاملة واحدة شاملة.</p>
+        <Field label="حالة النشر">
+          <select value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as 'unchanged' | 'active' | 'inactive')} disabled={bulkSaving}>
+            <option value="unchanged">الإبقاء على الحالة الحالية</option><option value="active">نشر / تفعيل المنتجات المحددة</option><option value="inactive">إيقاف النشر / أرشفة المحدد</option>
+          </select>
+        </Field>
+        <Field label="التصنيف">
+          <select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value)} disabled={bulkSaving || categoriesLoading || Boolean(categoriesError)}>
+            <option value="unchanged">الإبقاء على تصنيف كل منتج</option><option value="__none__">إزالة التصنيف</option>
+            {(categories ?? []).filter((category) => category.is_active !== false).map((category) => <option key={category.id} value={category.id}>{category.parent_id ? '— ' : ''}{category.name}</option>)}
+          </select>
+        </Field>
+        <label style={{ display: 'grid', gap: 6 }}><span><input type="checkbox" checked={bulkApplyUnit} disabled={bulkSaving} onChange={(event) => setBulkApplyUnit(event.target.checked)} /> تطبيق وحدة موحدة</span><input value={bulkUnit} onChange={(event) => setBulkUnit(event.target.value)} maxLength={40} placeholder="مثال: كرتون" disabled={!bulkApplyUnit || bulkSaving} /></label>
+        <label style={{ display: 'grid', gap: 6 }}><span><input type="checkbox" checked={bulkApplyDescription} disabled={bulkSaving} onChange={(event) => setBulkApplyDescription(event.target.checked)} /> تطبيق وصف موحد (اتركه فارغًا لمسح الوصف)</span><textarea value={bulkDescription} onChange={(event) => setBulkDescription(event.target.value)} maxLength={2000} rows={3} disabled={!bulkApplyDescription || bulkSaving} /></label>
+        <Field label="تمييز المنتج في المتجر">
+          <select value={bulkFeatured} onChange={(event) => setBulkFeatured(event.target.value as 'unchanged' | 'yes' | 'no')} disabled={bulkSaving}>
+            <option value="unchanged">الإبقاء على قيمة كل منتج</option><option value="yes">تمييز المنتجات المحددة</option><option value="no">إزالة التمييز</option>
+          </select>
+        </Field>
+        <div className="modal-actions"><Button variant="outline" type="button" disabled={bulkSaving} onClick={() => setBulkDialog(false)}>إلغاء</Button><Button type="submit" disabled={bulkSaving || selectedRows.length === 0 || (bulkStatus === 'unchanged' && bulkCategory === 'unchanged' && !bulkApplyUnit && !bulkApplyDescription && bulkFeatured === 'unchanged')}>{bulkSaving ? 'جارٍ حفظ المنتجات…' : 'تطبيق التعديلات على المحدد'}</Button></div>
+      </form>
+    </Modal>}
+    {historyProduct && <Modal title={'سجل تغييرات المنتج: ' + historyProduct.name} onClose={() => setHistoryProduct(null)}><Suspense fallback={<Loading />}><AdminCatalogChangeHistory entityType="product" entityId={historyProduct.id} /></Suspense></Modal>}
     {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); void refreshProducts(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
@@ -2577,7 +2790,7 @@ function Pricing({
         </div>
         <div className="toolbar-actions">
           <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
-          {activeTab === 'rules' && <Button onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button>}
+          {activeTab === 'rules' && <Button disabled={loading || Boolean(error)} onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button>}
         </div>
       </div>
 
@@ -2656,8 +2869,8 @@ function Pricing({
       </div>
     </section>
 
-    {showCreate && <PricingRuleModal key="create" onClose={() => setShowCreate(false)} onSaved={async () => { await refetch(); setShowCreate(false); onNotice('تم حفظ القاعدة؛ وقد تبقى بانتظار اعتماد المدير قبل تطبيق السعر.'); }} />}
-    {editingRule && <PricingRuleModal key={editingRule.id} rule={editingRule} onClose={() => setEditingRule(null)} onSaved={async () => { await refetch(); setEditingRule(null); onNotice('تم حفظ التعديلات؛ وقد تحتاج القاعدة إلى اعتماد المدير قبل تطبيقها.'); }} />}
+    {showCreate && <PricingRuleModal key="create" existingRules={data ?? []} onClose={() => setShowCreate(false)} onSaved={async () => { await refetch(); setShowCreate(false); onNotice('تم حفظ القاعدة؛ وقد تبقى بانتظار اعتماد المدير قبل تطبيق السعر.'); }} />}
+    {editingRule && <PricingRuleModal key={editingRule.id} rule={editingRule} existingRules={data ?? []} onClose={() => setEditingRule(null)} onSaved={async () => { await refetch(); setEditingRule(null); onNotice('تم حفظ التعديلات؛ وقد تحتاج القاعدة إلى اعتماد المدير قبل تطبيقها.'); }} />}
     {approvalRule && <PricingApprovalModal key={approvalRule.id} rule={approvalRule} onClose={() => setApprovalRule(null)} onSaved={async () => { await refetch(); setApprovalRule(null); onNotice('تم اعتماد قاعدة التسعير وحُفظ سبب الاعتماد في سجل التدقيق.'); }} />}
   </>;
 }
@@ -2811,7 +3024,7 @@ function localDateTimeValue(value?: string | null): string {
   return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
+export function PricingRuleModal({ rule, existingRules = [], onClose, onSaved }: { rule?: PricingRule; existingRules?: PricingRule[]; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const [productSearch, setProductSearch] = useState('');
   const [appliedProductSearch, setAppliedProductSearch] = useState('');
   const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(
@@ -2861,6 +3074,27 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
   const [effectiveUntil, setEffectiveUntil] = useState(localDateTimeValue(rule?.effective_until));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [conflictAcknowledged, setConflictAcknowledged] = useState(false);
+  const potentialRuleConflicts = useMemo(() => {
+    const quantity = Number(minQuantity);
+    const rank = Number(priority);
+    const from = effectiveFrom ? new Date(effectiveFrom) : null;
+    const until = effectiveUntil ? new Date(effectiveUntil) : null;
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(rank) || rank < 1 || rank > 100000 ||
+        (from && !Number.isFinite(from.getTime())) || (until && !Number.isFinite(until.getTime())) || (from && until && from > until)) return [];
+    return findPotentialPricingRuleConflicts({
+      id: rule?.id ?? null,
+      scope_type: scopeType,
+      scope_value: scopeType === 'product' || scopeType === 'category' ? scopeValue || null : null,
+      target_tier: targetTier,
+      min_quantity: quantity,
+      priority: rank,
+      effective_from: from ? from.toISOString() : null,
+      effective_until: until ? until.toISOString() : null,
+    }, existingRules);
+  }, [existingRules, rule?.id, scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil]);
+  const potentialRuleConflictKey = JSON.stringify({ scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil, conflicts: potentialRuleConflicts.map((conflict) => [conflict.ruleId, conflict.priority, conflict.minQuantity, conflict.samePriority, conflict.effectiveFrom, conflict.effectiveUntil]) });
+  useEffect(() => { setConflictAcknowledged(false); }, [potentialRuleConflictKey]);
 
   const pageProductOptions = products?.rows ?? [];
   const productOptions = existingProductOption && !pageProductOptions.some((product) => product.id === existingProductOption.id)
@@ -2900,6 +3134,10 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
     const until = effectiveUntil ? new Date(effectiveUntil) : null;
     if ((from && !Number.isFinite(from.getTime())) || (until && !Number.isFinite(until.getTime())) || (from && until && from > until)) {
       setError('تحقق من تاريخي بداية ونهاية القاعدة.');
+      return;
+    }
+    if (potentialRuleConflicts.length > 0 && !conflictAcknowledged) {
+      setError('توجد قواعد نشطة متداخلة. راجع قائمة التداخلات وأكد قرارك قبل الحفظ.');
       return;
     }
     setSaving(true);
@@ -2976,7 +3214,13 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
       </div>
       <p style={{ color: '#71868a', fontSize: 12, lineHeight: 1.7 }}>{rule ? 'سيُحدّث المحرك هذه القاعدة ويزيد رقم إصدارها ويسجل التغيير، ثم يعيد احتساب الأسعار ضمن النطاق والشريحة والكمية والفترة المختارة.' : 'الحفظ لا يغيّر قائمة الأسعار يدويًا؛ قاعدة البيانات تحسب الجملة والتجزئة وتكتب سجل التدقيق. لا تُطبّق القاعدة إلا ضمن النطاق والشريحة والكمية والفترة المختارة.'}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
+      {potentialRuleConflicts.length > 0 && <section className="panel" role="alert" style={{ display: 'grid', gap: 8, borderColor: '#d6a45a' }}>
+      <strong>تنبيه: توجد قواعد تسعير نشطة متداخلة في النطاق والشريحة والفترة</strong>
+      <ul>{potentialRuleConflicts.map((conflict) => <li key={conflict.ruleId}>«{conflict.ruleName}» — أولوية {formatNumber(conflict.priority)}، تبدأ من كمية {formatNumber(conflict.minQuantity)}{conflict.samePriority ? ' · نفس الأولوية؛ راجع أثر ترتيب القواعد' : ' · أولوية مختلفة؛ راجع قاعدة الحسم'}</li>)}</ul>
+      <p className="report-note">هذا كشف واجهة للتداخلات ذات النطاق المطابق فقط. لا يحسب أثر القاعدة الجديدة على الأسعار ولا يكتشف تقاطعات المنتج مع التصنيف؛ محرك الخادم هو المرجع النهائي.</p>
+      <label><input type="checkbox" checked={conflictAcknowledged} disabled={saving} onChange={(event) => setConflictAcknowledged(event.target.checked)} /> راجعت التداخلات وأؤكد متابعة الحفظ</label>
+    </section>}
+    <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable || (potentialRuleConflicts.length > 0 && !conflictAcknowledged)}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
     </form>
   </Modal>;
 }
