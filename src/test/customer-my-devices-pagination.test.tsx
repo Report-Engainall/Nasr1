@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -63,6 +63,8 @@ function makeEvent(index: number) {
     old_status: "active",
     new_status: "under_maintenance",
     event_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+    summary: "بدأت صيانة الجهاز",
+    metadata: null,
   };
 }
 
@@ -127,4 +129,26 @@ describe("customer device history pagination", () => {
     });
     expect(screen.queryByRole("button", { name: "تحميل 250 حدثًا أقدم" })).not.toBeInTheDocument();
   });
+
+  it("shows approved event summaries and opens a linked replacement asset without passing tenant identifiers", async () => {
+    mocks.eventRows[0] = {
+      ...makeEvent(0),
+      event_type: "replacement",
+      summary: "تم استبدال الجهاز وربط الأصل البديل",
+      metadata: { new_asset_id: "asset-001" },
+    };
+    render(<CustomerMyDevicesPage />);
+
+    expect(await screen.findByText("تم استبدال الجهاز وربط الأصل البديل")).toBeInTheDocument();
+    const firstAsset = screen.getByRole("article", { name: /جهاز اختبار 0/ });
+    fireEvent.click(within(firstAsset).getByText(/سجل الصيانة والأحداث والملكية/));
+    fireEvent.click(await within(firstAsset).findByRole("button", { name: "عرض الجهاز البديل" }));
+
+    expect(screen.getByLabelText("البحث في أجهزتي")).toHaveValue("SERIAL-1");
+    expect(screen.getByText("جهاز اختبار 1")).toBeInTheDocument();
+    expect(mocks.rangeCalls.filter(call => call.table === "customer_assets")).toContainEqual({
+      table: "customer_assets", start: 0, end: 50,
+    });
+  });
+
 });

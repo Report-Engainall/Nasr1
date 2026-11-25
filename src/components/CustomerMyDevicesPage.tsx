@@ -53,6 +53,8 @@ type AssetEvent = {
   old_status: AssetStatus | null;
   new_status: AssetStatus | null;
   event_at: string;
+  summary: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type ProductReference = { id: string; name: string; item_code: string | null };
@@ -210,7 +212,7 @@ function CustomerMyDevicesWorkspace() {
         // RLS deliberately allows the current and historical owner to read lifecycle events.
         supabase
           .from("customer_asset_events")
-          .select("id,asset_id,event_type,old_status,new_status,event_at")
+          .select("id,asset_id,event_type,old_status,new_status,event_at,summary,metadata")
           .order("event_at", { ascending: false })
           .order("id", { ascending: false })
           .range(0, CUSTOMER_ASSET_EVENT_PAGE_SIZE),
@@ -314,7 +316,7 @@ function CustomerMyDevicesWorkspace() {
     try {
       const result = await supabase
         .from("customer_asset_events")
-        .select("id,asset_id,event_type,old_status,new_status,event_at")
+        .select("id,asset_id,event_type,old_status,new_status,event_at,summary,metadata")
         .order("event_at", { ascending: false })
         .order("id", { ascending: false })
         .range(eventOffset, eventOffset + CUSTOMER_ASSET_EVENT_PAGE_SIZE);
@@ -368,6 +370,32 @@ function CustomerMyDevicesWorkspace() {
     });
   }, [assets, invoices, orders, products, search, statusFilter]);
 
+  const openLinkedReplacementAsset = useCallback(async (assetId: string) => {
+    if (!assetId) return;
+    let replacement = assets.find((asset) => asset.id === assetId);
+    if (!replacement) {
+      try {
+        // RLS resolves the current customer and organization. Do not send either
+        // identifier from the browser when following an immutable event link.
+        const { data, error: lookupError } = await supabase
+          .from("customer_assets")
+          .select(
+            "id,product_id,source_order_id,source_invoice_id,asset_name,manufacturer,model,serial_number,purchase_date,warranty_provider,warranty_reference,warranty_start_date,warranty_end_date,coverage_reference,coverage_start_date,coverage_end_date,status,created_at,updated_at",
+          )
+          .eq("id", assetId)
+          .maybeSingle();
+        if (lookupError || !data) throw lookupError || new Error("Replacement asset unavailable.");
+        replacement = data as CustomerAsset;
+        setAssets((current) => current.some((asset) => asset.id === assetId) ? current : [...current, replacement!]);
+      } catch {
+        setWarning("تعذر فتح الجهاز البديل ضمن الأصول المسموح بها لحسابك الحالي.");
+        return;
+      }
+    }
+    setStatusFilter("all");
+    setSearch(replacement.serial_number || replacement.asset_name);
+    setWarning("");
+  }, [assets]);
   const visibleAssetIds = useMemo(() => new Set(assets.map((asset) => asset.id)), [assets]);
   const previousOwnershipEvents = useMemo(
     () => events.filter((event) => event.event_type === "ownership_transferred" && !visibleAssetIds.has(event.asset_id)),
@@ -523,9 +551,17 @@ function CustomerMyDevicesWorkspace() {
                         <strong className="text-sm">{EVENT_LABELS[event.event_type] || "تحديث مسجل"}</strong>
                         <time className="text-xs text-muted-foreground" dateTime={event.event_at}>{formatDateTime(event.event_at)}</time>
                       </div>
+                      {event.summary ? (
+                        <p className="mt-2 text-sm leading-6">{event.summary}</p>
+                      ) : null}
                       <p className="mt-2 text-xs leading-5 text-muted-foreground">
                         تُعرض بيانات الحدث المعتمدة فقط. تفاصيل العمل الداخلية والمراجع النصية متاحة لموظفي المؤسسة المخولين وليست جزءًا من سجل العميل.
                       </p>
+                      {event.event_type === "replacement" && typeof event.metadata?.new_asset_id === "string" ? (
+                        <button type="button" className="btn secondary mt-2 inline-flex items-center gap-2" onClick={() => void openLinkedReplacementAsset(event.metadata!.new_asset_id as string)}>
+                          عرض الجهاز البديل
+                        </button>
+                      ) : null}
                       {event.old_status || event.new_status ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           الحالة: {event.old_status ? STATUS_LABELS[event.old_status] : "—"} ← {event.new_status ? STATUS_LABELS[event.new_status] : "—"}
