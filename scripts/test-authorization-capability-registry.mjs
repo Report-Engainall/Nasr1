@@ -164,12 +164,12 @@ async function assertInventoryCountGrantSeedOrdering(db) {
   new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url),
   "utf8"
  );
- const prerequisiteSql=prerequisiteSource.replace(/^\\s*BEGIN;\\s*$/im,"").replace(/^\\s*COMMIT;\\s*$/im,"");
+ const prerequisiteSql=prerequisiteSource.replace(/^\s*BEGIN;\s*$/im,"").replace(/^\s*COMMIT;\s*$/im,"");
  const backfillSource=await readFile(
   new URL("../supabase/migrations/20261126100000_inventory_count_start_role_parity_upgrade.sql",import.meta.url),
   "utf8"
  );
- const backfillSql=backfillSource.replace(/^\\s*BEGIN;\\s*$/im,"").replace(/^\\s*COMMIT;\\s*$/im,"");
+ const backfillSql=backfillSource.replace(/^\s*BEGIN;\s*$/im,"").replace(/^\s*COMMIT;\s*$/im,"");
  if(prerequisiteSql===prerequisiteSource||backfillSql===backfillSource) {
   throw new Error("Could not isolate the stock-count grant compatibility migration bodies.");
  }
