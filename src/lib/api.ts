@@ -228,7 +228,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
 
   const scope = await getStorefrontDataScope();
   const { organizationId: orgId, warehouseId, isStaff, canViewInternalProductPrices } = scope;
-  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
+  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,updated_at,min_order_quantity,order_quantity_multiple';
   let products: Product[];
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
