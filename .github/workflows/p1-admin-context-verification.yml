@@ -175,6 +175,7 @@ on:
       - "scripts/test-authorization-capability-registry.mjs"
       - "src/components/CustomerServiceDesk.tsx"
       - "src/components/CustomerShoppingListsWorkspace.tsx"
+      - "src/components/CustomerShoppingListsWorkspace.test.tsx"
       - "src/lib/customer-shopping-list-catalog.ts"
       - "src/lib/customer-shopping-list-catalog.test.ts"
       - "src/components/CustomerNotificationCenter.tsx"
