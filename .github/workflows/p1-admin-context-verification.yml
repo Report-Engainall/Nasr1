@@ -5,6 +5,8 @@ on:
     branches:
       - main
     paths:
+      - "src/lib/intelligence/daily-decisions.ts"
+      - "src/lib/intelligence/daily-decisions.test.ts"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
@@ -371,6 +373,8 @@ on:
     branches:
       - main
     paths:
+      - "src/lib/intelligence/daily-decisions.ts"
+      - "src/lib/intelligence/daily-decisions.test.ts"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
