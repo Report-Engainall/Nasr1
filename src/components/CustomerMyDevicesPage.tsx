@@ -85,6 +85,9 @@ const EVENT_LABELS: Record<string, string> = {
   note_added: "إضافة حدث",
 };
 
+const CUSTOMER_ASSET_PAGE_SIZE = 50;
+const CUSTOMER_ASSET_EVENT_PAGE_SIZE = 250;
+
 const STATUS_FILTERS: Array<{ value: AssetStatus | "all"; label: string }> = [
   { value: "all", label: "كل الحالات" },
   { value: "active", label: "يعمل" },
@@ -157,6 +160,12 @@ function CustomerMyDevicesWorkspace() {
   const [warning, setWarning] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AssetStatus | "all">("all");
+  const [assetOffset, setAssetOffset] = useState(0);
+  const [hasMoreAssets, setHasMoreAssets] = useState(false);
+  const [loadingMoreAssets, setLoadingMoreAssets] = useState(false);
+  const [eventOffset, setEventOffset] = useState(0);
+  const [hasMoreEvents, setHasMoreEvents] = useState(false);
+  const [loadingMoreEvents, setLoadingMoreEvents] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -172,13 +181,17 @@ function CustomerMyDevicesWorkspace() {
         .select(
           "id,product_id,source_order_id,source_invoice_id,asset_name,manufacturer,model,serial_number,purchase_date,warranty_provider,warranty_reference,warranty_start_date,warranty_end_date,coverage_reference,coverage_start_date,coverage_end_date,status,created_at,updated_at",
         )
-        .order("updated_at", { ascending: false })
-        .limit(250);
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(0, CUSTOMER_ASSET_PAGE_SIZE);
 
       if (assetResult.error) throw assetResult.error;
 
-      const nextAssets = (assetResult.data ?? []) as CustomerAsset[];
+      const fetchedAssets = (assetResult.data ?? []) as CustomerAsset[];
+      const nextAssets = fetchedAssets.slice(0, CUSTOMER_ASSET_PAGE_SIZE);
       setAssets(nextAssets);
+      setAssetOffset(nextAssets.length);
+      setHasMoreAssets(fetchedAssets.length > CUSTOMER_ASSET_PAGE_SIZE);
 
       const productIds = uniqueIds(nextAssets.map((asset) => asset.product_id));
       const orderIds = uniqueIds(nextAssets.map((asset) => asset.source_order_id));
@@ -199,13 +212,17 @@ function CustomerMyDevicesWorkspace() {
           .from("customer_asset_events")
           .select("id,asset_id,event_type,old_status,new_status,event_at")
           .order("event_at", { ascending: false })
-          .limit(1000),
+          .order("id", { ascending: false })
+          .range(0, CUSTOMER_ASSET_EVENT_PAGE_SIZE),
       ]);
 
       setProducts(toLookup((productResult.data ?? []) as ProductReference[]));
       setOrders(toLookup((orderResult.data ?? []) as OrderReference[]));
       setInvoices(toLookup((invoiceResult.data ?? []) as InvoiceReference[]));
-      setEvents((eventResult.data ?? []) as AssetEvent[]);
+      const fetchedEvents = (eventResult.data ?? []) as AssetEvent[];
+      setEvents(fetchedEvents.slice(0, CUSTOMER_ASSET_EVENT_PAGE_SIZE));
+      setEventOffset(Math.min(fetchedEvents.length, CUSTOMER_ASSET_EVENT_PAGE_SIZE));
+      setHasMoreEvents(fetchedEvents.length > CUSTOMER_ASSET_EVENT_PAGE_SIZE);
 
       const partialIssues: string[] = [];
       if (productResult.error) partialIssues.push("بيانات بعض الأصناف");
@@ -221,11 +238,104 @@ function CustomerMyDevicesWorkspace() {
       setOrders({});
       setInvoices({});
       setEvents([]);
+      setAssetOffset(0);
+      setHasMoreAssets(false);
+      setEventOffset(0);
+      setHasMoreEvents(false);
       setError("تعذر تحميل سجل أجهزتك من الحساب الحالي. تحقق من الاتصال ثم أعد المحاولة.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadMoreAssets = useCallback(async () => {
+    if (loadingMoreAssets || !hasMoreAssets) return;
+    setLoadingMoreAssets(true);
+    setWarning("");
+
+    try {
+      const assetResult = await supabase
+        .from("customer_assets")
+        .select(
+          "id,product_id,source_order_id,source_invoice_id,asset_name,manufacturer,model,serial_number,purchase_date,warranty_provider,warranty_reference,warranty_start_date,warranty_end_date,coverage_reference,coverage_start_date,coverage_end_date,status,created_at,updated_at",
+        )
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(assetOffset, assetOffset + CUSTOMER_ASSET_PAGE_SIZE);
+
+      if (assetResult.error) throw assetResult.error;
+
+      const fetchedAssets = (assetResult.data ?? []) as CustomerAsset[];
+      const nextAssets = fetchedAssets.slice(0, CUSTOMER_ASSET_PAGE_SIZE);
+      const productIds = uniqueIds(nextAssets.map((asset) => asset.product_id));
+      const orderIds = uniqueIds(nextAssets.map((asset) => asset.source_order_id));
+      const invoiceIds = uniqueIds(nextAssets.map((asset) => asset.source_invoice_id));
+
+      const [productResult, orderResult, invoiceResult] = await Promise.all([
+        productIds.length
+          ? supabase.from("products").select("id,name,item_code").in("id", productIds)
+          : Promise.resolve({ data: [], error: null }),
+        orderIds.length
+          ? supabase.from("orders").select("id,order_number").in("id", orderIds)
+          : Promise.resolve({ data: [], error: null }),
+        invoiceIds.length
+          ? supabase.from("customer_invoices").select("id,invoice_number").in("id", invoiceIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      setAssets((current) => {
+        const knownIds = new Set(current.map((asset) => asset.id));
+        return [...current, ...nextAssets.filter((asset) => !knownIds.has(asset.id))];
+      });
+      setProducts((current) => ({ ...current, ...toLookup((productResult.data ?? []) as ProductReference[]) }));
+      setOrders((current) => ({ ...current, ...toLookup((orderResult.data ?? []) as OrderReference[]) }));
+      setInvoices((current) => ({ ...current, ...toLookup((invoiceResult.data ?? []) as InvoiceReference[]) }));
+      setAssetOffset((current) => current + nextAssets.length);
+      setHasMoreAssets(fetchedAssets.length > CUSTOMER_ASSET_PAGE_SIZE);
+
+      const partialIssues: string[] = [];
+      if (productResult.error) partialIssues.push("بيانات بعض الأصناف");
+      if (orderResult.error) partialIssues.push("مراجع بعض الطلبات");
+      if (invoiceResult.error) partialIssues.push("مراجع بعض الفواتير");
+      if (partialIssues.length) {
+        setWarning("تعذر تحميل " + partialIssues.join(" و") + " للدفعة الجديدة. ما زالت الأجهزة الأساسية معروضة.");
+      }
+    } catch {
+      setWarning("تعذر تحميل دفعة الأجهزة التالية. احتُفظ بالسجلات التي سبق تحميلها؛ أعد المحاولة.");
+    } finally {
+      setLoadingMoreAssets(false);
+    }
+  }, [assetOffset, hasMoreAssets, loadingMoreAssets]);
+
+  const loadMoreEvents = useCallback(async () => {
+    if (loadingMoreEvents || !hasMoreEvents) return;
+    setLoadingMoreEvents(true);
+
+    try {
+      const result = await supabase
+        .from("customer_asset_events")
+        .select("id,asset_id,event_type,old_status,new_status,event_at")
+        .order("event_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(eventOffset, eventOffset + CUSTOMER_ASSET_EVENT_PAGE_SIZE);
+
+      if (result.error) throw result.error;
+
+      const fetchedEvents = (result.data ?? []) as AssetEvent[];
+      const olderEvents = fetchedEvents.slice(0, CUSTOMER_ASSET_EVENT_PAGE_SIZE);
+      setEvents((current) => {
+        const knownIds = new Set(current.map((event) => event.id));
+        return [...current, ...olderEvents.filter((event) => !knownIds.has(event.id))]
+          .sort((left, right) => Date.parse(right.event_at) - Date.parse(left.event_at) || right.id.localeCompare(left.id));
+      });
+      setEventOffset((current) => current + olderEvents.length);
+      setHasMoreEvents(fetchedEvents.length > CUSTOMER_ASSET_EVENT_PAGE_SIZE);
+    } catch {
+      setWarning("تعذر تحميل أحداث أقدم. بقي سجل الأحداث المحمّل متاحًا ويمكن إعادة المحاولة.");
+    } finally {
+      setLoadingMoreEvents(false);
+    }
+  }, [eventOffset, hasMoreEvents, loadingMoreEvents]);
 
   useEffect(() => {
     void load();
@@ -293,7 +403,7 @@ function CustomerMyDevicesWorkspace() {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="ابحث باسم الجهاز أو الشركة أو الموديل أو الرقم التسلسلي أو رقم المصدر"
+              placeholder="ابحث في الأجهزة المحمّلة بالاسم أو الشركة أو الموديل أو الرقم التسلسلي أو رقم المصدر"
               className="w-full rounded-lg border bg-background py-2.5 pr-10 pl-3 text-sm"
               maxLength={120}
             />
@@ -310,7 +420,8 @@ function CustomerMyDevicesWorkspace() {
           </label>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>{filteredAssets.length} جهاز ظاهر من أصل {assets.length}</span>
+          <span>عرض {filteredAssets.length} من {assets.length} جهاز تم تحميلها</span>
+          {hasMoreAssets ? <span>توجد أجهزة إضافية لم تُحمّل بعد؛ حمّل المزيد لتوسيع نتائج البحث</span> : null}
           <span className="inline-flex items-center gap-1"><ShieldCheck size={14} /> بيانات الحساب تُحدد بواسطة صلاحيات الخادم</span>
         </div>
       </header>
@@ -338,7 +449,7 @@ function CustomerMyDevicesWorkspace() {
       ) : null}
       {!loading && !error && assets.length > 0 && filteredAssets.length === 0 ? (
         <p className="mt-5 rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground" role="status">
-          لا توجد أجهزة تطابق البحث أو حالة التصفية المحددة.
+          لا توجد أجهزة تطابق البحث أو حالة التصفية ضمن الأجهزة المحمّلة. حمّل المزيد لتوسيع نطاق البحث.
         </p>
       ) : null}
 
@@ -428,6 +539,26 @@ function CustomerMyDevicesWorkspace() {
           );
         })}
       </section>
+
+      {!loading && hasMoreAssets ? (
+        <div className="mt-5 flex flex-col items-center gap-2 rounded-xl border p-4 text-center">
+          <button type="button" className="btn secondary inline-flex items-center gap-2" onClick={() => void loadMoreAssets()} disabled={loadingMoreAssets}>
+            <RefreshCw size={16} className={loadingMoreAssets ? "animate-spin" : ""} />
+            {loadingMoreAssets ? "جار تحميل الأجهزة..." : "تحميل المزيد من الأجهزة"}
+          </button>
+          <p className="text-xs text-muted-foreground">تُحمّل الأجهزة على دفعات، ويظل البحث والتصفية مطبّقين على جميع الأجهزة التي حُمّلت في هذه الجلسة.</p>
+        </div>
+      ) : null}
+
+      {!loading && hasMoreEvents ? (
+        <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border p-4 text-center">
+          <button type="button" className="btn secondary inline-flex items-center gap-2" onClick={() => void loadMoreEvents()} disabled={loadingMoreEvents}>
+            <RefreshCw size={16} className={loadingMoreEvents ? "animate-spin" : ""} />
+            {loadingMoreEvents ? "جار تحميل الأحداث..." : "تحميل 250 حدثًا أقدم"}
+          </button>
+          <p className="text-xs text-muted-foreground">يُعرض سجل الأحداث تدريجيًا حتى لا تُخفى الأحداث الأقدم خلف حد تحميل صامت.</p>
+        </div>
+      ) : null}
 
       {!loading && previousOwnershipEvents.length > 0 ? (
         <section className="mt-6 rounded-2xl border bg-card p-4 sm:p-5" aria-label="سجل الملكية السابقة">
