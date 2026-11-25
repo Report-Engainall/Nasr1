@@ -446,7 +446,24 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
     await manager.goto("/admin/tasks");
     await expect(manager.getByRole("heading", { name: "مركز المهام التشغيلية" })).toBeVisible();
+    const taskPagination = manager.getByRole("navigation", { name: "صفحات المهام" });
+    await expect(taskPagination).toBeVisible();
+    await expect(taskPagination.getByRole("button", { name: "التالي", exact: true })).toBeEnabled();
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
+    const firstTaskCard = manager.locator(".task-center-list .task-card").first();
+    await expect(firstTaskCard.getByRole("button", { name: "فتح مراجعة الجودة", exact: true })).toHaveAttribute("aria-expanded", "false");
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
+    await firstTaskCard.getByRole("button", { name: "فتح مراجعة الجودة", exact: true }).click();
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toBeVisible();
+    await firstTaskCard.getByRole("button", { name: "إخفاء مراجعة الجودة", exact: true }).click();
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
+    await taskPagination.getByRole("button", { name: "التالي", exact: true }).click();
+    await expect(taskPagination).toContainText("صفحة ٢");
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
+    await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
+    await expect(taskPagination).toContainText("صفحة ١");
     await manager.getByLabel("الحالة").selectOption("all");
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
     await manager.getByLabel("نطاق الطباعة").selectOption("all");
     const printTasksButton = manager.getByRole("button", { name: "طباعة كل المهام المسموحة", exact: true });
     await expect(printTasksButton).toBeEnabled({ timeout: 15_000 });
