@@ -39,7 +39,7 @@ function isImpactFormulaValid(formula: ImpactFormula): boolean {
 
 function metricFormulaUnit(metric:MetricSnapshot):string|null {
  if(metric.unit==="QUANTITY"||metric.unit==="CURRENCY_PER_UNIT"){
-  const unitOfMeasure=metric.unitOfMeasure?.trim();
+  const unitOfMeasure=typeof metric.unitOfMeasure==="string"?metric.unitOfMeasure.trim():"";
   return unitOfMeasure?metric.unit+":"+unitOfMeasure:null;
  }
  return metric.unit;
