@@ -38,6 +38,15 @@ describe("daily decision engine",()=>{
   expect(result.candidates[0].impact).toBeNull();
   expect(result.candidates[0].impactReason).toBe("UNIT_MISMATCH");
  });
+ it("withholds quantity impact when the source omits its unit of measure",()=>{
+  const quantity=metric({id:"quantity-no-uom",key:"stock.no-uom",value:4,unit:"QUANTITY",unitOfMeasure:undefined,lineage:{...metric().lineage,evidenceIds:["ev-no-uom"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),quantity],evidenceRecords:[evidence(),evidence("ev-no-uom")],
+   rules:[rule({impactFormula:{id:"quantity-without-uom",version:"1",operation:"IDENTITY",metricKeys:["stock.no-uom"],resultUnit:"QUANTITY:EA"}})],
+  }));
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactReason).toBe("UNIT_MISMATCH");
+ });
  it("calculates quantity sums only with one explicit shared unit of measure",()=>{
   const first=metric({id:"qty-one",key:"stock.one",value:"0.1",unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-one"]}});
   const second=metric({id:"qty-two",key:"stock.two",value:"0.2",unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-two"]}});
@@ -70,6 +79,14 @@ describe("daily decision engine",()=>{
   }));
   expect(wrongUnit.candidates[0].impact).toBeNull();
   expect(wrongUnit.candidates[0].impactReason).toBe("UNIT_MISMATCH");
+  const unsupportedPrice=metric({id:"unsupported-price",key:"price.unsupported",value:"125.1234",unit:"CURRENCY_PER_UNIT",currency:"YER",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-unsupported-price"]}});
+  const precisionResult=buildDailyDecisions(input({
+   metrics:[metric(),unsupportedPrice,metric({id:"quantity",key:"quantity",value:"2.000",unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-quantity"]}})],
+   evidenceRecords:[evidence(),{...evidence("ev-unsupported-price"),currency:"YER"},evidence("ev-quantity")],
+   rules:[rule({impactFormula:{id:"unsupported-precision",version:"1",operation:"PRODUCT",metricKeys:["price.unsupported","quantity"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(precisionResult.candidates[0].impact).toBeNull();
+  expect(precisionResult.candidates[0].impactReason).toBe("IMPACT_PRECISION_UNSUPPORTED");
  });
  it("withholds monetary impact sums when per-unit denominators differ",()=>{
   const each=metric({id:"price-each",key:"price.each",value:"2.5",unit:"CURRENCY_PER_UNIT",currency:"YER",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-each"]}});
