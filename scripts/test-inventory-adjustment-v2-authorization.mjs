@@ -142,6 +142,16 @@ async function main() {
           "values($1::uuid,$2::uuid,100,0,0)",
           [fixture.product_id, otherWarehouse.warehouse_id],
         );
+        const [sourceLotBalance] = await tx.unsafe(
+          "select count(*)::integer as lots,coalesce(sum(quantity_on_hand),0)::numeric(15,3) as quantity_on_hand " +
+          "from public.inventory_batches where organization_id=$1::uuid and product_id=$2::uuid " +
+          "and warehouse_id=$3::uuid and source_type='unattributed_balance_increase'",
+          [organizationId, fixture.product_id, otherWarehouse.warehouse_id],
+        );
+        assert.equal(sourceLotBalance.lots, 1,
+          "aggregate balance insert must seed exactly one traceable source lot for FEFO transfer");
+        assert.equal(Number(sourceLotBalance.quantity_on_hand), 100,
+          "the rollback-only source lot must reconcile exactly to the newly created aggregate balance");
 
         // The broader P2 storefront fixture intentionally places a manager-level
         // explicit denial on this capability. Revoke it only inside this rollback-
@@ -1235,7 +1245,7 @@ async function main() {
         const batchTransferKey = "p2-transfer-batch-" + process.pid + "-" + Date.now();
         const batchTransferArgs = [
           otherWarehouse.warehouse_id, fixture.warehouse_id, batchTransferKey,
-          JSON.stringify([{ product_id: fixture.product_id, quantity: 1 }]), transferReason,
+          db.json([{ product_id: fixture.product_id, quantity: 1 }]), transferReason,
         ];
         const batchTransfer = decodeJson((await tx.unsafe(
           "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
