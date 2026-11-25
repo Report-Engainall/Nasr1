@@ -34,6 +34,26 @@ describe("daily decision engine",()=>{
   const r=buildDailyDecisions(input({metrics:[metric(),usd,yer],evidenceRecords:[evidence(),{...evidence("ev-usd"),currency:"USD"},{...evidence("ev-yer"),currency:"YER"}],rules:[rule({impactFormula:{id:"unit-cost-total",version:"1",operation:"SUM",metricKeys:["unit-cost.usd","unit-cost.yer"],resultUnit:"CURRENCY_PER_UNIT"}})]}));
   expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactStatus).toBe("WITHHELD");expect(r.candidates[0].impactReason).toBe("CURRENCY_MISMATCH");
  });
+ it("rejects unsupported comparison operators and invalid expiry windows",()=>{
+  const invalidOperator=rule({operator:"BETWEEN" as DecisionRule["operator"]});
+  const invalidExpiry=rule({id:"invalid-expiry",expiresInDays:0});
+  const result=buildDailyDecisions(input({rules:[invalidOperator,invalidExpiry]}));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld.map(item=>item.reason)).toEqual(["INVALID_RULE","INVALID_RULE"]);
+ });
+ it("accepts a valid expiry window and computes an explicit expiration",()=>{
+  const result=buildDailyDecisions(input({rules:[rule({expiresInDays:1})]}));
+  expect(result.candidates[0].expiresAt).toBe("2026-10-31T07:10:00.000Z");
+ });
+ it("withholds impact formulas that repeat the same metric instead of double-counting it",()=>{
+  const result=buildDailyDecisions(input({rules:[rule({impactFormula:{
+   id:"duplicate-source-sum",version:"1",operation:"SUM",metricKeys:["orders.pending","orders.pending"],resultUnit:"COUNT",
+  }})]}));
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactStatus).toBe("WITHHELD");
+  expect(result.candidates[0].impactReason).toBe("INVALID_IMPACT_FORMULA");
+ });
  it("withholds impact across different metric periods",()=>{
   const priorPeriod={from:"2026-09-01",to:"2026-09-30"};
   const prior=metric({id:"prior",key:"orders.prior",value:3,period:priorPeriod,lineage:{...metric().lineage,evidenceIds:["ev-prior"]}});
