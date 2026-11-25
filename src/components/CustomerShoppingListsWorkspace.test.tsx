@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   productPageRequests: [] as Array<{ afterId: string | null; start: number; end: number }>,
   products: [] as Array<Record<string, unknown>>,
+  lists: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -24,7 +25,7 @@ vi.mock("@/lib/customer-cart", () => ({
   fetchCustomerCart: vi.fn(async () => ({ items: [] })),
 }));
 vi.mock("@/lib/customer-shopping-lists", () => ({
-  fetchCustomerShoppingLists: vi.fn(async () => []),
+  fetchCustomerShoppingLists: vi.fn(async () => mocks.lists),
   fetchCompanyMembershipWorkspace: vi.fn(async () => null),
   applyCustomerShoppingListRunToCart: vi.fn(),
   createCustomerShoppingListRun: vi.fn(),
@@ -61,11 +62,16 @@ function makeProduct(index: number) {
 
 function productQuery() {
   let afterId: string | null = null;
+  let idFilter: string[] | null = null;
   let range: [number, number] = [0, 1000];
   const builder: Record<string, unknown> = {};
   builder.select = () => builder;
   builder.eq = () => builder;
   builder.order = () => builder;
+  builder.in = (_column: string, values: string[]) => {
+    idFilter = values;
+    return builder;
+  };
   builder.gt = (_column: string, cursor: string) => {
     afterId = cursor;
     return builder;
@@ -76,9 +82,10 @@ function productQuery() {
   };
   builder.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
     mocks.productPageRequests.push({ afterId, start: range[0], end: range[1] });
-    const rows = afterId
-      ? mocks.products.filter((product) => String(product.id) > afterId!)
+    let rows = idFilter
+      ? mocks.products.filter((product) => idFilter!.includes(String(product.id)))
       : mocks.products;
+    if (afterId) rows = rows.filter((product) => String(product.id) > afterId!);
     return Promise.resolve({
       data: rows.slice(range[0], range[1] + 1),
       error: null,
@@ -91,6 +98,7 @@ describe("customer shopping list catalog server pagination", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.productPageRequests = [];
+    mocks.lists = [];
     mocks.products = Array.from({ length: 405 }, (_, index) => makeProduct(index));
     mocks.from.mockImplementation((table: string) => {
       if (table !== "products") throw new Error("Unexpected table query: " + table);
@@ -134,4 +142,55 @@ describe("customer shopping list catalog server pagination", () => {
     const resultCount = screen.getByText(/نتيجة مطابقة/);
     expect(resultCount).toHaveTextContent(formatNumber(1));
   });
+
+  it("hydrates products referenced by a saved list even when they are beyond the first catalog page", async () => {
+    const missingCatalogProduct = mocks.products[404];
+    const listId = "99999999-9999-4999-8999-999999999999";
+    mocks.lists = [{
+      id: listId,
+      name: "قائمة محفوظة تحتوي صنفاً من صفحة لاحقة",
+      category: "custom",
+      is_draft: false,
+      status: "active",
+      recurrence: "none",
+      next_run_on: null,
+      timezone: "Asia/Aden",
+      created_at: "2026-11-20T00:00:00.000Z",
+      updated_at: "2026-11-20T00:00:00.000Z",
+      created_by_profile_id: "shopping-customer-profile",
+      can_edit: true,
+      items: [{
+        product_id: String(missingCatalogProduct.id),
+        product_name: String(missingCatalogProduct.name),
+        item_code: String(missingCatalogProduct.item_code),
+        base_unit: "علبة",
+        quantity: 3,
+        unit_name: "علبة",
+        base_units_per_unit: 1,
+      }],
+      shares: [],
+      runs: [],
+    }];
+
+    render(<CustomerShoppingListsWorkspace />);
+
+    expect(await screen.findByText("قائمة محفوظة تحتوي صنفاً من صفحة لاحقة")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "تحرير البنود" }));
+
+    await waitFor(() => {
+      expect(mocks.productPageRequests).toContainEqual({
+        afterId: null,
+        start: 0,
+        end: 1000,
+      });
+    });
+    expect(screen.getByPlaceholderText("ابحث بالاسم أو رمز الصنف أو SKU أو الباركود")).toBeInTheDocument();
+    expect(screen.getByText(/تم تحميل القائمة إلى المحرر/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("ابحث بالاسم أو رمز الصنف أو SKU أو الباركود"), {
+      target: { value: "SKU-404" },
+    });
+    expect(await screen.findByText("صنف اختبار 404")).toBeInTheDocument();
+  });
+
 });
