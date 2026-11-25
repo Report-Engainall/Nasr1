@@ -37,6 +37,7 @@ DECLARE
   v_transfer_id uuid;
   v_lot record; v_take numeric(15,3); v_remaining numeric(15,3); v_destination_batch_id uuid;
 BEGIN
+  PERFORM public.assert_inventory_transfer_scope_v2(p_source_warehouse_id,p_destination_warehouse_id);
   SELECT p.organization_id INTO v_org
     FROM public.profiles p
    WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active;
@@ -258,6 +259,7 @@ DECLARE
   v_transfer_ids jsonb;
   v_lot record; v_take numeric(15,3); v_remaining numeric(15,3); v_destination_batch_id uuid;
 BEGIN
+  PERFORM public.assert_inventory_transfer_scope_v2(p_source_warehouse_id,p_destination_warehouse_id);
   SELECT p.organization_id INTO v_org
     FROM public.profiles p
    WHERE p.id = v_actor AND p.auth_user_id = auth.uid() AND p.is_active;

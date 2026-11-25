@@ -1166,6 +1166,23 @@ async function main() {
 
         // A stored idempotency result must not bypass current source/destination authorization.
         // Both transfer APIs revalidate and hold locks on the two active tenant warehouses first.
+        // The transfer scope V2 guard requires the manager to be assigned to BOTH endpoints.
+        // Keep this scope assignment inside the enclosing rollback-only PostgreSQL transaction.
+        await tx.unsafe("reset role");
+        const [existingManagerTransferScope] = await tx.unsafe(
+          "select id::text,revision from public.authorization_profile_scopes " +
+          "where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.manager.profile_id, otherWarehouse.warehouse_id],
+        );
+        const managerTransferScopeRevision = existingManagerTransferScope
+          ? Number(existingManagerTransferScope.revision) : 0;
+        await applyActor(tx, actors.admin);
+        const transferScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.manager.profile_id, otherWarehouse.warehouse_id, "P2 transfer endpoint replay scope acceptance", managerTransferScopeRevision],
+        ))[0].result);
+        assert.equal(transferScope.is_active, true,
+          "manager must hold an active, audited assignment to the second transfer endpoint");
         await applyActor(tx, actors.manager);
         const transferReason = "P2 transfer replay requires current warehouse endpoints";
         const singleTransferKey = "p2-transfer-single-" + process.pid + "-" + Date.now();
