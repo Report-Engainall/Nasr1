@@ -12,6 +12,7 @@ export interface WithheldDecision {ruleId:string;metricKey:string;reason:Withhel
 export interface BuildDailyDecisionsInput {generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[];rules:DecisionRule[]}
 export interface DailyDecisionResult {generatedAt:string;asOf:string;modelMode:"RULE_BASED";candidates:DecisionCandidate[];withheld:WithheldDecision[]}
 const scores:Record<DecisionPriority,number>={P0:400,P1:300,P2:200,P3:100};
+const validOperators = new Set<DecisionOperator>(["GTE","GT","LTE","LT","EQ"]);
 function numeric(value:number|string|null):number|null {
  if(typeof value==="number")return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER?value:null;
  if(typeof value!=="string"||! /^-?\d+(?:\.\d+)?$/.test(value.trim()))return null;
@@ -22,7 +23,13 @@ function meets(value:number,op:DecisionOperator,threshold:number):boolean {
 }
 const withheld=(rule:DecisionRule,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:rule.id,metricKey:rule.metricKey,reason,evidenceStatus:status,explanation});
 function isImpactFormulaValid(formula: ImpactFormula): boolean {
- if (!formula.id.trim() || !formula.version.trim() || !formula.resultUnit.trim() || formula.metricKeys.length === 0) return false;
+ if (!formula || typeof formula.id !== "string" || !formula.id.trim() ||
+  typeof formula.version !== "string" || !formula.version.trim() ||
+  typeof formula.resultUnit !== "string" || !formula.resultUnit.trim() ||
+  !Array.isArray(formula.metricKeys) || formula.metricKeys.length === 0 ||
+  formula.metricKeys.some(key => typeof key !== "string" || !key.trim() || key !== key.trim()) ||
+  new Set(formula.metricKeys).size !== formula.metricKeys.length ||
+  !["IDENTITY","SUM","PRODUCT"].includes(formula.operation)) return false;
  if (formula.operation === "IDENTITY" && formula.metricKeys.length !== 1) return false;
  if (formula.operation === "PRODUCT" && formula.metricKeys.length !== 2) return false;
  if (formula.operation === "SUM" && formula.metricKeys.length < 2) return false;
@@ -75,8 +82,9 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
  const candidates:DecisionCandidate[]=[],reasons:WithheldDecision[]=[],seen=new Set<string>();
  for(const rule of input.rules){
   if(seen.has(rule.id)){reasons.push(withheld(rule,"INVALID_RULE",null,"Rule ID is duplicated."));continue}seen.add(rule.id);
+  const invalidExpiry=rule.expiresInDays!==undefined&&(!Number.isInteger(rule.expiresInDays)||rule.expiresInDays<1||rule.expiresInDays>3650);
   if(!rule.id.trim()||!rule.version.trim()||!rule.metricKey.trim()||!Number.isFinite(rule.threshold)||!["P0","P1","P2","P3"].includes(rule.priority)||
-   !rule.what.trim()||!rule.why.trim()||!rule.soWhat.trim()||!rule.whatNext.trim()||!rule.owner.trim()||!rule.expectedOutcome.trim()){
+   !validOperators.has(rule.operator)||invalidExpiry||!rule.what.trim()||!rule.why.trim()||!rule.soWhat.trim()||!rule.whatNext.trim()||!rule.owner.trim()||!rule.expectedOutcome.trim()){
    reasons.push(withheld(rule,"INVALID_RULE",null,"Rule metadata is incomplete or invalid."));continue}
   const rows=index.get(rule.metricKey)??[];
   if(!rows.length){reasons.push(withheld(rule,"NO_SOURCE",null,"No sourced metric was provided."));continue}
