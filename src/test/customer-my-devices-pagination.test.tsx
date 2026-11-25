@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -139,10 +139,10 @@ describe("customer device history pagination", () => {
     };
     render(<CustomerMyDevicesPage />);
 
+    expect(await screen.findByText("جهاز اختبار 0")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByText(/سجل الصيانة والأحداث والملكية/)[0]);
     expect(await screen.findByText("تم استبدال الجهاز وربط الأصل البديل")).toBeInTheDocument();
-    const firstAsset = screen.getByRole("article", { name: /جهاز اختبار 0/ });
-    fireEvent.click(within(firstAsset).getByText(/سجل الصيانة والأحداث والملكية/));
-    fireEvent.click(await within(firstAsset).findByRole("button", { name: "عرض الجهاز البديل" }));
+    fireEvent.click(screen.getByRole("button", { name: "عرض الجهاز البديل" }));
 
     expect(screen.getByLabelText("البحث في أجهزتي")).toHaveValue("SERIAL-1");
     expect(screen.getByText("جهاز اختبار 1")).toBeInTheDocument();
