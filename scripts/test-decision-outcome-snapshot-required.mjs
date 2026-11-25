@@ -99,6 +99,58 @@ async function main() {
         return typeof rows[0].result === "string" ? JSON.parse(rows[0].result) : rows[0].result;
       };
 
+      // Validate the exact ranked evidence snapshot and command metadata before invoking the write RPC.
+      // The helper call runs outside the authenticated role because it is a private validation primitive.
+      await tx.unsafe("reset role");
+      const validationRows = await tx.unsafe(
+        "select public._is_valid_decision_candidate_snapshot($1::jsonb,$2::text,$3::text,$4::text,$5::text) as snapshot_valid, " +
+        "$6::uuid is not null as owner_present, " +
+        "char_length(btrim($7::text)) between 1 and 100 as idempotency_key_valid, " +
+        "jsonb_typeof($1::jsonb) as snapshot_type, " +
+        "jsonb_build_object(" +
+        "'schema',$1::jsonb->>'schemaVersion' is not distinct from '1.0.0'," +
+        "'candidate_id',$1::jsonb->>'candidateId' is not distinct from $2::text," +
+        "'rule_id',$1::jsonb->>'ruleId' is not distinct from $3::text," +
+        "'rule_version',$1::jsonb->>'ruleVersion' is not distinct from $4::text," +
+        "'expected_outcome',$1::jsonb->>'expectedOutcome' is not distinct from $5::text," +
+        "'priority',$1::jsonb->>'priority' in ('P0','P1','P2','P3')," +
+        "'priority_score',$1::jsonb->>'priorityScore' is not distinct from (case $1::jsonb->>'priority' when 'P0' then 400 when 'P1' then 300 when 'P2' then 200 when 'P3' then 100 else -1 end)::text," +
+        "'what',char_length(btrim(coalesce($1::jsonb->>'what',''))) between 1 and 500," +
+        "'why',char_length(btrim(coalesce($1::jsonb->>'why',''))) between 1 and 2000," +
+        "'risk',char_length(btrim(coalesce($1::jsonb->>'risk',''))) between 1 and 2000," +
+        "'so_what',char_length(btrim(coalesce($1::jsonb->>'soWhat',''))) between 1 and 2000," +
+        "'what_next',char_length(btrim(coalesce($1::jsonb->>'whatNext',''))) between 1 and 2000," +
+        "'owner',char_length(btrim(coalesce($1::jsonb->>'owner',''))) between 1 and 150," +
+        "'expected_outcome',char_length(btrim(coalesce($1::jsonb->>'expectedOutcome',''))) between 1 and 2000," +
+        "'created_at',($1::jsonb->>'createdAt')::timestamptz is not null," +
+        "'proof_object',jsonb_typeof($1::jsonb->'proof')='object'," +
+        "'as_of',($1::jsonb->'proof'->>'asOf')::timestamptz is not null," +
+        "'evidence_array',jsonb_typeof($1::jsonb->'proof'->'evidenceIds')='array'," +
+        "'metric_array',jsonb_typeof($1::jsonb->'proof'->'metricKeys')='array'," +
+        "'formula_array',jsonb_typeof($1::jsonb->'proof'->'formulaVersions')='array'," +
+        "'evidence_count',jsonb_array_length($1::jsonb->'proof'->'evidenceIds') between 1 and 500," +
+        "'metric_count',jsonb_array_length($1::jsonb->'proof'->'metricKeys') between 1 and 50," +
+        "'formula_count',jsonb_array_length($1::jsonb->'proof'->'formulaVersions') between 1 and 50," +
+        "'impact_status',$1::jsonb->>'impactStatus' in ('CALCULATED','NOT_CONFIGURED','WITHHELD')," +
+        "'impact_is_null',$1::jsonb->'impact'='null'::jsonb," +
+        "'expires_at_null_or_valid',($1::jsonb->'expiresAt'='null'::jsonb) or nullif($1::jsonb->>'expiresAt','') is null or ($1::jsonb->>'expiresAt')::timestamptz is not null" +
+        ") as field_checks",
+        [command[6],command[0],command[1],command[2],command[4],command[3],command[7]],
+      );
+      const validation = validationRows[0];
+      process.stdout.write("Decision snapshot validation: " + JSON.stringify({
+        snapshot_valid: validation.snapshot_valid,
+        owner_present: validation.owner_present,
+        idempotency_key_valid: validation.idempotency_key_valid,
+        snapshot_type: validation.snapshot_type,
+        field_checks: validation.field_checks,
+        snapshot_prefix: String(command[6]).slice(0,48),
+      }) + "\\n");
+      await tx.unsafe("set local role authenticated");
+      assert.equal(validation.snapshot_valid, true, "the persisted ranked snapshot validator must accept the fixture");
+      assert.equal(validation.owner_present, true, "the command owner profile must be present");
+      assert.equal(validation.idempotency_key_valid, true, "the idempotency key must satisfy the database contract");
+
       const first = await create(command);
       assert.equal(first?.ok, true, "the manager must create the snapshot-backed proposal");
       assert.equal(first?.duplicate, false);
