@@ -271,6 +271,30 @@ async function assertInventoryCountGrantSeedOrdering(db) {
   assert.equal(scopes.every(row=>row.is_active===true),true,
    "grant compatibility must not reactivate a disabled stock-count capability");
  });
+ // A partially present target matrix may contain an intentional role revocation.
+ // Never fill its missing role from source-role parity during an upgrade.
+ await rollbackFixture("PRESERVE_PARTIAL_COUNT_START_REVOCATION",async(tx)=>{
+  await tx.unsafe(
+   "delete from public.authorization_role_capabilities "+
+   "where capability_key in ('inventory.count.enter','inventory.count.start')"
+  );
+  await tx.unsafe(
+   "insert into public.authorization_role_capabilities(role,capability_key,grant_source,valid_from,expires_at) values "+
+   "('admin','inventory.count.enter','fixture:count-entry',statement_timestamp(),NULL),"+
+   "('manager','inventory.count.enter','fixture:count-entry',statement_timestamp(),NULL),"+
+   "('staff','inventory.count.enter','fixture:count-entry',statement_timestamp(),NULL),"+
+   "('admin','inventory.count.start','fixture:count-start',statement_timestamp(),NULL),"+
+   "('staff','inventory.count.start','fixture:count-start',statement_timestamp(),NULL)"
+  );
+  await tx.unsafe(backfillSql);
+  const preserved=await tx.unsafe(
+   "select role from public.authorization_role_capabilities "+
+   "where capability_key='inventory.count.start' and valid_from<=statement_timestamp() "+
+   "and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(preserved.map(row=>row.role),["admin","staff"],
+   "an already-present target matrix must not restore the deliberately missing manager count-start grant");
+ });
  const restoredGrantSnapshot=await db.unsafe(
   "select role,capability_key,grant_source,valid_from,expires_at "+
   "from public.authorization_role_capabilities where capability_key in ('inventory.count.enter','inventory.count.start') "+
