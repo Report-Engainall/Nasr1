@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { createCashflowScheduleRequest, fetchCashflowSchedule, type CashflowScheduleResult } from "@/lib/intelligence/cashflow-schedule-client";
 import { AlertTriangle, ClipboardList, Search } from "lucide-react";
 import { fetchImportJobs, fetchInventoryReconciliationRuns, fetchOperationalTasks } from "@/lib/api";
 import type { ImportJob, OperationalTask } from "@/lib/types";
-import { buildOperationsExceptions, type OperationsException, type OperationsExceptionKind } from "@/lib/operations-exceptions";
+import { buildOperationsExceptions, buildSupplierDueDateExceptions, type OperationsException, type OperationsExceptionKind } from "@/lib/operations-exceptions";
 import { Empty, ErrorBox, Loading } from "@/components/AdminPages";
 
 type LoadedSources = {
   tasks: OperationalTask[];
   imports: ImportJob[];
   reconciliationRuns: unknown[];
-  errors: { tasks: string | null; imports: string | null; reconciliation: string | null };
+  supplierSchedule: CashflowScheduleResult | null;
+  supplierScheduleEnabled: boolean;
+  errors: { tasks: string | null; imports: string | null; reconciliation: string | null; supplier: string | null };
   loading: boolean;
   loadedAt: string | null;
 };
@@ -18,7 +22,9 @@ const initialSources: LoadedSources = {
   tasks: [],
   imports: [],
   reconciliationRuns: [],
-  errors: { tasks: null, imports: null, reconciliation: null },
+  supplierSchedule: null,
+  supplierScheduleEnabled: false,
+  errors: { tasks: null, imports: null, reconciliation: null, supplier: null },
   loading: true,
   loadedAt: null,
 };
@@ -28,6 +34,7 @@ const kindLabels: Record<OperationsExceptionKind, string> = {
   task: "مهمة تشغيلية",
   import: "استيراد",
   reconciliation: "مطابقة مخزون",
+  supplier_due_date: "استحقاق مورد",
 };
 
 function errorMessage(value: PromiseSettledResult<unknown>, label: string): string | null {
@@ -51,12 +58,16 @@ export function OperationsExceptionCenter({
   onOpenTask,
   onOpenImportJob,
   onOpenReconciliationRun,
+  onOpenSupplierInvoice,
 }: {
   refreshVersion: number;
   onOpenTask: (taskId: string) => void;
   onOpenImportJob: (jobId: string) => void;
   onOpenReconciliationRun: (runId: string) => void;
+  onOpenSupplierInvoice: (invoiceId: string) => void;
 }) {
+  const { user, sessionRevision } = useAuth();
+  const canReadSupplierSchedule = Boolean(user?.roles.some((role) => ["admin", "manager", "accountant"].includes(role)));
   const [sources, setSources] = useState<LoadedSources>(initialSources);
   const [kindFilter, setKindFilter] = useState<"all" | OperationsExceptionKind>("all");
   const [priorityFilter, setPriorityFilter] = useState<"all" | keyof typeof priorityLabels>("all");
@@ -69,27 +80,41 @@ export function OperationsExceptionCenter({
       fetchOperationalTasks(),
       fetchImportJobs(),
       fetchInventoryReconciliationRuns(),
-    ]).then(([tasksResult, importsResult, reconciliationResult]) => {
+      canReadSupplierSchedule
+        ? fetchCashflowSchedule(createCashflowScheduleRequest({ horizonDays: 30 }))
+        : Promise.resolve(null),
+    ]).then(([tasksResult, importsResult, reconciliationResult, supplierResult]) => {
       if (!active) return;
       setSources({
         tasks: tasksResult.status === "fulfilled" ? tasksResult.value : [],
         imports: importsResult.status === "fulfilled" ? importsResult.value : [],
         reconciliationRuns: reconciliationResult.status === "fulfilled" ? reconciliationResult.value : [],
+        supplierSchedule: supplierResult.status === "fulfilled" ? supplierResult.value : null,
+        supplierScheduleEnabled: canReadSupplierSchedule,
         errors: {
           tasks: errorMessage(tasksResult, "المهام"),
           imports: errorMessage(importsResult, "الاستيراد"),
           reconciliation: errorMessage(reconciliationResult, "مطابقة المخزون"),
+          supplier: !canReadSupplierSchedule ? null
+            : supplierResult.status === "rejected" ? "تعذر تحميل مصدر استحقاقات الموردين. لم تُفترض التزامات بقيمة صفر."
+              : supplierResult.value && !supplierResult.value.ok ? supplierResult.value.message : null,
         },
         loading: false,
         loadedAt: new Date().toISOString(),
       });
     });
     return () => { active = false; };
-  }, [refreshVersion]);
+  }, [refreshVersion, canReadSupplierSchedule, user?.id, user?.profileId, sessionRevision]);
 
   const exceptions = useMemo(
-    () => buildOperationsExceptions(sources.tasks, sources.imports, sources.reconciliationRuns),
-    [sources.tasks, sources.imports, sources.reconciliationRuns],
+    () => [
+      ...buildOperationsExceptions(sources.tasks, sources.imports, sources.reconciliationRuns),
+      ...buildSupplierDueDateExceptions(sources.supplierSchedule),
+    ].sort((left, right) =>
+      (left.dueAt ? Date.parse(left.dueAt) : Number.MAX_SAFE_INTEGER) -
+        (right.dueAt ? Date.parse(right.dueAt) : Number.MAX_SAFE_INTEGER) ||
+      left.id.localeCompare(right.id)),
+    [sources.tasks, sources.imports, sources.reconciliationRuns, sources.supplierSchedule],
   );
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase("ar");
@@ -105,11 +130,19 @@ export function OperationsExceptionCenter({
   const overdueCount = exceptions.filter((item) => item.isOverdue).length;
   const highPriorityCount = exceptions.filter((item) => item.priority === "critical" || item.priority === "high").length;
   const importCount = exceptions.filter((item) => item.kind === "import").length;
+  const supplierDueCount = exceptions.filter((item) => item.kind === "supplier_due_date").length;
+  const supplierSchedulePartial = sources.supplierScheduleEnabled && (
+    !sources.supplierSchedule?.ok ||
+    sources.supplierSchedule.data.schedule.status !== "VERIFIED" ||
+    sources.supplierSchedule.data.schedule.completeness !== "COMPLETE" ||
+    sources.supplierSchedule.data.schedule.quality !== "ACCEPTABLE"
+  );
 
   function openSource(item: OperationsException) {
     if (item.kind === "task") onOpenTask(item.sourceId);
     else if (item.kind === "import") onOpenImportJob(item.sourceId);
-    else onOpenReconciliationRun(item.sourceId);
+    else if (item.kind === "reconciliation") onOpenReconciliationRun(item.sourceId);
+    else onOpenSupplierInvoice(item.sourceId);
   }
 
   return (
@@ -119,7 +152,7 @@ export function OperationsExceptionCenter({
           <div>
             <span className="text-sm text-muted-foreground">متابعة موحدة من السجلات المعتمدة</span>
             <h2>مركز الاستثناءات الموحد</h2>
-            <p>يعرض المهام المفتوحة ودفعات الاستيراد المتعثرة وفروقات المطابقة ذات العدادات المحفوظة. العرض للقراءة فقط؛ لا ينشئ مهامًا ولا يغيّر الأرصدة أو السجلات.</p>
+            <p>يعرض المهام المفتوحة ودفعات الاستيراد المتعثرة وفروقات المطابقة واستحقاقات الموردين المثبتة بمستندات محفوظة. العرض للقراءة فقط؛ لا ينشئ دفعات ولا يغيّر الأرصدة أو السجلات، ولا يعرض القيم المالية.</p>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ClipboardList size={20} />
@@ -131,12 +164,15 @@ export function OperationsExceptionCenter({
           <div className="rounded-lg border p-3"><span className="text-sm text-muted-foreground">عالية الأولوية</span><strong className="block text-2xl">{highPriorityCount.toLocaleString("ar-YE")}</strong></div>
           <div className="rounded-lg border p-3"><span className="text-sm text-muted-foreground">مهام تجاوزت موعدها</span><strong className="block text-2xl">{overdueCount.toLocaleString("ar-YE")}</strong></div>
           <div className="rounded-lg border p-3"><span className="text-sm text-muted-foreground">دفعات الاستيراد المتعثرة</span><strong className="block text-2xl">{importCount.toLocaleString("ar-YE")}</strong></div>
+          {sources.supplierScheduleEnabled && <div className="rounded-lg border p-3"><span className="text-sm text-muted-foreground">استحقاقات الموردين المثبتة خلال 30 يوماً</span><strong className="block text-2xl">{supplierDueCount.toLocaleString("ar-YE")}</strong><span className="text-xs text-muted-foreground">عدد السجلات فقط — دون مبالغ أو عملات</span></div>}
         </div>
       </div>
 
       {sources.errors.tasks && <div role="status" className="mt-3"><ErrorBox message={sources.errors.tasks} /></div>}
       {sources.errors.imports && <div role="status" className="mt-3"><ErrorBox message={sources.errors.imports} /></div>}
       {sources.errors.reconciliation && <div role="status" className="mt-3"><ErrorBox message={sources.errors.reconciliation} /></div>}
+      {sources.errors.supplier && <div role="status" className="mt-3"><ErrorBox message={sources.errors.supplier} /></div>}
+      {supplierSchedulePartial && <p role="status" className="panel mt-3 text-sm">مصدر استحقاقات الموردين غير مكتمل أو غير متاح بالكامل؛ تُعرض السجلات ذات الدليل المحقق فقط، وغياب السجل لا يعني عدم وجود التزام.</p>}
 
       <div className="panel mt-3">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -147,6 +183,7 @@ export function OperationsExceptionCenter({
               <option value="task">المهام التشغيلية</option>
               <option value="import">الاستيراد</option>
               <option value="reconciliation">مطابقة المخزون</option>
+              {sources.supplierScheduleEnabled && <option value="supplier_due_date">استحقاقات الموردين</option>}
             </select>
           </label>
           <label className="form-field">

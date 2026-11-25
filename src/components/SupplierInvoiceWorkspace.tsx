@@ -90,12 +90,13 @@ function eventLabel(action: string): string {
 }
 
 
-export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false }: {
+export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false, initialInvoiceId }: {
   mode: WorkspaceMode;
   accounts?: AccountingLedgerAccount[];
   onRefresh?: () => Promise<void>;
   purchaseOrders?: readonly { items: readonly { id: string; quantity_ordered: number }[] }[];
   purchaseOrdersLoading?: boolean;
+  initialInvoiceId?: string;
 }) {
   const { user, sessionRevision } = useAuth();
   const canUseFinance = Boolean(user?.roles.some((role) =>
@@ -387,19 +388,25 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
       const filterOrderId = isCapture
         ? (requestedOrderId === undefined ? purchaseOrderId || null : requestedOrderId)
         : null;
+      const initialLookup = mode === "review" && Boolean(initialInvoiceId) && requestedOffset === 0;
       const result = await fetchSupplierInvoiceWorkspace({
         purchaseOrderId: filterOrderId,
-        limit: 25,
+        limit: initialLookup ? 100 : 25,
         offset: requestedOffset,
       });
       if (requestId !== workspaceRequestRef.current) return null;
       setWorkspace(result);
       setOrderOptions(result.purchaseOrders);
-      setSelectedInvoiceId((current) =>
-        current && result.invoices.some((invoice) => invoice.id === current)
+      const requestedInvoiceFound = initialLookup && result.invoices.some((invoice) => invoice.id === initialInvoiceId);
+      if (initialLookup && !requestedInvoiceFound) {
+        setError("لم تظهر الفاتورة المرجعية ضمن أحدث 100 فاتورة محملة. استخدم صفحات سجل الفواتير للوصول إليها؛ لم يتم اختيار فاتورة أخرى بدلاً منها.");
+      }
+      setSelectedInvoiceId((current) => {
+        if (initialLookup) return requestedInvoiceFound ? initialInvoiceId! : null;
+        return current && result.invoices.some((invoice) => invoice.id === current)
           ? current
-          : result.invoices[0]?.id ?? null
-      );
+          : result.invoices[0]?.id ?? null;
+      });
       return result;
     } catch (cause) {
       if (requestId === workspaceRequestRef.current) {
@@ -409,7 +416,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     } finally {
       if (requestId === workspaceRequestRef.current) setLoading(false);
     }
-  }, [canUseFinance, isCapture, purchaseOrderId, user?.id, user?.profileId, sessionRevision]);
+  }, [canUseFinance, isCapture, purchaseOrderId, initialInvoiceId, mode, user?.id, user?.profileId, sessionRevision]);
 
   useEffect(() => {
     // Invalidate and clear user-scoped invoice rows before loading the next identity.
