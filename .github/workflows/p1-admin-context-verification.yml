@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "src/lib/product-image-upload-handler.test.ts"
+      - "src/lib/intelligence/daily-decisions.ts"\n      - "src/lib/intelligence/daily-decisions.test.ts"\n      - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
       - "supabase/migrations/**"
@@ -366,7 +366,7 @@ on:
     branches:
       - main
     paths:
-      - "src/lib/product-image-upload-handler.test.ts"
+      - "src/lib/intelligence/daily-decisions.ts"\n      - "src/lib/intelligence/daily-decisions.test.ts"\n      - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
       - "supabase/migrations/**"
