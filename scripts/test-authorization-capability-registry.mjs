@@ -557,6 +557,11 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   );
   assert.deepEqual(countEntryGrants.map(row=>row.role),["admin","manager","staff"],
     "count entry grants must remain limited to the explicit admin/manager/staff parity");
+  const countStartGrants=await db.unsafe(
+    "select role from public.authorization_role_capabilities where capability_key='inventory.count.start' and valid_from<=statement_timestamp() and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(countStartGrants.map(row=>row.role),countEntryGrants.map(row=>row.role),
+    "warehouse count-start grants must preserve only the currently persisted count-entry role parity");
   for(const [actor,expected] of [[manager,"PERMIT"],[staff,"PERMIT"],[accountant,"DENY"],[customer,"DENY"]]) {
     const result=await resourceDecision(db,actor,"inventory.count.enter",targetWarehouse);
     assert.equal(result.decision,expected,"warehouse A count.enter decision for roles "+actor.roles.join(","));
