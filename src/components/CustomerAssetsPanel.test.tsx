@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getCurrentTenantScope: vi.fn(),
   rangeCalls: [] as Array<{ table: string; start: number; end: number }>,
   assetRows: [] as Array<Record<string, unknown>>,
+  eventRows: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -62,9 +63,10 @@ function query(table: string) {
     return builder;
   };
   builder.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
-    const page = table === "customer_assets" && range
-      ? mocks.assetRows.slice(range[0], range[1] + 1)
+    const rows = table === "customer_assets" ? mocks.assetRows
+      : table === "customer_asset_events" ? mocks.eventRows
       : [];
+    const page = range ? rows.slice(range[0], range[1] + 1) : [];
     return Promise.resolve({ data: page, error: null }).then(resolve, reject);
   };
   return builder;
@@ -75,6 +77,20 @@ describe("admin customer asset registry pagination", () => {
     vi.clearAllMocks();
     mocks.rangeCalls = [];
     mocks.assetRows = Array.from({ length: 51 }, (_, index) => makeAsset(index));
+    mocks.eventRows = Array.from({ length: 31 }, (_, index) => ({
+      id: "event-" + String(index).padStart(3, "0"),
+      event_type: "maintenance_started",
+      previous_customer_id: null,
+      new_customer_id: null,
+      old_status: "active",
+      new_status: "under_maintenance",
+      summary: "بدء صيانة",
+      reason: "فحص دوري للجهاز",
+      reference: null,
+      details: null,
+      metadata: null,
+      event_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+    }));
     mocks.getCurrentTenantScope.mockResolvedValue({ organizationId: "org-001" });
     mocks.from.mockImplementation((table: string) => query(table));
   });
@@ -95,4 +111,54 @@ describe("admin customer asset registry pagination", () => {
     expect(screen.queryByRole("button", { name: "تحميل المزيد من الأصول" })).not.toBeInTheDocument();
     expect(screen.getByText("أصل اختبار 50")).toBeInTheDocument();
   });
+
+  it("loads the complete append-only event history for one asset in additional pages", async () => {
+    render(<CustomerAssetsPanel customerId="customer-001" />);
+
+    expect(await screen.findByText(/عرض 50 من 50 أصل تم تحميلها/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "الأحداث والملكية" })[0]);
+
+    expect(await screen.findByText("سجل الأحداث والملكية — أصل اختبار 0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "تحميل أحداث أقدم" })).toBeEnabled();
+    expect(mocks.rangeCalls).toContainEqual({ table: "customer_asset_events", start: 0, end: 30 });
+
+    fireEvent.click(screen.getByRole("button", { name: "تحميل أحداث أقدم" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "تحميل أحداث أقدم" })).not.toBeInTheDocument();
+    });
+    expect(mocks.rangeCalls).toContainEqual({ table: "customer_asset_events", start: 30, end: 60 });
+    expect(screen.getAllByText("فحص دوري للجهاز", { exact: true })).toHaveLength(31);
+  });
+
+
+  it("does not offer replacement as a generic service event", async () => {
+    render(<CustomerAssetsPanel customerId="customer-001" />);
+    await screen.findByText(/عرض 50 من 50 أصل تم تحميلها/);
+    fireEvent.click(screen.getAllByRole("button", { name: "صيانة \/ حدث" })[0]);
+    const eventType = screen.getByLabelText("نوع الحدث") as HTMLSelectElement;
+    expect(Array.from(eventType.options).some(option => option.value === "replacement")).toBe(false);
+  });
+
+  it("opens only the linked replacement asset from the append-only event metadata", async () => {
+    mocks.eventRows[0] = {
+      ...mocks.eventRows[0],
+      event_type: "replacement",
+      summary: "استبدال الجهاز وربط الأصل البديل",
+      metadata: { new_asset_id: "asset-001" },
+      reason: "تلف الجهاز السابق واستبداله",
+    };
+    render(<CustomerAssetsPanel customerId="customer-001" />);
+
+    expect(await screen.findByText(/عرض 50 من 50 أصل تم تحميلها/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "الأحداث والملكية" })[0]);
+    expect(await screen.findByText("سجل الأحداث والملكية — أصل اختبار 0")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "فتح سجل الأصل البديل" }));
+
+    expect(screen.queryByText("سجل الأحداث والملكية — أصل اختبار 0")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("اسم الأصل أو الموديل أو الرقم التسلسلي")).toHaveValue("SERIAL-1");
+    expect(screen.getByText("أصل اختبار 1")).toBeInTheDocument();
+  });
+
 });

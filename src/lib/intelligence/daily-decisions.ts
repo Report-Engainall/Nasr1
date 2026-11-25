@@ -22,7 +22,8 @@ function numeric(value:number|string|null):number|null {
 function meets(value:number,op:DecisionOperator,threshold:number):boolean {
  switch(op){case "GTE":return value>=threshold;case "GT":return value>threshold;case "LTE":return value<=threshold;case "LT":return value<threshold;case "EQ":return value===threshold}
 }
-const withheld=(rule:DecisionRule,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:rule.id,metricKey:rule.metricKey,reason,evidenceStatus:status,explanation});
+const withheld=(rule:DecisionRule|null|undefined,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:typeof rule?.id==="string"&&rule.id.trim()?rule.id:"invalid-rule",metricKey:typeof rule?.metricKey==="string"&&rule.metricKey.trim()?rule.metricKey:"unknown-metric",reason,evidenceStatus:status,explanation});
+function hasText(value:unknown):value is string {return typeof value==="string"&&value.trim().length>0;}
 function isImpactFormulaValid(formula: ImpactFormula): boolean {
  if (!formula || typeof formula.id !== "string" || !formula.id.trim() ||
   typeof formula.version !== "string" || !formula.version.trim() ||
@@ -81,7 +82,15 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  }
 
  let value:number|null=null;
- if(formula.operation==="IDENTITY")value=values[0] as number;
+ if(formula.operation==="IDENTITY"){
+  const source=sources[0];
+  if(source.unit==="CURRENCY"||source.unit==="CURRENCY_PER_UNIT"||source.unit==="QUANTITY"){
+   const minor=decimalToMinorUnits(source.value,6,true);
+   if(minor===null)return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_UNSUPPORTED"};
+   value=minorUnitsToNumber(minor,6);
+   if(value===null)return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_OVERFLOW"};
+  }else value=values[0] as number;
+ }
  if(formula.operation==="SUM"){
   const minor=sources.map(m=>decimalToMinorUnits(m.value,6,true));
   if(minor.some(v=>v===null))return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_UNSUPPORTED"};
@@ -118,11 +127,15 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
  const passport=buildEvidencePassport({id:"daily-decisions:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:input.metrics});
  const index=new Map<string,MetricSnapshot[]>();for(const m of passport.metrics){const rows=index.get(m.key)??[];rows.push(m);index.set(m.key,rows)}
  const candidates:DecisionCandidate[]=[],reasons:WithheldDecision[]=[],seen=new Set<string>();
- for(const rule of input.rules){
-  if(seen.has(rule.id)){reasons.push(withheld(rule,"INVALID_RULE",null,"Rule ID is duplicated."));continue}seen.add(rule.id);
+ for(const candidate of input.rules){
+  const rule=candidate as DecisionRule|null;
+  if(!rule||typeof rule!=="object"){reasons.push(withheld(rule,"INVALID_RULE",null,"Rule is not a valid object."));continue}
+  const ruleId=typeof rule.id==="string"?rule.id:"";
+  if(ruleId&&seen.has(ruleId)){reasons.push(withheld(rule,"INVALID_RULE",null,"Rule ID is duplicated."));continue}
+  if(ruleId)seen.add(ruleId);
   const invalidExpiry=rule.expiresInDays!==undefined&&(!Number.isInteger(rule.expiresInDays)||rule.expiresInDays<1||rule.expiresInDays>3650);
-  if(!rule.id.trim()||!rule.version.trim()||!rule.metricKey.trim()||!Number.isFinite(rule.threshold)||!["P0","P1","P2","P3"].includes(rule.priority)||
-   !validOperators.has(rule.operator)||invalidExpiry||!rule.what.trim()||!rule.why.trim()||!rule.soWhat.trim()||!rule.whatNext.trim()||!rule.owner.trim()||!rule.expectedOutcome.trim()){
+  if(!hasText(rule.id)||!hasText(rule.version)||!hasText(rule.metricKey)||!Number.isFinite(rule.threshold)||!["P0","P1","P2","P3"].includes(rule.priority)||
+   !validOperators.has(rule.operator)||invalidExpiry||!hasText(rule.what)||!hasText(rule.why)||!hasText(rule.soWhat)||!hasText(rule.whatNext)||!hasText(rule.owner)||!hasText(rule.expectedOutcome)){
    reasons.push(withheld(rule,"INVALID_RULE",null,"Rule metadata is incomplete or invalid."));continue}
   const rows=index.get(rule.metricKey)??[];
   if(!rows.length){reasons.push(withheld(rule,"NO_SOURCE",null,"No sourced metric was provided."));continue}
@@ -137,7 +150,8 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
   if(metric.unit==="CURRENCY"&&!metric.currency?.trim()){reasons.push(withheld(rule,"CURRENCY_MISMATCH",metric.status,"Currency is not identified."));continue}
   if(!meets(value,rule.operator,rule.threshold))continue;
   const impact=impactFor(rule.impactFormula,index,metric);
-  const related=(rule.impactFormula?.metricKeys??[]).flatMap(key=>index.get(key)??[]);
+  const formulaMetricKeys=rule.impactFormula&&isImpactFormulaValid(rule.impactFormula)?rule.impactFormula.metricKeys:[];
+  const related=formulaMetricKeys.flatMap(key=>index.get(key)??[]);
   const proofMetrics=[metric,...related],evidenceIds=[...new Set(proofMetrics.flatMap(m=>m.lineage.evidenceIds))];
   const formulaVersions=[...new Set(proofMetrics.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];
   if(impact.impact)formulaVersions.push(impact.impact.formulaId+"@"+impact.impact.formulaVersion);
@@ -145,7 +159,7 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
    id:rule.id+":"+metric.id+":"+metric.asOf,ruleId:rule.id,ruleVersion:rule.version,priority:rule.priority,priorityScore:scores[rule.priority],
    what:rule.what,why:rule.why+" Observed "+value+" "+metric.unit+" against "+rule.operator+" "+rule.threshold+".",
    soWhat:rule.soWhat,impact:impact.impact,impactStatus:impact.status,impactReason:impact.reason,whatNext:rule.whatNext,
-   proof:{evidenceIds,metricKeys:[...new Set([metric.key,...(rule.impactFormula?.metricKeys??[])])],asOf:metric.asOf,formulaVersions},
+   proof:{evidenceIds,metricKeys:[...new Set([metric.key,...formulaMetricKeys])],asOf:metric.asOf,formulaVersions},
    owner:rule.owner,expectedOutcome:rule.expectedOutcome,createdAt:input.generatedAt,expiresAt:expiry(input.generatedAt,rule.expiresInDays),
   });
  }

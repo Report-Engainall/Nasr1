@@ -126,6 +126,32 @@ describe("daily decision engine",()=>{
   expect(result.candidates[0].impactStatus).toBe("WITHHELD");
   expect(result.candidates[0].impactReason).toBe("INVALID_IMPACT_FORMULA");
  });
+ it("withholds malformed rule and impact formula payloads without throwing",()=>{
+  const invalidMetadata={...rule(),id:null,owner:null} as unknown as DecisionRule;
+  const invalidFormula=rule({id:"invalid-formula",impactFormula:{id:"bad",version:"1",operation:"SUM",metricKeys:"orders.pending",resultUnit:"COUNT"} as unknown as DecisionRule["impactFormula"]});
+  const result=buildDailyDecisions(input({rules:[invalidMetadata,invalidFormula]}));
+  expect(result.withheld[0]).toMatchObject({ruleId:"invalid-rule",metricKey:"orders.pending",reason:"INVALID_RULE"});
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactReason).toBe("INVALID_IMPACT_FORMULA");
+ });
+ it("uses bounded exact decimal precision for currency identity impacts",()=>{
+  const exact=metric({id:"cash-exact",key:"cash.exact",value:"125.123456",unit:"CURRENCY",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-cash-exact"]}});
+  const exactResult=buildDailyDecisions(input({
+   metrics:[metric(),exact],
+   evidenceRecords:[evidence(),{...evidence("ev-cash-exact"),currency:"YER"}],
+   rules:[rule({impactFormula:{id:"cash-identity",version:"1",operation:"IDENTITY",metricKeys:["cash.exact"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(exactResult.candidates[0].impact).toMatchObject({value:125.123456,unit:"CURRENCY",currency:"YER"});
+  const overPrecision=metric({id:"cash-overprecision",key:"cash.overprecision",value:"125.1234567",unit:"CURRENCY",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-cash-overprecision"]}});
+  const withheldResult=buildDailyDecisions(input({
+   metrics:[metric(),overPrecision],
+   evidenceRecords:[evidence(),{...evidence("ev-cash-overprecision"),currency:"YER"}],
+   rules:[rule({impactFormula:{id:"cash-identity-overprecision",version:"1",operation:"IDENTITY",metricKeys:["cash.overprecision"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(withheldResult.candidates[0].impact).toBeNull();
+  expect(withheldResult.candidates[0].impactReason).toBe("IMPACT_PRECISION_UNSUPPORTED");
+ });
  it("withholds impact across different metric periods",()=>{
   const priorPeriod={from:"2026-09-01",to:"2026-09-30"};
   const prior=metric({id:"prior",key:"orders.prior",value:3,period:priorPeriod,lineage:{...metric().lineage,evidenceIds:["ev-prior"]}});

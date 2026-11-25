@@ -569,4 +569,120 @@ describe("customer order detail real route acceptance", () => {
     expect(host?.textContent).toContain("الحالة: مؤكد");
     expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(2);
   });
+
+  it("submits a pre-approval customer cancellation through the real route with a bound idempotency key", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: { data: [{
+        id: orderId, order_number: "SO-CANCEL-001", customer_id: CUSTOMER.profileId,
+        status: "pending", total_items: 1, notes: null, created_at: "2026-10-28T00:00:00.000Z",
+        quantity_review_required: false, customer_adjustment_note: null,
+        customer_payment_requested_at: null, customer_confirmed_at: null,
+        payment_request_status: "none", delivery_address_snapshot: null,
+      }], error: null },
+      order_items: { data: [{
+        id: "44444444-4444-4444-8444-444444444444",
+        product_id: "55555555-5555-4555-8555-555555555555",
+        item_code: "SKU-CANCEL-001", product_name_snapshot: "صنف الإلغاء",
+        unit_snapshot: "علبة", quantity: 1, requested_quantity: 1, approved_quantity: 1,
+      }], error: null },
+      order_status_history: { data: [{ id: "hist-cancel", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null }], error: null },
+      customers: { data: [{ customer_code: "C-CANCEL-01", business_name: "شركة الاختبار", contact_name: null }], error: null },
+      customer_order_amendments: { data: [], error: null },
+      customer_order_cancellations: { data: [], error: null },
+    };
+    mocks.rpc.mockResolvedValue({
+      data: { order_id: orderId, status: "cancelled", cancelled_at: "2026-10-28T00:05:00.000Z", replayed: false },
+      error: null,
+    });
+
+    await mountOrderRoute();
+    expect(host?.textContent).toContain("إلغاء الطلب قبل اعتماده");
+    const reason = host?.querySelector<HTMLTextAreaElement>('textarea[placeholder*="إدخال كمية غير صحيحة"]');
+    expect(reason).not.toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    await act(async () => {
+      setter?.call(reason, "أدخلت كمية غير صحيحة");
+      reason?.dispatchEvent(new Event("input", { bubbles: true }));
+      reason?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const cancelButton = [...(host?.querySelectorAll("button") ?? [])]
+      .find((button) => button.textContent?.includes("تأكيد إلغاء الطلب"));
+    expect(cancelButton).toBeDefined();
+
+    await act(async () => {
+      cancelButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("cancel_customer_order", expect.objectContaining({
+      p_order_id: orderId,
+      p_reason: "أدخلت كمية غير صحيحة",
+    }));
+    const cancelArgs = mocks.rpc.mock.calls.find(([name]) => name === "cancel_customer_order")?.[1] as Record<string, unknown>;
+    expect(Object.keys(cancelArgs).sort()).toEqual(["p_idempotency_key", "p_order_id", "p_reason"]);
+    expect(String(cancelArgs.p_idempotency_key)).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+    expect(host?.textContent).toContain("أُلغي الطلب قبل اعتماده من الإدارة");
+  });
+
+  it("submits only changed customer quantities for a returned order without exposing financial fields", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    const itemId = "44444444-4444-4444-8444-444444444444";
+    mocks.results = {
+      orders: { data: [{
+        id: orderId, order_number: "SO-AMEND-001", customer_id: CUSTOMER.profileId,
+        status: "needs_customer_amendment", total_items: 1, notes: null,
+        created_at: "2026-10-28T00:00:00.000Z", quantity_review_required: false,
+        customer_adjustment_note: "يرجى تصحيح الكمية", customer_payment_requested_at: null,
+        customer_confirmed_at: null, payment_request_status: "none", delivery_address_snapshot: null,
+      }], error: null },
+      order_items: { data: [{
+        id: itemId, product_id: "55555555-5555-4555-8555-555555555555",
+        item_code: "SKU-AMEND-001", product_name_snapshot: "صنف التعديل",
+        unit_snapshot: "علبة", quantity: 1, requested_quantity: 1, approved_quantity: 1,
+      }], error: null },
+      order_status_history: { data: [{ id: "hist-amend", to_status: "needs_customer_amendment", created_at: "2026-10-28T00:00:00.000Z", notes: null }], error: null },
+      customers: { data: [{ customer_code: "C-AMEND-01", business_name: "شركة الاختبار", contact_name: null }], error: null },
+      customer_order_amendments: { data: [], error: null },
+      customer_order_cancellations: { data: [], error: null },
+    };
+    mocks.rpc.mockResolvedValue({
+      data: { amendment_id: "66666666-6666-4666-8666-666666666666", order_id: orderId, status: "pending_review", line_count: 1, replayed: false },
+      error: null,
+    });
+
+    await mountOrderRoute();
+    const quantity = host?.querySelector<HTMLInputElement>('input[aria-label="الكمية المعدلة صنف التعديل"]');
+    expect(quantity).not.toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    await act(async () => {
+      setter?.call(quantity, "2");
+      quantity?.dispatchEvent(new Event("input", { bubbles: true }));
+      quantity?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(quantity?.value).toBe("2");
+    const submitButton = [...(host?.querySelectorAll("button") ?? [])]
+      .find((button) => button.textContent?.includes("إرسال التعديل إلى الإدارة"));
+    expect(submitButton).toBeDefined();
+
+    await act(async () => {
+      submitButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_customer_order_amendment", expect.objectContaining({
+      p_order_id: orderId,
+      p_lines: [{ item_id: itemId, quantity: 2 }],
+      p_note: null,
+    }));
+    const amendmentArgs = mocks.rpc.mock.calls.find(([name]) => name === "submit_customer_order_amendment")?.[1] as Record<string, unknown>;
+    expect(Object.keys(amendmentArgs).sort()).toEqual(["p_idempotency_key", "p_lines", "p_note", "p_order_id"]);
+    expect(String(amendmentArgs.p_idempotency_key)).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+    expect(host?.textContent).toContain("تم إرسال الكميات المقترحة إلى الإدارة");
+  });
+
 });
