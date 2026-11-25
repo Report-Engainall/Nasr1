@@ -344,6 +344,8 @@ on:
       - "src/components/AdminOrderCreationDialog.tsx"
       - "src/components/AdminOrderCreationDialog.test.tsx"
       - "src/components/CustomerMyDevicesPage.tsx"
+      - "src/components/CustomerAssetsPanel.tsx"
+      - "src/components/CustomerAssetsPanel.test.tsx"
       - "src/test/customer-my-devices-pagination.test.tsx"
       - "src/components/TaskCenter.tsx"
       - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"
