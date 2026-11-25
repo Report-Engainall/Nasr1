@@ -1164,6 +1164,103 @@ async function main() {
         assert.equal(auditProof.count, 1,
           "the independent finalization must append exactly one completion audit event");
 
+        // A stored idempotency result must not bypass current source/destination authorization.
+        // Both transfer APIs revalidate and hold locks on the two active tenant warehouses first.
+        await applyActor(tx, actors.manager);
+        const transferReason = "P2 transfer replay requires current warehouse endpoints";
+        const singleTransferKey = "p2-transfer-single-" + process.pid + "-" + Date.now();
+        const singleTransferArgs = [
+          fixture.product_id, otherWarehouse.warehouse_id, fixture.warehouse_id, 1,
+          transferReason, singleTransferKey,
+        ];
+        const singleTransfer = decodeJson((await tx.unsafe(
+          "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text) as result",
+          singleTransferArgs,
+        ))[0].result);
+        assert.equal(singleTransfer.idempotent_replay, false);
+        const singleTransferReplay = decodeJson((await tx.unsafe(
+          "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text) as result",
+          singleTransferArgs,
+        ))[0].result);
+        assert.equal(singleTransferReplay.idempotent_replay, true);
+        assert.equal(singleTransferReplay.transfer_id, singleTransfer.transfer_id);
+
+        await tx.unsafe("reset role");
+        await tx.unsafe("update public.warehouses set is_active=false where id=$1::uuid", [otherWarehouse.warehouse_id]);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text)",
+          singleTransferArgs,
+        ), "single-transfer replay must deny a now-inactive source warehouse before idempotency replay");
+        await tx.unsafe("reset role");
+        await tx.unsafe("update public.warehouses set is_active=true where id=$1::uuid", [otherWarehouse.warehouse_id]);
+        await tx.unsafe("update public.warehouses set is_active=false where id=$1::uuid", [fixture.warehouse_id]);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text)",
+          singleTransferArgs,
+        ), "single-transfer replay must deny a now-inactive destination warehouse before idempotency replay");
+        await tx.unsafe("reset role");
+        await tx.unsafe("update public.warehouses set is_active=true where id=$1::uuid", [fixture.warehouse_id]);
+
+        const singleTransferRows = await tx.unsafe(
+          "select count(*)::integer as transfers from public.inventory_transfers where organization_id=$1::uuid and idempotency_key=$2::text",
+          [organizationId, singleTransferKey],
+        );
+        assert.equal(singleTransferRows[0].transfers, 1, "single-transfer retries must preserve exactly one source transfer record");
+        const singleMovementRows = await tx.unsafe(
+          "select count(*)::integer as movements from public.inventory_movements where reference_type='inventory_transfer' and reference_id=$1::uuid",
+          [singleTransfer.transfer_id],
+        );
+        assert.equal(singleMovementRows[0].movements, 2, "single-transfer retries must not duplicate source/destination movement entries");
+
+        await applyActor(tx, actors.manager);
+        const batchTransferKey = "p2-transfer-batch-" + process.pid + "-" + Date.now();
+        const batchTransferArgs = [
+          otherWarehouse.warehouse_id, fixture.warehouse_id, transferReason,
+          JSON.stringify([{ product_id: fixture.product_id, quantity: 1 }]), batchTransferKey,
+        ];
+        const batchTransfer = decodeJson((await tx.unsafe(
+          "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
+          batchTransferArgs,
+        ))[0].result);
+        assert.equal(batchTransfer.idempotent_replay, false);
+        const batchTransferReplay = decodeJson((await tx.unsafe(
+          "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
+          batchTransferArgs,
+        ))[0].result);
+        assert.equal(batchTransferReplay.idempotent_replay, true);
+        assert.equal(batchTransferReplay.batch_id, batchTransfer.batch_id);
+
+        await tx.unsafe("reset role");
+        await tx.unsafe("update public.warehouses set is_active=false where id=$1::uuid", [otherWarehouse.warehouse_id]);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text)",
+          batchTransferArgs,
+        ), "batch-transfer replay must deny a now-inactive source warehouse before idempotency replay");
+        await tx.unsafe("reset role");
+        await tx.unsafe("update public.warehouses set is_active=true where id=$1::uuid", [otherWarehouse.warehouse_id]);
+        await tx.unsafe("update public.warehouses set is_active=false where id=$1::uuid", [fixture.warehouse_id]);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text)",
+          batchTransferArgs,
+        ), "batch-transfer replay must deny a now-inactive destination warehouse before idempotency replay");
+        await tx.unsafe("reset role");
+        await tx.unsafe("update public.warehouses set is_active=true where id=$1::uuid", [fixture.warehouse_id]);
+
+        const batchTransferRows = await tx.unsafe(
+          "select count(*)::integer as batches from public.inventory_transfer_batches where organization_id=$1::uuid and idempotency_key=$2::text",
+          [organizationId, batchTransferKey],
+        );
+        assert.equal(batchTransferRows[0].batches, 1, "batch-transfer retries must preserve exactly one transfer batch record");
+        const batchTransferLines = await tx.unsafe(
+          "select count(*)::integer as lines from public.inventory_transfers where organization_id=$1::uuid and batch_id=$2::uuid",
+          [organizationId, batchTransfer.batch_id],
+        );
+        assert.equal(batchTransferLines[0].lines, 1, "batch-transfer replay must not duplicate transfer lines");
+
         throw rollbackSentinel;
       });
     } catch (cause) {
