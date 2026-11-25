@@ -127,7 +127,7 @@ describe("admin customer asset registry pagination", () => {
       expect(screen.queryByRole("button", { name: "تحميل أحداث أقدم" })).not.toBeInTheDocument();
     });
     expect(mocks.rangeCalls).toContainEqual({ table: "customer_asset_events", start: 30, end: 60 });
-    expect(screen.getAllByText("فحص دوري للجهاز")).toHaveLength(31);
+    expect(screen.getAllByText("فحص دوري للجهاز", { exact: true })).toHaveLength(31);
   });
 
 });
