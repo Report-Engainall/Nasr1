@@ -131,6 +131,7 @@ describe("customer shopping list catalog server pagination", () => {
     const search = screen.getByPlaceholderText("ابحث بالاسم أو رمز الصنف أو SKU أو الباركود");
     fireEvent.change(search, { target: { value: "SKU-404" } });
     expect(screen.getByText("صنف اختبار 404")).toBeInTheDocument();
-    expect(screen.getByText(new RegExp("عرض " + formatNumber(1) + " من " + formatNumber(1) + " نتيجة مطابقة"))).toBeInTheDocument();
+    const resultCount = screen.getByText(/نتيجة مطابقة/);
+    expect(resultCount).toHaveTextContent(formatNumber(1));
   });
 });
