@@ -144,6 +144,7 @@ on:
       - "src/lib/bound-idempotency-key.test.ts"
       - "src/components/CustomerOrders.tsx"
       - "src/test/customer-order-list-route-acceptance.test.tsx"
+      - "src/test/customer-order-detail-route-acceptance.test.tsx"
       - "src/lib/use-refresh-while-active.ts"
       - "src/lib/use-refresh-while-active.test.tsx"
       - "supabase/migrations/20261106233100_executive_liquidity_command_center.sql"
