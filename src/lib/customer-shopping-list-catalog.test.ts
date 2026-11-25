@@ -20,3 +20,35 @@ describe("customer shopping-list catalog search visibility", () => {
   expect(products).toHaveLength(175);
  });
 });
+
+
+import { CUSTOMER_SHOPPING_LIST_SERVER_PAGE_SIZE, mergeCustomerShoppingListCatalogProducts, projectCustomerShoppingListServerPage } from "@/lib/customer-shopping-list-catalog";
+
+describe("customer shopping-list server catalog paging", () => {
+  it("pages beyond the initial server limit with a stable ID cursor and deduplicated merge", () => {
+    const rows = Array.from({ length: 405 }, (_, index) => ({
+      id: "id-" + String(index).padStart(3, "0"),
+      name: "صنف " + String(index).padStart(3, "0"),
+    }));
+    const first = projectCustomerShoppingListServerPage(rows);
+    expect(first.items).toHaveLength(CUSTOMER_SHOPPING_LIST_SERVER_PAGE_SIZE);
+    expect(first.cursor).toBe("id-199");
+    expect(first.hasMore).toBe(true);
+    const afterFirst = rows.filter((row) => row.id > first.cursor!);
+    const second = projectCustomerShoppingListServerPage(afterFirst);
+    expect(second.items).toHaveLength(200);
+    expect(second.cursor).toBe("id-399");
+    expect(second.hasMore).toBe(true);
+    const afterSecond = afterFirst.filter((row) => row.id > second.cursor!);
+    const third = projectCustomerShoppingListServerPage(afterSecond);
+    expect(third.items).toHaveLength(5);
+    expect(third.hasMore).toBe(false);
+    const all = mergeCustomerShoppingListCatalogProducts(
+      mergeCustomerShoppingListCatalogProducts(first.items, second.items),
+      [...third.items, first.items[0]],
+    );
+    expect(all).toHaveLength(405);
+    expect(new Set(all.map((row) => row.id)).size).toBe(405);
+    expect(all[0].name).toBe("صنف 000");
+  });
+});
