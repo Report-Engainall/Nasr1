@@ -32,11 +32,13 @@ JOIN public.authorization_capabilities target_capability
  AND target_capability.is_active = true
  AND target_capability.scope_kind = 'warehouse'
 WHERE source_grant.capability_key = 'inventory.count.enter'
+  -- Backfill only a wholly absent target matrix. If even one start grant is
+  -- already present, it is policy state: a missing role may have been
+  -- deliberately revoked and must not be silently restored.
   AND NOT EXISTS (
     SELECT 1
     FROM public.authorization_role_capabilities existing_target
-    WHERE existing_target.role = source_grant.role
-      AND existing_target.capability_key = 'inventory.count.start'
+    WHERE existing_target.capability_key = 'inventory.count.start'
   )
 ON CONFLICT (role, capability_key) DO NOTHING;
 
@@ -57,14 +59,13 @@ BEGIN
      AND target_capability.is_active = true
      AND target_capability.scope_kind = 'warehouse'
     WHERE source_grant.capability_key = 'inventory.count.enter'
-      AND NOT EXISTS (
-        SELECT 1
-        FROM public.authorization_role_capabilities existing_target
-        WHERE existing_target.role = source_grant.role
-          AND existing_target.capability_key = 'inventory.count.start'
-      )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.authorization_role_capabilities existing_target
+    WHERE existing_target.capability_key = 'inventory.count.start'
   ) THEN
-    RAISE EXCEPTION 'inventory.count.start role parity backfill is incomplete';
+    RAISE EXCEPTION 'inventory.count.start role parity backfill did not create the missing target matrix';
   END IF;
 END
 $assert_count_start_role_parity$;
