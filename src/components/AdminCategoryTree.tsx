@@ -9,6 +9,9 @@ import { normalizeStorefrontArtworkKey, type StorefrontArtworkKey } from '@/lib/
 import { fetchAdminCategoryProducts, type AdminCategoryProductRow } from '@/lib/admin-category-products';
 import { buildAdminCategoryTree, filterAdminCategoryTree, getAdminCategoryAncestorIds, getAdminCategoryPath, type AdminCategoryTreeNode } from '@/lib/admin-category-tree';
 import type { Category, ProductWithInventory } from '@/lib/types';
+import { storefrontCategorySlug } from '@/lib/storefront-slugs';
+import { countPublishedProductsByCategory } from '@/lib/admin-category-published-counts';
+import { AdminCatalogChangeHistory } from '@/components/AdminCatalogChangeHistory';
 import { useAuth } from '@/lib/auth';
 
 type DetailTab = 'overview' | 'children' | 'products' | 'catalog';
@@ -26,9 +29,10 @@ function writeSelectedCategory(id: string | null, replace = false) {
   else window.history.pushState(window.history.state, '', url);
 }
 
-function CategoryBranch({ nodes, expanded, selectedId, depth, onToggle, onSelect }: {
+function CategoryBranch({ nodes, expanded, selectedId, depth, onToggle, onSelect, publishedCounts, publishedCountsLoading }: {
   nodes: AdminCategoryTreeNode[]; expanded: ReadonlySet<string>; selectedId: string | null; depth: number;
   onToggle: (id: string) => void; onSelect: (id: string) => void;
+  publishedCounts: Readonly<Record<string, number>> | null; publishedCountsLoading: boolean;
 }) {
   return <ul className="admin-category-tree__list" aria-label={depth ? 'التصنيفات الفرعية' : 'التصنيفات الرئيسية'}>
     {nodes.map((node) => {
@@ -48,11 +52,13 @@ function CategoryBranch({ nodes, expanded, selectedId, depth, onToggle, onSelect
             <span className="admin-category-tree__folder"><FolderTree size={16} /></span>
             <span className="admin-category-tree__name">{category.name}</span>
             {category.is_active === false && <span className="admin-category-tree__status is-archived">مؤرشف</span>}
+            {publishedCountsLoading && <span className="admin-category-tree__status">جار العد…</span>}
+            {!publishedCountsLoading && publishedCounts && <span className={`admin-category-tree__status ${(publishedCounts[category.id] ?? 0) === 0 ? 'is-warning' : ''}`}>{formatNumber(publishedCounts[category.id] ?? 0)} منشور{(publishedCounts[category.id] ?? 0) === 0 ? ' · فارغ' : ''}</span>}
             {node.relationshipWarning && <span className="admin-category-tree__status is-warning">ارتباط يحتاج مراجعة</span>}
           </button>
         </div>
         {hasChildren && isExpanded && <CategoryBranch nodes={node.children} expanded={expanded} selectedId={selectedId}
-          depth={depth + 1} onToggle={onToggle} onSelect={onSelect} />}
+          depth={depth + 1} onToggle={onToggle} onSelect={onSelect} publishedCounts={publishedCounts} publishedCountsLoading={publishedCountsLoading} />}
       </li>;
     })}
   </ul>;
@@ -92,6 +98,9 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState('');
   const [catalogRetry, setCatalogRetry] = useState(0);
+  const [publishedCounts, setPublishedCounts] = useState<Record<string, number> | null>(null);
+  const [publishedCountsLoading, setPublishedCountsLoading] = useState(false);
+  const [publishedCountsError, setPublishedCountsError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +119,38 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   useEffect(() => {
     if (canOpen) void load().catch(() => undefined);
   }, [canOpen, load]);
+
+  const scanPublishedCategoryCounts = useCallback(async () => {
+    if (!canOpen || categories.length === 0) return;
+    setPublishedCountsLoading(true);
+    setPublishedCountsError('');
+    setPublishedCounts(null);
+    try {
+      const productCategoryIds: Array<string | null> = [];
+      const seen = new Set<string>();
+      for (let page = 1; page <= 2500; page += 1) {
+        const result = await fetchAdminProductsPage({ page, status: 'active' });
+        if (result.page !== page || result.items.length > result.pageSize || (result.hasNextPage && result.items.length !== result.pageSize)) {
+          throw new Error('تسلسل صفحات المنتجات المنشورة غير مكتمل؛ لم نعرض أعدادًا جزئية للتصنيفات.');
+        }
+        for (const product of result.items) {
+          if (seen.has(product.id)) throw new Error('تكرر منتج بين صفحات القراءة؛ تعذر تأكيد عدد المنتجات المنشورة.');
+          seen.add(product.id);
+          productCategoryIds.push(product.category_id ?? null);
+        }
+        if (!result.hasNextPage) {
+          setPublishedCounts(countPublishedProductsByCategory(categories.map((category) => category.id), productCategoryIds));
+          return;
+        }
+      }
+      throw new Error('تجاوز تعداد المنتجات المنشورة الحد الأعلى للصفحات؛ لم نعرض أرقامًا غير مكتملة.');
+    } catch (cause) {
+      setPublishedCountsError(cause instanceof Error ? cause.message : 'تعذر حساب المنتجات المنشورة لكل تصنيف.');
+    } finally {
+      setPublishedCountsLoading(false);
+    }
+  }, [canOpen, categories]);
+
 
   const tree = useMemo(() => buildAdminCategoryTree(categories), [categories]);
   const filteredTree = useMemo(() => filterAdminCategoryTree(tree, search), [tree, search]);
@@ -323,6 +364,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       <div><span>الكتالوج والتسعير</span><h1>التصنيفات الرئيسية والفرعية</h1><p>شجرة واحدة مرتبطة بحقل parent_id الحالي وعمليات الخادم المعتمدة.</p></div>
       <div className="admin-category-page__actions">
         <button type="button" className="btn outline" onClick={() => void load().catch(() => undefined)} disabled={loading}><RefreshCw size={16}/> تحديث</button>
+        {canOpen && <button type="button" className="btn outline" onClick={() => void scanPublishedCategoryCounts()} disabled={publishedCountsLoading || loading || categories.length === 0}><Tags size={16}/>{publishedCountsLoading ? ' جارٍ حساب المنشور…' : publishedCounts ? ' إعادة حساب المنشور' : ' حساب المنتجات المنشورة'}</button>}
         {canManage && <button type="button" className="btn primary" onClick={() => { setCreateParent(null); setNewName(''); setNewCode(''); }}><Plus size={16}/> تصنيف رئيسي</button>}
       </div>
     </header>
@@ -342,7 +384,8 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
         {loading && <div className="admin-category-state"><LoaderCircle size={18} className="spin"/> جارٍ تحميل التصنيفات</div>}
         {!loading && error && <div className="admin-category-error" role="alert"><AlertTriangle size={17}/><span>{error}</span><button type="button" className="btn outline" onClick={() => void load().catch(() => undefined)} disabled={loading}><RefreshCw size={14}/> إعادة المحاولة</button></div>}
         {!loading && !error && !filteredTree.length && <div className="admin-category-empty"><FolderTree size={25}/><strong>{search ? 'لا توجد نتائج' : 'لا توجد تصنيفات محفوظة'}</strong><span>{search ? 'جرّب كلمة أخرى.' : 'أنشئ تصنيفاً رئيسياً لبناء الشجرة.'}</span></div>}
-        {!loading && !error && filteredTree.length > 0 && <CategoryBranch nodes={filteredTree} expanded={new Set([...expandedIds, ...(search ? categories.map((item) => item.id) : [])])} selectedId={selectedId} depth={0} onToggle={toggleExpanded} onSelect={selectCategory}/>}
+        {!loading && !error && filteredTree.length > 0 && <CategoryBranch nodes={filteredTree} expanded={new Set([...expandedIds, ...(search ? categories.map((item) => item.id) : [])])} selectedId={selectedId} depth={0} onToggle={toggleExpanded} onSelect={selectCategory} publishedCounts={publishedCounts} publishedCountsLoading={publishedCountsLoading}/>}
+        {publishedCountsError && <div className="admin-category-error" role="alert"><AlertTriangle size={16}/><span>{publishedCountsError}</span><button type="button" className="btn outline" onClick={() => void scanPublishedCategoryCounts()} disabled={publishedCountsLoading}><RefreshCw size={14}/> إعادة حساب الأعداد</button></div>}
         {!loading && !error && categories.some((item) => item.is_active === false) && <p className="admin-category-legend">السجلات المؤرشفة ظاهرة للمراجعة ولا تُحذف.</p>}
       </section>
       <section className="panel admin-category-details">
@@ -394,6 +437,8 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
             <p>المعرّف: <code dir="ltr">{selected.id}</code></p>
             {selected.description && <p>{selected.description}</p>}
             {selected.parent_id && <button type="button" className="admin-category-link" onClick={() => selectCategory(selected.parent_id)}>الانتقال إلى الأب</button>}
+            {selected.is_active !== false && <a className="admin-category-link" href={'/category/' + storefrontCategorySlug(selected)} target="_blank" rel="noopener noreferrer">معاينة صفحة التصنيف كما يراها العميل</a>}
+            {publishedCounts && <p role="status">المنتجات المنشورة المرتبطة مباشرة بهذا التصنيف: <strong>{formatNumber(publishedCounts[selected.id] ?? 0)}</strong>{(publishedCounts[selected.id] ?? 0) === 0 ? ' — التصنيف فارغ من المنتجات المنشورة' : ''}</p>}
             {canManage && selected.is_active !== false && <section className="panel" aria-label="رسم التصنيف التوضيحي" style={{ display: 'grid', gap: 10, padding: 12 }}>
               <StorefrontArtworkPicker label="الرسم التوضيحي الذي يظهر للتصنيف في المتجر" value={artworkDraft}
                 onChange={setArtworkDraft} previewName={selected.name} disabled={artworkSaving} />
@@ -407,6 +452,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
               <button type="submit" className="btn outline" disabled={renaming || !renameDraft.trim()}><Pencil size={15}/>{renaming ? 'جار الحفظ…' : 'حفظ الاسم'}</button>
             </form>}
             {canManage && selected.is_active !== false && <button type="button" className="btn danger" onClick={() => void archiveCategory(selected)} disabled={busyId !== null}><AlertTriangle size={15}/>{busyId === selected.id ? 'جارٍ الأرشفة…' : 'أرشفة التصنيف'}</button>}
+            {canManage && <AdminCatalogChangeHistory entityType="category" entityId={selected.id} />}
             {canManage && selected.is_active === false && <button type="button" className="btn outline" onClick={() => void restoreCategory(selected)} disabled={busyId !== null}><RotateCcw size={15}/>{busyId === selected.id ? 'جارٍ الاستعادة…' : 'استعادة التصنيف'}</button>}
           </div>}
           {tab === 'children' && <div className="admin-category-child-list">{children.length ? children.map((node) => <button type="button" key={node.category.id} onClick={() => selectCategory(node.category.id)}><FolderTree size={15}/><span>{node.category.name}</span><ChevronLeft size={14}/></button>) : <p>لا توجد فروع مباشرة.</p>}</div>}

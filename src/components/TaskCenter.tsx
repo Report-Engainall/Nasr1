@@ -224,6 +224,8 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState<OperationalTaskRole | 'all'>(financeOnly ? 'accountant' : 'all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'all' | OperationalTaskStatus>('open');
+  const [taskPage, setTaskPage] = useState(1);
+  const TASK_PAGE_SIZE = 10;
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'unassigned' | string>('all');
   const [createdFrom, setCreatedFrom] = useState('');
@@ -254,6 +256,7 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
   const [bulkDetailsDueAt, setBulkDetailsDueAt] = useState('');
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [qualityRefreshToken, setQualityRefreshToken] = useState(0);
+  const [expandedQualityTaskIds, setExpandedQualityTaskIds] = useState<Set<string>>(() => new Set());
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -345,6 +348,13 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
     () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
     [filteredWithoutRole,roleFilter],
   );
+  const taskPageCount = Math.max(1, Math.ceil(filtered.length / TASK_PAGE_SIZE));
+  const visibleTasks = useMemo(
+    () => filtered.slice((taskPage - 1) * TASK_PAGE_SIZE, taskPage * TASK_PAGE_SIZE),
+    [filtered, taskPage],
+  );
+  useEffect(() => { setTaskPage(1); }, [statusFilter, roleFilter, priorityFilter, assigneeFilter, createdFrom, createdTo, dueFrom, dueTo, overdueOnly, search]);
+  useEffect(() => { if (taskPage > taskPageCount) setTaskPage(taskPageCount); }, [taskPage, taskPageCount]);
   const printable = useMemo(
     () => filterTasksForPrint(
       printScope === 'selected' ? roleScopedTasks : filteredWithoutRole,
@@ -379,6 +389,15 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
     })).filter((row) => row.total > 0),
     [allowedRoles,printable],
   );
+
+  function toggleQualityReview(taskId: string) {
+    setExpandedQualityTaskIds((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
 
   function toggleTaskSelection(taskId: string, checked: boolean) {
     setSelectedTaskIds((current) => {
@@ -830,10 +849,27 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
       <label><span>إلى موعد الاستحقاق</span><input type="date" value={dueTo} min={dueFrom || undefined} onChange={(event) => setDueTo(event.target.value)} /></label>
       <label className="task-overdue-filter"><input type="checkbox" checked={overdueOnly} onChange={(event) => setOverdueOnly(event.target.checked)} /><span>المتأخرة فقط</span></label>
     </section>
-    {error && <div className="task-center-error" role="alert"><AlertTriangle size={17} /> {error}</div>}
+    {error && (
+      <div className="task-center-error" role="alert" aria-live="assertive">
+        <AlertTriangle size={17} />
+        <span>{error}</span>
+        <button type="button" className="btn secondary" onClick={() => void loadTasks()} disabled={loading}>
+          {loading ? 'جارٍ إعادة المحاولة…' : 'إعادة تحميل المهام'}
+        </button>
+      </div>
+    )}
     {loading ? <div className="panel task-center-empty">جارٍ تحميل المهام المقيّدة بصلاحيات حسابك…</div> : filtered.length===0 ? (
       <div className="panel task-center-empty"><ClipboardList size={30} /><strong>لا توجد مهام مطابقة للفلاتر</strong><span>غيّر الفلاتر أو نفّذ المصالحة مع سجلات التشغيل المحفوظة.</span></div>
-    ) : <div className="task-center-list">{filtered.map((task) => {
+    ) : <>
+      <nav className="task-center-pagination" aria-label="صفحات المهام" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', margin: '12px 0' }}>
+        <span role="status">عرض {((taskPage - 1) * TASK_PAGE_SIZE + 1).toLocaleString('ar-YE')}–{Math.min(taskPage * TASK_PAGE_SIZE, filtered.length).toLocaleString('ar-YE')} من {filtered.length.toLocaleString('ar-YE')} مهمة</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" className="btn secondary" onClick={() => setTaskPage((page) => Math.max(1, page - 1))} disabled={taskPage <= 1}>السابق</button>
+          <span aria-live="polite">صفحة {taskPage.toLocaleString('ar-YE')} من {taskPageCount.toLocaleString('ar-YE')}</span>
+          <button type="button" className="btn secondary" onClick={() => setTaskPage((page) => Math.min(taskPageCount, page + 1))} disabled={taskPage >= taskPageCount}>التالي</button>
+        </div>
+      </nav>
+      <div className="task-center-list">{visibleTasks.map((task) => {
       const late=isLate(task);
       const source=task.source_entity_type?(entityLabels[task.source_entity_type]??task.source_entity_type):'مهمة يدوية';
       const sourceId=task.source_entity_id?task.source_entity_id.slice(0,8):'—';
@@ -911,12 +947,25 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
         </div>
         {canManage && (
           <div className="task-card-quality-review" style={{ marginTop: 14 }}>
-            <TaskQualityReviewForm
-              key={task.id}
-              taskId={task.id}
-              taskUpdatedAt={task.updated_at}
-              onSaved={refreshQualityAfterReview}
-            />
+            <button
+              type="button"
+              className="btn secondary"
+              aria-expanded={expandedQualityTaskIds.has(task.id)}
+              aria-controls={'task-quality-review-' + task.id}
+              onClick={() => toggleQualityReview(task.id)}
+            >
+              {expandedQualityTaskIds.has(task.id) ? 'إخفاء مراجعة الجودة' : 'فتح مراجعة الجودة'}
+            </button>
+            {expandedQualityTaskIds.has(task.id) ? (
+              <div id={'task-quality-review-' + task.id} className="mt-3">
+                <TaskQualityReviewForm
+                  key={task.id}
+                  taskId={task.id}
+                  taskUpdatedAt={task.updated_at}
+                  onSaved={refreshQualityAfterReview}
+                />
+              </div>
+            ) : null}
           </div>
         )}
         <div className="task-card-actions">
@@ -1035,7 +1084,8 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
           {canManage&&['completed','cancelled'].includes(task.status)&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'pending')}><RefreshCw size={15}/> إعادة فتح</button>}
         </div>
       </article>;
-    })}</div>}
+    })}</div>
+    </>}
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
       <header><h1>{operationalTaskPrintTitle()}</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>

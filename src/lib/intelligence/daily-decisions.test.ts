@@ -27,12 +27,104 @@ describe("daily decision engine",()=>{
  it("sorts by priority then stable rule identifier",()=>{const r=buildDailyDecisions(input({rules:[rule({id:"z",priority:"P3"}),rule({id:"a",priority:"P0"}),rule({id:"b",priority:"P2"})]}));expect(r.candidates.map(c=>c.ruleId)).toEqual(["a","b","z"])});
  it("refuses to add different currencies",()=>{const usd=metric({id:"u",key:"cash.usd",value:100,unit:"CURRENCY",currency:"USD",lineage:{...metric().lineage,evidenceIds:["ev-2"]}}),yer=metric({id:"y",key:"cash.yer",value:5000,unit:"CURRENCY",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-3"]}});const r=buildDailyDecisions(input({metrics:[metric(),usd,yer],evidenceRecords:[evidence(),{...evidence("ev-2"),currency:"USD"},{...evidence("ev-3"),currency:"YER"}],rules:[rule({impactFormula:{id:"total",version:"1",operation:"SUM",metricKeys:["cash.usd","cash.yer"],resultUnit:"CURRENCY"}})]}));expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactReason).toBe("CURRENCY_MISMATCH");expect(r.candidates[0].proof.evidenceIds).toEqual(["ev-1","ev-2","ev-3"])});
  it("calculates impact only with an explicit versioned formula",()=>{const r=buildDailyDecisions(input({rules:[rule({impactFormula:{id:"pending-count",version:"2",operation:"IDENTITY",metricKeys:["orders.pending"],resultUnit:"COUNT"}})]}));expect(r.candidates[0].impact).toMatchObject({value:7,formulaVersion:"2"});expect(r.candidates[0].impactStatus).toBe("CALCULATED")});
+ it("withholds quantity sums when source units of measure differ",()=>{
+  const each=metric({id:"qty-each",key:"stock.each",value:3,unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-each"]}});
+  const cases=metric({id:"qty-case",key:"stock.case",value:2,unit:"QUANTITY",unitOfMeasure:"CASE",lineage:{...metric().lineage,evidenceIds:["ev-case"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),each,cases],
+   evidenceRecords:[evidence(),evidence("ev-each"),evidence("ev-case")],
+   rules:[rule({impactFormula:{id:"bad-quantity-sum",version:"1",operation:"SUM",metricKeys:["stock.each","stock.case"],resultUnit:"QUANTITY"}})],
+  }));
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactReason).toBe("UNIT_MISMATCH");
+ });
+ it("withholds quantity impact when the source omits its unit of measure",()=>{
+  const quantity=metric({id:"quantity-no-uom",key:"stock.no-uom",value:4,unit:"QUANTITY",unitOfMeasure:undefined,lineage:{...metric().lineage,evidenceIds:["ev-no-uom"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),quantity],evidenceRecords:[evidence(),evidence("ev-no-uom")],
+   rules:[rule({impactFormula:{id:"quantity-without-uom",version:"1",operation:"IDENTITY",metricKeys:["stock.no-uom"],resultUnit:"QUANTITY:EA"}})],
+  }));
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactReason).toBe("UNIT_MISMATCH");
+ });
+ it("calculates quantity sums only with one explicit shared unit of measure",()=>{
+  const first=metric({id:"qty-one",key:"stock.one",value:"0.1",unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-one"]}});
+  const second=metric({id:"qty-two",key:"stock.two",value:"0.2",unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-two"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),first,second],
+   evidenceRecords:[evidence(),evidence("ev-one"),evidence("ev-two")],
+   rules:[rule({impactFormula:{id:"quantity-sum",version:"1",operation:"SUM",metricKeys:["stock.one","stock.two"],resultUnit:"QUANTITY:EA"}})],
+  }));
+  expect(result.candidates[0].impact).toMatchObject({value:0.3,unit:"QUANTITY:EA"});
+  expect(result.candidates[0].impactStatus).toBe("CALCULATED");
+ });
+ it("calculates money per unit times a matching verified quantity with exact precision",()=>{
+  const price=metric({id:"unit-price",key:"price.per-unit",value:"125.50",unit:"CURRENCY_PER_UNIT",currency:"YER",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-price"]}});
+  const quantity=metric({id:"ordered-quantity",key:"order.quantity",value:"4.125",unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-quantity"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),price,quantity],
+   evidenceRecords:[evidence(),{...evidence("ev-price"),currency:"YER"},{...evidence("ev-quantity")}],
+   rules:[rule({impactFormula:{id:"verified-extended-value",version:"1",operation:"PRODUCT",metricKeys:["price.per-unit","order.quantity"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(result.candidates[0].impact).toMatchObject({value:517.6875,unit:"CURRENCY",currency:"YER"});
+  expect(result.candidates[0].impactStatus).toBe("CALCULATED");
+ });
+ it("withholds per-unit currency multiplication when units do not match or arithmetic precision is unsupported",()=>{
+  const price=metric({id:"unit-price",key:"price.per-unit",value:"125.50",unit:"CURRENCY_PER_UNIT",currency:"YER",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-price"]}});
+  const wrongQuantity=metric({id:"ordered-quantity",key:"order.quantity",value:"4.125",unit:"QUANTITY",unitOfMeasure:"CASE",lineage:{...metric().lineage,evidenceIds:["ev-quantity"]}});
+  const wrongUnit=buildDailyDecisions(input({
+   metrics:[metric(),price,wrongQuantity],
+   evidenceRecords:[evidence(),{...evidence("ev-price"),currency:"YER"},evidence("ev-quantity")],
+   rules:[rule({impactFormula:{id:"wrong-unit-product",version:"1",operation:"PRODUCT",metricKeys:["price.per-unit","order.quantity"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(wrongUnit.candidates[0].impact).toBeNull();
+  expect(wrongUnit.candidates[0].impactReason).toBe("UNIT_MISMATCH");
+  const unsupportedPrice=metric({id:"unsupported-price",key:"price.unsupported",value:"125.1234",unit:"CURRENCY_PER_UNIT",currency:"YER",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-unsupported-price"]}});
+  const precisionResult=buildDailyDecisions(input({
+   metrics:[metric(),unsupportedPrice,metric({id:"quantity",key:"quantity",value:"2.000",unit:"QUANTITY",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-quantity"]}})],
+   evidenceRecords:[evidence(),{...evidence("ev-unsupported-price"),currency:"YER"},evidence("ev-quantity")],
+   rules:[rule({impactFormula:{id:"unsupported-precision",version:"1",operation:"PRODUCT",metricKeys:["price.unsupported","quantity"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(precisionResult.candidates[0].impact).toBeNull();
+  expect(precisionResult.candidates[0].impactReason).toBe("IMPACT_PRECISION_UNSUPPORTED");
+ });
+ it("withholds monetary impact sums when per-unit denominators differ",()=>{
+  const each=metric({id:"price-each",key:"price.each",value:"2.5",unit:"CURRENCY_PER_UNIT",currency:"YER",unitOfMeasure:"EA",lineage:{...metric().lineage,evidenceIds:["ev-each"]}});
+  const casePrice=metric({id:"price-case",key:"price.case",value:"10",unit:"CURRENCY_PER_UNIT",currency:"YER",unitOfMeasure:"CASE",lineage:{...metric().lineage,evidenceIds:["ev-case"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),each,casePrice],
+   evidenceRecords:[evidence(),{...evidence("ev-each"),currency:"YER"},{...evidence("ev-case"),currency:"YER"}],
+   rules:[rule({impactFormula:{id:"bad-denominator-sum",version:"1",operation:"SUM",metricKeys:["price.each","price.case"],resultUnit:"CURRENCY_PER_UNIT:EA"}})],
+  }));
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactReason).toBe("UNIT_MISMATCH");
+ });
  it("omits a candidate when threshold is not met and rejects invalid clock input",()=>{expect(buildDailyDecisions(input({metrics:[metric({value:2})]})).candidates).toEqual([]);expect(()=>buildDailyDecisions({...input(),generatedAt:"bad-date"})).toThrow()});
  it("does not sum per-unit monetary impacts across currencies",()=>{
   const usd=metric({id:"u",key:"unit-cost.usd",value:5,unit:"CURRENCY_PER_UNIT",currency:"USD",lineage:{...metric().lineage,evidenceIds:["ev-usd"]}});
   const yer=metric({id:"y",key:"unit-cost.yer",value:1200,unit:"CURRENCY_PER_UNIT",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-yer"]}});
   const r=buildDailyDecisions(input({metrics:[metric(),usd,yer],evidenceRecords:[evidence(),{...evidence("ev-usd"),currency:"USD"},{...evidence("ev-yer"),currency:"YER"}],rules:[rule({impactFormula:{id:"unit-cost-total",version:"1",operation:"SUM",metricKeys:["unit-cost.usd","unit-cost.yer"],resultUnit:"CURRENCY_PER_UNIT"}})]}));
   expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactStatus).toBe("WITHHELD");expect(r.candidates[0].impactReason).toBe("CURRENCY_MISMATCH");
+ });
+ it("rejects unsupported comparison operators and invalid expiry windows",()=>{
+  const invalidOperator=rule({operator:"BETWEEN" as DecisionRule["operator"]});
+  const invalidExpiry=rule({id:"invalid-expiry",expiresInDays:0});
+  const result=buildDailyDecisions(input({rules:[invalidOperator,invalidExpiry]}));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld.map(item=>item.reason)).toEqual(["INVALID_RULE","INVALID_RULE"]);
+ });
+ it("accepts a valid expiry window and computes an explicit expiration",()=>{
+  const result=buildDailyDecisions(input({rules:[rule({expiresInDays:1})]}));
+  expect(result.candidates[0].expiresAt).toBe("2026-10-31T07:10:00.000Z");
+ });
+ it("withholds impact formulas that repeat the same metric instead of double-counting it",()=>{
+  const result=buildDailyDecisions(input({rules:[rule({impactFormula:{
+   id:"duplicate-source-sum",version:"1",operation:"SUM",metricKeys:["orders.pending","orders.pending"],resultUnit:"COUNT",
+  }})]}));
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactStatus).toBe("WITHHELD");
+  expect(result.candidates[0].impactReason).toBe("INVALID_IMPACT_FORMULA");
  });
  it("withholds impact across different metric periods",()=>{
   const priorPeriod={from:"2026-09-01",to:"2026-09-30"};
