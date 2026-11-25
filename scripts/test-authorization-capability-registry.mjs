@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
@@ -6,6 +7,53 @@ function requiredEnv(name) {
  const value=process.env[name]?.trim();
  if(!value) throw new Error(name+" is required for authorization capability acceptance.");
  return value.replace(/^"(.*)"$/s,"$1");
+}
+async function assertCapabilitySeedPreservesExistingRows(db) {
+ const seedPaths=[
+  new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url),
+  new URL("../supabase/migrations/20261117050202_authorization_capability_registry_v2.sql",import.meta.url)
+ ];
+ const seedStatements=await Promise.all(seedPaths.map(async path=>{
+  const source=await readFile(path,"utf8");
+   const match=source.match(/INSERT INTO public\.authorization_capabilities[\s\S]*?ON CONFLICT\(capability_key\) DO (?:NOTHING|UPDATE SET)[\s\S]*?;/);
+  assert.ok(match,"the real capability catalog seed statement must exist in "+String(path));
+  return match[0];
+ }));
+
+ await db.begin(async tx=>{
+  await tx.unsafe("SAVEPOINT preserve_existing_capability_rows");
+  console.log("AUTH_CAPABILITY_REPLAY_STAGE:before-existing-row-update");
+  await tx.unsafe(
+   "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
+   "separation_of_duties=true,state_requirements=case capability_key "+
+   "when 'inventory.count.enter' then jsonb_build_object('requires_active_warehouse_assignment',true,'writes_draft_only',true) "+
+   "when 'inventory.count.finalize' then jsonb_build_object('requires_active_warehouse_assignment',true,'reviewer_must_differ_from_counter',true,'requires_review',true) "+
+   "else state_requirements end,is_active=false,updated_at=statement_timestamp() "+
+   "where capability_key=any($1::text[])",
+   [["inventory.count.enter","inventory.count.finalize"]]
+  );
+  console.log("AUTH_CAPABILITY_REPLAY_STAGE:after-existing-row-update");
+  const before=await tx.unsafe(
+   "select capability_key,scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
+   "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key",
+   [["inventory.count.enter","inventory.count.finalize"]]
+  );
+  assert.equal(before.length,2,"both existing stock-count capability rows must be present before replay");
+  for(let seedIndex=0;seedIndex<seedStatements.length;seedIndex++) {
+   console.log("AUTH_CAPABILITY_REPLAY_STAGE:before-seed-"+(seedIndex+1));
+   await tx.unsafe(seedStatements[seedIndex]);
+   console.log("AUTH_CAPABILITY_REPLAY_STAGE:after-seed-"+(seedIndex+1));
+  }
+  const after=await tx.unsafe(
+   "select capability_key,scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
+   "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key",
+   [["inventory.count.enter","inventory.count.finalize"]]
+  );
+  assert.deepEqual(after,before,
+   "replaying either actual catalog seed must not widen warehouse scope or reactivate an existing disabled capability");
+  await tx.unsafe("ROLLBACK TO SAVEPOINT preserve_existing_capability_rows");
+  await tx.unsafe("RELEASE SAVEPOINT preserve_existing_capability_rows");
+ });
 }
 function localOnly(connectionString) {
  const database=new URL(connectionString);
@@ -48,6 +96,292 @@ async function withServiceRole(db,callback) {
    return callback(tx);
   });
 }
+function decodeJson(value) { return typeof value==="string"?JSON.parse(value):value; }
+async function withActorOnTransaction(tx,actor,callback) {
+ await tx.unsafe("reset role");
+ await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[actor.auth_user_id]);
+ await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({...actor.jwtClaims,role:"authenticated"})]);
+ await tx.unsafe("set local role authenticated");
+ let callbackFailed=false;
+ try {
+  return await callback(tx);
+ } catch(error) {
+  callbackFailed=true;
+  throw error;
+ } finally {
+  // On an expected SQL rejection the transaction is aborted until the
+  // caller rolls back its savepoint. RESET ROLE must happen after that rollback.
+  if(!callbackFailed) await tx.unsafe("reset role");
+ }
+}
+async function expectSqlStateInTransaction(tx,expectedCode,action,label) {
+ const savepoint="stock_count_expected_failure";
+ await tx.unsafe("SAVEPOINT "+savepoint);
+ try { await action(); } catch(error) {
+  await tx.unsafe("ROLLBACK TO SAVEPOINT "+savepoint);
+  await tx.unsafe("RELEASE SAVEPOINT "+savepoint);
+  assert.equal(String(error?.code),expectedCode,label+" SQLSTATE");
+  return;
+ }
+ await tx.unsafe("RELEASE SAVEPOINT "+savepoint);
+ assert.fail(label+" unexpectedly succeeded.");
+}
+async function assertStockCountWarehouseScope(db,actors,organizationId,assignedWarehouseId,unassignedWarehouseId) {
+ const manager=actors.get("manager");
+ const admin=actors.get("admin");
+ const reviewerGrantor=actors.get("admin_reviewer");
+ await db.begin(async tx=>{
+  await tx.unsafe("SAVEPOINT stock_count_warehouse_scope_acceptance");
+  try {
+   const startA=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [assignedWarehouseId,"authz-count-A-"+randomUUID().replaceAll("-",""),"PG17 assigned warehouse A acceptance"]
+   ));
+   const sessionA=decodeJson(startA[0]?.result);
+   assert.ok(sessionA?.id,"the assigned manager must create a real stock-count session in warehouse A");
+   assert.equal(sessionA.warehouse_id,assignedWarehouseId);
+   assert.equal(sessionA.status,"open");
+   const lineAResult=await tx.unsafe(
+    "select id::text,product_id::text,expected_quantity,counted_quantity from public.stock_count_lines "+
+    "where organization_id=$1::uuid and session_id=$2::uuid order by product_id limit 1",
+    [organizationId,sessionA.id]
+   );
+   assert.equal(lineAResult.length,1,"warehouse A must snapshot a real inventory line");
+   const lineA=lineAResult[0];
+   const lineAAuditBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineA.id]
+   );
+   const writeA=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
+    [sessionA.id,lineA.product_id,lineA.expected_quantity]
+   ));
+   const lineAAfter=await tx.unsafe(
+    "select counted_quantity,counted_by::text from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    [organizationId,sessionA.id,lineA.id]
+   );
+   assert.equal(lineAAfter.length,1,"the authorized A line must remain tenant scoped");
+   assert.equal(Number(lineAAfter[0].counted_quantity),Number(lineA.expected_quantity),
+    "the assigned manager must persist the counted quantity through the real line RPC");
+   assert.equal(lineAAfter[0].counted_by,manager.profile_id,
+    "the accepted count line must identify the authenticated manager who entered it");
+   const lineAAuditAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineA.id]
+   );
+   assert.equal(lineAAuditAfter[0].count,lineAAuditBefore[0].count+1,
+    "each accepted stock-count write must append a count-line audit event");
+   const sessionAAfter=await tx.unsafe(
+    "select counted_lines,total_lines from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,sessionA.id]
+   );
+   assert.equal(Number(sessionAAfter[0].counted_lines),1,"the real draft write must advance the session count");
+   console.info("STOCK_COUNT_STAGE:before-maker-self-finalize-denial");
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.complete_stock_count($1::uuid)",[sessionA.id]
+   )),"the stock-count maker cannot finalize the same session");
+   console.info("STOCK_COUNT_STAGE:after-maker-self-finalize-denial");
+   const reviewerScope=await withActorOnTransaction(tx,reviewerGrantor,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+    [admin.profile_id,assignedWarehouseId,"P2 isolated independent stock-count reviewer"]
+   ));
+   const reviewerScopeResult=decodeJson(reviewerScope[0]?.result);
+   assert.equal(reviewerScopeResult?.changed,true,"an independent administrator reviewer must receive the explicit A assignment");
+   const reviewerDecisionRows=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+    [assignedWarehouseId]
+   ));
+   const reviewerDecision=decodeJson(reviewerDecisionRows[0]?.decision);
+   assert.equal(reviewerDecision?.decision,"REQUIRES_APPROVAL",
+    "the separately assigned reviewer must resolve the exact warehouse-scoped Maker/Checker capability: "+JSON.stringify(reviewerDecision));
+   assert.equal(reviewerDecision?.approval_mode,"maker_checker",
+    "the reviewer decision must retain the configured Maker/Checker approval mode: "+JSON.stringify(reviewerDecision));
+   assert.equal(reviewerDecision?.separation_of_duties,true,
+    "the reviewer decision must retain separation of duties: "+JSON.stringify(reviewerDecision));
+   const sessionMakerRows=await tx.unsafe(
+    "select started_by::text from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,sessionA.id]
+   );
+   assert.equal(sessionMakerRows[0]?.started_by,manager.profile_id,
+    "the persisted session maker must be the manager who started warehouse A");
+   assert.notEqual(sessionMakerRows[0]?.started_by,admin.profile_id,
+    "the reviewer profile must differ from the persisted session maker");
+   const reviewerIdentityRows=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.current_profile_id()::text as profile_id"
+   ));
+   assert.equal(reviewerIdentityRows[0]?.profile_id,admin.profile_id,
+    "the reviewer JWT must resolve to the intended administrator profile");
+   console.info("STOCK_COUNT_STAGE:before-independent-reviewer-finalize");
+   const finalized=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.complete_stock_count($1::uuid) as result",[sessionA.id]
+   ));
+   console.info("STOCK_COUNT_STAGE:after-independent-reviewer-finalize");
+   const finalizedResult=decodeJson(finalized[0]?.result);
+   assert.equal(finalizedResult?.status,"completed","a different authorized reviewer must finalize the counted session");
+   const completedA=await tx.unsafe(
+    "select status,started_by::text,completed_by::text from public.stock_count_sessions where id=$1::uuid and organization_id=$2::uuid",
+    [sessionA.id,organizationId]
+   );
+   assert.equal(completedA[0].status,"completed");
+   assert.notEqual(completedA[0].started_by,completedA[0].completed_by,
+    "the persisted finalizer must be different from the session maker");
+
+   const cancelDraftStart=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [assignedWarehouseId,"authz-cancel-A-"+randomUUID().replaceAll("-",""),"PG17 assigned warehouse A cancellation"]
+   ));
+   const cancelDraft=decodeJson(cancelDraftStart[0]?.result);
+   assert.ok(cancelDraft?.id,"the assigned manager must create a second draft for cancellation acceptance");
+   const cancelResult=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text) as result",
+    [cancelDraft.id,"Physical recount is no longer required"]
+   ));
+   assert.equal(decodeJson(cancelResult[0]?.result)?.status,"cancelled",
+    "the assigned manager must cancel an open draft in warehouse A");
+   const cancelledSession=await tx.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid and organization_id=$2::uuid",
+    [cancelDraft.id,organizationId]
+   );
+   assert.equal(cancelledSession[0].status,"cancelled");
+   assert.equal(cancelledSession[0].cancelled_by,manager.profile_id);
+   assert.equal(cancelledSession[0].cancellation_reason,"Physical recount is no longer required");
+   const cancelAudit=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [organizationId,cancelDraft.id]
+   );
+   assert.equal(cancelAudit[0].count,1,"an accepted draft cancellation must append exactly one audit event");
+
+   const grantB=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+    [manager.profile_id,unassignedWarehouseId,"P2 temporary B assignment for revoke-and-deny acceptance"]
+   ));
+   const grantBResult=decodeJson(grantB[0]?.result);
+   assert.equal(grantBResult?.changed,true,"the temporary B assignment must be created for a real session fixture");
+   const startB=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [unassignedWarehouseId,"authz-count-B-"+randomUUID().replaceAll("-",""),"PG17 temporary warehouse B fixture"]
+   ));
+   const sessionB=decodeJson(startB[0]?.result);
+   assert.ok(sessionB?.id,"the temporarily assigned manager must create the B fixture session");
+   assert.equal(sessionB.warehouse_id,unassignedWarehouseId);
+   const lineBRows=await tx.unsafe(
+    "select id::text,product_id::text,expected_quantity,counted_quantity from public.stock_count_lines "+
+    "where organization_id=$1::uuid and session_id=$2::uuid order by product_id limit 1",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(lineBRows.length,1,"warehouse B fixture must contain a real inventory count line");
+   const lineB=lineBRows[0];
+   const revokeB=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,1) as result",
+    [manager.profile_id,unassignedWarehouseId,"P2 revoke B assignment before write denial"]
+   ));
+   const revokeBResult=decodeJson(revokeB[0]?.result);
+   assert.equal(revokeBResult?.changed,true,"the manager's B warehouse assignment must be disabled before testing writes");
+   const scopeDecision=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.start',$2::uuid) as start_decision,"+
+    "public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.enter',$2::uuid) as enter_decision",
+    [manager.profile_id,unassignedWarehouseId]
+   ));
+   const startDecision=decodeJson(scopeDecision[0]?.start_decision);
+   const enterDecision=decodeJson(scopeDecision[0]?.enter_decision);
+   assert.equal(startDecision?.decision,"DENY","the manager's disabled B assignment must deny count start");
+   assert.equal(enterDecision?.decision,"DENY","the manager's disabled B assignment must deny count entry");
+   const sessionCountBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_sessions where organization_id=$1::uuid and warehouse_id=$2::uuid",
+    [organizationId,unassignedWarehouseId]
+   );
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text)",
+    [unassignedWarehouseId,"authz-denied-B-"+randomUUID().replaceAll("-",""),"must be denied after assignment revocation"]
+   )),"manager cannot start a count in unassigned warehouse B");
+   const sessionCountAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_sessions where organization_id=$1::uuid and warehouse_id=$2::uuid",
+    [organizationId,unassignedWarehouseId]
+   );
+   assert.equal(sessionCountAfter[0].count,sessionCountBefore[0].count,
+    "a denied B start must not insert a stock-count session");
+   const lineBefore=await tx.unsafe(
+    "select counted_quantity,counted_by::text from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    [organizationId,sessionB.id,lineB.id]
+   );
+   assert.equal(lineBefore.length,1);
+   assert.equal(lineBefore[0].counted_quantity,null);
+   const lineCountBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   const lineBAuditBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineB.id]
+   );
+   const cancelAuditBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   const balanceBefore=await tx.unsafe(
+    "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+    [lineB.product_id,unassignedWarehouseId]
+   );
+   assert.equal(balanceBefore.length,1,"the B balance source must exist before the denied write");
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+    [sessionB.id,lineB.product_id,lineB.expected_quantity]
+   )),"manager cannot edit a real stock-count line after B assignment revocation");
+   const lineAfter=await tx.unsafe(
+    "select counted_quantity,counted_by::text from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    [organizationId,sessionB.id,lineB.id]
+   );
+   assert.deepEqual(lineAfter,lineBefore,"the rejected B line write must leave the persisted row and counter identity unchanged");
+   const lineBAuditAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineB.id]
+   );
+   assert.equal(lineBAuditAfter[0].count,lineBAuditBefore[0].count,
+    "a rejected B line write must not append a count-line audit event");
+   const lineCountAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(lineCountAfter[0].count,lineCountBefore[0].count,
+    "the rejected B line write must not add, remove, or duplicate draft lines");
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text)",
+    [sessionB.id,"must be denied after B assignment revocation"]
+   )),"manager cannot cancel a stock-count draft after B assignment revocation");
+   const sessionBAfterCancelAttempt=await tx.unsafe(
+    "select status,cancelled_by::text from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(sessionBAfterCancelAttempt[0].status,"open",
+    "a denied B cancellation must leave the stock-count session open and unchanged");
+   assert.equal(sessionBAfterCancelAttempt[0].cancelled_by,null,
+    "a denied B cancellation must not write a cancellation identity");
+   const cancelAuditAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(cancelAuditAfter[0].count,cancelAuditBefore[0].count,
+    "a denied B cancellation must not append an audit event");
+   const balanceAfter=await tx.unsafe(
+    "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+    [lineB.product_id,unassignedWarehouseId]
+   );
+   assert.deepEqual(balanceAfter,balanceBefore,
+    "the rejected B line write must not alter the underlying warehouse stock balance");
+  } finally {
+   await tx.unsafe("reset role").catch(()=>{});
+   await tx.unsafe("ROLLBACK TO SAVEPOINT stock_count_warehouse_scope_acceptance");
+   await tx.unsafe("RELEASE SAVEPOINT stock_count_warehouse_scope_acceptance");
+  }
+ });
+}
 async function decision(db,actor,key) {
  return withActor(db,actor,async(tx)=>{
   const rows=await tx.unsafe("select public.current_authorization_decision($1::text) as decision,public.current_actor_has_capability($1::text) as allowed",[key]);
@@ -69,6 +403,7 @@ async function main() {
    "and p.organization_id is not null group by p.id,p.auth_user_id,p.organization_id,p.email order by p.created_at,p.id");
   const loginEnv={
     admin:["E2E_DEVICE_ADMIN_EMAIL","E2E_DEVICE_ADMIN_PASSWORD"],
+    admin_reviewer:["E2E_DEVICE_REVIEWER_ADMIN_EMAIL","E2E_DEVICE_REVIEWER_ADMIN_PASSWORD"],
     manager:["E2E_MANAGER_EMAIL","E2E_MANAGER_PASSWORD"],
     staff:["E2E_STAFF_EMAIL","E2E_STAFF_PASSWORD"],
     accountant:["E2E_ACCOUNTANT_EMAIL","E2E_ACCOUNTANT_PASSWORD"],
@@ -81,13 +416,13 @@ async function main() {
   assert.ok(managerActor,"P2 local manager login must map to its own active manager profile");
   const org=managerActor.organization_id;
   const actors=new Map();
-  for(const role of ["admin","manager","staff","accountant","customer_manager","customer"]) {
+  for(const role of ["admin","admin_reviewer","manager","staff","accountant","customer_manager","customer"]) {
     const [emailName,passwordName]=loginEnv[role];
     const email=requiredEnv(emailName).trim();
     const actor=profiles.find(p=>
       p.organization_id===org&&
       p.email?.trim().toLowerCase()===email.toLowerCase()&&
-      p.roles.includes(role));
+      p.roles.includes(role==="admin_reviewer"?"admin":role));
     assert.ok(actor,"P2 local "+role+" credentials must map to that exact role profile in the manager tenant");
     actors.set(role,actor);
     try {
@@ -102,13 +437,21 @@ async function main() {
     assert.equal(liveSession.length,1,role+" must have a real live session in auth.sessions");
   }
 
+  await assertCapabilitySeedPreservesExistingRows(db);
+
   const ownerAdmin=actors.get("admin");
   const ownerManager=actors.get("manager");
   const targetWarehouse=(await db.unsafe(
-    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true order by created_at,id limit 1",
+    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code='P2-LOCAL-E2E' order by id limit 1",
     [org]
   ))[0]?.id;
-  assert.ok(targetWarehouse,"owner-boundary acceptance requires an active local test warehouse");
+  assert.ok(targetWarehouse,"stock-count acceptance requires the manager-assigned P2 local E2E warehouse");
+  const unassignedWarehouse=(await db.unsafe(
+    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code='P2-LOCAL-RLS-A' order by id limit 1",
+    [org]
+  ))[0]?.id;
+  assert.ok(unassignedWarehouse,"stock-count acceptance requires a same-tenant unassigned warehouse B");
+  await assertStockCountWarehouseScope(db,actors,org,targetWarehouse,unassignedWarehouse);
 
   const ownerPrivileges=await db.unsafe(
     "select has_table_privilege('authenticated','public.organization_owner_bindings','SELECT') as authenticated_read,"+

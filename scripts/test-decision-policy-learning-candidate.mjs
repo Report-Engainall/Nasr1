@@ -195,7 +195,7 @@ async function main() {
         "select public.create_decision_outcome_proposal_with_snapshot(" +
         "$1::text,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::jsonb,$8::text) as result",
         [candidateId, ruleId, ruleVersion, manager.profile_id, expectedOutcome,
-          "إنشاء قرار اختبار قبل القياس.", JSON.stringify(candidateSnapshot), randomUUID()],
+          "إنشاء قرار اختبار قبل القياس.", candidateSnapshot, randomUUID()],
       );
       const proposal = decode(proposalRows[0].result);
       assert.equal(proposal?.ok, true, "the manager must create the snapshot-backed decision");
@@ -206,7 +206,7 @@ async function main() {
           "select public.command_decision_outcome(" +
           "$1::uuid,$2::text,$3::text,$4::integer,$5::text,$6::text,$7::uuid,$8::jsonb) as result",
           [outcomeId, randomUUID(), randomUUID(), expectedVersion, eventType,
-            "اختبار دورة قرار معزولة.", ownerProfileId, measuredOutcome ? JSON.stringify(measuredOutcome) : null],
+            "اختبار دورة قرار معزولة.", ownerProfileId, measuredOutcome],
         );
         return decode(rows[0].result);
       }
@@ -253,12 +253,55 @@ async function main() {
       };
       const memoryRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,0,$2::jsonb,NULL,$3::text) as result",
-        [outcomeId, JSON.stringify(memorySnapshot), randomUUID()],
+        [outcomeId, memorySnapshot, randomUUID()],
       );
       const memoryResult = decode(memoryRows[0].result);
       assert.equal(memoryResult?.ok, true, "the actual source-derived decision-memory snapshot must be saved");
-      assert.equal(memoryResult.snapshot.actualMetric.value, amount);
+
+      // Diagnose the source-backed projection with the local database owner,
+      // without weakening authenticated behavior or exposing any non-test data.
+      await tx.unsafe("reset role");
+      const sourceDiagnostics = await tx.unsafe(
+        "select " +
+          "o.measured_outcome is not null as has_measured_outcome, " +
+          "o.measured_outcome->>'asOf' as measured_as_of, " +
+          "o.measured_outcome->'evidenceIds' as measured_evidence_ids, " +
+          "(select count(*)::integer from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as matching_invoice_count, " +
+          "(select i.issued_at <= (o.measured_outcome->>'asOf')::timestamptz from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as invoice_is_before_as_of, " +
+          "public._decision_memory_resolve_evidence($3::uuid,ARRAY['invoice:'||$2::text],'decision-learning-acceptance-debug', " +
+          "jsonb_build_object('from',$4::date,'to',$5::date),(o.measured_outcome->>'asOf')::timestamptz) as resolved_evidence, " +
+          "public._decision_memory_snapshot($3::uuid,$1::uuid)->'actualMetric' as reloaded_actual_metric " +
+        "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
+        [outcomeId, invoiceId, manager.organization_id, periodFrom, periodTo],
+      );
+      assert.equal(sourceDiagnostics.length, 1, "the measured decision must retain its same-tenant source row");
+      assert.equal(sourceDiagnostics[0].has_measured_outcome, true,
+        "the terminal MEASURE event must persist a structured outcome");
+      assert.equal(Number(sourceDiagnostics[0].matching_invoice_count), 1,
+        "the evidence ID must resolve to exactly one invoice in the active organization");
+      assert.equal(sourceDiagnostics[0].invoice_is_before_as_of, true,
+        "the measured invoice must exist at or before the source as-of timestamp");
+      const resolvedActualEvidence = decode(sourceDiagnostics[0].resolved_evidence);
+      assert.equal(resolvedActualEvidence?.ids?.length, 1,
+        "the evidence resolver must return every requested same-tenant invoice ID");
+      assert.ok(sourceDiagnostics[0].reloaded_actual_metric,
+        "a subsequent SQL statement must reload the source-backed actual metric");
+      assert.equal(Number(sourceDiagnostics[0].reloaded_actual_metric.value), amount,
+        "the reloaded actual metric must retain the server-measured amount");
+      assert.equal(sourceDiagnostics[0].reloaded_actual_metric.status, "VERIFIED");
+      await setActor(tx, managerClaims);
+
+      assert.ok(memoryResult?.snapshot && typeof memoryResult.snapshot.id === "string",
+        "save_decision_memory_snapshot must return the row it just inserted");
+      assert.equal(memoryResult.snapshot.actualMetric?.value, amount,
+        "the immediate response must project the verified measurement after resolving its invoice evidence");
       assert.equal(memoryResult.snapshot.expectedMetric.value, amount);
+      assert.deepEqual(memoryResult.snapshot.actualMetric.lineage.evidenceIds,
+        ["dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId],
+        "the actual metric must retain the namespaced source invoice lineage");
+      assert.ok(memoryResult.snapshot.evidenceRecords.some((record) =>
+        record.id === "dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId
+      ), "the immutable memory snapshot must preserve its resolved source evidence record");
 
       const createRows = await tx.unsafe(
         "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text) as result",
@@ -357,7 +400,7 @@ async function main() {
       };
       const mismatchRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,1,$2::jsonb,$3::text,$4::text) as result",
-        [outcomeId, JSON.stringify(mismatchedMemory), "اختبار اختلاف وقت خط الأساس عن النتيجة.", randomUUID()],
+        [outcomeId, mismatchedMemory, "اختبار اختلاف وقت خط الأساس عن النتيجة.", randomUUID()],
       );
       const mismatchedSnapshot = decode(mismatchRows[0].result);
       assert.equal(mismatchedSnapshot?.ok, true);
@@ -378,7 +421,7 @@ async function main() {
       };
       const correctionRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,2,$2::jsonb,$3::text,$4::text) as result",
-        [outcomeId, JSON.stringify(correctedMemory), "تصحيح الدروس بعد مراجعة القياس.", randomUUID()],
+        [outcomeId, correctedMemory, "تصحيح الدروس بعد مراجعة القياس.", randomUUID()],
       );
       const correction = decode(correctionRows[0].result);
       assert.equal(correction?.ok, true);
