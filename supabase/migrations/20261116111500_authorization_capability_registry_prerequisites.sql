@@ -4,13 +4,38 @@
 -- Keep this bootstrap schema identical to the canonical IF NOT EXISTS definitions
 -- so a fresh local/test database can apply the chronological migration chain.
 BEGIN;
--- Record whether the role grant table predates this migration. On an upgrade,
--- a deliberately removed role grant is policy state, not a missing seed row.
-SELECT pg_catalog.set_config(
-  'nasr.authorization_role_capabilities_preexisting',
-  (pg_catalog.to_regclass('public.authorization_role_capabilities') IS NOT NULL)::text,
-  true
-);
+-- The main branch's earlier 20261116090000 prerequisite can create an empty
+-- registry table before this migration. Table existence alone therefore does
+-- not mean that the role-grant matrix has been initialized.
+--
+-- Preserve grants/intentional removals on upgraded databases: the already-run
+-- canonical registry migration is authoritative upgrade evidence. On a clean
+-- chronological replay it has not run yet, and this migration must seed grants
+-- before the 20261116130000 inventory-scope migration derives count.start.
+DO $registry_grant_state$
+DECLARE
+  v_has_existing_grants boolean := false;
+  v_canonical_registry_already_applied boolean := false;
+BEGIN
+  IF pg_catalog.to_regclass('public.authorization_role_capabilities') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.authorization_role_capabilities)'
+      INTO v_has_existing_grants;
+  END IF;
+
+  IF pg_catalog.to_regclass('supabase_migrations.schema_migrations') IS NOT NULL THEN
+    EXECUTE
+      'SELECT EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = $1)'
+      INTO v_canonical_registry_already_applied
+      USING '20261117050202';
+  END IF;
+
+  PERFORM pg_catalog.set_config(
+    'nasr.authorization_role_capabilities_preexisting',
+    (v_has_existing_grants OR v_canonical_registry_already_applied)::text,
+    true
+  );
+END
+$registry_grant_state$;
 
 
 CREATE TABLE IF NOT EXISTS public.authorization_capabilities (
