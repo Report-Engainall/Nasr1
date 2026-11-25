@@ -159,6 +159,127 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
   "rollback-only upgrade fixture must restore the original role grant after the transaction aborts");
 }
 
+async function assertInventoryCountGrantSeedOrdering(db) {
+ const prerequisiteSource=await readFile(
+  new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url),
+  "utf8"
+ );
+ const prerequisiteSql=prerequisiteSource.replace(/^\\s*BEGIN;\\s*$/im,"").replace(/^\\s*COMMIT;\\s*$/im,"");
+ const backfillSource=await readFile(
+  new URL("../supabase/migrations/20261126100000_inventory_count_start_role_parity_upgrade.sql",import.meta.url),
+  "utf8"
+ );
+ const backfillSql=backfillSource.replace(/^\\s*BEGIN;\\s*$/im,"").replace(/^\\s*COMMIT;\\s*$/im,"");
+ if(prerequisiteSql===prerequisiteSource||backfillSql===backfillSource) {
+  throw new Error("Could not isolate the stock-count grant compatibility migration bodies.");
+ }
+ const expectedRoles=["admin","manager","staff"];
+ const migrationVersion="20261117050202";
+ const appliedGrantSnapshot=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at "+
+  "from public.authorization_role_capabilities where capability_key in ('inventory.count.enter','inventory.count.start') "+
+  "order by role,capability_key"
+ );
+ async function rollbackFixture(label,callback) {
+  const sentinel="ROLLBACK_COUNT_START_SEED_"+label;
+  let failure;
+  try {
+   await db.begin(async(tx)=>{
+    await callback(tx);
+    throw new Error(sentinel);
+   });
+  } catch(cause) {
+   failure=cause;
+  }
+  if(failure?.message!==sentinel) {
+   throw new Error(
+    label+" failed before its planned rollback: "+
+    String(failure?.message??failure??"transaction unexpectedly committed")+
+    (failure?.code?" [SQLSTATE "+failure.code+"]":""),
+    {cause:failure}
+   );
+  }
+ }
+ // An initialized canonical registry with an empty grant table is an intentional
+ // deny-all state. Replaying the prerequisite must not repopulate it.
+ await rollbackFixture("PRESERVE_EMPTY_INITIALIZED_REGISTRY",async(tx)=>{
+  const history=await tx.unsafe(
+   "select version from supabase_migrations.schema_migrations where version=$1::text",
+   [migrationVersion]
+  );
+  assert.equal(history.length,1,"the initialized-registry fixture requires the canonical migration history row");
+  await tx.unsafe("delete from public.authorization_role_capabilities");
+  await tx.unsafe(prerequisiteSql);
+  const marker=await tx.unsafe(
+   "select current_setting('nasr.authorization_role_capabilities_preexisting',true) as value"
+  );
+  assert.equal(marker[0]?.value,"true",
+   "an applied canonical migration must preserve an intentionally empty role-grant table");
+  const remaining=await tx.unsafe(
+   "select count(*)::integer as count from public.authorization_role_capabilities"
+  );
+  assert.equal(remaining[0]?.count,0,
+   "the prerequisite must never reseed all grants after the canonical registry migration was applied");
+ });
+ // Simulate the combined main history: the earlier main bootstrap created an
+ // empty grants table, but the canonical registry migration is not yet applied.
+ // The prerequisite must seed the source count-entry matrix before the already-
+ // applied inventory-scope migration's missing count-start parity is repaired.
+ await rollbackFixture("SEED_EMPTY_PRECANONICAL_REGISTRY",async(tx)=>{
+  const history=await tx.unsafe(
+   "select version from supabase_migrations.schema_migrations where version=$1::text",
+   [migrationVersion]
+  );
+  assert.equal(history.length,1,"the clean-history fixture requires the canonical migration row before simulation");
+  await tx.unsafe("delete from public.authorization_role_capabilities");
+  await tx.unsafe(
+   "delete from supabase_migrations.schema_migrations where version=$1::text",
+   [migrationVersion]
+  );
+  await tx.unsafe(prerequisiteSql);
+  const marker=await tx.unsafe(
+   "select current_setting('nasr.authorization_role_capabilities_preexisting',true) as value"
+  );
+  assert.equal(marker[0]?.value,"false",
+   "an empty bootstrap table with no canonical migration history must trigger the initial grant seed");
+  const countEntry=await tx.unsafe(
+   "select role from public.authorization_role_capabilities where capability_key='inventory.count.enter' "+
+   "and valid_from<=statement_timestamp() and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(countEntry.map(row=>row.role),expectedRoles,
+   "the prerequisite must seed only the canonical admin/manager/staff count-entry parity");
+  const beforeBackfill=await tx.unsafe(
+   "select role from public.authorization_role_capabilities where capability_key='inventory.count.start' order by role"
+  );
+  assert.equal(beforeBackfill.length,0,
+   "the prerequisite must not manufacture count-start grants before source-role derivation");
+  await tx.unsafe(backfillSql);
+  const countStart=await tx.unsafe(
+   "select role from public.authorization_role_capabilities where capability_key='inventory.count.start' "+
+   "and valid_from<=statement_timestamp() and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(countStart.map(row=>row.role),expectedRoles,
+   "the upgrade backfill must derive count-start grants from the persisted count-entry roles");
+  assert.deepEqual(countStart.map(row=>row.role),countEntry.map(row=>row.role),
+   "count-start and count-entry role parity must match exactly after backfill");
+  const scopes=await tx.unsafe(
+   "select capability_key,scope_kind,is_active from public.authorization_capabilities "+
+   "where capability_key in ('inventory.count.enter','inventory.count.start') order by capability_key"
+  );
+  assert.deepEqual(scopes.map(row=>row.scope_kind),["warehouse","warehouse"],
+   "both count capabilities must remain warehouse-scoped throughout grant compatibility");
+  assert.equal(scopes.every(row=>row.is_active===true),true,
+   "grant compatibility must not reactivate a disabled stock-count capability");
+ });
+ const restoredGrantSnapshot=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at "+
+  "from public.authorization_role_capabilities where capability_key in ('inventory.count.enter','inventory.count.start') "+
+  "order by role,capability_key"
+ );
+ assert.deepEqual(restoredGrantSnapshot,appliedGrantSnapshot,
+  "both stock-count compatibility simulations must roll back every temporary grant mutation");
+}
+
 async function decision(db,actor,key) {
  return withActor(db,actor,async(tx)=>{
   const rows=await tx.unsafe("select public.current_authorization_decision($1::text) as decision,public.current_actor_has_capability($1::text) as allowed",[key]);
@@ -174,6 +295,7 @@ async function main() {
  const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
  try {
   await assertAuthorizationPrerequisiteUpgradeSafety(db);
+  await assertInventoryCountGrantSeedOrdering(db);
   const profiles=await db.unsafe(
    "select p.id::text as profile_id,p.auth_user_id::text as auth_user_id,p.organization_id::text as organization_id,"+
    "p.email,array_agg(r.role order by r.role) as roles from public.profiles p "+
