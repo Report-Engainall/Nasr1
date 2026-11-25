@@ -7,6 +7,8 @@ on:
     paths:
       - "src/lib/intelligence/daily-decisions.ts"
       - "src/lib/intelligence/daily-decisions.test.ts"
+      - "src/lib/intelligence/liquidity.ts"
+      - "src/lib/intelligence/liquidity.test.ts"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
@@ -177,6 +179,7 @@ on:
       - "scripts/test-authorization-capability-registry.mjs"
       - "src/components/CustomerServiceDesk.tsx"
       - "src/components/CustomerShoppingListsWorkspace.tsx"
+      - "src/components/CustomerShoppingListsWorkspace.test.tsx"
       - "src/lib/customer-shopping-list-catalog.ts"
       - "src/lib/customer-shopping-list-catalog.test.ts"
       - "src/components/CustomerNotificationCenter.tsx"
@@ -379,6 +382,8 @@ on:
     paths:
       - "src/lib/intelligence/daily-decisions.ts"
       - "src/lib/intelligence/daily-decisions.test.ts"
+      - "src/lib/intelligence/liquidity.ts"
+      - "src/lib/intelligence/liquidity.test.ts"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
