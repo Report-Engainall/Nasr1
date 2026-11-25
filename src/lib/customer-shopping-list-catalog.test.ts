@@ -13,7 +13,7 @@ describe("customer shopping-list catalog search visibility", () => {
   expect(last.items).toHaveLength(175);expect(last.hasMore).toBe(false);expect(last.items[174].id).toBe("product-174");
  });
  it("searches name, item code, SKU and barcode while preserving original products",()=>{
-  expect(filterCustomerShoppingListCatalog(products,"صنف اختبار 17")).toHaveLength(11);
+  expect(filterCustomerShoppingListCatalog(products,"صنف اختبار 17")).toHaveLength(6);
   expect(filterCustomerShoppingListCatalog(products,"SKU-174")[0].id).toBe("product-174");
   expect(filterCustomerShoppingListCatalog(products,"BAR-42")[0].id).toBe("product-42");
   expect(filterCustomerShoppingListCatalog(products,"no-match")).toHaveLength(0);
