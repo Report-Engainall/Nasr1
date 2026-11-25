@@ -29,6 +29,7 @@ import {
 import { parseCustomerShoppingListXlsx } from "@/lib/customer-shopping-lists-xlsx";
 import { validateQuickOrderLines } from "@/lib/commerce-utils";
 import { formatNumber } from "@/lib/format";
+import { CUSTOMER_SHOPPING_LIST_VISIBLE_PAGE_SIZE, filterCustomerShoppingListCatalog, projectCustomerShoppingListCatalogPage } from "@/lib/customer-shopping-list-catalog";
 import type { ProductWithInventory } from "@/lib/types";
 
 type CatalogProduct = {
@@ -134,6 +135,7 @@ export function CustomerShoppingListsWorkspace() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [visibleProductCount, setVisibleProductCount] = useState(CUSTOMER_SHOPPING_LIST_VISIBLE_PAGE_SIZE);
   const [name, setName] = useState("قائمة مشتريات جديدة");
   const [category, setCategory] = useState<ShoppingListCategory>("custom");
   const [recurrence, setRecurrence] = useState<ShoppingListRecurrence>("none");
@@ -222,14 +224,9 @@ export function CustomerShoppingListsWorkspace() {
     return () => { loadRevision.current += 1; };
   }, [ready, user?.profileId, load]);
 
-  const visibleProducts = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase("ar");
-    const filtered = q ? products.filter((product) =>
-      [product.name, product.item_code, product.sku ?? "", product.barcode ?? ""]
-        .some((value) => value.toLocaleLowerCase("ar").includes(q)),
-    ) : products;
-    return filtered.slice(0, 80);
-  }, [products, search]);
+  const filteredProducts = useMemo(() => filterCustomerShoppingListCatalog(products, search), [products, search]);
+  const visibleProductPage = useMemo(() => projectCustomerShoppingListCatalogPage(filteredProducts, visibleProductCount), [filteredProducts, visibleProductCount]);
+  const visibleProducts = visibleProductPage.items;
 
   async function ensureUnitOptions(product: CatalogProduct) {
     if (unitOptions[product.id] || loadingUnits[product.id]) return;
@@ -546,7 +543,7 @@ export function CustomerShoppingListsWorkspace() {
 
           <label style={{ position: "relative", display: "block" }}>
             <Search size={16} style={{ position: "absolute", right: 11, top: 12, color: "#688184" }} />
-            <input style={{ ...field, paddingRight: 36 }} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو رمز الصنف أو SKU أو الباركود" />
+            <input style={{ ...field, paddingRight: 36 }} value={search} onChange={(event) => { setSearch(event.target.value); setVisibleProductCount(CUSTOMER_SHOPPING_LIST_VISIBLE_PAGE_SIZE); }} placeholder="ابحث بالاسم أو رمز الصنف أو SKU أو الباركود" />
           </label>
           <div style={{ overflowX: "auto", border: "1px solid #e5eeee", borderRadius: 10 }}>
             <table style={{ width: "100%", minWidth: 780, borderCollapse: "collapse", fontSize: 13 }}>
@@ -612,8 +609,9 @@ export function CustomerShoppingListsWorkspace() {
               </tbody>
             </table>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <span style={smallText}>يعرض الجدول أول 80 نتيجة مطابقة؛ الكمية المخزنة في السلة بالوحدة الأساسية للصنف.</span>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 10 }}>
+            <span role="status" style={smallText}>عرض {formatNumber(visibleProducts.length)} من {formatNumber(visibleProductPage.total)} نتيجة مطابقة ضمن الكتالوج المحمّل؛ الكمية في السلة بالوحدة الأساسية.</span>
+            {visibleProductPage.hasMore ? <button type="button" style={altButton} disabled={busy} onClick={() => setVisibleProductCount(visibleProductPage.nextVisibleCount)}>عرض 80 نتيجة إضافية</button> : null}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {editingListId && <button type="button" style={altButton} onClick={() => { setEditingListId(null); setName("قائمة مشتريات جديدة"); setQuantities({}); setSelectedUnits({}); }}>إلغاء التحرير</button>}
               <button type="submit" style={mainButton} disabled={busy || loading || !products.length}>
