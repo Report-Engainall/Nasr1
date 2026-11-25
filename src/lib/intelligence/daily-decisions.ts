@@ -1,4 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
+import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
 import type {DecisionCandidate,DecisionImpact,DecisionImpactStatus,DecisionPriority,EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 export type DecisionOperator="GTE"|"GT"|"LTE"|"LT"|"EQ";
 export type ImpactOperation="IDENTITY"|"SUM"|"PRODUCT";
@@ -36,6 +37,14 @@ function isImpactFormulaValid(formula: ImpactFormula): boolean {
  return true;
 }
 
+function metricFormulaUnit(metric:MetricSnapshot):string|null {
+ if(metric.unit==="QUANTITY"||metric.unit==="CURRENCY_PER_UNIT"){
+  const unitOfMeasure=metric.unitOfMeasure?.trim();
+  return unitOfMeasure?metric.unit+":"+unitOfMeasure:null;
+ }
+ return metric.unit;
+}
+
 function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapshot[]>,anchor:MetricSnapshot):{impact:DecisionImpact|null;status:DecisionImpactStatus;reason:string|null} {
  if(!formula)return {impact:null,status:"NOT_CONFIGURED",reason:"NO_APPROVED_IMPACT_FORMULA"};
  if (!isImpactFormulaValid(formula)) return {impact:null,status:"WITHHELD",reason:"INVALID_IMPACT_FORMULA"};
@@ -50,18 +59,47 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  if(currencySources.some(m=>!m.currency?.trim()))return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
  const currencies=[...new Set(currencySources.map(m=>m.currency as string))];
  if(currencies.length>1)return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
- if(formula.operation==="SUM"&&(new Set(sources.map(m=>m.unit)).size!==1))return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
- if(formula.operation==="IDENTITY"&&formula.resultUnit!==sources[0].unit)return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
- if(formula.operation==="SUM"&&formula.resultUnit!==sources[0].unit)return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
- if(formula.operation==="PRODUCT"&&currencySources.length===2)return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
- if(formula.operation==="PRODUCT"&&currencySources.length===1&&formula.resultUnit!=="CURRENCY")return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
- if(formula.operation==="PRODUCT"&&currencySources.length===0&&formula.resultUnit==="CURRENCY")return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
- let value=0;const n=values as number[];
- if(formula.operation==="IDENTITY")value=n[0];
- if(formula.operation==="SUM")value=n.reduce((a,b)=>a+b,0);
- if(formula.operation==="PRODUCT")value=n[0]*n[1];
- if(!Number.isFinite(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER)return {impact:null,status:"WITHHELD",reason:"INVALID_IMPACT_FORMULA"};
- if((formula.resultUnit==="CURRENCY"||formula.resultUnit==="CURRENCY_PER_UNIT")&&currencies.length!==1)return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
+
+ if(formula.operation==="IDENTITY"){
+  const expectedUnit=metricFormulaUnit(sources[0]);
+  if(!expectedUnit||formula.resultUnit!==expectedUnit)return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
+ }
+ if(formula.operation==="SUM"){
+  const expectedUnits=sources.map(metricFormulaUnit);
+  if(expectedUnits.some(unit=>unit===null)||new Set(expectedUnits).size!==1||formula.resultUnit!==expectedUnits[0])
+   return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
+ }
+ if(formula.operation==="PRODUCT"){
+  const perUnit=sources.filter(m=>m.unit==="CURRENCY_PER_UNIT");
+  const quantities=sources.filter(m=>m.unit==="QUANTITY");
+  if(perUnit.length!==1||quantities.length!==1||formula.resultUnit!=="CURRENCY")
+   return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
+  const priceUnit=perUnit[0].unitOfMeasure?.trim();
+  const quantityUnit=quantities[0].unitOfMeasure?.trim();
+  if(!priceUnit||!quantityUnit||priceUnit!==quantityUnit)
+   return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
+ }
+
+ let value:number|null=null;
+ if(formula.operation==="IDENTITY")value=values[0] as number;
+ if(formula.operation==="SUM"){
+  const minor=sources.map(m=>decimalToMinorUnits(m.value,6,true));
+  if(minor.some(v=>v===null))return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_UNSUPPORTED"};
+  const total=(minor as bigint[]).reduce((sum,current)=>sum+current,0n);
+  value=minorUnitsToNumber(total,6);
+  if(value===null)return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_OVERFLOW"};
+ }
+ if(formula.operation==="PRODUCT"){
+  const price=decimalToMinorUnits(sources.find(m=>m.unit==="CURRENCY_PER_UNIT")?.value,3);
+  const quantity=decimalToMinorUnits(sources.find(m=>m.unit==="QUANTITY")?.value,3);
+  if(price===null||quantity===null)return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_UNSUPPORTED"};
+  value=minorUnitsToNumber(price*quantity,6);
+  if(value===null)return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_OVERFLOW"};
+ }
+ if(value===null||!Number.isFinite(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER)
+  return {impact:null,status:"WITHHELD",reason:"INVALID_IMPACT_FORMULA"};
+ const currencyResult=formula.resultUnit==="CURRENCY"||formula.resultUnit.startsWith("CURRENCY_PER_UNIT:");
+ if(currencyResult&&currencies.length!==1)return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
  return {impact:{value,unit:formula.resultUnit,...(currencies.length===1?{currency:currencies[0]}:{}),formulaId:formula.id,formulaVersion:formula.version,sourceMetricIds:sources.map(m=>m.id)},status:"CALCULATED",reason:null};
 }
 function expiry(at:string,days:number|undefined):string|null {
