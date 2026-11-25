@@ -42,6 +42,7 @@ vi.mock("@/components/CustomerOrderPricingPreview", () => ({ CustomerOrderPricin
 vi.mock("@/components/CustomerOrderPricingPresentation", () => ({ CustomerOrderPricingPresentation: () => null }));
 
 import { CustomerShoppingListsWorkspace } from "@/components/CustomerShoppingListsWorkspace";
+import { formatNumber } from "@/lib/format";
 
 function makeProduct(index: number) {
   const serial = String(index + 1).padStart(12, "0");
@@ -130,6 +131,6 @@ describe("customer shopping list catalog server pagination", () => {
     const search = screen.getByPlaceholderText("ابحث بالاسم أو رمز الصنف أو SKU أو الباركود");
     fireEvent.change(search, { target: { value: "SKU-404" } });
     expect(screen.getByText("صنف اختبار 404")).toBeInTheDocument();
-    expect(screen.getByText(/عرض 1 من 1 نتيجة مطابقة/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp("عرض " + formatNumber(1) + " من " + formatNumber(1) + " نتيجة مطابقة"))).toBeInTheDocument();
   });
 });
