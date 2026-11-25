@@ -88,6 +88,7 @@ describe("admin customer asset registry pagination", () => {
       reason: "فحص دوري للجهاز",
       reference: null,
       details: null,
+      metadata: null,
       event_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
     }));
     mocks.getCurrentTenantScope.mockResolvedValue({ organizationId: "org-001" });
@@ -128,6 +129,36 @@ describe("admin customer asset registry pagination", () => {
     });
     expect(mocks.rangeCalls).toContainEqual({ table: "customer_asset_events", start: 30, end: 60 });
     expect(screen.getAllByText("فحص دوري للجهاز", { exact: true })).toHaveLength(31);
+  });
+
+
+  it("does not offer replacement as a generic service event", async () => {
+    render(<CustomerAssetsPanel customerId="customer-001" />);
+    await screen.findByText(/عرض 50 من 50 أصل تم تحميلها/);
+    fireEvent.click(screen.getAllByRole("button", { name: "صيانة \/ حدث" })[0]);
+    const eventType = screen.getByLabelText("نوع الحدث") as HTMLSelectElement;
+    expect(Array.from(eventType.options).some(option => option.value === "replacement")).toBe(false);
+  });
+
+  it("opens only the linked replacement asset from the append-only event metadata", async () => {
+    mocks.eventRows[0] = {
+      ...mocks.eventRows[0],
+      event_type: "replacement",
+      summary: "استبدال الجهاز وربط الأصل البديل",
+      metadata: { new_asset_id: "asset-001" },
+      reason: "تلف الجهاز السابق واستبداله",
+    };
+    render(<CustomerAssetsPanel customerId="customer-001" />);
+
+    expect(await screen.findByText(/عرض 50 من 50 أصل تم تحميلها/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "الأحداث والملكية" })[0]);
+    expect(await screen.findByText("سجل الأحداث والملكية — أصل اختبار 0")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "فتح سجل الأصل البديل" }));
+
+    expect(screen.queryByText("سجل الأحداث والملكية — أصل اختبار 0")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("اسم الأصل أو الموديل أو الرقم التسلسلي")).toHaveValue("SERIAL-1");
+    expect(screen.getByText("أصل اختبار 1")).toBeInTheDocument();
   });
 
 });
