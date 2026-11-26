@@ -3,6 +3,7 @@ import { buildCustomerRetentionActionQueue, buildCustomerRetentionReport, type C
 import { buildGrowthOpportunityRadar, type GrowthOpportunityRadarResult, type GrowthOpportunitySignal, type GrowthOpportunitySourceCoverage } from "./growth-opportunities";
 import { fetchUnavailableProductSearchDemand } from "./unavailable-product-search-demand-client";
 import { fetchProductPerformanceGrowthContext } from "./product-performance-growth-client";
+import { buildProductDemandForecast, type DemandForecastResult } from "./demand-forecast";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -258,6 +259,7 @@ export async function fetchCustomerRetentionAggregate(
 export interface CustomerRetentionWorkspaceAggregate {
   retentionResult: CustomerRetentionAggregateResult;
   growthRadar: GrowthOpportunityRadarResult;
+  demandForecast: DemandForecastResult | null;
   productCoverage: { totalCount: number; returnedCount: number; uncomparableUnitCount: number } | null;
   unavailableDemandCoverage: { totalCount: number; returnedCount: number; coverageStartedOn: string | null } | null;
 }
@@ -358,9 +360,29 @@ export async function fetchCustomerRetentionWorkspaceAggregate(
     sourceWarnings,
   });
 
+  let demandForecast: DemandForecastResult | null = null;
+  if (productPerformance) {
+    try {
+      demandForecast = buildProductDemandForecast({
+        id: "product-demand:" + asOf,
+        asOf,
+        period: productPerformance.period,
+        baselinePeriod: productPerformance.baselinePeriod,
+        completePopulation: productPerformance.completePopulation,
+        evidenceRecords: productPerformance.evidenceRecords,
+        metrics: productPerformance.metrics,
+        signals: productPerformance.signals,
+      });
+    } catch {
+      // A forecast calculation failure is isolated; it never downgrades or fabricates the source radar.
+      demandForecast = null;
+    }
+  }
+
   return {
     retentionResult,
     growthRadar,
+    demandForecast,
     productCoverage: productPerformance ? {
       totalCount: productPerformance.totalProductUnitCount,
       returnedCount: productPerformance.returnedProductUnitCount,
