@@ -167,3 +167,116 @@ describe("decision outcome learning precision and dimensional safety", () => {
     expect(result.variance).toBeNull();
   });
 });
+
+
+describe("decision learning strict evidence clocks", () => {
+ it("rejects measured-at timestamps with an impossible day or missing timezone", () => {
+  for (const measuredAt of ["2026-02-31T00:00:00.000Z", "2026-11-26T00:00:00.000"]) {
+   expect(() => evaluateDecisionLearning({
+    id: "invalid-measurement-clock",
+    measuredAt,
+    evidenceRecords: [],
+    expected: metric("expected", 1),
+    actual: metric("actual", 2),
+    expectedRuleId: "daily.sales",
+    expectedRuleVersion: "1.0.0",
+    currentRuleId: "daily.sales",
+    currentRuleVersion: "1.1.0",
+   })).toThrow();
+  }
+ });
+
+ it("withholds measured variance when source evidence has an impossible or timezone-less timestamp", () => {
+  const expected = metric("expected", "1.00");
+  const actual = metric("actual", "2.00");
+  for (const sourceTimestamp of ["2026-02-31T00:00:00.000Z", "2026-11-25T23:50:00.000"]) {
+   const invalidEvidence = { ...evidence(expected), sourceTimestamp };
+   const result = evaluateDecisionLearning({
+    id: "learning-fixture",
+    measuredAt,
+    evidenceRecords: [invalidEvidence, evidence(actual)],
+    expected,
+    actual,
+    expectedRuleId: "daily.sales",
+    expectedRuleVersion: "1.0.0",
+    currentRuleId: "daily.sales",
+    currentRuleVersion: "1.1.0",
+   });
+   expect(result.status).toBe("NEEDS_REVIEW");
+   expect(result.variance).toBeNull();
+   expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+  }
+ });
+
+ it("withholds measured variance when metric calculation occurred after its measurement clock", () => {
+  const expected = metric("expected", "1.00");
+  const actual = metric("actual", "2.00");
+  const futureCalculatedMetric = {
+   ...expected,
+   lineage: { ...expected.lineage, calculatedAt: "2026-11-26T00:00:01.000Z" },
+  };
+  const result = evaluate(futureCalculatedMetric, actual);
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+ });
+
+ it("withholds metrics whose reporting period contains an impossible date", () => {
+  const invalidPeriod = { from: "2026-11-01", to: "2026-11-31" };
+  const expected = metric("expected", "1.00", "CURRENCY", { currency: "YER", period: invalidPeriod });
+  const actual = metric("actual", "2.00", "CURRENCY", { currency: "YER", period: invalidPeriod });
+  const result = evaluate(expected, actual);
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+ });
+});
+
+
+describe("decision learning measurement evidence boundary", () => {
+ it("withholds variance when a linked source timestamp is later than measuredAt", () => {
+  const expected = metric("expected", "1.00");
+  const actual = metric("actual", "2.00");
+  const futureSource = {
+   ...evidence(expected),
+   sourceTimestamp: "2026-11-26T00:00:00.001Z",
+  };
+  const result = evaluateDecisionLearning({
+   id: "future-source-clock",
+   measuredAt,
+   evidenceRecords: [futureSource, evidence(actual)],
+   expected,
+   actual,
+   expectedRuleId: "daily.sales",
+   expectedRuleVersion: "1.0.0",
+   currentRuleId: "daily.sales",
+   currentRuleVersion: "1.1.0",
+  });
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+ });
+
+ it("withholds variance when a source snapshot clock is later than measuredAt", () => {
+  const expected = metric("expected", "1.00");
+  const actual = metric("actual", "2.00");
+  const futureSnapshot = {
+   ...evidence(expected),
+   asOf: "2026-11-26T00:00:00.001Z",
+  };
+  const result = evaluateDecisionLearning({
+   id: "future-snapshot-clock",
+   measuredAt,
+   evidenceRecords: [futureSnapshot, evidence(actual)],
+   expected,
+   actual,
+   expectedRuleId: "daily.sales",
+   expectedRuleVersion: "1.0.0",
+   currentRuleId: "daily.sales",
+   currentRuleVersion: "1.1.0",
+  });
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+ });
+});
