@@ -131,10 +131,10 @@ function forecastFlow(
 
 function buildForecast(
   flows: ForecastFlowFixture[],
-  options: { expectedFlowCount?: number; returnedFlowCount?: number; truncated?: boolean } = {},
+  options: { expectedFlowCount?: number; returnedFlowCount?: number; truncated?: boolean; coveragePeriod?: typeof period | null } = {},
 ) {
   const base = position("YER", { available: "100.1", collections: 0, obligations: 0 });
-  const coverageEvidence = evidence("forecast-coverage", "YER");
+  const coverageEvidence = { ...evidence("forecast-coverage", "YER"), period: options.coveragePeriod === undefined ? period : options.coveragePeriod };
   const coverage = {
     status: "VERIFIED" as const,
     completeness: "COMPLETE" as const,
@@ -279,6 +279,28 @@ describe("liquidity forecast arithmetic safety", () => {
 
 
 describe("liquidity forecast source alignment", () => {
+  it("withholds scheduled flows whose source metric does not declare a reporting period", () => {
+    const flow = forecastFlow("missing-period-flow", "COLLECTION", "2026-11-27", 10);
+    flow.amount = { ...flow.amount, period: null };
+    const result = buildForecast([flow]);
+
+    expect(result.positions[0].forecast.horizons.every(item =>
+      item.status === "NEEDS_REVIEW" && item.projectedBalance === null,
+    )).toBe(true);
+    expect(result.positions[0].forecast.horizons[0].warnings).toContain("FORECAST_AMOUNT_PERIOD_MISMATCH");
+  });
+
+  it("withholds forecast coverage evidence from a different reporting period", () => {
+    const oldPeriod = { from: "2026-10-01", to: "2026-10-31" };
+    const result = buildForecast([
+      forecastFlow("aligned-amount", "COLLECTION", "2026-11-27", 10),
+    ], { coveragePeriod: oldPeriod });
+
+    expect(result.positions[0].forecast.status).toBe("NEEDS_REVIEW");
+    expect(result.positions[0].forecast.horizons.every(item => item.projectedBalance === null)).toBe(true);
+    expect(result.positions[0].forecast.warnings).toContain("FORECAST_COVERAGE_PERIOD_MISMATCH");
+  });
+
   it("withholds scheduled flows sourced from a different reporting period", () => {
     const base = position("YER", { available: 100, collections: 0, obligations: 0 });
     const flow = forecastFlow("wrong-period-flow", "COLLECTION", "2026-11-27", 10);
