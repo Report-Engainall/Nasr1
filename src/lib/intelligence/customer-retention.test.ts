@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCustomerRetentionReport, type CustomerRetentionRecord, type CustomerRetentionSaleRecord } from "./customer-retention";
+import { buildCustomerRetentionActionQueue, buildCustomerRetentionReport, type CustomerRetentionRecord, type CustomerRetentionSaleRecord } from "./customer-retention";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 
 const asOf = "2026-11-26T00:00:00.000Z";
@@ -244,5 +244,69 @@ describe("customer retention intelligence", () => {
       status: "NEEDS_REVIEW",
     });
     expect(result.warnings).toContain("CUSTOMER_CURRENCY_PRECISION_INVALID");
+  });
+});
+
+describe("customer retention follow-up queue", () => {
+  it("prioritizes inactive and at-risk customers before cooling and data-review cases", () => {
+    const customers = [
+      customer("active", 2, 1, "2026-11-24T12:00:00.000Z"),
+      customer("cooling", 0, 2, "2026-10-10T12:00:00.000Z"),
+      customer("at-risk", 0, 2, "2026-09-05T12:00:00.000Z"),
+      customer("inactive", 0, 1, "2026-07-01T12:00:00.000Z"),
+      customer("no-date", 0, 0, null),
+    ];
+    const report = build(customers, []);
+    const queue = buildCustomerRetentionActionQueue(report);
+
+    expect(report.status).toBe("VERIFIED");
+    expect(queue.status).toBe("VERIFIED");
+    expect(queue.actions.map(item => [item.customerRef, item.action, item.priority])).toEqual([
+      ["inactive", "REACTIVATE", "HIGH"],
+      ["at-risk", "PREVENT_CHURN", "HIGH"],
+      ["cooling", "REENGAGE", "MEDIUM"],
+      ["no-date", "VERIFY_ORDER_HISTORY", "REVIEW"],
+    ]);
+    expect(queue.totalActionable).toBe(4);
+    expect(queue.withheldCustomerCount).toBe(0);
+  });
+
+  it("carries row-level count evidence into every follow-up action", () => {
+    const report = build([
+      customer("evidence-customer", 0, 2, "2026-07-01T12:00:00.000Z"),
+    ], []);
+    const queue = buildCustomerRetentionActionQueue(report);
+    expect(report.customers[0].evidenceIds).toEqual([
+      "evidence:evidence-customer:current",
+      "evidence:evidence-customer:previous",
+    ]);
+    expect(queue.actions[0].evidenceIds).toEqual(report.customers[0].evidenceIds);
+  });
+
+  it("withholds all customer actions when the population coverage is partial", () => {
+    const report = build(
+      [customer("partial", 0, 2, "2026-07-01T12:00:00.000Z")],
+      [],
+      { truncated: true },
+    );
+    const queue = buildCustomerRetentionActionQueue(report);
+    expect(queue.status).toBe("NEEDS_REVIEW");
+    expect(queue.actions).toEqual([]);
+    expect(queue.withheldCustomerCount).toBe(1);
+    expect(queue.warnings).toContain("CUSTOMER_RETENTION_POPULATION_NOT_VERIFIED");
+  });
+
+  it("reports truncated queue counts and rejects limits outside the supported range", () => {
+    const customers = [
+      customer("a", 0, 1, "2026-07-01T12:00:00.000Z"),
+      customer("b", 0, 2, "2026-08-01T12:00:00.000Z"),
+      customer("c", 0, 1, "2026-10-10T12:00:00.000Z"),
+    ];
+    const queue = buildCustomerRetentionActionQueue(build(customers, []), 1);
+    expect(queue.actions).toHaveLength(1);
+    expect(queue.totalActionable).toBe(3);
+    expect(queue.omittedCount).toBe(2);
+    expect(() => buildCustomerRetentionActionQueue(build(customers, []), 0)).toThrow(RangeError);
+    expect(() => buildCustomerRetentionActionQueue(build(customers, []), 201)).toThrow(RangeError);
   });
 });
