@@ -201,7 +201,9 @@ INSERT INTO public.inventory_batches(
   quantity_on_hand,quantity_reserved,unit_cost
 ) VALUES
   ('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001',
-   '40000000-0000-0000-0000-000000000001','SINGLE-LOT','2027-12-31','2026-01-01T00:00:00Z',10,2,1.2500),
+   '40000000-0000-0000-0000-000000000001','SINGLE-EARLY','2027-06-30','2026-02-01T00:00:00Z',4,0,1.2500),
+  ('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001',
+   '40000000-0000-0000-0000-000000000001','SINGLE-LATE','2027-12-31','2026-01-01T00:00:00Z',6,2,1.2500),
   ('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001',
    '40000000-0000-0000-0000-000000000002','SINGLE-DEST','2027-12-31','2026-01-01T00:00:00Z',0,0,1.2500),
   ('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000002',
@@ -340,6 +342,14 @@ DECLARE
   v_before jsonb;
   v_after jsonb;
   v_denied boolean;
+  v_transfer_id uuid;
+  v_lot_trace record;
+  v_source_on_hand numeric(15,3);
+  v_source_reserved numeric(15,3);
+  v_destination_on_hand numeric(15,3);
+  v_destination_reserved numeric(15,3);
+  v_transfer_out_count integer;
+  v_transfer_in_count integer;
 BEGIN
   v_result:=public.transfer_inventory(
     '50000000-0000-0000-0000-000000000001',
@@ -349,6 +359,93 @@ BEGIN
   );
   IF v_result->>'idempotent_replay'<>'false' THEN
     RAISE EXCEPTION 'first single transfer was not recorded as a new transfer: %',v_result;
+  END IF;
+
+  -- The real transfer command must consume the earliest-expiring free lot and
+  -- create a destination child lot with exact expiry/cost/receipt lineage.
+  v_transfer_id := (v_result->>'transfer_id')::uuid;
+  IF v_transfer_id IS NULL THEN
+    RAISE EXCEPTION 'single transfer did not return its persisted transfer ID';
+  END IF;
+  SELECT
+    ti.quantity,
+    source.id AS source_batch_id,
+    source.batch_number AS source_batch_number,
+    source.expiry_date AS source_expiry_date,
+    source.received_at AS source_received_at,
+    source.unit_cost AS source_unit_cost,
+    source.quantity_on_hand AS source_quantity_after,
+    source.quantity_reserved AS source_reserved_after,
+    destination.id AS destination_batch_id,
+    destination.parent_batch_id,
+    destination.warehouse_id AS destination_warehouse_id,
+    destination.batch_number AS destination_batch_number,
+    destination.expiry_date AS destination_expiry_date,
+    destination.received_at AS destination_received_at,
+    destination.quantity_on_hand AS destination_quantity_after,
+    destination.quantity_reserved AS destination_reserved_after,
+    destination.unit_cost AS destination_unit_cost,
+    destination.source_type AS destination_source_type,
+    destination.source_reference_type,
+    destination.source_reference_id
+  INTO v_lot_trace
+  FROM public.inventory_transfer_batch_items ti
+  JOIN public.inventory_batches source
+    ON source.id=ti.source_inventory_batch_id
+  JOIN public.inventory_batches destination
+    ON destination.id=ti.destination_inventory_batch_id
+  WHERE ti.inventory_transfer_id=v_transfer_id;
+
+  IF NOT FOUND
+     OR v_lot_trace.quantity IS DISTINCT FROM 2::numeric
+     OR v_lot_trace.source_batch_number IS DISTINCT FROM 'SINGLE-EARLY'
+     OR v_lot_trace.source_expiry_date IS DISTINCT FROM DATE '2027-06-30'
+     OR v_lot_trace.source_quantity_after IS DISTINCT FROM 2::numeric
+     OR v_lot_trace.source_reserved_after IS DISTINCT FROM 0::numeric
+     OR v_lot_trace.parent_batch_id IS DISTINCT FROM v_lot_trace.source_batch_id
+     OR v_lot_trace.destination_warehouse_id IS DISTINCT FROM '40000000-0000-0000-0000-000000000002'::uuid
+     OR v_lot_trace.destination_batch_number IS DISTINCT FROM v_lot_trace.source_batch_number
+     OR v_lot_trace.destination_expiry_date IS DISTINCT FROM v_lot_trace.source_expiry_date
+     OR v_lot_trace.destination_received_at IS DISTINCT FROM v_lot_trace.source_received_at
+     OR v_lot_trace.destination_quantity_after IS DISTINCT FROM 2::numeric
+     OR v_lot_trace.destination_reserved_after IS DISTINCT FROM 0::numeric
+     OR v_lot_trace.destination_unit_cost IS DISTINCT FROM v_lot_trace.source_unit_cost
+     OR v_lot_trace.destination_unit_cost IS DISTINCT FROM 1.2500::numeric
+     OR v_lot_trace.destination_source_type IS DISTINCT FROM 'inventory_transfer'
+     OR v_lot_trace.source_reference_type IS DISTINCT FROM 'inventory_transfer'
+     OR v_lot_trace.source_reference_id IS DISTINCT FROM v_transfer_id THEN
+    RAISE EXCEPTION 'single transfer did not preserve FEFO lot identity/expiry/cost lineage: %',to_jsonb(v_lot_trace);
+  END IF;
+
+  SELECT quantity_on_hand,quantity_reserved
+    INTO v_source_on_hand,v_source_reserved
+    FROM public.inventory_balances
+   WHERE product_id='50000000-0000-0000-0000-000000000001'
+     AND warehouse_id='40000000-0000-0000-0000-000000000001';
+  SELECT quantity_on_hand,quantity_reserved
+    INTO v_destination_on_hand,v_destination_reserved
+    FROM public.inventory_balances
+   WHERE product_id='50000000-0000-0000-0000-000000000001'
+     AND warehouse_id='40000000-0000-0000-0000-000000000002';
+  IF v_source_on_hand IS DISTINCT FROM 8::numeric
+     OR v_source_reserved IS DISTINCT FROM 2::numeric
+     OR v_destination_on_hand IS DISTINCT FROM 2::numeric
+     OR v_destination_reserved IS DISTINCT FROM 0::numeric THEN
+    RAISE EXCEPTION 'single transfer aggregate balances/reservations are inconsistent';
+  END IF;
+
+  SELECT
+    count(*) FILTER(WHERE movement_type='transfer_out'
+      AND warehouse_id='40000000-0000-0000-0000-000000000001'
+      AND inventory_batch_id=v_lot_trace.source_batch_id AND quantity=-2),
+    count(*) FILTER(WHERE movement_type='transfer_in'
+      AND warehouse_id='40000000-0000-0000-0000-000000000002'
+      AND inventory_batch_id=v_lot_trace.destination_batch_id AND quantity=2)
+  INTO v_transfer_out_count,v_transfer_in_count
+  FROM public.inventory_movements
+  WHERE reference_type='inventory_transfer' AND reference_id=v_transfer_id;
+  IF v_transfer_out_count IS DISTINCT FROM 1 OR v_transfer_in_count IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'single transfer movement ledger is not paired to its exact source/destination lots';
   END IF;
 
   v_result:=public.transfer_inventory(
@@ -432,6 +529,10 @@ DECLARE
   v_before jsonb;
   v_after jsonb;
   v_denied boolean;
+  v_transfer_id uuid;
+  v_lot_trace record;
+  v_transfer_out_count integer;
+  v_transfer_in_count integer;
 BEGIN
   v_result:=public.transfer_inventory_batch(
     '40000000-0000-0000-0000-000000000001',
@@ -440,6 +541,75 @@ BEGIN
   );
   IF v_result->>'idempotent_replay'<>'false' THEN
     RAISE EXCEPTION 'first batch transfer was not recorded as new: %',v_result;
+  END IF;
+
+  -- Prove the multi-product RPC also preserves exact lot ancestry and paired movements.
+  v_transfer_id := (v_result->'transfer_ids'->>0)::uuid;
+  IF v_transfer_id IS NULL THEN
+    RAISE EXCEPTION 'batch transfer did not return its persisted product transfer ID';
+  END IF;
+  SELECT
+    ti.quantity,
+    source.id AS source_batch_id,
+    source.batch_number AS source_batch_number,
+    source.expiry_date AS source_expiry_date,
+    source.received_at AS source_received_at,
+    source.unit_cost AS source_unit_cost,
+    source.quantity_on_hand AS source_quantity_after,
+    source.quantity_reserved AS source_reserved_after,
+    destination.id AS destination_batch_id,
+    destination.parent_batch_id,
+    destination.warehouse_id AS destination_warehouse_id,
+    destination.batch_number AS destination_batch_number,
+    destination.expiry_date AS destination_expiry_date,
+    destination.received_at AS destination_received_at,
+    destination.quantity_on_hand AS destination_quantity_after,
+    destination.quantity_reserved AS destination_reserved_after,
+    destination.unit_cost AS destination_unit_cost,
+    destination.source_type AS destination_source_type,
+    destination.source_reference_type,
+    destination.source_reference_id
+  INTO v_lot_trace
+  FROM public.inventory_transfer_batch_items ti
+  JOIN public.inventory_batches source
+    ON source.id=ti.source_inventory_batch_id
+  JOIN public.inventory_batches destination
+    ON destination.id=ti.destination_inventory_batch_id
+  WHERE ti.inventory_transfer_id=v_transfer_id;
+
+  IF NOT FOUND
+     OR v_lot_trace.quantity IS DISTINCT FROM 1::numeric
+     OR v_lot_trace.source_batch_number IS DISTINCT FROM 'BATCH-LOT'
+     OR v_lot_trace.source_expiry_date IS DISTINCT FROM DATE '2027-12-31'
+     OR v_lot_trace.source_quantity_after IS DISTINCT FROM 9::numeric
+     OR v_lot_trace.source_reserved_after IS DISTINCT FROM 2::numeric
+     OR v_lot_trace.parent_batch_id IS DISTINCT FROM v_lot_trace.source_batch_id
+     OR v_lot_trace.destination_warehouse_id IS DISTINCT FROM '40000000-0000-0000-0000-000000000002'::uuid
+     OR v_lot_trace.destination_batch_number IS DISTINCT FROM v_lot_trace.source_batch_number
+     OR v_lot_trace.destination_expiry_date IS DISTINCT FROM v_lot_trace.source_expiry_date
+     OR v_lot_trace.destination_received_at IS DISTINCT FROM v_lot_trace.source_received_at
+     OR v_lot_trace.destination_quantity_after IS DISTINCT FROM 1::numeric
+     OR v_lot_trace.destination_reserved_after IS DISTINCT FROM 0::numeric
+     OR v_lot_trace.destination_unit_cost IS DISTINCT FROM v_lot_trace.source_unit_cost
+     OR v_lot_trace.destination_unit_cost IS DISTINCT FROM 2.5000::numeric
+     OR v_lot_trace.destination_source_type IS DISTINCT FROM 'inventory_transfer'
+     OR v_lot_trace.source_reference_type IS DISTINCT FROM 'inventory_transfer'
+     OR v_lot_trace.source_reference_id IS DISTINCT FROM v_transfer_id THEN
+    RAISE EXCEPTION 'batch transfer did not preserve lot identity/expiry/cost lineage: %',to_jsonb(v_lot_trace);
+  END IF;
+
+  SELECT
+    count(*) FILTER(WHERE movement_type='transfer_out'
+      AND warehouse_id='40000000-0000-0000-0000-000000000001'
+      AND inventory_batch_id=v_lot_trace.source_batch_id AND quantity=-1),
+    count(*) FILTER(WHERE movement_type='transfer_in'
+      AND warehouse_id='40000000-0000-0000-0000-000000000002'
+      AND inventory_batch_id=v_lot_trace.destination_batch_id AND quantity=1)
+  INTO v_transfer_out_count,v_transfer_in_count
+  FROM public.inventory_movements
+  WHERE reference_type='inventory_transfer' AND reference_id=v_transfer_id;
+  IF v_transfer_out_count IS DISTINCT FROM 1 OR v_transfer_in_count IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'batch transfer movement ledger is not paired to its exact source/destination lots';
   END IF;
 
   v_result:=public.transfer_inventory_batch(
