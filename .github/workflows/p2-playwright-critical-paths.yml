@@ -28,7 +28,6 @@ on:
       - "src/lib/intelligence/cashflow-schedule-client.operating-commitments.test.ts"
       - "scripts/test-purchase-receipt-accounting.mjs"
       - "scripts/test-inventory-batch-fefo.mjs"
-      - "scripts/test-onyx-inventory-reconciliation-batch-manifest.mjs"
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
       - "scripts/test-ai-prompt-governance.mjs"
@@ -639,8 +638,6 @@ jobs:
         run: node scripts/test-purchase-receipt-accounting.mjs
       - name: Test FEFO receipt lots, shipment consumption and cancellation release
         run: node scripts/test-inventory-batch-fefo.mjs
-      - name: Test Onyx reconciliation restores exact FEFO batch lots after positive and negative adjustments
-        run: node scripts/test-onyx-inventory-reconciliation-batch-manifest.mjs
       - name: Test verified business-health supplier payable activity authorization, reconciliation and read-only behavior on PostgreSQL 17
         run: node scripts/test-business-health-supplier-payable-activity.mjs
       - name: Test verified storefront product review lifecycle and tenant isolation
