@@ -1416,7 +1416,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   };
 
   const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string) => {
-    if (!data || !user?.profileId || outcomeBusyId !== null) return;
+    if (!user?.profileId || outcomeBusyId !== null) return;
     setOutcomeBusyId("candidate:" + candidateId.slice(0,60));
     setOutcomeMessage(null);
     const candidateSnapshot = {
