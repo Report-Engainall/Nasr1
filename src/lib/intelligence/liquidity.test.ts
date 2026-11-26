@@ -53,10 +53,10 @@ function position(currency: string, values: { available: number | string; collec
   };
 }
 
-function build(positions: ReturnType<typeof position>[]) {
+function build(positions: ReturnType<typeof position>[], generatedAt = asOf) {
   return buildLiquiditySnapshot({
     id: "liquidity-fixture",
-    generatedAt: asOf,
+    generatedAt,
     asOf,
     period,
     evidenceRecords: positions.flatMap(item => item.metrics.map(source => evidence(source.id, item.input.currency))),
@@ -107,5 +107,44 @@ describe("liquidity financial precision", () => {
     ]);
     expect(result.positions.every(item => item.netAvailableLiquidity === null)).toBe(true);
     expect(result.positions.every(item => item.warnings.includes("DUPLICATE_CURRENCY_POSITION"))).toBe(true);
+  });
+});
+
+
+describe("liquidity metric generation clock", () => {
+  it("withholds net liquidity when a component was calculated after report generation", () => {
+    const item=position("YER",{available:"100",collections:"20",obligations:"10"});
+    const generatedAt="2026-11-26T00:05:00.000Z";
+    const future={...item.input.availableBalance,lineage:{...item.input.availableBalance.lineage,calculatedAt:"2026-11-26T00:05:01.000Z"}};
+    item.input.availableBalance=future;
+    item.metrics[0]=future;
+    const result=build([item],generatedAt);
+    expect(result.positions[0]).toMatchObject({
+      status:"NEEDS_REVIEW",
+      netAvailableLiquidity:null,
+      availableBalance:null,
+      availableBalanceStatus:"NEEDS_REVIEW",
+    });
+    expect(result.positions[0].warnings).toContain("METRIC_CALCULATED_AFTER_GENERATION");
+  });
+
+  it("rejects a calculation timestamp without an explicit timezone", () => {
+    const item=position("YER",{available:"100",collections:"20",obligations:"10"});
+    const invalid={...item.input.expectedCollections,lineage:{...item.input.expectedCollections.lineage,calculatedAt:"2026-11-26T00:05:00"}};
+    item.input.expectedCollections=invalid;
+    item.metrics[1]=invalid;
+    const result=build([item],"2026-11-26T00:06:00.000Z");
+    expect(result.positions[0]).toMatchObject({status:"NEEDS_REVIEW",netAvailableLiquidity:null});
+    expect(result.positions[0].warnings).toContain("METRIC_CALCULATION_TIMESTAMP_INVALID");
+  });
+
+  it("accepts a component calculated exactly at the report-generation boundary", () => {
+    const item=position("YER",{available:"100",collections:"20",obligations:"10"});
+    const generatedAt="2026-11-26T00:05:00.000Z";
+    const boundary={...item.input.availableBalance,lineage:{...item.input.availableBalance.lineage,calculatedAt:generatedAt}};
+    item.input.availableBalance=boundary;
+    item.metrics[0]=boundary;
+    const result=build([item],generatedAt);
+    expect(result.positions[0]).toMatchObject({status:"VERIFIED",netAvailableLiquidity:110});
   });
 });

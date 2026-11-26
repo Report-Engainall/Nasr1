@@ -107,6 +107,7 @@ describe("scheduled cash-flow forecast",()=>{
   const withAsOf=(m:MetricSnapshot):MetricSnapshot=>({...m,asOf:offsetAsOf,lineage:{...m.lineage,calculatedAt:offsetAsOf}});
   const result=buildCashflowForecast({
    ...source,
+   generatedAt:offsetAsOf,
    asOf:offsetAsOf,
    openingBalances:source.openingBalances.map(withAsOf),
    entries:source.entries.map(item=>({...item,amount:withAsOf(item.amount)})),
@@ -126,4 +127,39 @@ describe("scheduled cash-flow forecast",()=>{
   expect(point).toMatchObject({openingBalance:-25.5,knownInflows:30,knownOutflows:5,projectedBalance:-0.5,status:"VERIFIED"});
  });
 
+});
+
+
+describe("cashflow metric generation clock", () => {
+ it("withholds a projected balance when the opening metric was calculated after report generation", () => {
+  const source=base();
+  const generatedAt="2026-10-30T07:05:00Z";
+  source.generatedAt=generatedAt;
+  source.openingBalances=[{
+   ...source.openingBalances[0],
+   lineage:{...source.openingBalances[0].lineage,calculatedAt:"2026-10-30T07:05:01Z"},
+  }];
+  const result=buildCashflowForecast(source);
+  expect(result.points[0]).toMatchObject({openingBalance:null,projectedBalance:null,status:"NEEDS_REVIEW"});
+  expect(result.points[0].warnings).toContain("OPENING_BALANCE_CALCULATION_CLOCK_INVALID");
+ });
+
+ it("withholds a scheduled movement calculated after report generation", () => {
+  const movement=entry("future-calc","INFLOW","2026-11-01",20);
+  movement.amount={...movement.amount,lineage:{...movement.amount.lineage,calculatedAt:"2026-10-30T07:00:01Z"}};
+  const result=buildCashflowForecast(base([movement]));
+  expect(result.points[0]).toMatchObject({knownInflows:null,projectedBalance:null,status:"NEEDS_REVIEW"});
+  expect(result.points[0].warnings).toContain("SCHEDULE_METRIC_CALCULATION_CLOCK_INVALID");
+ });
+
+ it("accepts a metric calculated exactly at the report-generation boundary", () => {
+  const source=base();
+  source.generatedAt="2026-10-30T07:05:00Z";
+  source.openingBalances=[{
+   ...source.openingBalances[0],
+   lineage:{...source.openingBalances[0].lineage,calculatedAt:source.generatedAt},
+  }];
+  const result=buildCashflowForecast(source);
+  expect(result.points[0]).toMatchObject({openingBalance:100,projectedBalance:100,status:"VERIFIED"});
+ });
 });
