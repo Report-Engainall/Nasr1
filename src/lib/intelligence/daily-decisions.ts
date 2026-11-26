@@ -8,7 +8,7 @@ export interface DecisionRule {
  id:string;version:string;metricKey:string;operator:DecisionOperator;threshold:number;priority:DecisionPriority;
  what:string;why:string;soWhat:string;whatNext:string;owner:string;expectedOutcome:string;expiresInDays?:number;impactFormula?:ImpactFormula;
 }
-export type WithheldDecisionReason="NO_SOURCE"|"CONFLICTING_SIGNALS"|"DUPLICATE_METRIC"|"UNAVAILABLE"|"UNVERIFIED"|"NEEDS_REVIEW"|"INCOMPLETE_DATA"|"UNKNOWN_VALUE"|"INVALID_RULE"|"IMPACT_SOURCE_MISSING"|"IMPACT_NOT_VERIFIED"|"CURRENCY_MISMATCH"|"UNIT_MISMATCH"|"INVALID_IMPACT_FORMULA";
+export type WithheldDecisionReason="NO_SOURCE"|"CONFLICTING_SIGNALS"|"DUPLICATE_METRIC"|"UNAVAILABLE"|"UNVERIFIED"|"NEEDS_REVIEW"|"INCOMPLETE_DATA"|"UNKNOWN_VALUE"|"INVALID_THRESHOLD"|"INVALID_RULE"|"IMPACT_SOURCE_MISSING"|"IMPACT_NOT_VERIFIED"|"CURRENCY_MISMATCH"|"UNIT_MISMATCH"|"INVALID_IMPACT_FORMULA";
 export interface WithheldDecision {ruleId:string;metricKey:string;reason:WithheldDecisionReason;evidenceStatus:EvidenceStatus|null;explanation:string}
 export interface BuildDailyDecisionsInput {generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[];rules:DecisionRule[]}
 export interface DailyDecisionResult {generatedAt:string;asOf:string;modelMode:"RULE_BASED";candidates:DecisionCandidate[];withheld:WithheldDecision[]}
@@ -21,6 +21,25 @@ function numeric(value:number|string|null):number|null {
 }
 function meets(value:number,op:DecisionOperator,threshold:number):boolean {
  switch(op){case "GTE":return value>=threshold;case "GT":return value>threshold;case "LTE":return value<=threshold;case "LT":return value<threshold;case "EQ":return value===threshold}
+}
+function meetsExact(value:bigint,op:DecisionOperator,threshold:bigint):boolean {
+ switch(op){case "GTE":return value>=threshold;case "GT":return value>threshold;case "LTE":return value<=threshold;case "LT":return value<threshold;case "EQ":return value===threshold}
+}
+function compareMetricThreshold(metric:MetricSnapshot,operator:DecisionOperator,threshold:number,numericValue:number):
+ {matches:boolean|null;reason:"UNKNOWN_VALUE"|"INVALID_THRESHOLD"|"UNIT_MISMATCH"|null} {
+ if(metric.unit==="COUNT"){
+  if(!Number.isSafeInteger(numericValue))return {matches:null,reason:"UNKNOWN_VALUE"};
+  if(!Number.isSafeInteger(threshold))return {matches:null,reason:"INVALID_THRESHOLD"};
+  return {matches:meets(numericValue,operator,threshold),reason:null};
+ }
+ if(metric.unit==="CURRENCY"||metric.unit==="CURRENCY_PER_UNIT"||metric.unit==="QUANTITY"||metric.unit==="RATIO"||metric.unit==="DAYS"){
+  const source=decimalToMinorUnits(metric.value,6,true);
+  if(source===null)return {matches:null,reason:"UNKNOWN_VALUE"};
+  const limit=decimalToMinorUnits(threshold,6,true);
+  if(limit===null)return {matches:null,reason:"INVALID_THRESHOLD"};
+  return {matches:meetsExact(source,operator,limit),reason:null};
+ }
+ return {matches:null,reason:"UNIT_MISMATCH"};
 }
 const withheld=(rule:DecisionRule|null|undefined,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:typeof rule?.id==="string"&&rule.id.trim()?rule.id:"invalid-rule",metricKey:typeof rule?.metricKey==="string"&&rule.metricKey.trim()?rule.metricKey:"unknown-metric",reason,evidenceStatus:status,explanation});
 function hasText(value:unknown):value is string {return typeof value==="string"&&value.trim().length>0;}
@@ -147,8 +166,14 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
   if(metric.status!=="VERIFIED"){const r=statusReason(metric.status);reasons.push(withheld(rule,r.reason,metric.status,r.message));continue}
   if(metric.completeness!=="COMPLETE"||metric.quality!=="ACCEPTABLE"){reasons.push(withheld(rule,"INCOMPLETE_DATA",metric.status,"Metric quality or completeness gate failed."));continue}
   const value=numeric(metric.value);if(value===null){reasons.push(withheld(rule,"UNKNOWN_VALUE",metric.status,"Metric is unknown or nonnumeric; it was not converted to zero."));continue}
-  if(metric.unit==="CURRENCY"&&!metric.currency?.trim()){reasons.push(withheld(rule,"CURRENCY_MISMATCH",metric.status,"Currency is not identified."));continue}
-  if(!meets(value,rule.operator,rule.threshold))continue;
+  if((metric.unit==="CURRENCY"||metric.unit==="CURRENCY_PER_UNIT")&&!metric.currency?.trim()){reasons.push(withheld(rule,"CURRENCY_MISMATCH",metric.status,"Currency is not identified."));continue}
+  if((metric.unit==="QUANTITY"||metric.unit==="CURRENCY_PER_UNIT")&&!hasText(metric.unitOfMeasure)){reasons.push(withheld(rule,"UNIT_MISMATCH",metric.status,"The metric quantity unit is not identified."));continue}
+  const comparison=compareMetricThreshold(metric,rule.operator,rule.threshold,value);
+  if(comparison.reason){reasons.push(withheld(rule,comparison.reason,metric.status,
+   comparison.reason==="INVALID_THRESHOLD"?"Rule threshold exceeds the supported precision or integer domain."
+    :comparison.reason==="UNIT_MISMATCH"?"A numeric decision requires a supported unit of measure."
+    :"Metric value exceeds the supported precision or numeric domain."));continue}
+  if(!comparison.matches)continue;
   const impact=impactFor(rule.impactFormula,index,metric);
   const formulaMetricKeys=rule.impactFormula&&isImpactFormulaValid(rule.impactFormula)?rule.impactFormula.metricKeys:[];
   const related=formulaMetricKeys.flatMap(key=>index.get(key)??[]);

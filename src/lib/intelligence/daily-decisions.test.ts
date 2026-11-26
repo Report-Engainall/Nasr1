@@ -157,5 +157,49 @@ describe("daily decision engine",()=>{
   const prior=metric({id:"prior",key:"orders.prior",value:3,period:priorPeriod,lineage:{...metric().lineage,evidenceIds:["ev-prior"]}});
   const r=buildDailyDecisions(input({metrics:[metric(),prior],evidenceRecords:[evidence(),{...evidence("ev-prior"),period:priorPeriod}],rules:[rule({impactFormula:{id:"period-sum",version:"1",operation:"SUM",metricKeys:["orders.pending","orders.prior"],resultUnit:"COUNT"}})]}));
   expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactStatus).toBe("WITHHELD");expect(r.candidates[0].impactReason).toBe("IMPACT_SCOPE_MISMATCH");
+ it("compares quantity decision thresholds with exact six-place decimal arithmetic",()=>{
+  const quantity=metric({id:"quantity-exact",key:"stock.available",value:"0.300001",unit:"QUANTITY",unitOfMeasure:"EA"});
+  const result=buildDailyDecisions(input({
+   metrics:[quantity],
+   rules:[rule({metricKey:"stock.available",operator:"GTE",threshold:0.300001})],
+  }));
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].why).toContain("0.300001");
+  expect(result.withheld).toEqual([]);
+ });
+ it("withholds quantity decisions when the source value has unsupported fractional precision",()=>{
+  const quantity=metric({id:"quantity-overprecision",key:"stock.available",value:"0.3000001",unit:"QUANTITY",unitOfMeasure:"EA"});
+  const result=buildDailyDecisions(input({
+   metrics:[quantity],
+   rules:[rule({metricKey:"stock.available",threshold:0.3})],
+  }));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0].reason).toBe("UNKNOWN_VALUE");
+ });
+ it("rejects decision thresholds beyond the supported decimal precision",()=>{
+  const quantity=metric({id:"quantity-exact",key:"stock.available",value:"0.300001",unit:"QUANTITY",unitOfMeasure:"EA"});
+  const result=buildDailyDecisions(input({
+   metrics:[quantity],
+   rules:[rule({metricKey:"stock.available",threshold:0.3000001})],
+  }));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0].reason).toBe("INVALID_THRESHOLD");
+ });
+ it("requires whole-number values and thresholds for count-based decisions",()=>{
+  const fractionalCount=metric({id:"fractional-count",key:"orders.pending",value:"2.5",unit:"COUNT"});
+  const valueResult=buildDailyDecisions(input({metrics:[fractionalCount]}));
+  expect(valueResult.candidates).toEqual([]);
+  expect(valueResult.withheld[0].reason).toBe("UNKNOWN_VALUE");
+  const thresholdResult=buildDailyDecisions(input({metrics:[metric({value:3})],rules:[rule({threshold:2.5})]}));
+  expect(thresholdResult.candidates).toEqual([]);
+  expect(thresholdResult.withheld[0].reason).toBe("INVALID_THRESHOLD");
+ });
+ it("withholds numeric decisions for text metrics instead of interpreting their payload as a number",()=>{
+  const textMetric=metric({id:"text-state",key:"orders.state",value:"7",unit:"TEXT"});
+  const result=buildDailyDecisions(input({metrics:[textMetric],rules:[rule({metricKey:"orders.state"})]}));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0].reason).toBe("UNIT_MISMATCH");
+ });
+
  });
 });
