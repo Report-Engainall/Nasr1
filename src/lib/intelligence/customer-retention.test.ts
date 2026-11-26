@@ -321,6 +321,34 @@ describe("customer retention strict evidence clocks", () => {
     );
   });
 
+  it("identifies impossible last-order timestamps without mislabeling complete order metrics", () => {
+    const broken = customer("invalid-last-order", 1, 1, "2026-02-31T00:00:00.000Z");
+    const result = build([broken], [sale("invalid-last-order", "YER", "10.00")]);
+
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.customers[0].activity).toBe("UNKNOWN");
+    expect(result.warnings).toContain("CUSTOMER_LAST_ORDER_TIMESTAMP_INVALID");
+    expect(result.warnings).not.toContain("CUSTOMER_METRIC_EVIDENCE_INCOMPLETE");
+  });
+
+  it("withholds a last-order timestamp later than the exact as-of instant, even on the same UTC day", () => {
+    const future = customer("future-last-order", 1, 0, "2026-11-26T00:00:01.000Z");
+    const result = build([future], [sale("future-last-order", "YER", "10.00")]);
+
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.customers[0].activity).toBe("UNKNOWN");
+    expect(result.warnings).toContain("CUSTOMER_LAST_ORDER_TIMESTAMP_AFTER_AS_OF");
+  });
+
+  it("explains a missing last-order timestamp when the verified history contains orders", () => {
+    const missing = customer("missing-last-order", 1, 0, null);
+    const result = build([missing], [sale("missing-last-order", "YER", "10.00")]);
+
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.customers[0].activity).toBe("UNKNOWN");
+    expect(result.warnings).toContain("CUSTOMER_LAST_ORDER_TIMESTAMP_MISSING_FOR_ORDER_HISTORY");
+  });
+
   it("withholds retention conclusions when a metric was calculated after its as-of snapshot", () => {
     const broken = customer("future-metric", 2, 1, "2026-11-20T12:00:00.000Z");
     broken.ordersCurrentPeriod = {
