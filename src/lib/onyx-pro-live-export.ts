@@ -7,7 +7,7 @@ import type { ProductWithInventory } from "./types";
 export const ONYX_PRO_LIVE_DATASET_IDS = ["products", "customers"] as const;
 export type OnyxProLiveDatasetId = (typeof ONYX_PRO_LIVE_DATASET_IDS)[number];
 export type OnyxProLiveRecord = Record<string, CellValue>;
-export type OnyxProLiveRows = Readonly<{ [datasetId: string]: OnyxProLiveRecord[] | undefined }>;
+export type OnyxProLiveRows = { [datasetId: string]: OnyxProLiveRecord[] | undefined };
 
 export const MAX_ONYX_PRO_LIVE_EXPORT_ROWS = 10_000;
 const CUSTOMER_PAGE_SIZE = 100;
