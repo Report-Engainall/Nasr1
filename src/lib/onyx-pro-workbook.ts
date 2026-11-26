@@ -27,6 +27,18 @@ function getOnyxLiveExportFields(datasetId: string): Set<string> {
   return new Set(fields);
 }
 
+function getOnyxLiveExportFieldDefinitions(datasetId: string) {
+  const dataset = ONYX_PRO_DATASETS.find((item) => item.id === datasetId);
+  if (!dataset) throw new Error("نوع بيانات أونكس غير معروف: " + datasetId);
+  const allowed = getOnyxLiveExportFields(datasetId);
+  return dataset.fields.filter((field) => allowed.has(field.field));
+}
+
+/** Safe column headings for live exports; never reuse the broader import-template headings. */
+export function getOnyxProLiveHeaders(datasetId: string): string[] {
+  return getOnyxLiveExportFieldDefinitions(datasetId).map((field) => field.header);
+}
+
 export type OnyxProWorkbookRows = Readonly<{
   [datasetId: string]: readonly Readonly<Record<string, CellValue>>[] | undefined;
 }>;
@@ -69,21 +81,20 @@ function rowsForDataset(
   if (!Array.isArray(records) || records.length > MAX_WORKBOOK_DATA_ROWS) {
     throw new Error("يتجاوز عدد صفوف " + datasetId + " حد ملف Excel الآمن.");
   }
-  const dataset = ONYX_PRO_DATASETS.find((item) => item.id === datasetId);
-  if (!dataset) throw new Error("نوع بيانات أونكس غير معروف.");
-  const fields = getOnyxLiveExportFields(datasetId);
+  const fields = getOnyxLiveExportFieldDefinitions(datasetId);
 
   return [
-    getOnyxProHeaders(datasetId),
+    fields.map((field) => field.header),
     ...records.map((record) => {
       if (!record || typeof record !== "object" || Array.isArray(record)) {
         throw new Error("يوجد صف غير صالح داخل مجموعة " + datasetId + ".");
       }
-      const unexpected = Object.keys(record).find((key) => !fields.has(key));
+      const allowed = new Set(fields.map((field) => field.field));
+      const unexpected = Object.keys(record).find((key) => !allowed.has(key));
       if (unexpected) {
         throw new Error("حقل غير معتمد في تصدير " + datasetId + ": " + unexpected);
       }
-      return dataset.fields.map((field) => safeCell(record[field.field]));
+      return fields.map((field) => safeCell(record[field.field]));
     }),
   ];
 }
@@ -187,15 +198,16 @@ export function buildOnyxProDataCsv(
   }
   const dataset = ONYX_PRO_DATASETS.find((item) => item.id === datasetId);
   if (!dataset) throw new Error("نوع بيانات أونكس غير معروف.");
-  const allowedFields = getOnyxLiveExportFields(datasetId);
-  const header = dataset.fields.map((field) => csvValue(field.header)).join(",");
+  const fields = getOnyxLiveExportFieldDefinitions(datasetId);
+  const allowedFields = new Set(fields.map((field) => field.field));
+  const header = fields.map((field) => csvValue(field.header)).join(",");
   const dataRows = records.map((record) => {
     if (!record || typeof record !== "object" || Array.isArray(record)) {
       throw new Error("يوجد صف غير صالح داخل ملف CSV.");
     }
     const unexpected = Object.keys(record).find((key) => !allowedFields.has(key));
     if (unexpected) throw new Error("حقل غير معتمد في تصدير " + datasetId + ": " + unexpected);
-    return dataset.fields.map((field) => csvValue(safeCell(record[field.field]))).join(",");
+    return fields.map((field) => csvValue(safeCell(record[field.field]))).join(",");
   });
   return "\uFEFF" + [header, ...dataRows].join("\r\n") + "\r\n";
 }

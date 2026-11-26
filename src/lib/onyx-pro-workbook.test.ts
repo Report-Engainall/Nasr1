@@ -4,6 +4,7 @@ import { parseXlsxFirstWorksheet } from "./unified-import";
 import {
   buildOnyxProDataCsv,
   buildOnyxProDataWorkbook,
+  getOnyxProLiveHeaders,
   buildOnyxProWorkbook,
   onyxProDatasetCsvFilename,
   onyxProLiveDatasetCsvFilename,
@@ -91,8 +92,12 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const products: string[][] = [];
     const productResult = await parseXlsxFirstWorksheet(new Blob([buffer]), (row) => products.push(row));
     expect(productResult.rowCount).toBe(2);
-    expect(products[1][getOnyxProHeaders("products").indexOf("رقم الصنف")]).toBe("000125");
-    expect(products[1][getOnyxProHeaders("products").indexOf("اسم الصنف")]).toBe("أرز بسمتي");
+    expect(products[0]).toEqual(getOnyxProLiveHeaders("products"));
+    expect(products[1][getOnyxProLiveHeaders("products").indexOf("رقم الصنف")]).toBe("000125");
+    expect(products[1][getOnyxProLiveHeaders("products").indexOf("اسم الصنف")]).toBe("أرز بسمتي");
+    expect(getOnyxProLiveHeaders("products")).not.toContain(
+      ONYX_PRO_DATASETS.find((dataset) => dataset.id === "products")?.fields.find((field) => field.field === "cost_price")?.header,
+    );
 
     const customers: string[][] = [];
     const customerResult = await parseXlsxFirstWorksheet(
@@ -101,8 +106,12 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
       { preferredWorksheetNames: ["Customers"] },
     );
     expect(customerResult.rowCount).toBe(2);
-    expect(customers[1][getOnyxProHeaders("customers").indexOf("رقم العميل")]).toBe("0007");
-    expect(customers[1][getOnyxProHeaders("customers").indexOf("اسم العميل")]).toBe("مؤسسة اختبار");
+    expect(customers[0]).toEqual(getOnyxProLiveHeaders("customers"));
+    expect(customers[1][getOnyxProLiveHeaders("customers").indexOf("رقم العميل")]).toBe("0007");
+    expect(customers[1][getOnyxProLiveHeaders("customers").indexOf("اسم العميل")]).toBe("مؤسسة اختبار");
+    expect(getOnyxProLiveHeaders("customers")).not.toContain(
+      ONYX_PRO_DATASETS.find((dataset) => dataset.id === "customers")?.fields.find((field) => field.field === "credit_limit")?.header,
+    );
   });
 
   it("rejects unapproved fields and invalid cell values instead of silently exporting them", () => {
@@ -133,6 +142,9 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain("'=HYPERLINK");
     expect(csv).toContain("صنف");
+    expect(csv).not.toContain(
+      ONYX_PRO_DATASETS.find((dataset) => dataset.id === "products")?.fields.find((field) => field.field === "price_wholesale")?.header ?? "",
+    );
     expect(csv.endsWith("\r\n")).toBe(true);
   });
 
