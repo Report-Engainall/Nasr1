@@ -87,7 +87,7 @@ jobs:
           set -euo pipefail
           psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --command "CREATE DATABASE inventory_transfer_scope_test"
           psql "postgresql://postgres:postgres@localhost:5432/inventory_transfer_scope_test" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/inventory_transfer_replay_scope_guard.sql
-      - name: Verify live transfer endpoint and replay behavior on PostgreSQL 17
+      - name: Verify endpoint replay and single/batch FEFO lot lineage on PostgreSQL 17
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: |
