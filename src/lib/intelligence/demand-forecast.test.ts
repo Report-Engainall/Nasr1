@@ -202,6 +202,22 @@ describe("evidence-backed product demand forecast", () => {
     })).toThrow("demand_forecast_periods_not_comparable");
   });
 
+  it("treats a verified empty product population as an empty forecast, not an unavailable source", () => {
+    const result = buildProductDemandForecast({
+      id: "empty-product-population",
+      asOf,
+      period: currentPeriod,
+      baselinePeriod,
+      completePopulation: true,
+      evidenceRecords: [],
+      metrics: [],
+      signals: [],
+    });
+    expect(result.status).toBe("VERIFIED");
+    expect(result.forecasts).toHaveLength(0);
+    expect(result.withheld).toHaveLength(0);
+  });
+
   it("does not forecast from missing evidence", () => {
     const result = buildProductDemandForecast({
       id: "missing-evidence",
