@@ -16,6 +16,7 @@ export type CustomerRetentionAggregateResult =
   | {
       ok: true;
       data: CustomerRetentionReport;
+      actionQueue: CustomerRetentionActionQueue;
       growthInputs: CustomerRetentionGrowthInputs;
     }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
