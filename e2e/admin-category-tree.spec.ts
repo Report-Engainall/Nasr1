@@ -153,13 +153,13 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     expect(assignedProductRows, "The local fixture product must be attached to the UI-created child.").toHaveLength(1);
     fixtureProductCategoryChanged = true;
 
-    await expect(manager.locator(".admin-category-details__header p")).toHaveText(rootName + " / " + childName);
+    await expect(manager.getByRole("navigation", { name: "مسار التصنيف" })).toHaveText(new RegExp(rootName + "\\s*/\\s*" + childName));
     await expect(manager.locator(".admin-category-meta > div").nth(1).locator("strong")).toHaveText(rootName);
 
     // A full reload forces the category tree to rebuild from fetchCategories(), not React state.
     await manager.reload();
     await expect(manager.getByRole("heading", { name: childName, exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(manager.locator(".admin-category-details__header p")).toHaveText(rootName + " / " + childName);
+    await expect(manager.getByRole("navigation", { name: "مسار التصنيف" })).toHaveText(new RegExp(rootName + "\\s*/\\s*" + childName));
     await expect(manager.locator(".admin-category-meta > div").nth(1).locator("strong")).toHaveText(rootName);
     await expect(categoryTree.getByRole("button", { name: childName, exact: true })).toBeVisible();
     expect(new URL(manager.url()).searchParams.get("category")).toBe(childId);

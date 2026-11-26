@@ -2,12 +2,35 @@ import { supabase } from '@/lib/supabase';
 import type { ProductWithInventory } from '@/lib/types';
 import { normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH } from '@/lib/commerce-utils';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type CatalogRpcInvoker = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>;
+
+function invokeCatalogRpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
+  // Resolve the lazy client only when a catalogue request is actually made.
+  return (supabase as unknown as { rpc: CatalogRpcInvoker }).rpc(name, args);
+}
+
+export interface StorefrontCatalogBrandOption {
+  id: string;
+  name: string;
+  name_en: string | null;
+}
+
+export interface StorefrontCatalogFilters {
+  brands: StorefrontCatalogBrandOption[];
+  units: string[];
+}
+
 export interface StorefrontCatalogPage {
   page: number;
   pageSize: number;
   totalCount: number;
   totalPages: number;
   items: ProductWithInventory[];
+  filters: StorefrontCatalogFilters;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -19,6 +42,46 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function finiteNumber(value: unknown, fallback = 0): number {
   const result = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(result) ? result : fallback;
+}
+
+export function parseStorefrontCatalogFilters(value: unknown): StorefrontCatalogFilters {
+  const filters = asRecord(value);
+  if (!filters || !Array.isArray(filters.brands) || !Array.isArray(filters.units)
+      || filters.brands.length > 2000 || filters.units.length > 2000) {
+    throw new Error('قوائم فلاتر الكتالوج غير مكتملة أو غير صالحة.');
+  }
+
+  const brands = filters.brands.map((item) => {
+    const brand = asRecord(item);
+    if (!brand || typeof brand.id !== 'string' || !UUID.test(brand.id)
+        || typeof brand.name !== 'string' || !brand.name.trim() || brand.name.trim().length > 120
+        || (brand.name_en !== null && brand.name_en !== undefined
+          && (typeof brand.name_en !== 'string' || brand.name_en.trim().length > 120))) {
+      throw new Error('أعاد الخادم خيار علامة تجارية غير صالح؛ لم يُعرض.');
+    }
+    return {
+      id: brand.id,
+      name: brand.name.trim(),
+      name_en: typeof brand.name_en === 'string' && brand.name_en.trim()
+        ? brand.name_en.trim()
+        : null,
+    };
+  });
+  if (new Set(brands.map((brand) => brand.id)).size !== brands.length) {
+    throw new Error('أعاد الخادم علامات تجارية مكررة؛ لم تُعرض.');
+  }
+
+  const units = filters.units.map((value) => {
+    if (typeof value !== 'string' || !value.trim() || value.trim().length > 40) {
+      throw new Error('أعاد الخادم وحدة بيع غير صالحة؛ لم تُعرض.');
+    }
+    return value.trim();
+  });
+  if (new Set(units.map((unit) => unit.toLocaleLowerCase('ar'))).size !== units.length) {
+    throw new Error('أعاد الخادم وحدات بيع مكررة؛ لم تُعرض.');
+  }
+
+  return { brands, units };
 }
 
 export function parseStorefrontCartProductDetailsRow(value: unknown): ProductWithInventory {
@@ -100,6 +163,10 @@ export async function fetchStorefrontCatalogPage(input: {
   page: number;
   pageSize?: number;
   availableOnly: boolean;
+  brandId?: string | null;
+  unit?: string | null;
+  priceDisplayableOnly?: boolean;
+  productId?: string | null;
 }): Promise<StorefrontCatalogPage> {
   // Keep the client-side bounds aligned with the SECURITY DEFINER RPC contract, even for malformed runtime values.
   const requestedPage = Number.isFinite(input.page) ? Math.floor(input.page) : 1;
@@ -109,12 +176,29 @@ export async function fetchStorefrontCatalogPage(input: {
     : 24;
   const pageSize = Math.min(100, Math.max(1, requestedPageSize));
   const search = normalizeCatalogSearchQuery(input.search).slice(0, MAX_CATALOG_SEARCH_LENGTH);
-  const { data, error } = await supabase.rpc('get_storefront_catalog_page', {
+  const brandId = input.brandId ?? null;
+  const unit = input.unit?.trim() || null;
+  const productId = input.productId ?? null;
+  const priceDisplayableOnly = input.priceDisplayableOnly ?? false;
+  if ((brandId !== null && !UUID.test(brandId)) || (productId !== null && !UUID.test(productId))) {
+    throw new Error('معرّف العلامة أو المنتج المستخدم في تصفية الكتالوج غير صالح.');
+  }
+  if (unit !== null && unit.length > 40) {
+    throw new Error('وحدة تصفية الكتالوج لا تتجاوز 40 حرفاً.');
+  }
+  if (typeof priceDisplayableOnly !== 'boolean') {
+    throw new Error('خيار تصفية المنتجات ذات الأسعار الظاهرة غير صالح.');
+  }
+  const { data, error } = await invokeCatalogRpc('get_storefront_catalog_page', {
     p_search: search,
     p_category_id: input.categoryId,
     p_page: page,
     p_page_size: pageSize,
     p_available_only: input.availableOnly,
+    p_brand_id: brandId,
+    p_unit: unit,
+    p_price_displayable_only: priceDisplayableOnly,
+    p_product_id: productId,
   });
   if (error) {
     if (
@@ -131,6 +215,7 @@ export async function fetchStorefrontCatalogPage(input: {
   }
 
   const items = payload.items.map(parseStorefrontCartProductDetailsRow);
+  const filters = parseStorefrontCatalogFilters(payload.filters);
   const totalCount = finiteNumber(payload.total_count, Number.NaN);
   const totalPages = finiteNumber(payload.total_pages, Number.NaN);
   const resolvedPage = finiteNumber(payload.page, Number.NaN);
@@ -151,5 +236,6 @@ export async function fetchStorefrontCatalogPage(input: {
     totalCount,
     totalPages,
     items,
+    filters,
   };
 }

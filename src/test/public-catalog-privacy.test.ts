@@ -166,6 +166,7 @@ describe("public catalog privacy and tenant query contract", () => {
         is_featured: false,
         sort_order: 1,
         created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-11-19T08:15:00Z",
       }],
       error: null,
     });
@@ -173,7 +174,12 @@ describe("public catalog privacy and tenant query contract", () => {
     const rows = await fetchProducts();
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: "staff-product-1", name: "Staff product", min_stock: 4 });
+    expect(rows[0]).toMatchObject({
+      id: "staff-product-1",
+      name: "Staff product",
+      min_stock: 4,
+      updated_at: "2026-11-19T08:15:00Z",
+    });
     expect(rows[0]).not.toHaveProperty("base_price");
     expect(rows[0]).not.toHaveProperty("cost_price");
     expect(rows[0]).not.toHaveProperty("price_wholesale");
@@ -204,6 +210,7 @@ describe("public catalog privacy and tenant query contract", () => {
         status: "active",
         image_url: null,
         created_at: "",
+        updated_at: "2026-11-19T08:15:00Z",
       }],
       error: null,
     };
@@ -230,6 +237,7 @@ describe("public catalog privacy and tenant query contract", () => {
     const rows = await fetchProducts();
     expect(rows).toHaveLength(1);
     expect(rows[0].display_price).toBe(37000);
+    expect(rows[0].updated_at).toBe("2026-11-19T08:15:00Z");
     expect(rows[0]).not.toHaveProperty("organization_id");
     expect(rows[0].inventory).toMatchObject({
       id: "",

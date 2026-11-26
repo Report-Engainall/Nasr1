@@ -1,0 +1,61 @@
+name: Storefront Product Facts PostgreSQL 17 Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261120070000_storefront_product_facts_and_relations.sql"
+      - "supabase/migrations/20261126120000_catalog_product_details_authorization_v2.sql"
+      - "supabase/tests/storefront_product_facts_and_relations_acceptance.sql"
+      - ".github/workflows/storefront-product-facts-pg17.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261120070000_storefront_product_facts_and_relations.sql"
+      - "supabase/migrations/20261126120000_catalog_product_details_authorization_v2.sql"
+      - "supabase/tests/storefront_product_facts_and_relations_acceptance.sql"
+      - ".github/workflows/storefront-product-facts-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storefront-product-facts-pg17-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  product-facts:
+    name: Tenant isolation, verified projection, price privacy and atomic save
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact tested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Apply migration and assert the PostgreSQL contract
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
+            --file supabase/tests/storefront_product_facts_and_relations_acceptance.sql
