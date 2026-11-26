@@ -17,7 +17,7 @@ export interface CustomerRetentionReport {
  retentionRate:number|null;repeatPurchaseRate:number|null;averageOrdersPerActiveCustomer:number|null;
  activity:{active30Days:number|null;cooling31To60Days:number|null;atRisk61To90Days:number|null;inactiveOver90Days:number|null;noOrderDate:number|null};
  focusByCurrency:Array<{currency:string;totalSales:number|null;top5SalesConcentration:number|null;customerCount:number;status:EvidenceStatus}>;
- customers:Array<{customerRef:string;orderCountCurrent:number|null;orderCountPrevious:number|null;lastOrderAt:string|null;daysSinceLastOrder:number|null;activity:"ACTIVE"|"COOLING"|"AT_RISK"|"INACTIVE"|"NO_ORDER_DATE"|"UNKNOWN";repeatCustomer:boolean|null;status:EvidenceStatus}>;
+ customers:Array<{customerRef:string;orderCountCurrent:number|null;orderCountPrevious:number|null;lastOrderAt:string|null;daysSinceLastOrder:number|null;activity:"ACTIVE"|"COOLING"|"AT_RISK"|"INACTIVE"|"NO_ORDER_DATE"|"UNKNOWN";repeatCustomer:boolean|null;status:EvidenceStatus;evidenceIds:string[]}>;
  warnings:string[];
 }
 function day(value:string):number|null {
@@ -142,4 +142,144 @@ export function buildCustomerRetentionReport(input:{
   activity:{active30Days:countActivity("ACTIVE"),cooling31To60Days:countActivity("COOLING"),atRisk61To90Days:countActivity("AT_RISK"),inactiveOver90Days:countActivity("INACTIVE"),noOrderDate:countActivity("NO_ORDER_DATE")},
   focusByCurrency,customers:mapped,warnings,
  };
+}
+
+export type CustomerRetentionActionPriority = "HIGH" | "MEDIUM" | "REVIEW";
+export type CustomerRetentionActionKind =
+  | "REACTIVATE"
+  | "PREVENT_CHURN"
+  | "REENGAGE"
+  | "VERIFY_ORDER_HISTORY";
+
+export interface CustomerRetentionAction {
+  customerRef: string;
+  priority: CustomerRetentionActionPriority;
+  action: CustomerRetentionActionKind;
+  activity: CustomerRetentionReport["customers"][number]["activity"];
+  daysSinceLastOrder: number | null;
+  lastOrderAt: string | null;
+  orderCountCurrent: number;
+  orderCountPrevious: number;
+  reason: string;
+  evidenceIds: string[];
+}
+
+export interface CustomerRetentionActionQueue {
+  status: EvidenceStatus;
+  actions: CustomerRetentionAction[];
+  totalActionable: number;
+  omittedCount: number;
+  withheldCustomerCount: number;
+  warnings: string[];
+}
+
+/**
+ * Converts a fully verified customer cohort into an explainable follow-up queue.
+ * It ranks recency risk only; it never invents customer lifetime value or recovery revenue.
+ */
+export function buildCustomerRetentionActionQueue(
+  report: CustomerRetentionReport,
+  limit = 50,
+): CustomerRetentionActionQueue {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+    throw new RangeError("Customer retention action limit must be an integer from 1 through 200.");
+  }
+
+  if (report.status !== "VERIFIED") {
+    return {
+      status: report.status,
+      actions: [],
+      totalActionable: 0,
+      omittedCount: 0,
+      withheldCustomerCount: report.customers.length,
+      warnings: ["CUSTOMER_RETENTION_POPULATION_NOT_VERIFIED"],
+    };
+  }
+
+  const actions: CustomerRetentionAction[] = [];
+  let withheldCustomerCount = 0;
+
+  for (const customer of report.customers) {
+    if (
+      customer.status !== "VERIFIED" ||
+      !customer.evidenceIds.length ||
+      !Number.isSafeInteger(customer.orderCountCurrent) ||
+      customer.orderCountCurrent === null ||
+      !Number.isSafeInteger(customer.orderCountPrevious) ||
+      customer.orderCountPrevious === null
+    ) {
+      withheldCustomerCount += 1;
+      continue;
+    }
+
+    const shared = {
+      customerRef: customer.customerRef,
+      activity: customer.activity,
+      daysSinceLastOrder: customer.daysSinceLastOrder,
+      lastOrderAt: customer.lastOrderAt,
+      orderCountCurrent: customer.orderCountCurrent,
+      orderCountPrevious: customer.orderCountPrevious,
+      evidenceIds: customer.evidenceIds,
+    };
+
+    switch (customer.activity) {
+      case "INACTIVE":
+        actions.push({
+          ...shared,
+          priority: "HIGH",
+          action: "REACTIVATE",
+          reason: "لم يظهر طلب منذ أكثر من 90 يوماً؛ راجع سبب الانقطاع قبل تقديم عرض استعادة.",
+        });
+        break;
+      case "AT_RISK":
+        actions.push({
+          ...shared,
+          priority: "HIGH",
+          action: "PREVENT_CHURN",
+          reason: "لم يظهر طلب منذ 61 إلى 90 يوماً؛ تواصل للتحقق من سبب تراجع النشاط.",
+        });
+        break;
+      case "COOLING":
+        actions.push({
+          ...shared,
+          priority: "MEDIUM",
+          action: "REENGAGE",
+          reason: "لم يظهر طلب منذ 31 إلى 60 يوماً؛ أعد التفاعل قبل انتقال العميل إلى شريحة الخطر.",
+        });
+        break;
+      case "NO_ORDER_DATE":
+        actions.push({
+          ...shared,
+          priority: "REVIEW",
+          action: "VERIFY_ORDER_HISTORY",
+          reason: "لا يوجد تاريخ طلب والعدادان الحالي والسابق صفر؛ تحقق من سجل العميل قبل تصنيفه كعميل خامل.",
+        });
+        break;
+      case "ACTIVE":
+        break;
+      case "UNKNOWN":
+        withheldCustomerCount += 1;
+        break;
+    }
+  }
+
+  const priorityOrder: Record<CustomerRetentionActionPriority, number> = {
+    HIGH: 0,
+    MEDIUM: 1,
+    REVIEW: 2,
+  };
+  actions.sort((left, right) =>
+    priorityOrder[left.priority] - priorityOrder[right.priority] ||
+    (right.daysSinceLastOrder ?? -1) - (left.daysSinceLastOrder ?? -1) ||
+    left.customerRef.localeCompare(right.customerRef)
+  );
+
+  return {
+    status: withheldCustomerCount === 0 ? "VERIFIED" : "NEEDS_REVIEW",
+    actions: actions.slice(0, limit),
+    totalActionable: actions.length,
+    omittedCount: Math.max(0, actions.length - limit),
+    withheldCustomerCount,
+    warnings: withheldCustomerCount > 0 ? ["CUSTOMER_ACTION_ROWS_WITHHELD"] : [],
+  };
 }
