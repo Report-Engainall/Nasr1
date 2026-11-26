@@ -246,7 +246,10 @@ function AdminWorkspaceContent({
     case "suppliers":
       return <Suppliers onNotice={onNotice} initialSearch={recordContext?.kind === "supplier" ? recordContext.title : undefined} initialSupplierInvoiceId={recordContext?.kind === "supplier_invoice" ? recordContext.id : undefined} />;
     case "purchase-orders":
-      return <PurchaseOrdersPage initialPurchaseOrderId={recordContext?.kind === "purchase_order" ? recordContext.id : undefined} />;
+      return <PurchaseOrdersPage
+        initialPurchaseOrderId={recordContext?.kind === "purchase_order" ? recordContext.id : undefined}
+        initialReceiptId={recordContext?.kind === "receipt_reference" ? recordContext.id : undefined}
+      />;
     case "devices":
       return <DeviceManagement onNotice={onNotice} />;
     case "reports":

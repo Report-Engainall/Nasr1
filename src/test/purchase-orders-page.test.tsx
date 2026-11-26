@@ -66,6 +66,27 @@ describe('purchase orders page',()=>{
     expect(mocks.submitPurchaseOrder).toHaveBeenCalledWith('po-1');
   });
 
+  it('opens the purchase order linked to a shift receipt reference', async () => {
+    const receiptId = '11111111-1111-4111-8111-111111111111';
+    receiptPrintMocks.print.mockResolvedValue({
+      receipt_number: 'PR-20261019-000001',
+      purchase_order_number: draft.purchase_order_number,
+      supplier_name: draft.supplier_name,
+      warehouse_name: draft.warehouse_name,
+      received_at: '2026-10-19T10:00:00Z',
+      currency: 'YER',
+      costs_complete: false,
+      received_cost: null,
+      items: [],
+    });
+
+    render(<PurchaseOrdersPage initialReceiptId={receiptId} />);
+    const order = await screen.findByRole('button', { name: /PO-20261019-000001/ });
+    await waitFor(() => expect(order).toHaveAttribute('aria-current', 'true'));
+    expect(receiptPrintMocks.print).toHaveBeenCalledWith(receiptId);
+    expect(await screen.findByText(/تم فتح أمر الشراء المرتبط بإيصال الاستلام/)).toBeInTheDocument();
+  });
+
   it('exports only the visible filtered purchase orders and reports the active filter',async()=>{
     const submittedOrder={...submitted,id:'po-2',purchase_order_number:'PO-20261019-000002'};
     mocks.fetchPurchaseOrders.mockResolvedValueOnce([draft,submittedOrder]);
