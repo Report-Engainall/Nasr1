@@ -266,6 +266,10 @@ export function buildProductDemandForecast(input: {
           baseline.minorUnits,
         )
       : null;
+    if (percent !== null && percent > BigInt(Number.MAX_SAFE_INTEGER)) {
+      withheld.push({ signalId: signal.id, productRef: signal.subjectRef, reason: "UNSUPPORTED_PRECISION" });
+      continue;
+    }
     const signedPercent = percent === null ? null :
       Number(percent) * (current.minorUnits >= baseline.minorUnits ? 1 : -1);
     const trend: DemandTrend = current.minorUnits === 0n && baseline.minorUnits === 0n
@@ -341,9 +345,11 @@ export function buildProductDemandForecast(input: {
   const warnings = [...passport.warnings];
   if (!input.completePopulation) warnings.push("DEMAND_SOURCE_POPULATION_INCOMPLETE");
   if (withheld.length) warnings.push("DEMAND_FORECAST_ROWS_WITHHELD");
-  const status: EvidenceStatus = passport.status !== "VERIFIED"
+  const status: EvidenceStatus = passport.status === "UNVERIFIED" || passport.status === "NEEDS_REVIEW"
     ? passport.status
-    : !input.completePopulation || withheld.length ? "NEEDS_REVIEW" : "VERIFIED";
+    : !input.completePopulation || withheld.length || input.signals.length > 0 && passport.status === "UNAVAILABLE"
+      ? "NEEDS_REVIEW"
+      : "VERIFIED";
 
   return {
     id: "demand-forecast:" + input.id,
