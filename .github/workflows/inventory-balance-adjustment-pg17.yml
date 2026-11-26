@@ -10,7 +10,9 @@ on:
       - "supabase/migrations/20261019240000_inventory_transfer_batches.sql"
       - "supabase/migrations/20261117190000_inventory_batch_allocation_fefo.sql"
       - "supabase/migrations/20261117240000_inventory_transfer_replay_scope_guard.sql"
+      - "supabase/migrations/20261126110000_inventory_transfer_replay_endpoint_guard.sql"
       - "supabase/tests/inventory_transfer_replay_scope_guard.sql"
+      - "supabase/tests/inventory_transfer_replay_endpoint_guard.sql"
       - "supabase/migrations/20261116111000_inventory_adjustment_invariants.sql"
       - "supabase/migrations/20261116112000_inventory_adjustment_authorization_v2.sql"
       - "supabase/migrations/20261116113000_inventory_adjustment_capability_v2.sql"
@@ -31,7 +33,9 @@ on:
       - "supabase/migrations/20261019240000_inventory_transfer_batches.sql"
       - "supabase/migrations/20261117190000_inventory_batch_allocation_fefo.sql"
       - "supabase/migrations/20261117240000_inventory_transfer_replay_scope_guard.sql"
+      - "supabase/migrations/20261126110000_inventory_transfer_replay_endpoint_guard.sql"
       - "supabase/tests/inventory_transfer_replay_scope_guard.sql"
+      - "supabase/tests/inventory_transfer_replay_endpoint_guard.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
   workflow_dispatch:
@@ -81,3 +85,10 @@ jobs:
           set -euo pipefail
           psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --command "CREATE DATABASE inventory_transfer_scope_test"
           psql "postgresql://postgres:postgres@localhost:5432/inventory_transfer_scope_test" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/inventory_transfer_replay_scope_guard.sql
+      - name: Verify live transfer endpoint and replay behavior on PostgreSQL 17
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --command "CREATE DATABASE inventory_transfer_endpoint_test"
+          psql "postgresql://postgres:postgres@localhost:5432/inventory_transfer_endpoint_test" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/inventory_transfer_replay_endpoint_guard.sql
