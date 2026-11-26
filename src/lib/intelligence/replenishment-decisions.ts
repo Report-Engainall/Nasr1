@@ -51,6 +51,7 @@ export function buildReplenishmentDecisionCandidates(input: {
     products.set(ref, product);
   }
 
+  const RULE_VERSION = "1.0.0";
   const candidates: DecisionCandidate[] = [];
   for (const recommendation of input.recommendations) {
     const productRef = typeof recommendation.productRef === "string" ? recommendation.productRef.trim() : "";
@@ -112,7 +113,7 @@ export function buildReplenishmentDecisionCandidates(input: {
     candidates.push({
       id,
       ruleId: "inventory.replenishment.review",
-      ruleVersion: recommendation.formulaVersion,
+      ruleVersion: RULE_VERSION,
       priority,
       priorityScore,
       what: "مراجعة إعادة توريد الصنف " + productRef + " وإعداد مسودة شراء عند الاعتماد",
