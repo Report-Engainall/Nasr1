@@ -15,6 +15,8 @@ import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/inte
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
+import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
+import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -56,6 +58,8 @@ import {
   EvidencePassport,
   EvidenceSourceComparisonPanel,
   GrowthOpportunityRadar,
+  DemandForecastCard,
+  ProductGrossMarginCard,
   LiquiditySummary,
   ReplenishmentCard,
   ShiftOperationsCenter,
@@ -412,6 +416,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [retentionResult, setRetentionResult] = useState<CustomerRetentionAggregateResult | null>(null);
   const [retentionLoading, setRetentionLoading] = useState(true);
   const [growthRadarResult, setGrowthRadarResult] = useState<GrowthOpportunityRadarResult | null>(null);
+  const [demandForecastResult, setDemandForecastResult] = useState<DemandForecastResult | null>(null);
+  const [productGrossMarginResult, setProductGrossMarginResult] = useState<ProductGrossMarginFetchResult | null>(null);
+  const [productGrossMarginLoading, setProductGrossMarginLoading] = useState(true);
+  const productGrossMarginRequestGeneration = useRef(0);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
@@ -512,6 +520,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     if (!canManage) {
       setRetentionResult({ ok: false, status: "DENIED", message: "تتطلب قراءة مجتمع العملاء صلاحية موظف نشط داخل المؤسسة." });
       setGrowthRadarResult(null);
+      setDemandForecastResult(null);
       setRetentionLoading(false);
       return;
     }
@@ -521,14 +530,37 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       if (active()) {
         setRetentionResult(response.retentionResult);
         setGrowthRadarResult(response.growthRadar);
+        setDemandForecastResult(response.demandForecast);
       }
     } catch {
       if (active()) {
         setRetentionResult({ ok: false, status: "ERROR", message: "تعذر إنشاء لقطة الاحتفاظ بالعملاء." });
         setGrowthRadarResult(null);
+        setDemandForecastResult(null);
       }
     } finally {
       if (active()) setRetentionLoading(false);
+    }
+  }, [canManage]);
+
+  const loadProductGrossMargin = useCallback(async (active: () => boolean) => {
+    if (!canManage) {
+      setProductGrossMarginResult({ ok: false, status: "DENIED", message: "تتطلب قراءة ربحية المنتجات صلاحية المدير المالي." });
+      setProductGrossMarginLoading(false);
+      return;
+    }
+    setProductGrossMarginLoading(true);
+    try {
+      const requestTime = new Date();
+      const asOf = requestTime.toISOString();
+      const to = utcDay(requestTime);
+      const from = shiftUtcDay(to, -89);
+      const response = await fetchProductGrossMargin({ from, to, asOf });
+      if (active()) setProductGrossMarginResult(response);
+    } catch {
+      if (active()) setProductGrossMarginResult({ ok: false, status: "ERROR", message: "تعذر إعداد طلب ربحية المنتجات." });
+    } finally {
+      if (active()) setProductGrossMarginLoading(false);
     }
   }, [canManage]);
 
@@ -609,6 +641,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       supplierPerformanceRequestGeneration.current += 1;
     };
   }, [canManage, processFrom, processTo, supplierPerformanceRefreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    const generation = ++productGrossMarginRequestGeneration.current;
+    void loadProductGrossMargin(() => mounted && generation === productGrossMarginRequestGeneration.current);
+    return () => {
+      mounted = false;
+      productGrossMarginRequestGeneration.current += 1;
+    };
+  }, [loadProductGrossMargin, refreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -1722,12 +1764,26 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </>
             ) : null}
+            <DemandForecastCard
+              result={demandForecastResult}
+              state={retentionLoading ? "loading" : demandForecastResult ? "ready"
+                : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
+              onRetry={() => setRefreshKey((value) => value + 1)}
+            />
             <GrowthOpportunityRadar
               result={growthRadarResult}
               state={retentionLoading ? "loading" : growthRadarResult ? "ready"
                 : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
               onRetry={() => setRefreshKey((value) => value + 1)}
               onOpenRecord={onOpenRecord}
+            />
+            <ProductGrossMarginCard
+              result={productGrossMarginResult}
+              state={productGrossMarginLoading ? "loading"
+                : productGrossMarginResult && !productGrossMarginResult.ok &&
+                  (productGrossMarginResult.status === "DENIED" || productGrossMarginResult.status === "ERROR")
+                  ? "error" : productGrossMarginResult ? "ready" : "unavailable"}
+              onRetry={() => setRefreshKey((value) => value + 1)}
             />
           </section>
 
@@ -1849,7 +1905,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             ) : null}
             <div className="grid gap-4 lg:grid-cols-2">
               <DeadStockCard report={deadStockReport} state={inventoryViewState} onRetry={() => setRefreshKey((value) => value + 1)} />
-              <ReplenishmentCard recommendations={replenishmentReport?.recommendations ?? null} state={inventoryViewState} canManagePurchases={canManage} onRetry={() => setRefreshKey((value) => value + 1)} />
+              <ReplenishmentCard recommendations={replenishmentReport?.recommendations ?? null} demandForecasts={demandForecastResult?.forecasts ?? null} state={inventoryViewState} canManagePurchases={canManage} onRetry={() => setRefreshKey((value) => value + 1)} />
             </div>
             <p className="report-note">التعرض المالي للمخزون غير متاح لأن سجلات تكلفة الشراء لا تحتوي رمز عملة موثقاً، ومتوسط المخزون التاريخي غير متاح لعدم وجود لقطات أرصدة يومية. مهلة التوريد لا تُحسب إلا من تواريخ أوامر الشراء والاستلام الفعلية؛ لا ينشئ النظام أمراً تلقائياً.</p>
           </section>
