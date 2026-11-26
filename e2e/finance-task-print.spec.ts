@@ -461,7 +461,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
     await taskPagination.getByRole("button", { name: "التالي", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ٢");
-    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
+    await expect(taskPagination.getByRole("status")).toHaveText("عرض ١١–١٧ من ١٧ مهمة");
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(7);
     await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ١");
     await manager.locator(".task-filters").getByLabel("الحالة", { exact: true }).selectOption("all");
