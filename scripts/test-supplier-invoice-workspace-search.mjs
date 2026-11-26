@@ -17,7 +17,7 @@ async function main(){
  const supplier=randomUUID(),code="P2-FILTER-"+randomUUID().replaceAll("-","").slice(0,12).toUpperCase();
  await db.unsafe("reset role");await db.unsafe("insert into public.suppliers(id,organization_id,supplier_code,name,status) values($1::uuid,$2::uuid,$3,$4,'active')",[supplier,org,code,"مَتْجَرُ الأَغْبَرِي لاختبار البحث"]);
  await identity(manager.auth_user_id,manager.email);
- const made=await rpc("select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",[supplier,warehouse,db.json([{product_id:product,quantity:3,unit_cost:"100.00"}]),"P2 full-register supplier invoice filter acceptance",randomUUID().replaceAll("-","")]);
+ const made=await rpc("select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",[supplier,warehouse,db.json([{product_id:product,quantity:3,unit_cost:100}]),"P2 full-register supplier invoice filter acceptance",randomUUID().replaceAll("-","")]);
  const po=made?.purchase_order;assert.ok(po?.id);await rpc("select public.submit_purchase_order($1::uuid) as result",[po.id]);
  await db.unsafe("reset role");
  const poRows=await db.unsafe("select purchase_order_number from public.purchase_orders where organization_id=$1::uuid and id=$2::uuid",[org,po.id]);
