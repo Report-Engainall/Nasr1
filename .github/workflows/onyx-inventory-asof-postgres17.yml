@@ -6,12 +6,14 @@ on:
     paths:
       - "supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql"
       - "supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql"
+      - "docs/execution/P2_ONYX_RECONCILIATION_MUTATION_WINDOW_CHECKPOINT_2026-11-26.md"
       - ".github/workflows/onyx-inventory-asof-postgres17.yml"
   push:
     branches: [main]
     paths:
       - "supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql"
       - "supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql"
+      - "docs/execution/P2_ONYX_RECONCILIATION_MUTATION_WINDOW_CHECKPOINT_2026-11-26.md"
       - ".github/workflows/onyx-inventory-asof-postgres17.yml"
   workflow_dispatch:
 
