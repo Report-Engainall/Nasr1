@@ -91,7 +91,7 @@ export function ProductGrossMarginCard({ result, state, onRetry }: ProductGrossM
                   <td className="p-2 font-semibold">{product.status === "VERIFIED" ? money(product.grossProfit, product.currency) : "محجوب"}</td>
                   <td className="p-2">{product.status === "VERIFIED" && product.grossMarginPercent !== null ? product.grossMarginPercent.toFixed(2) + "%" : "محجوب"}</td>
                   <td className="p-2">
-                    <p>{quantity(product.actualShippedQuantity, product.unitOfMeasure)}</p>
+                    <p>{product.unitOfMeasure ? quantity(product.actualShippedQuantity, product.unitOfMeasure) : product.unitVariantCount > 1 ? "وحدات متعددة" : "غير متاح"}</p>
                     <p className="text-xs text-muted-foreground">{product.saleMovementCount} حركة · {product.uncostedMovementCount} بلا تكلفة</p>
                   </td>
                   <td className="p-2">
