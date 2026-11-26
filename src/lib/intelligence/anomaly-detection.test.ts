@@ -148,7 +148,7 @@ function fixture(options: {
     metrics,
     rules: [{ ...rule, ...options.ruleOverrides }],
     signals: [{ ...signal, ...options.signalOverrides }],
-    sourceSnapshotVerified: options.sourceSnapshotVerified,
+    sourceSnapshotVerified: options.sourceSnapshotVerified ?? true,
   });
 }
 
@@ -227,6 +227,7 @@ describe("deterministic evidence-backed anomaly detection", () => {
         metric({ id: "baseline-samples", key: "product.order.sample_count", value: 5, unit: "COUNT", period: baselinePeriod, evidenceId: "baseline", formulaId: "sample.v1" }),
       ],
       rules: [{ ...rule, metricKey: "product.units.sold" }],
+      sourceSnapshotVerified: true,
       signals: [{
         ...signal,
         id: "unit-mismatch",
@@ -266,6 +267,7 @@ describe("deterministic evidence-backed anomaly detection", () => {
       ],
       rules: [rule],
       signals: [signal, signal],
+      sourceSnapshotVerified: true,
     });
     expect(result.anomalies).toHaveLength(1);
     expect(result.withheld).toMatchObject([{ reason: "DUPLICATE_SIGNAL" }]);
