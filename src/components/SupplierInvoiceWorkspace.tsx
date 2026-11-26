@@ -28,7 +28,6 @@ import { projectSupplierInvoiceAccountingPrintDocument, type SupplierInvoiceAcco
 import { SupplierInvoiceAccountingPrintSheet } from "@/components/SupplierInvoiceAccountingPrintSheet";
 import { downloadSupplierInvoiceAccountingWorkbookXlsx } from "@/lib/supplier-invoice-accounting-xlsx";
 
-
 type WorkspaceMode = "capture" | "review";
 type InvoiceLineDraft = { quantity: string; unitCost: string; lineTotal: string };
 type InvoiceKey = { fingerprint: string; key: string };
@@ -116,6 +115,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<SupplierInvoiceWorkspaceStatusFilter>("all");
   const [offset, setOffset] = useState(0);
   const invoiceFiltersRef = useRef({ query: invoiceQuery, status: invoiceStatusFilter });
+  const skipNextInvoiceFilterDebounceRef = useRef(false);
   const [lineDrafts, setLineDrafts] = useState<Record<string, InvoiceLineDraft>>({});
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(localToday());
@@ -434,6 +434,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     setInvoiceQuery(linkedInvoiceId);
     setInvoiceStatusFilter("all");
     invoiceFiltersRef.current = { query: linkedInvoiceId, status: "all" };
+    skipNextInvoiceFilterDebounceRef.current = true;
     setOffset(0);
     setOrderOptions([]);
     setSelectedInvoiceId(null);
@@ -449,6 +450,10 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
   }, [canUseFinance, isCapture, purchaseOrderId, initialInvoiceId, user?.id, user?.profileId, sessionRevision]);
 
   useEffect(() => {
+    if (skipNextInvoiceFilterDebounceRef.current) {
+      skipNextInvoiceFilterDebounceRef.current = false;
+      return;
+    }
     const previous = invoiceFiltersRef.current;
     if (previous.query === invoiceQuery && previous.status === invoiceStatusFilter) return;
     invoiceFiltersRef.current = { query: invoiceQuery, status: invoiceStatusFilter };
