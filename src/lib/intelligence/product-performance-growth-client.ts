@@ -90,7 +90,7 @@ export async function fetchProductPerformanceGrowthContext(
     const currentPeriod = period(raw?.period);
     const baselinePeriod = period(raw?.baselinePeriod);
     if (!raw || !currentPeriod || !baselinePeriod || !timestamp(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(asOf) ||
-        currentPeriod.to !== asOf.slice(0,10) || baselinePeriod.to >= currentPeriod.from ||
+        currentPeriod.to !== new Date(Date.parse(asOf)).toISOString().slice(0,10) || baselinePeriod.to >= currentPeriod.from ||
         !count(raw.totalCount) || !count(raw.returnedCount) || !count(raw.uncomparableUnitCount) ||
         typeof raw.completePopulation !== "boolean" || !Array.isArray(raw.products) ||
         raw.products.length > 2000 || raw.returnedCount !== raw.products.length ||
