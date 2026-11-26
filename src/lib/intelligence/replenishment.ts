@@ -17,7 +17,25 @@ function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
  if(numerator<=0n)return 0n;
  return (numerator+denominator-1n)/denominator;
 }
-function isoDay(value:string):number|null {
+function isoDay(value:string):number|null {function isoTimestamp(value:unknown):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.]\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
+ if(isoDay(value.slice(0,10))===null)return null;
+ const parsed=Date.parse(value);return Number.isFinite(parsed)?parsed:null;
+}
+function sanitizeEvidence(records:EvidenceRecord[]):EvidenceRecord[] {
+ return records.map(record=>{
+  const warnings=[...record.warnings];
+  const badTimestamp=isoTimestamp(record.sourceTimestamp)===null||isoTimestamp(record.asOf)===null;
+  const badPeriod=record.period!==null&&
+   (isoDay(record.period.from)===null||isoDay(record.period.to)===null||record.period.from>record.period.to);
+  if(badTimestamp||badPeriod){
+   warnings.push(...(badTimestamp?["INVALID_EVIDENCE_TIMESTAMP"]:[]),...(badPeriod?["INVALID_EVIDENCE_PERIOD"]:[]));
+   return {...record,status:"NEEDS_REVIEW" as const,warnings:[...new Set(warnings)]};
+  }
+  return record;
+ });
+}
+
  if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
  const time=Date.parse(value+"T00:00:00Z");
  return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
@@ -44,11 +62,18 @@ function readReplenishmentMetric(args: {
   const { metric, unit, expectedQuantityUnit, asOf, period, soldQuantityMetricId, index, warnings } = args;
   const source = index.get(metric.id);
   if (!source) return { value: null, minorUnits: null, status: "UNVERIFIED", metric: null };
+  const sourceAsOfTime=isoTimestamp(source.asOf);
+  const calculatedAtTime=isoTimestamp(source.lineage.calculatedAt);
+  const expectedAsOfTime=isoTimestamp(asOf);
   if (
     source.status !== "VERIFIED" ||
     source.completeness !== "COMPLETE" ||
     source.quality !== "ACCEPTABLE" ||
     source.asOf !== asOf ||
+    sourceAsOfTime === null ||
+    calculatedAtTime === null ||
+    expectedAsOfTime === null ||
+    calculatedAtTime > expectedAsOfTime ||
     source.unit !== unit ||
     !source.lineage.evidenceIds.length
   ) {
@@ -91,10 +116,10 @@ function readReplenishmentMetric(args: {
 export function buildReplenishmentRecommendations(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:ReplenishmentProductInput[];
 }):{id:string;asOf:string;period:EvidencePeriod;recommendations:ReplenishmentRecommendation[]} {
- if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be valid");
+ if(isoTimestamp(input.asOf)===null)throw new Error("asOf must be a valid ISO timestamp");
  const periodDays=dayCount(input.period);if(periodDays<1)throw new Error("invalid period");
  const metrics=input.products.flatMap(p=>[p.availableToPromise,p.reorderPoint,p.soldQuantityWindow,p.supplierLeadTimeDays,p.incomingPurchaseQuantity,...(p.minimumOrderQuantity?[p.minimumOrderQuantity]:[]),...(p.orderMultiple?[p.orderMultiple]:[])]);
- const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
+ const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:sanitizeEvidence(input.evidenceRecords),metrics});
  const counts=new Map<string,number>();for(const m of passport.metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(counts.get(m.id)===1)index.set(m.id,m);
  const productRefCounts=new Map<string,number>();
