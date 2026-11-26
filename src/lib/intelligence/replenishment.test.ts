@@ -79,7 +79,7 @@ function evidenceFor(metricValue: MetricSnapshot): EvidenceRecord {
 
 function build(
   products: ReplenishmentProductInput[],
-  options: { period?: EvidencePeriod; omitEvidence?: boolean } = {},
+  options: { period?: EvidencePeriod; omitEvidence?: boolean; asOf?: string } = {},
 ) {
   const metrics = products.flatMap((item) => [
     item.availableToPromise,
@@ -92,7 +92,7 @@ function build(
   ]);
   return buildReplenishmentRecommendations({
     id: "replenishment-fixture",
-    asOf,
+    asOf: options.asOf ?? asOf,
     period: options.period ?? period,
     evidenceRecords: options.omitEvidence ? [] : metrics.map(evidenceFor),
     products,
@@ -202,12 +202,62 @@ describe("replenishment recommendation engine", () => {
   it("rejects impossible calendar dates instead of normalizing them into another period", () => {
     expect(() => build([product("p-9")], {
       period: { from: "2026-02-31", to: "2026-03-10" },
-    })).toThrow("invalid period");
+    })).toThrow("invalid or incomplete period");
   });
 
   it("rejects reversed periods", () => {
     expect(() => build([product("p-10")], {
       period: { from: "2026-11-10", to: "2026-11-01" },
-    })).toThrow("invalid period");
+    })).toThrow("invalid or incomplete period");
+  });
+
+  it("rejects a reporting window that has not completed by the snapshot time", () => {
+    expect(() => build([product("p-11")], {
+      period: { from: "2026-11-20", to: "2026-11-27" },
+    })).toThrow("invalid or incomplete period");
+  });
+
+  it("requires an explicit timezone on the snapshot instant", () => {
+    expect(() => build([product("p-12")], {
+      asOf: "2026-11-26T00:00:00",
+    })).toThrow("asOf must be valid");
+  });
+
+  it("withholds a zero minimum-order quantity instead of silently ignoring it", () => {
+    const result = build([product("p-13", { minimum: 0 })]);
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
+    expect(result.recommendations[0].warnings).toContain("MINIMUM_ORDER_QUANTITY_MUST_BE_POSITIVE");
+  });
+
+  it("withholds a zero order multiple instead of silently disabling its constraint", () => {
+    const result = build([product("p-14", { multiple: 0 })]);
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
+    expect(result.recommendations[0].warnings).toContain("ORDER_MULTIPLE_MUST_BE_POSITIVE");
+  });
+
+  it("withholds negative incoming stock instead of increasing the purchase recommendation", () => {
+    const result = build([product("p-15", { incoming: -4 })]);
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
+  });
+
+  it("withholds negative supplier lead time instead of treating it as zero demand", () => {
+    const result = build([product("p-16", { leadDays: -2 })]);
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
   });
 });
