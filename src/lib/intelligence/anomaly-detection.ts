@@ -215,7 +215,8 @@ export function buildAnomalyDetection(input: {
   metrics: MetricSnapshot[];
   rules: AnomalyRule[];
   signals: AnomalySignal[];
-  sourceSnapshotVerified?: boolean;
+  /** Required caller attestation that every source population used by these signals is complete. */
+  sourceSnapshotVerified: boolean;
 }): AnomalyDetectionResult {
   if (!input.id.trim() || input.id.length > 160 ||
       !validInstant(input.generatedAt) || !validInstant(input.asOf) ||
@@ -385,7 +386,7 @@ export function buildAnomalyDetection(input: {
   }
 
   const warnings = [...passport.warnings];
-  const sourceSnapshotVerified = input.sourceSnapshotVerified !== false;
+  const sourceSnapshotVerified = input.sourceSnapshotVerified === true;
   if (!sourceSnapshotVerified) warnings.push("ANOMALY_SOURCE_POPULATION_INCOMPLETE");
   if (withheldSignals.length > 0) warnings.push("ANOMALY_SIGNALS_WITHHELD");
   const status: EvidenceStatus = passport.status !== "VERIFIED"
