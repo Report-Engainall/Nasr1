@@ -114,6 +114,49 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     );
   });
 
+
+  it("exports live stock balances with quantity-only columns and an explicit source-read timestamp", async () => {
+    const fields = getOnyxProLiveHeaders("stock_balances");
+    const stockDataset = ONYX_PRO_DATASETS.find((dataset) => dataset.id === "stock_balances");
+    expect(fields).toContain(stockDataset?.fields.find((field) => field.field === "quantity_on_hand")?.header);
+    expect(fields).toContain(stockDataset?.fields.find((field) => field.field === "warehouse_code")?.header);
+    for (const forbidden of ["opening_cost", "average_unit_cost", "total_stock_value", "warehouse_id", "snapshot_id"]) {
+      const header = stockDataset?.fields.find((field) => field.field === forbidden)?.header;
+      if (header) expect(fields).not.toContain(header);
+    }
+
+    const bytes = buildOnyxProDataWorkbook(["stock_balances"], {
+      stock_balances: [{
+        product_code: "000125",
+        warehouse_code: "WH-01",
+        quantity_on_hand: 12.5,
+        quantity_reserved: 2,
+        quantity_available: 10.5,
+        last_movement_date: "2026-11-26T10:00:00.000Z",
+        as_of_date: "2026-11-27T01:00:00.000Z",
+      }],
+    });
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    const rows: string[][] = [];
+    const parsed = await parseXlsxFirstWorksheet(
+      new Blob([buffer]),
+      (row) => rows.push(row),
+      { preferredWorksheetNames: ["StockBalances"] },
+    );
+    expect(parsed.worksheetName).toBe("StockBalances");
+    expect(parsed.rowCount).toBe(2);
+    expect(rows[0]).toEqual(fields);
+    expect(rows[1][fields.indexOf(stockDataset?.fields.find((field) => field.field === "product_code")?.header ?? "")]).toBe("000125");
+    expect(rows[1][fields.indexOf(stockDataset?.fields.find((field) => field.field === "quantity_on_hand")?.header ?? "")]).toBe("12.5");
+    expect(() => buildOnyxProDataCsv("stock_balances", [{
+      product_code: "000125",
+      warehouse_code: "WH-01",
+      quantity_on_hand: 12.5,
+      opening_cost: 45,
+    }])).toThrow("حقل غير معتمد");
+  });
+
   it("rejects unapproved fields and invalid cell values instead of silently exporting them", () => {
     expect(() => buildOnyxProDataWorkbook(["products"], {
       products: [{ product_code: "P-1", cost_price: 20 }],

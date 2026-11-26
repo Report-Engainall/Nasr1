@@ -4,6 +4,7 @@ import type { ProductWithInventory } from "./types";
 import {
   mapOnyxProCustomerRecord,
   mapOnyxProProductRecord,
+  mapOnyxProStockBalanceRecord,
 } from "./onyx-pro-live-export";
 
 describe("Onyx Pro live export projections", () => {
@@ -46,6 +47,67 @@ describe("Onyx Pro live export projections", () => {
     expect(Object.keys(row)).not.toContain("price_wholesale_of_wholesale");
     expect(Object.keys(row)).not.toContain("cost_price");
     expect(Object.keys(row)).not.toContain("warehouse_id");
+  });
+
+
+  it("maps manager-readable warehouse balances without leaking internal IDs or financial values", () => {
+    const warehouse = { id: "warehouse-1", code: "WH-01" };
+    const balance = {
+      product_id: "product-1",
+      item_code: "000125",
+      product_name: "أرز بسمتي",
+      unit: "كيس",
+      warehouse_id: "warehouse-1",
+      quantity_on_hand: 12.5,
+      quantity_reserved: 2,
+      quantity_available: 10.5,
+      last_movement_at: "2026-11-26T10:00:00.000Z",
+    };
+    const row = mapOnyxProStockBalanceRecord(
+      balance,
+      warehouse,
+      "2026-11-27T01:00:00.000Z",
+    );
+
+    expect(row).toEqual({
+      product_code: "000125",
+      warehouse_code: "WH-01",
+      quantity_on_hand: 12.5,
+      quantity_reserved: 2,
+      quantity_available: 10.5,
+      last_movement_date: "2026-11-26T10:00:00.000Z",
+      as_of_date: "2026-11-27T01:00:00.000Z",
+    });
+    expect(Object.keys(row)).not.toContain("product_id");
+    expect(Object.keys(row)).not.toContain("warehouse_id");
+    expect(Object.keys(row)).not.toContain("organization_id");
+    expect(Object.keys(row)).not.toContain("cost_price");
+    expect(Object.keys(row)).not.toContain("total_stock_value");
+  });
+
+  it("rejects mismatched warehouse identities and inconsistent stock totals", () => {
+    const warehouse = { id: "warehouse-1", code: "WH-01" };
+    const balance = {
+      product_id: "product-1",
+      item_code: "P-1",
+      product_name: "صنف",
+      unit: "قطعة",
+      warehouse_id: "warehouse-1",
+      quantity_on_hand: 12,
+      quantity_reserved: 2,
+      quantity_available: 10,
+      last_movement_at: null,
+    };
+    expect(() => mapOnyxProStockBalanceRecord(
+      { ...balance, warehouse_id: "warehouse-2" },
+      warehouse,
+      "2026-11-27T01:00:00.000Z",
+    )).toThrow("مخزن مختلف");
+    expect(() => mapOnyxProStockBalanceRecord(
+      { ...balance, quantity_available: 9 },
+      warehouse,
+      "2026-11-27T01:00:00.000Z",
+    )).toThrow("لا يتطابق");
   });
 
   it("rejects products without a stable item code instead of creating an invalid import row", () => {
