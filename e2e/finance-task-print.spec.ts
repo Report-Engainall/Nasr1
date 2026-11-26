@@ -184,9 +184,8 @@ async function assertAdminMobileNavigation(page: Page): Promise<void> {
 
 const ADMIN_SCREEN_PATHS = ["/admin","/admin/products","/admin/customers","/admin/orders","/admin/pricing","/admin/stock-count","/admin/inventory-transfers","/admin/offers","/admin/suppliers","/admin/purchase-orders","/admin/devices","/admin/reports","/admin/intelligence","/admin/ai","/admin/notifications","/admin/data","/admin/operations","/admin/settings","/admin/quotes","/admin/finance","/admin/tasks","/admin/audit"] as const;
 
-async function assertRouteViewport(page: Page, route: string, width: number) {
+async function assertRouteViewportAtWidth(page: Page, route: string, width: number) {
   await page.setViewportSize({ width, height: 800 });
-  await page.goto(route, { waitUntil: "domcontentloaded" });
 
   if (route === "/admin/exports") {
     await expect(page.getByRole("heading", { name: "تصدير الطلبات غير المتزامن" })).toBeVisible({ timeout: 20_000 });
@@ -299,6 +298,17 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
   return { route, width, ...measured, overflow: false };
 }
 
+// One real navigation per route is sufficient: CSS breakpoint behavior is exercised
+// at both widths on the same rendered screen, avoiding a duplicate app boot per route.
+async function assertRouteViewports(page: Page, route: string) {
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+  const results = [];
+  for (const width of [360, 1280]) {
+    results.push(await assertRouteViewportAtWidth(page, route, width));
+  }
+  return results;
+}
+
 async function assertAdminRouteViewportMatrix(page: Page) {
   const results: Array<{
     route: string;
@@ -309,10 +319,8 @@ async function assertAdminRouteViewportMatrix(page: Page) {
     documentWidth: number;
     overflow: boolean;
   }> = [];
-  for (const width of [360, 1280]) {
-    for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
-      results.push(await assertRouteViewport(page, route, width));
-    }
+  for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
+    results.push(...await assertRouteViewports(page, route));
   }
   await test.info().attach("admin-route-responsive-rtl-matrix.json", {
     body: JSON.stringify({
