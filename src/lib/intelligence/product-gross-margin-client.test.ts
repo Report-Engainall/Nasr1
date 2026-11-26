@@ -86,8 +86,9 @@ function response(overrides: Record<string, unknown> = {}) {
     formulaDescription: "Net invoiced amount less posted credits and fully traceable shipped sale batch costs.",
     sourceTables: [
       "customer_invoices", "customer_invoice_items", "customer_return_credit_memos",
-      "customer_return_credit_memo_items", "orders", "order_items", "inventory_movements",
-      "inventory_batches", "purchase_receipt_items", "purchase_receipts", "purchase_order_items",
+      "customer_return_credit_memo_items", "customer_return_request_items",
+      "customer_return_receipt_items", "customer_return_receipts", "orders", "order_items",
+      "inventory_movements", "inventory_batches", "purchase_receipt_items", "purchase_receipts", "purchase_order_items",
     ],
     sideEffects: "NONE",
     ...overrides,
