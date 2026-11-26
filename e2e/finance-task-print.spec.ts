@@ -383,7 +383,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
-    await expect(manager.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(1);
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(manager.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(manager, "manager");
@@ -605,7 +605,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await signIn(accountant, accountantEmail, accountantPassword);
     await accountant.goto("/admin/finance");
     await expect(accountant.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
-    await expect(accountant.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toBeVisible();
+    await expect(accountant.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(1);
     await expect(accountant.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(accountant.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(accountant, "accountant");
