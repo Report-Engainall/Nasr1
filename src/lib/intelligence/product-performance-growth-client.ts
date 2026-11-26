@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 import type { GrowthOpportunitySignal } from "./growth-opportunities";
 
@@ -33,7 +34,15 @@ function day(value: unknown): value is string {
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
 }
 function timestamp(value: unknown): value is string {
-  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
+    return false;
+  }
+  const datePart = value.slice(0, 10);
+  const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dateMillis) &&
+    new Date(dateMillis).toISOString().slice(0, 10) === datePart;
 }
 function period(value: unknown): EvidencePeriod | null {
   const raw = object(value);
@@ -44,9 +53,8 @@ function count(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 function quantity(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value
-    : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= Number.MAX_SAFE_INTEGER ? parsed : null;
+  const scaled = decimalToMinorUnits(value, 6);
+  return scaled === null ? null : minorUnitsToNumber(scaled, 6);
 }
 function text(value: unknown, max: number): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= max;
@@ -82,7 +90,7 @@ export async function fetchProductPerformanceGrowthContext(
     const currentPeriod = period(raw?.period);
     const baselinePeriod = period(raw?.baselinePeriod);
     if (!raw || !currentPeriod || !baselinePeriod || !timestamp(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(asOf) ||
-        currentPeriod.to !== asOf.slice(0,10) || baselinePeriod.to >= currentPeriod.from ||
+        currentPeriod.to !== new Date(Date.parse(asOf)).toISOString().slice(0,10) || baselinePeriod.to >= currentPeriod.from ||
         !count(raw.totalCount) || !count(raw.returnedCount) || !count(raw.uncomparableUnitCount) ||
         typeof raw.completePopulation !== "boolean" || !Array.isArray(raw.products) ||
         raw.products.length > 2000 || raw.returnedCount !== raw.products.length ||
