@@ -232,7 +232,7 @@ async function main() {
     "b.unit_cost::text as unit_cost,b.source_type,b.receipt_id::text as receipt_id,b.receipt_item_id::text as receipt_item_id " +
     "from public.inventory_movements im " +
     "join public.inventory_batches b on b.id=im.inventory_batch_id and b.organization_id=$1::uuid " +
-    "where im.organization_id=$1::uuid and im.reference_type='order' and im.reference_id=$2::uuid and im.movement_type='sale'",
+    "where im.reference_type='order' and im.reference_id=$2::uuid and im.movement_type='sale'",
     [organizationId, orderId],
   );
   assert.equal(saleRows.length, 1, "shipping must create one batch-linked sale movement");
