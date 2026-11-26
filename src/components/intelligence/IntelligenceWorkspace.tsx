@@ -1184,44 +1184,6 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     });
   }, [inventoryData, deadStockReport]);
 
-  const claimEvidencePassports = useMemo(() => {
-    if (!claimEvidenceSourcePassport) return [];
-    const observations = claimEvidenceSourcePassport.metrics.map((metric) => ({
-      id: "observation:" + metric.id,
-      statement: metric.value === null
-        ? "المؤشر " + metric.key + ": القيمة غير متاحة"
-        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unitOfMeasure ?? metric.unit),
-      kind: "OBSERVATION" as const,
-      metricIds: [metric.id],
-      boundaries: metric.warnings,
-    }));
-    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions];
-    const drivers = actions.flatMap(({ decision, metricIds }) => {
-      const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
-      return linkedMetricIds.length ? [{
-        id: "driver:" + decision.id,
-        statement: decision.what + ": " + decision.why,
-        kind: "DRIVER" as const,
-        metricIds: linkedMetricIds,
-        boundaries: ["المحرك يشرح إشارة تشغيلية أو شرط تفعيل قرار؛ لا يثبت وحده سبب النتيجة."],
-      }] : [];
-    });
-    const financeMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
-      metric.key === "cashflow.expected_collections" && metric.status !== "UNAVAILABLE",
-    );
-    const inventoryMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
-      metric.key === "inventory.available_to_promise" && metric.status !== "UNAVAILABLE",
-    );
-    const crossDomainObservation = financeMetric && inventoryMetric ? [{
-      id: "cross-domain-observation:" + claimEvidenceSourcePassport.asOf,
-      statement: "قراءة مشتركة لمؤشر التحصيلات المجدولة ومؤشر توفر المخزون في لقطة واحدة؛ تزامن المؤشرين لا يثبت علاقة سببية بينهما.",
-      kind: "OBSERVATION" as const,
-      metricIds: [financeMetric.id, inventoryMetric.id],
-      boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
-    }] : [];
-    return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
-  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
-
   const replenishmentReport = useMemo(() => {
     if (!inventoryData) return null;
     return buildReplenishmentRecommendations({
@@ -1260,6 +1222,44 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       }];
     });
   }, [inventoryData, replenishmentReport]);
+
+  const claimEvidencePassports = useMemo(() => {
+    if (!claimEvidenceSourcePassport) return [];
+    const observations = claimEvidenceSourcePassport.metrics.map((metric) => ({
+      id: "observation:" + metric.id,
+      statement: metric.value === null
+        ? "المؤشر " + metric.key + ": القيمة غير متاحة"
+        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unitOfMeasure ?? metric.unit),
+      kind: "OBSERVATION" as const,
+      metricIds: [metric.id],
+      boundaries: metric.warnings,
+    }));
+    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions];
+    const drivers = actions.flatMap(({ decision, metricIds }) => {
+      const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
+      return linkedMetricIds.length ? [{
+        id: "driver:" + decision.id,
+        statement: decision.what + ": " + decision.why,
+        kind: "DRIVER" as const,
+        metricIds: linkedMetricIds,
+        boundaries: ["المحرك يشرح إشارة تشغيلية أو شرط تفعيل قرار؛ لا يثبت وحده سبب النتيجة."],
+      }] : [];
+    });
+    const financeMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
+      metric.key === "cashflow.expected_collections" && metric.status !== "UNAVAILABLE",
+    );
+    const inventoryMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
+      metric.key === "inventory.available_to_promise" && metric.status !== "UNAVAILABLE",
+    );
+    const crossDomainObservation = financeMetric && inventoryMetric ? [{
+      id: "cross-domain-observation:" + claimEvidenceSourcePassport.asOf,
+      statement: "قراءة مشتركة لمؤشر التحصيلات المجدولة ومؤشر توفر المخزون في لقطة واحدة؛ تزامن المؤشرين لا يثبت علاقة سببية بينهما.",
+      kind: "OBSERVATION" as const,
+      metricIds: [financeMetric.id, inventoryMetric.id],
+      boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
+    }] : [];
+    return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
 
   const dailyDecisionActions = useMemo(() =>
     [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions]
