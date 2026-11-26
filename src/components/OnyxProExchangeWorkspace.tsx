@@ -17,6 +17,12 @@ import {
   type OnyxProLiveDatasetId,
 } from "@/lib/onyx-pro-live-export";
 
+const LIVE_DATASET_LABELS: Record<OnyxProLiveDatasetId, string> = {
+  products: "الأصناف",
+  customers: "العملاء",
+  stock_balances: "أرصدة المخزون",
+};
+
 type Props = {
   onBack: () => void;
   onOpenImport: () => void;
@@ -79,7 +85,7 @@ function DatasetCard({ dataset, onDownload }: {
 export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImports, onOpenSnapshots }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() => ONYX_PRO_DATASETS.map((dataset) => dataset.id));
   const [notice, setNotice] = useState("");
-  const [liveSelectedIds, setLiveSelectedIds] = useState<OnyxProLiveDatasetId[]>(["products", "customers"]);
+  const [liveSelectedIds, setLiveSelectedIds] = useState<OnyxProLiveDatasetId[]>(["products", "customers", "stock_balances"]);
   const [liveExporting, setLiveExporting] = useState(false);
   const [liveExportNotice, setLiveExportNotice] = useState("");
   const selectedCount = selectedIds.length;
@@ -133,9 +139,9 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       const binary = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
       downloadFile(onyxProLiveWorkbookFilename(), binary, ONYX_PRO_WORKBOOK_MIME);
       const counts = liveSelectedIds.map((id) =>
-        (id === "products" ? "الأصناف" : "العملاء") + ": " + (records[id]?.length ?? 0),
+        LIVE_DATASET_LABELS[id] + ": " + (records[id]?.length ?? 0),
       ).join("، ");
-      setLiveExportNotice("تم تنزيل ملف السجلات الحية — " + counts + ". استُبعدت الأسعار والتكاليف والهوامش والأرصدة والحدود الائتمانية.");
+      setLiveExportNotice("تم تنزيل ملف السجلات الحية — " + counts + ". شملت أرصدة المخزون كميات الموجود والمحجوز والمتاح فقط، دون قيم مالية أو تكاليف.");
     } catch (cause) {
       setLiveExportNotice(cause instanceof Error ? cause.message : "تعذر إنشاء ملف السجلات الحية.");
     } finally {
@@ -153,7 +159,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       const rows = records[datasetId] ?? [];
       const csv = buildOnyxProDataCsv(datasetId, rows);
       downloadFile(onyxProLiveDatasetCsvFilename(datasetId), csv, "text/csv;charset=utf-8");
-      setLiveExportNotice("تم تنزيل " + (datasetId === "products" ? "الأصناف" : "العملاء") + " من بيانات النظام الحية: " + rows.length + " سجل. استُبعدت البيانات المالية الحساسة.");
+      setLiveExportNotice("تم تنزيل " + LIVE_DATASET_LABELS[datasetId] + " من بيانات النظام الحية: " + rows.length + " سجل. اقتصر الملف على الحقول التشغيلية المسموحة.");
     } catch (cause) {
       setLiveExportNotice(cause instanceof Error ? cause.message : "تعذر إنشاء ملف CSV الحي.");
     } finally {
@@ -181,7 +187,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
           <div className="panel-head">
             <div>
               <h2>تصدير سجلات النظام الحية</h2>
-              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء الفعلية في قاعدة بيانات المؤسسة، باستخدام أعمدة التصدير المسموحة فقط وبعيداً عن قالب الاستيراد الكامل.</p>
+              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء وأرصدة المخزون الفعلية للمؤسسة، باستخدام إسقاطات منفصلة وقوائم حقول مسموحة لكل مجموعة.</p>
             </div>
             <FileSpreadsheet size={23} />
           </div>
@@ -194,7 +200,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
                   disabled={liveExporting}
                   onChange={(event) => toggleLiveDataset(datasetId, event.target.checked)}
                 />
-                <span>{datasetId === "products" ? "الأصناف" : "العملاء"}</span>
+                <span>{LIVE_DATASET_LABELS[datasetId]}</span>
               </label>
             ))}
           </div>
@@ -203,16 +209,15 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
               {liveExporting ? <RefreshCw size={16} /> : <Download size={16} />}
               {liveExporting ? "جار تجهيز البيانات الحية…" : "تنزيل Excel بالبيانات الفعلية"}
             </button>
-            <button type="button" className="btn secondary" onClick={() => void downloadLiveCsv("products")} disabled={liveExporting}>
-              <Download size={15} /> CSV الأصناف الحية
-            </button>
-            <button type="button" className="btn secondary" onClick={() => void downloadLiveCsv("customers")} disabled={liveExporting}>
-              <Download size={15} /> CSV العملاء الحية
-            </button>
+            {ONYX_PRO_LIVE_DATASET_IDS.map((datasetId) => (
+              <button key={datasetId} type="button" className="btn secondary" onClick={() => void downloadLiveCsv(datasetId)} disabled={liveExporting}>
+                <Download size={15} /> CSV {LIVE_DATASET_LABELS[datasetId]} الحية
+              </button>
+            ))}
           </div>
           {liveExportNotice && <p className="report-note" role="status" aria-live="polite" style={{ margin: 0 }}>{liveExportNotice}</p>}
           <p className="report-note" style={{ margin: 0 }}>
-            التصدير الحي للمدير ومدير النظام فقط، وبحد أقصى 10,000 سجل لكل مجموعة. ملفات السجلات لا تتضمن أسعار الشرائح أو التكلفة أو الهوامش أو الأرصدة أو حدود الائتمان أو معرّفات حسابات الدخول.
+            التصدير الحي للمدير ومدير النظام فقط، وبحد أقصى 10,000 سجل لكل مجموعة. لا يتضمن أسعار الشرائح أو التكلفة أو الهوامش أو أرصدة العملاء وحدود الائتمان أو معرّفات الحسابات؛ وأرصدة المخزون كميات تشغيلية فقط.
           </p>
         </section>
       )}
@@ -249,7 +254,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       <section className="panel" style={{ display: "grid", gap: 10 }}>
         <div className="panel-head"><div><h2>المسارات التشغيلية الموجودة</h2><p>تُستخدم المحركات الموجودة ولا تنشأ مسارات بيانات موازية.</p></div><PackageCheck size={22} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
-          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد يمر عبر الدفعات ومراجعة التكرار قبل الاعتماد. أصبح تصدير السجلات الحية متاحاً لهاتين المجموعتين بصلاحية المدير، مع إسقاط يستبعد الحقول المالية والحسابية الحساسة.</p></div>
+          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد يمر عبر الدفعات ومراجعة التكرار قبل الاعتماد. التصدير الحي يغطي هاتين المجموعتين، إضافة إلى أرصدة الصنف والمخزن بكميات الموجود والمحجوز والمتاح.</p></div>
           <div><strong>الوحدات والمخزون</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تُرحّل ProductUnits إلى أمر تحويل وحدات ذري بعد اعتماد الأصناف، وتُرحّل StockBalances إلى لقطة مستقلة ثم مصالحة محددة لكل مخزن. الرفع وحده لا يغيّر الأرصدة.</p></div>
           <div><strong>الطلبات وقوائم الأسعار</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>قوالب Orders وOrderLines وPriceLists وPriceListLines مُعرّفة، لكن استيرادها التشغيلي وتصدير السجلات الحية لهذه المجموعات ما زال غير موصول؛ لا تُمرّر إلى جداول غير مطابقة.</p></div>
         </div>

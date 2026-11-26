@@ -1,10 +1,10 @@
-import { fetchProducts } from "./api";
+import { fetchActiveInventoryWarehouses, fetchInventoryAdjustmentBalances, fetchProducts } from "./api";
 import { fetchCustomerDirectoryPage, type CustomerDirectoryRow } from "./customer-directory";
 import { getCurrentTenantScope } from "./supabase";
 import type { CellValue } from "./onyx-export";
 import type { ProductWithInventory } from "./types";
 
-export const ONYX_PRO_LIVE_DATASET_IDS = ["products", "customers"] as const;
+export const ONYX_PRO_LIVE_DATASET_IDS = ["products", "customers", "stock_balances"] as const;
 export type OnyxProLiveDatasetId = (typeof ONYX_PRO_LIVE_DATASET_IDS)[number];
 export type OnyxProLiveRecord = Record<string, CellValue>;
 export type OnyxProLiveRows = { [datasetId: string]: OnyxProLiveRecord[] | undefined };
@@ -93,6 +93,125 @@ export function mapOnyxProCustomerRecord(customer: CustomerDirectoryRow): OnyxPr
     customer_status: status,
     created_at: createdAt,
   };
+}
+
+
+type OnyxProStockBalanceSource = {
+  product_id: string;
+  item_code: string;
+  warehouse_id: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  last_movement_at: string | null;
+};
+
+type OnyxProWarehouseSource = { id: string; code: string | null };
+
+/**
+ * A narrow Onyx stock-balance projection. Source IDs, warehouse IDs, prices,
+ * costs, inventory values and account identifiers are deliberately omitted.
+ */
+export function mapOnyxProStockBalanceRecord(
+  balance: OnyxProStockBalanceSource,
+  warehouse: OnyxProWarehouseSource,
+  asOfDate: string,
+): OnyxProLiveRecord {
+  requiredText(balance.product_id, "معرّف الصنف");
+  const productCode = requiredText(balance.item_code, "رقم الصنف");
+  const warehouseId = requiredText(warehouse.id, "معرّف المخزن");
+  if (requiredText(balance.warehouse_id, "مخزن رصيد الصنف") !== warehouseId) {
+    throw new Error("لا يمكن تصدير أونكس: رصيد الصنف تابع لمخزن مختلف.");
+  }
+  const warehouseCode = requiredText(warehouse.code, "كود المخزن");
+  const quantityOnHand = optionalFiniteNumber(balance.quantity_on_hand);
+  const quantityReserved = optionalFiniteNumber(balance.quantity_reserved);
+  const quantityAvailable = optionalFiniteNumber(balance.quantity_available);
+  if (quantityOnHand === null || quantityReserved === null || quantityAvailable === null) {
+    throw new Error("لا يمكن تصدير أونكس: إحدى كميات رصيد المخزون غير صالحة.");
+  }
+  const hasThreeDecimals = (value: number) =>
+    Math.abs(Math.round(value * 1000) / 1000 - value) < 1e-8;
+  if (![quantityOnHand, quantityReserved, quantityAvailable].every(hasThreeDecimals)) {
+    throw new Error("لا يمكن تصدير أونكس: كميات المخزون تتجاوز دقة ثلاث منازل عشرية.");
+  }
+  if (Math.abs(quantityOnHand - quantityReserved - quantityAvailable) > 0.001) {
+    throw new Error("لا يمكن تصدير أونكس: لا يتطابق الموجود ناقص المحجوز مع المتاح.");
+  }
+  const snapshotAt = requiredText(asOfDate, "وقت قراءة رصيد المخزون");
+  if (!Number.isFinite(Date.parse(snapshotAt))) {
+    throw new Error("لا يمكن تصدير أونكس: وقت قراءة رصيد المخزون غير صالح.");
+  }
+  const lastMovementAt = optionalText(balance.last_movement_at);
+  if (lastMovementAt && !Number.isFinite(Date.parse(lastMovementAt))) {
+    throw new Error("لا يمكن تصدير أونكس: تاريخ آخر حركة مخزون غير صالح.");
+  }
+
+  return {
+    product_code: productCode,
+    warehouse_code: warehouseCode,
+    quantity_on_hand: quantityOnHand,
+    quantity_reserved: quantityReserved,
+    quantity_available: quantityAvailable,
+    last_movement_date: lastMovementAt,
+    as_of_date: snapshotAt,
+  };
+}
+
+async function fetchStockBalancesForExport(): Promise<OnyxProLiveRecord[]> {
+  const warehouses = await fetchActiveInventoryWarehouses();
+  if (!Array.isArray(warehouses)) {
+    throw new Error("تعذر تأكيد قائمة المستودعات قبل تصدير أرصدة المخزون.");
+  }
+
+  const warehouseCodes = new Set<string>();
+  const preparedWarehouses = warehouses.map((warehouse) => {
+    const id = requiredText(warehouse?.id, "معرّف المخزن");
+    const code = requiredText(warehouse?.code, "كود المخزن");
+    const normalizedCode = code.toLocaleUpperCase("en");
+    if (warehouseCodes.has(normalizedCode)) {
+      throw new Error("تصدير أرصدة المخزون موقوف: يوجد كود مخزن مكرر.");
+    }
+    warehouseCodes.add(normalizedCode);
+    return { id, code };
+  });
+
+  const records: OnyxProLiveRecord[] = [];
+  const seenProductIds = new Set<string>();
+  const seenBusinessKeys = new Set<string>();
+
+  // Keep source reads bounded while avoiding a sequential round-trip per warehouse.
+  for (let start = 0; start < preparedWarehouses.length; start += 4) {
+    const batch = await Promise.all(preparedWarehouses.slice(start, start + 4).map(async (warehouse) => {
+      const rows = await fetchInventoryAdjustmentBalances(warehouse.id);
+      if (!Array.isArray(rows)) {
+        throw new Error("تعذر تأكيد أرصدة المخزن " + warehouse.code + ".");
+      }
+      return { warehouse, rows, asOfDate: new Date().toISOString() };
+    }));
+
+    for (const group of batch) {
+      if (records.length + group.rows.length > MAX_ONYX_PRO_LIVE_EXPORT_ROWS) {
+        throw new Error("يتجاوز عدد أرصدة المخزون حد التصدير الآمن (" +
+          MAX_ONYX_PRO_LIVE_EXPORT_ROWS.toLocaleString("en") + ").");
+      }
+      for (const balance of group.rows) {
+        const productId = requiredText(balance?.product_id, "معرّف الصنف");
+        const productCode = requiredText(balance?.item_code, "رقم الصنف");
+        const productKey = group.warehouse.id + "::" + productId;
+        const businessKey = group.warehouse.code.toLocaleUpperCase("en") + "::" +
+          productCode.toLocaleUpperCase("en");
+        if (seenProductIds.has(productKey) || seenBusinessKeys.has(businessKey)) {
+          throw new Error("تصدير أرصدة المخزون موقوف: يوجد صنف مكرر داخل المستودع.");
+        }
+        seenProductIds.add(productKey);
+        seenBusinessKeys.add(businessKey);
+        records.push(mapOnyxProStockBalanceRecord(balance, group.warehouse, group.asOfDate));
+      }
+    }
+  }
+
+  return records;
 }
 
 function assertUniqueKeys(
@@ -197,7 +316,9 @@ export async function fetchOnyxProLiveExportRecords(
   }
 
   const scope = await getCurrentTenantScope();
-  if (!scope.isStaff || !scope.organizationId || !scope.canViewInternalProductPrices) {
+  const needsProductDirectoryAccess = datasetIds.some((id) => id === "products" || id === "customers");
+  if (!scope.isStaff || !scope.organizationId ||
+      (needsProductDirectoryAccess && !scope.canViewInternalProductPrices)) {
     throw new Error("تصدير سجلات Onyx الحية متاح للمدير ومدير النظام فقط.");
   }
 
@@ -209,6 +330,9 @@ export async function fetchOnyxProLiveExportRecords(
   }
   if (datasetIds.includes("customers")) {
     tasks.push(fetchCustomersForExport().then((rows) => { result.customers = rows; }));
+  }
+  if (datasetIds.includes("stock_balances")) {
+    tasks.push(fetchStockBalancesForExport().then((rows) => { result.stock_balances = rows; }));
   }
 
   await Promise.all(tasks);
