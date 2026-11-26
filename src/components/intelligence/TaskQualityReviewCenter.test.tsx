@@ -82,6 +82,29 @@ describe("TaskQualityReviewCenter", () => {
     expect(screen.getByRole("button", { name: "تحديث مؤشرات جودة المهام" })).toBeEnabled();
   });
 
+  it("releases the initial loading state and allows retry when the first read fails", async () => {
+    mocks.fetchOperationalTaskQualityMetrics
+      .mockRejectedValueOnce(new Error("private backend detail"))
+      .mockResolvedValueOnce(EMPTY_QUALITY);
+
+    render(<TaskQualityReviewCenter />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "تعذر قراءة مؤشرات الجودة من المصدر المعتمد؛ أعد المحاولة.",
+    );
+    expect(screen.queryByText(/جارٍ تحميل مؤشرات الجودة/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "تحديث مؤشرات جودة المهام" })).toBeEnabled();
+    expect(screen.queryByText(/private backend detail/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "تحديث مؤشرات جودة المهام" }));
+
+    await waitFor(() => {
+      expect(mocks.fetchOperationalTaskQualityMetrics).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText(/لم تُسجل مراجعات جودة بعد/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("preserves the last good result, exposes unexpected failures and allows retry", async () => {
     mocks.fetchOperationalTaskQualityMetrics
       .mockResolvedValueOnce(EMPTY_QUALITY)
