@@ -87,8 +87,9 @@ export function buildCustomerRetentionReport(input:{
  };
  const mapped=input.customers.map(customer=>{
   const current=read(customer.ordersCurrentPeriod,"COUNT",input.period),previous=read(customer.ordersPreviousPeriod,"COUNT",input.previousPeriod);
-  const rawTime=customer.lastOrderAt?timestamp(customer.lastOrderAt):null;
-  const lastDay=rawTime!==null?new Date(rawTime).setUTCHours(0,0,0,0):null;
+  const rawTime=customer.lastOrderAt===null?null:timestamp(customer.lastOrderAt);
+  const lastOrderAfterAsOf=rawTime!==null&&rawTime>asOfTime;
+  const lastDay=rawTime!==null&&!lastOrderAfterAsOf?new Date(rawTime).setUTCHours(0,0,0,0):null;
   const age=lastDay!==null?Math.floor((asOfDay-lastDay)/86400000):null;
   let activity:CustomerRetentionReport["customers"][number]["activity"]="UNKNOWN";
   if(age!==null&&age>=0)activity=age<=30?"ACTIVE":age<=60?"COOLING":age<=90?"AT_RISK":"INACTIVE";
@@ -107,7 +108,8 @@ export function buildCustomerRetentionReport(input:{
   const value=minorUnits===null?null:minorUnitsToNumber(minorUnits,2);
   return {customerRef:sale.customerRef,currency:sale.currency,value,minorUnits,precisionInvalid:numericValue!==null&&minorUnits===null};
  });
- const allCustomerMetricsValid=mapped.every(customer=>customer.status==="VERIFIED");
+ const allCustomerMetricsValid=mapped.every(customer=>customer.orderCountCurrent!==null&&customer.orderCountPrevious!==null&&customer.evidenceIds.length>0);
+ const allCustomerRecordsValid=mapped.every(customer=>customer.status==="VERIFIED");
  const active=mapped.filter(c=>(c.orderCountCurrent??0)>0);
  const prior=mapped.filter(c=>(c.orderCountPrevious??0)>0);
  const retained=prior.filter(c=>(c.orderCountCurrent??0)>0);
@@ -127,14 +129,24 @@ export function buildCustomerRetentionReport(input:{
    customerCount:new Set(group.map(s=>s.customerRef)).size,status:valid?"VERIFIED" as const:"NEEDS_REVIEW" as const};
  });
  const allSalesMetricsValid=saleRows.every(sale=>sale.minorUnits!==null)&&focusByCurrency.every(group=>group.status==="VERIFIED");
- const status:EvidenceStatus=fullCoverage&&allCustomerMetricsValid&&allSalesMetricsValid?"VERIFIED":"NEEDS_REVIEW";
+ const status:EvidenceStatus=fullCoverage&&allCustomerRecordsValid&&allSalesMetricsValid?"VERIFIED":"NEEDS_REVIEW";
  const activeOrderTotal=active.reduce((sum,customer)=>sum+BigInt(customer.orderCountCurrent??0),0n);
  const averageOrdersPerActiveCustomer=status==="VERIFIED"&&active.length>0&&activeOrderTotal<=BigInt(Number.MAX_SAFE_INTEGER)
   ?Number(activeOrderTotal)/active.length:null;
  const countActivity=(activity:CustomerRetentionReport["customers"][number]["activity"])=>status==="VERIFIED"?mapped.filter(c=>c.activity===activity).length:null;
  const warnings:string[]=[];
+ const invalidLastOrderTimestamp=input.customers.some(customer=>customer.lastOrderAt!==null&&timestamp(customer.lastOrderAt)===null);
+ const futureLastOrderTimestamp=input.customers.some(customer=>{
+  const sourceTime=customer.lastOrderAt===null?null:timestamp(customer.lastOrderAt);
+  return sourceTime!==null&&sourceTime>asOfTime;
+ });
+ const missingLastOrderTimestamp=mapped.some(customer=>customer.lastOrderAt===null&&
+  ((customer.orderCountCurrent??0)>0||(customer.orderCountPrevious??0)>0));
  if(!fullCoverage)warnings.push("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
  if(mapped.some(customer=>customer.orderCountCurrent===null||customer.orderCountPrevious===null))warnings.push("CUSTOMER_COUNT_METRIC_INVALID_OR_UNVERIFIED");
+ if(invalidLastOrderTimestamp)warnings.push("CUSTOMER_LAST_ORDER_TIMESTAMP_INVALID");
+ if(futureLastOrderTimestamp)warnings.push("CUSTOMER_LAST_ORDER_TIMESTAMP_AFTER_AS_OF");
+ if(missingLastOrderTimestamp)warnings.push("CUSTOMER_LAST_ORDER_TIMESTAMP_MISSING_FOR_ORDER_HISTORY");
  if(saleRows.some(sale=>sale.precisionInvalid))warnings.push("CUSTOMER_CURRENCY_PRECISION_INVALID");
  if(focusByCurrency.some(group=>group.totalSales===null&&group.status!=="NEEDS_REVIEW"||group.status==="NEEDS_REVIEW"&&saleRows.some(sale=>sale.currency===group.currency&&sale.minorUnits!==null)))warnings.push("CUSTOMER_CURRENCY_TOTAL_UNAVAILABLE_OR_OVERFLOW");
  if(!allCustomerMetricsValid||!allSalesMetricsValid)warnings.push("CUSTOMER_METRIC_EVIDENCE_INCOMPLETE");
