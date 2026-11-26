@@ -24,6 +24,7 @@ on:
       - "supabase/migrations/20261116130000_inventory_scope_enforcement_v2.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
+      - "docs/execution/P2_INVENTORY_TRANSFER_REPLAY_ACCEPTANCE_CHECKPOINT_2026-11-26.md"
   pull_request:
     branches: [main]
     paths:
@@ -38,6 +39,7 @@ on:
       - "supabase/tests/inventory_transfer_replay_endpoint_guard.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
+      - "docs/execution/P2_INVENTORY_TRANSFER_REPLAY_ACCEPTANCE_CHECKPOINT_2026-11-26.md"
   workflow_dispatch:
 
 permissions:

@@ -4,7 +4,7 @@ Repository: `Report-Engainall/Nasr1`
 Role: P2 — PostgreSQL/RPC/migrations/transactions/inventory/finance
 Base/main observed: `69390c34f821ed137bd4426ddf097ef13d3fb14e`
 P2 branch: `p2/inventory-transfer-replay-endpoint-pg17-20261126`
-Accepted source SHA: `db4508d2993422d5037fb8dcc60a6d5c39c9cdbe`
+Initially accepted code SHA: `db4508d2993422d5037fb8dcc60a6d5c39c9cdbe` (dedicated transfer PG17, full P2 and P1 all passed on this SHA). A checkpoint-only descendant was then added; exact-head rerun is required and its final evidence is tracked in PR #602.
 PR: [#602](https://github.com/Report-Engainall/Nasr1/pull/602)
 
 ## Scope delivered
@@ -30,6 +30,7 @@ PR: [#602](https://github.com/Report-Engainall/Nasr1/pull/602)
 - P2 acceptance is local-source/runtime proof on the exact SHA; it is not production readiness evidence.
 
 ## Handoff
-- PR #602 is open and mergeable, base `main`, head `db4508d2993422d5037fb8dcc60a6d5c39c9cdbe`.
+- PR #602 remains open and targets `main`. Its current head is authoritative; consult the PR and exact-head Actions results before integration. Do not transfer the initial `db4508d` PASS to any later head without rerunning.
 - P2 owns this checkpoint and acceptance evidence. P1 retains sole merge authority; do not merge or update the shared global execution pointer/matrix from P2.
-- Next P2 action: audit the remaining open P2 finance/security work against current main and existing PR ownership; do not duplicate #602's now-accepted replay guard.
+- CI trigger maintenance: the exact P2 checkpoint path is explicitly included in both the P1 verification and inventory PG17 workflow path filters so a checkpoint-only descendant reruns their exact-head gates. P2 Playwright runs on the PR head.
+- Next P2 action after the exact-head retest: audit remaining open P2 finance/security work against current main and existing PR ownership; do not duplicate #602's replay guard.
