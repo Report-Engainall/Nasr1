@@ -30,7 +30,7 @@ function dayCount(period:EvidencePeriod):number {
 }
 function isoInstant(value:unknown):number|null {
  if(typeof value!=="string"||
-  !/^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/.test(value)||
+  !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)||
   isoDay(value.slice(0,10))===null)return null;
  const parsed=Date.parse(value);
  return Number.isFinite(parsed)?parsed:null;
