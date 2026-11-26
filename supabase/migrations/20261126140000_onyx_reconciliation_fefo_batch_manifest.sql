@@ -11,7 +11,7 @@ CREATE OR REPLACE FUNCTION public.get_onyx_inventory_batch_manifest(
 )
 RETURNS jsonb
 LANGUAGE sql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path=''
 AS $function$
@@ -134,8 +134,8 @@ BEGIN
 
   IF v_apply_command_text IS NOT NULL THEN
     v_command_id:=v_apply_command_text::uuid;
-    SELECT i.*,c.warehouse_id
-      INTO v_item,v_warehouse_id
+    SELECT i.*
+      INTO v_item
       FROM public.onyx_inventory_reconciliation_items i
       JOIN public.onyx_inventory_reconciliation_commands c
         ON c.id=i.command_id AND c.organization_id=i.organization_id
@@ -145,6 +145,7 @@ BEGIN
        AND c.warehouse_id=NEW.warehouse_id
      FOR UPDATE OF i;
     IF FOUND THEN
+      v_warehouse_id:=NEW.warehouse_id;
       IF OLD.quantity_on_hand IS DISTINCT FROM v_item.baseline_quantity_on_hand
          OR OLD.quantity_reserved IS DISTINCT FROM v_item.baseline_quantity_reserved
          OR NEW.quantity_on_hand IS DISTINCT FROM v_item.source_quantity
@@ -172,8 +173,8 @@ BEGIN
 
   IF v_rollback_command_text IS NOT NULL THEN
     v_command_id:=v_rollback_command_text::uuid;
-    SELECT i.*,c.warehouse_id
-      INTO v_item,v_warehouse_id
+    SELECT i.*
+      INTO v_item
       FROM public.onyx_inventory_reconciliation_items i
       JOIN public.onyx_inventory_reconciliation_commands c
         ON c.id=i.command_id AND c.organization_id=i.organization_id
@@ -183,6 +184,7 @@ BEGIN
        AND c.warehouse_id=NEW.warehouse_id
      FOR UPDATE OF i;
     IF FOUND THEN
+      v_warehouse_id:=NEW.warehouse_id;
       IF OLD.quantity_on_hand IS DISTINCT FROM v_item.applied_quantity_on_hand
          OR OLD.quantity_reserved IS DISTINCT FROM v_item.applied_quantity_reserved
          OR NEW.quantity_on_hand IS DISTINCT FROM v_item.baseline_quantity_on_hand
