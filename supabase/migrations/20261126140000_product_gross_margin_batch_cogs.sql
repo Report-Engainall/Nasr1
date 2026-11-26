@@ -458,6 +458,7 @@ BEGIN
          AND currency='YER' AND currency_count=1
         THEN 'VERIFIED'
         WHEN NOT revenue_complete OR has_returns OR v_currency<>'YER'
+          OR currency IS DISTINCT FROM 'YER' OR currency_count<>1
         THEN 'NEEDS_REVIEW'
         ELSE 'PARTIAL'
       END AS row_status
