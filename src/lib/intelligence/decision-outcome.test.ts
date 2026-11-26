@@ -150,6 +150,19 @@ describe("decision outcome transition policy", () => {
     expect(conflict).toMatchObject({ ok: false, reason: "IDEMPOTENCY_CONFLICT" });
   });
 
+  it("rejects an idempotent retry that reuses the actor id with a different role", () => {
+    const current = outcome();
+    const submittedEvent = event("SUBMIT_FOR_REVIEW");
+    const first = transitionDecisionOutcome(current, submittedEvent);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const retry = transitionDecisionOutcome(first.outcome, event("SUBMIT_FOR_REVIEW", {
+      actor: { id: submittedEvent.actor.id, role: "staff" },
+    }));
+    expect(retry).toMatchObject({ ok: false, reason: "IDEMPOTENCY_CONFLICT" });
+  });
+
   it("requires a reason for approval and an owner for assignment", () => {
     const submitted = apply(outcome(), event("SUBMIT_FOR_REVIEW"));
     expect(transitionDecisionOutcome(submitted, event("APPROVE"))).toMatchObject({
