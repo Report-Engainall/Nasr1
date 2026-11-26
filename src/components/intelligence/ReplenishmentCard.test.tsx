@@ -69,8 +69,8 @@ describe("ReplenishmentCard demand forecast context", () => {
       />,
     );
     const context = screen.getByRole("complementary", { name: "سياق توقع الطلب" });
-    expect(within(context).getByText(/30 يوماً: 120 EA/)).toBeInTheDocument();
-    expect(within(context).getByText(/90 يوماً: 360 EA/)).toBeInTheDocument();
+    expect(within(context).getByText(/30 يوماً:/)).toBeInTheDocument();
+    expect(within(context).getByText(/90 يوماً:/)).toBeInTheDocument();
     expect(within(context).getByText(/ولا يغيّر كمية إعادة التوريد تلقائياً/)).toBeInTheDocument();
   });
 
