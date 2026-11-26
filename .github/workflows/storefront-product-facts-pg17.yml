@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/20261120070000_storefront_product_facts_and_relations.sql"
+      - "supabase/migrations/20261126120000_catalog_product_details_authorization_v2.sql"
       - "supabase/tests/storefront_product_facts_and_relations_acceptance.sql"
       - ".github/workflows/storefront-product-facts-pg17.yml"
   pull_request:
     branches: [main]
     paths:
       - "supabase/migrations/20261120070000_storefront_product_facts_and_relations.sql"
+      - "supabase/migrations/20261126120000_catalog_product_details_authorization_v2.sql"
       - "supabase/tests/storefront_product_facts_and_relations_acceptance.sql"
       - ".github/workflows/storefront-product-facts-pg17.yml"
   workflow_dispatch:

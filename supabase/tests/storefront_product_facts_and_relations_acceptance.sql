@@ -160,6 +160,63 @@ $function$;
 GRANT EXECUTE ON FUNCTION public.test_read_product_name(uuid) TO authenticated;
 
 
+-- Authorization V2 dependency fixture for this isolated product-facts contract test.
+-- The full decision engine and explicit-denial precedence are exercised separately by
+-- scripts/test-authorization-capability-registry.mjs on the repository's local Supabase stack.
+CREATE TABLE public.authorization_capabilities(
+  capability_key text PRIMARY KEY,
+  is_active boolean NOT NULL DEFAULT true
+);
+CREATE TABLE public.authorization_role_capabilities(
+  role text NOT NULL,
+  capability_key text NOT NULL REFERENCES public.authorization_capabilities(capability_key),
+  grant_source text NOT NULL,
+  valid_from timestamptz NOT NULL DEFAULT statement_timestamp(),
+  expires_at timestamptz,
+  PRIMARY KEY(role,capability_key)
+);
+CREATE TABLE public.authorization_profile_denials(
+  organization_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  capability_key text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  expires_at timestamptz,
+  PRIMARY KEY(organization_id,profile_id,capability_key)
+);
+CREATE OR REPLACE FUNCTION public.current_actor_has_capability(p_capability_key text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path=''
+AS $function$
+  SELECT auth.uid() IS NOT NULL
+    AND EXISTS(
+      SELECT 1
+      FROM public.profiles p
+      JOIN public.organizations o ON o.id=p.organization_id AND o.is_active=true
+      JOIN public.user_roles ur ON ur.profile_id=p.id
+      JOIN public.authorization_role_capabilities rc ON rc.role=ur.role
+        AND rc.capability_key=p_capability_key
+        AND rc.valid_from<=statement_timestamp()
+        AND (rc.expires_at IS NULL OR rc.expires_at>statement_timestamp())
+      JOIN public.authorization_capabilities c ON c.capability_key=rc.capability_key
+        AND c.is_active=true
+      WHERE p.auth_user_id=auth.uid() AND p.is_active=true
+    )
+    AND NOT EXISTS(
+      SELECT 1
+      FROM public.profiles p
+      JOIN public.authorization_profile_denials d
+        ON d.profile_id=p.id AND d.organization_id=p.organization_id
+      WHERE p.auth_user_id=auth.uid() AND p.is_active=true
+        AND d.capability_key=p_capability_key AND d.is_active=true
+        AND (d.expires_at IS NULL OR d.expires_at>statement_timestamp())
+    );
+$function$;
+REVOKE ALL ON FUNCTION public.current_actor_has_capability(text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.current_actor_has_capability(text) TO authenticated;
+
 INSERT INTO public.organizations(id) VALUES
 ('a0000000-0000-4000-8000-000000000001'),('b0000000-0000-4000-8000-000000000002');
 INSERT INTO public.profiles(id,auth_user_id,organization_id) VALUES
@@ -215,6 +272,7 @@ RETURNS jsonb LANGUAGE sql STABLE SET search_path=''
 AS $function$ SELECT '{}'::jsonb $function$;
 
 \ir ../migrations/20261120070000_storefront_product_facts_and_relations.sql
+\ir ../migrations/20261126120000_catalog_product_details_authorization_v2.sql
 
 -- Manager/admin command: brand, facts, carton conversion reference and explicitly published relations.
 SELECT set_config('request.jwt.claim.sub','a2000000-0000-4000-8000-000000000001',false);
@@ -453,6 +511,84 @@ BEGIN
 END
 $manager$;
 RESET ROLE;
+
+-- A profile-level explicit denial must override its manager role grant on both raw RPCs.
+INSERT INTO public.authorization_profile_denials(
+  organization_id,profile_id,capability_key,is_active,expires_at
+) VALUES(
+  'a0000000-0000-4000-8000-000000000001',
+  'a1000000-0000-4000-8000-000000000003',
+  'catalog.product.details.manage',true,NULL
+);
+SELECT set_config('request.jwt.claim.sub','a2000000-0000-4000-8000-000000000003',false);
+SET ROLE authenticated;
+DO $explicit_deny$
+DECLARE v_read_denied boolean:=false; v_write_denied boolean:=false; v_atomic_denied boolean:=false;
+BEGIN
+  IF public.current_actor_has_capability('catalog.product.details.manage') THEN
+    RAISE EXCEPTION 'explicit profile denial did not override manager capability grant';
+  END IF;
+  BEGIN
+    PERFORM public.get_admin_storefront_product_details('a4000000-0000-4000-8000-000000000001');
+  EXCEPTION WHEN insufficient_privilege THEN v_read_denied:=true; END;
+  BEGIN
+    PERFORM public.save_admin_storefront_product_details(
+      'a4000000-0000-4000-8000-000000000001','محاولة تغيير مرفوضة',NULL,NULL,false,'[]'::jsonb,false,
+      NULL,NULL,NULL,false,'[]'::jsonb
+    );
+  EXCEPTION WHEN insufficient_privilege THEN v_write_denied:=true; END;
+  BEGIN
+    PERFORM public.save_admin_catalog_product_with_storefront_details(
+      'a4000000-0000-4000-8000-000000000001',
+      jsonb_build_object('name','اسم يجب ألا يُحفظ','item_code','MAIN-01','unit','قطعة','status','active'),
+      jsonb_build_object('brand_name','علامة يجب ألا تُحفظ')
+    );
+  EXCEPTION WHEN insufficient_privilege THEN v_atomic_denied:=true; END;
+  IF NOT v_read_denied OR NOT v_write_denied OR NOT v_atomic_denied THEN
+    RAISE EXCEPTION 'Authorization V2 explicit denial was bypassed (read %, write %, combined %)',
+      v_read_denied,v_write_denied,v_atomic_denied;
+  END IF;
+END
+$explicit_deny$;
+RESET ROLE;
+
+DO $denial_rollback$
+DECLARE v_product_name text; v_brand_name text;
+BEGIN
+  SELECT p.name,b.name INTO v_product_name,v_brand_name
+  FROM public.products p
+  LEFT JOIN public.product_brands b ON b.id=p.brand_id AND b.organization_id=p.organization_id
+  WHERE p.id='a4000000-0000-4000-8000-000000000001';
+  IF v_product_name<>'منتج رئيسي' OR v_brand_name<>'علامة معتمدة' THEN
+    RAISE EXCEPTION 'denied combined save left a partial catalog or product-facts write: %, %',
+      v_product_name,v_brand_name;
+  END IF;
+END
+$denial_rollback$;
+
+-- Replaying the migration after a deliberate grant removal must not restore the grant.
+DELETE FROM public.authorization_profile_denials
+WHERE profile_id='a1000000-0000-4000-8000-000000000003'
+  AND capability_key='catalog.product.details.manage';
+DELETE FROM public.authorization_role_capabilities
+WHERE role='manager' AND capability_key='catalog.product.details.manage';
+\ir ../migrations/20261126120000_catalog_product_details_authorization_v2.sql
+DO $grant_replay$
+BEGIN
+  IF EXISTS(
+    SELECT 1 FROM public.authorization_role_capabilities
+    WHERE role='manager' AND capability_key='catalog.product.details.manage'
+  ) THEN
+    RAISE EXCEPTION 'migration replay restored a deliberately removed manager capability grant';
+  END IF;
+  IF NOT EXISTS(
+    SELECT 1 FROM public.authorization_role_capabilities
+    WHERE role='admin' AND capability_key='catalog.product.details.manage'
+  ) THEN
+    RAISE EXCEPTION 'migration replay unexpectedly removed the untouched admin capability grant';
+  END IF;
+END
+$grant_replay$;
 
 DO $grants$
 BEGIN
