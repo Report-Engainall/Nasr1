@@ -5,10 +5,6 @@ on:
     branches:
       - main
     paths:
-      - "src/lib/intelligence/daily-decisions.ts"
-      - "src/lib/intelligence/daily-decisions.test.ts"
-      - "src/lib/intelligence/liquidity.ts"
-      - "src/lib/intelligence/liquidity.test.ts"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
@@ -376,14 +372,14 @@ on:
       - "src/lib/admin-order-progress.test.ts"
       - "src/lib/api.admin-orders-page.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
-  pull_request:
-    branches:
-      - main
-    paths:
       - "src/lib/intelligence/daily-decisions.ts"
       - "src/lib/intelligence/daily-decisions.test.ts"
       - "src/lib/intelligence/liquidity.ts"
       - "src/lib/intelligence/liquidity.test.ts"
+  pull_request:
+    branches:
+      - main
+    paths:
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
@@ -656,6 +652,10 @@ on:
       - "src/lib/customer-service-cases.ts"
       - "src/components/CustomerServiceDeskPrintSheet.test.tsx"
       - "src/routes/help.tsx"
+      - "src/lib/intelligence/daily-decisions.ts"
+      - "src/lib/intelligence/daily-decisions.test.ts"
+      - "src/lib/intelligence/liquidity.ts"
+      - "src/lib/intelligence/liquidity.test.ts"
 
       - "src/lib/unified-import-quality.test.ts"
       - "src/components/AdminOrderCreationDialog.tsx"
