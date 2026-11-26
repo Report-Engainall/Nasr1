@@ -474,7 +474,11 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(manager.locator(".task-center-list .task-card")).toHaveCount(7);
     await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ١");
-    await manager.locator(".task-filters").getByLabel("الحالة", { exact: true }).selectOption("all");
+    const taskStatusFilter = manager.getByRole("combobox", { name: "الحالة", exact: true });
+    await expect(taskStatusFilter).toHaveCount(1);
+    await expect(taskStatusFilter).toBeVisible();
+    await expect(taskStatusFilter).toBeEnabled();
+    await taskStatusFilter.selectOption("all");
     await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
     await manager.getByLabel("نطاق الطباعة").selectOption("all");
     const printTasksButton = manager.getByRole("button", { name: "طباعة كل المهام المسموحة", exact: true });
