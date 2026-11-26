@@ -231,3 +231,52 @@ describe("decision learning strict evidence clocks", () => {
   expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
  });
 });
+
+
+describe("decision learning measurement evidence boundary", () => {
+ it("withholds variance when a linked source timestamp is later than measuredAt", () => {
+  const expected = metric("expected", "1.00");
+  const actual = metric("actual", "2.00");
+  const futureSource = {
+   ...evidence(expected),
+   sourceTimestamp: "2026-11-26T00:00:00.001Z",
+  };
+  const result = evaluateDecisionLearning({
+   id: "future-source-clock",
+   measuredAt,
+   evidenceRecords: [futureSource, evidence(actual)],
+   expected,
+   actual,
+   expectedRuleId: "daily.sales",
+   expectedRuleVersion: "1.0.0",
+   currentRuleId: "daily.sales",
+   currentRuleVersion: "1.1.0",
+  });
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+ });
+
+ it("withholds variance when a source snapshot clock is later than measuredAt", () => {
+  const expected = metric("expected", "1.00");
+  const actual = metric("actual", "2.00");
+  const futureSnapshot = {
+   ...evidence(expected),
+   asOf: "2026-11-26T00:00:00.001Z",
+  };
+  const result = evaluateDecisionLearning({
+   id: "future-snapshot-clock",
+   measuredAt,
+   evidenceRecords: [futureSnapshot, evidence(actual)],
+   expected,
+   actual,
+   expectedRuleId: "daily.sales",
+   expectedRuleVersion: "1.0.0",
+   currentRuleId: "daily.sales",
+   currentRuleVersion: "1.1.0",
+  });
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+ });
+});

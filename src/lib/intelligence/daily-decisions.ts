@@ -41,11 +41,12 @@ function reviewInvalidEvidence(input:EvidenceRecord[]):EvidenceRecord[] {
   return record;
  });
 }
-function reviewInvalidMetricSnapshots(input:MetricSnapshot[]):MetricSnapshot[] {
+function reviewInvalidMetricSnapshots(input:MetricSnapshot[],generatedAtTime:number):MetricSnapshot[] {
  return input.map(metric=>{
   const warnings=[...metric.warnings];
-  if(strictTimestamp(metric.asOf)===null||strictTimestamp(metric.lineage.calculatedAt)===null){
-   warnings.push("INVALID_METRIC_TIMESTAMP");
+  const calculatedAtTime=strictTimestamp(metric.lineage.calculatedAt);
+  if(strictTimestamp(metric.asOf)===null||calculatedAtTime===null||calculatedAtTime>generatedAtTime){
+   warnings.push(calculatedAtTime!==null&&calculatedAtTime>generatedAtTime?"METRIC_CALCULATED_AFTER_GENERATION":"INVALID_METRIC_TIMESTAMP");
    return {...metric,status:"NEEDS_REVIEW" as const,completeness:"PARTIAL" as const,warnings:[...new Set(warnings)]};
   }
   if(!validEvidencePeriod(metric.period)){
@@ -190,7 +191,7 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
  if(generatedAtTime===null||asOfTime===null||generatedAtTime<asOfTime)
   throw new Error("generatedAt and asOf must be valid ordered ISO timestamps");
  const safeEvidence=reviewInvalidEvidence(input.evidenceRecords);
- const safeMetrics=reviewInvalidMetricSnapshots(input.metrics);
+ const safeMetrics=reviewInvalidMetricSnapshots(input.metrics,generatedAtTime);
  const passport=buildEvidencePassport({id:"daily-decisions:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:safeEvidence,metrics:safeMetrics});
  const index=new Map<string,MetricSnapshot[]>();for(const m of passport.metrics){const rows=index.get(m.key)??[];rows.push(m);index.set(m.key,rows)}
  const candidates:DecisionCandidate[]=[],reasons:WithheldDecision[]=[],seen=new Set<string>();

@@ -300,3 +300,26 @@ describe("daily decision strict source clocks", () => {
   expect(result.withheld[0].reason).toBe("NEEDS_REVIEW");
  });
 });
+
+
+describe("daily decision generation-clock boundary", () => {
+ it("withholds a metric calculated after the decision generation clock", () => {
+  const futureMetric = {
+   ...metric(),
+   lineage: { ...metric().lineage, calculatedAt: "2026-10-30T07:10:01Z" },
+  };
+  const result = buildDailyDecisions(input({ metrics: [futureMetric] }));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0]).toMatchObject({ reason: "NEEDS_REVIEW", evidenceStatus: "NEEDS_REVIEW" });
+ });
+
+ it("accepts a metric calculated exactly at the decision generation clock", () => {
+  const boundaryMetric = {
+   ...metric(),
+   lineage: { ...metric().lineage, calculatedAt: "2026-10-30T07:10:00Z" },
+  };
+  const result = buildDailyDecisions(input({ metrics: [boundaryMetric] }));
+  expect(result.candidates).toHaveLength(1);
+  expect(result.withheld).toEqual([]);
+ });
+});

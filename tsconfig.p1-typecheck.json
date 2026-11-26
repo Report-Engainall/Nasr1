@@ -139,11 +139,11 @@
     "src/lib/intelligence/cashflow-forecast.ts",
     "src/components/intelligence/IntelligenceWorkspace.tsx",
     "src/lib/intelligence/product-performance-growth-client.ts",
+    "src/lib/intelligence/supplier-performance.ts",
+    "src/lib/intelligence/supplier-performance.test.ts",
+    "src/lib/intelligence/supplier-performance.ts",
+    "src/lib/intelligence/supplier-performance.test.ts",
     "src/lib/intelligence/product-performance-growth-client.test.ts",
-    "src/lib/intelligence/daily-decisions.ts",
-    "src/lib/intelligence/daily-decisions.test.ts",
-    "src/lib/intelligence/learning-loop.ts",
-    "src/lib/intelligence/learning-loop.test.ts",
     "src/components/intelligence/ReplenishmentCard.tsx",
     "src/components/intelligence/ReplenishmentPurchaseDraft.tsx",
     "src/components/intelligence/ReplenishmentPurchaseDraft.test.tsx",
@@ -171,6 +171,10 @@
     "src/components/InventoryBalanceAdjustmentPanel.test.tsx",
     "src/components/Storefront.tsx",
     "src/lib/storefront-product-structured-data.ts",
-    "src/lib/storefront-product-structured-data.test.ts"
+    "src/lib/storefront-product-structured-data.test.ts",
+    "src/lib/intelligence/daily-decisions.ts",
+    "src/lib/intelligence/daily-decisions.test.ts",
+    "src/lib/intelligence/learning-loop.ts",
+    "src/lib/intelligence/learning-loop.test.ts"
   ]
 }
