@@ -997,7 +997,7 @@ test("critical admin routes preserve direct navigation, RTL, and mobile viewport
   );
 
   const routes = [
-    { path: "/admin", title: "إنجاز | لوحة تحكم الأغبري — مركز التشغيل" },
+    { path: "/admin", title: "متجر الأغبري | لوحة الإدارة ومركز التشغيل — Aghbari Commerce" },
     { path: "/admin/products", title: "إدارة المنتجات | الأغبري" },
     { path: "/admin/pricing", title: "التسعير والمخزون | الأغبري" },
     { path: "/admin/finance", title: "الفواتير والتحصيل | لوحة الإدارة" },
