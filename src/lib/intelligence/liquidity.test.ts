@@ -247,3 +247,27 @@ describe("evidence-gated liquidity forecasts", () => {
     expect(result.positions[0].forecast.warnings).toContain("FORECAST_COVERAGE_NOT_SUPPLIED");
   });
 });
+
+
+describe("liquidity forecast arithmetic safety", () => {
+  it("withholds forecast amounts with precision beyond the supported six places", () => {
+    const result = buildForecast([
+      forecastFlow("unsupported-precision", "COLLECTION", "2026-11-27", "1.0000001"),
+    ]);
+    expect(result.positions[0].forecast.horizons.every(item =>
+      item.status === "NEEDS_REVIEW" && item.projectedBalance === null,
+    )).toBe(true);
+    expect(result.positions[0].forecast.horizons[0].warnings).toContain("FORECAST_AMOUNT_PRECISION_UNSUPPORTED");
+  });
+
+  it("withholds cumulative flow totals that exceed the bounded exact arithmetic range", () => {
+    const result = buildForecast([
+      forecastFlow("large-collection-a", "COLLECTION", "2026-11-27", "999999999.999999"),
+      forecastFlow("large-collection-b", "COLLECTION", "2026-11-28", "999999999.999999"),
+    ]);
+    expect(result.positions[0].forecast.horizons.every(item =>
+      item.status === "NEEDS_REVIEW" && item.projectedBalance === null,
+    )).toBe(true);
+    expect(result.positions[0].forecast.horizons[0].warnings).toContain("FORECAST_ARITHMETIC_OVERFLOW");
+  });
+});
