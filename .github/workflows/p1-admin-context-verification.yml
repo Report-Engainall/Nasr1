@@ -403,6 +403,12 @@ on:
       - "src/lib/customer-shopping-lists-xlsx.ts"
       - "src/lib/customer-shopping-lists-xlsx.test.ts"
 
+      - "src/components/intelligence/CashAccountReconciliationWorkspace.tsx"
+      - "src/lib/finance-cash-reconciliation-idempotency.ts"
+      - "src/lib/finance-cash-reconciliation-idempotency.test.ts"
+      - "scripts/test-finance-bank-match-retry.mjs"
+      - "scripts/test-finance-opening-balance-retry.mjs"
+      - "e2e/finance-reconciliation-retry-storage.spec.ts"
   pull_request:
     branches:
       - main
