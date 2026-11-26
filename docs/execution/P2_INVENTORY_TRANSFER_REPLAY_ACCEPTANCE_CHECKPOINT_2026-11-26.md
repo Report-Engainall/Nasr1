@@ -34,3 +34,10 @@ PR: [#602](https://github.com/Report-Engainall/Nasr1/pull/602)
 - P2 owns this checkpoint and acceptance evidence. P1 retains sole merge authority; do not merge or update the shared global execution pointer/matrix from P2.
 - CI trigger maintenance: the exact P2 checkpoint path is explicitly included in both the P1 verification and inventory PG17 workflow path filters so a checkpoint-only descendant reruns their exact-head gates. P2 Playwright runs on the PR head.
 - Next P2 action after the exact-head retest: audit remaining open P2 finance/security work against current main and existing PR ownership; do not duplicate #602's replay guard.
+
+
+## Current-main synchronization — 2026-11-27
+
+- The acceptance branch was synchronized with current `main` `2981c0d1facab554fac56293a19798eca642ff79` using a normal two-parent merge commit `ab3ccd798bf0923b2ef553892c0149380dfceb97`; the prior branch head is preserved as its second parent.
+- Transplanted only the P2 inventory test, dedicated inventory PostgreSQL 17 workflow and this P2 checkpoint. The branch's legacy edit to `.github/workflows/p1-admin-context-verification.yml` was intentionally not carried forward because it removed existing customer-payment-history test paths; current `main` P1 filters remain intact.
+- The earlier `db4508d` P1/P2/PG17 evidence remains historical. The synchronized candidate requires exact-head PostgreSQL 17, P1 and P2 checks before any integration decision.
