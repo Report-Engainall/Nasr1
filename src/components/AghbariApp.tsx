@@ -81,6 +81,7 @@ import { validateCustomerInput } from '@/lib/customer-input';
 const StaffQuotesPage = lazy(async () => ({ default: (await import('@/components/CustomerWorkflows')).StaffQuotesPage }));
 const StaffFinancePage = lazy(async () => ({ default: (await import('@/components/CustomerWorkflows')).StaffFinancePage }));
 const GeneralLedgerWorkspace = lazy(async () => ({ default: (await import('@/components/GeneralLedgerWorkspace')).GeneralLedgerWorkspace }));
+const CashAccountReconciliationWorkspace = lazy(async () => ({ default: (await import('@/components/intelligence/CashAccountReconciliationWorkspace')).CashAccountReconciliationWorkspace }));
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from '@/components/ui/command';
@@ -367,9 +368,12 @@ function AdminWorkspaceContent({
       return (
         <>
           <StaffFinancePage initialInvoiceId={recordContext?.kind === "invoice" ? recordContext.id : undefined} />
-          {user.roles.some((role) => role === "admin" || role === "manager" || role === "accountant")
-            ? <GeneralLedgerWorkspace />
-            : null}
+          {user.roles.some((role) => role === "admin" || role === "manager" || role === "accountant") ? (
+            <>
+              <CashAccountReconciliationWorkspace />
+              <GeneralLedgerWorkspace />
+            </>
+          ) : null}
         </>
       );
     case "tasks":
