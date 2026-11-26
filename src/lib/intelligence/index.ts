@@ -19,6 +19,7 @@ export * from "./growth-opportunities";
 export * from "./business-health-map";
 export * from "./supplier-posted-payable-activity-client";
 export * from "./customer-retention-client";
+export * from "./product-gross-margin-client";
 export * from "./decision-memory";
 export * from "./shift-operations";
 export * from "./shift-operations-client";
