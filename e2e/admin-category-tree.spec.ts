@@ -12,13 +12,17 @@ function requiredEnv(name: string): string {
 }
 
 function normalizeQuantityDigits(value: string): string {
-  return value
+  const normalized = value
     .replace(/[٠-٩۰-۹]/g, (digit) => {
       const code = digit.charCodeAt(0);
       return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
     })
     .replace(/[٬,]/g, "")
     .trim();
+  if (!/^-?\\d+(?:\\.\\d+)?$/.test(normalized)) return normalized;
+  const [whole, fraction = ""] = normalized.split(".");
+  const significantFraction = fraction.replace(/0+$/, "");
+  return significantFraction ? whole + "." + significantFraction : whole;
 }
 
 async function localAuthenticatedRpc(page: Page, rpcName: string, body: Record<string, unknown>): Promise<{ status: number; payload: unknown }> {
