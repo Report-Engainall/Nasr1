@@ -16,7 +16,7 @@ const transitions:Record<DecisionOutcomeState,DecisionOutcomeEventType[]>={
  ASSIGNED:["START_EXECUTION"],EXECUTING:["COMPLETE_EXECUTION"],EXECUTED:["MEASURE"],MEASURED:[],
 };
 function sameEvent(a:DecisionOutcomeEventRecord,b:DecisionOutcomeEvent):boolean {
- return a.id===b.id&&a.type===b.type&&a.actor.id===b.actor.id&&a.at===b.at&&a.reason===b.reason&&a.owner===b.owner&&
+ return a.id===b.id&&a.type===b.type&&a.actor.id===b.actor.id&&a.actor.role===b.actor.role&&a.at===b.at&&a.reason===b.reason&&a.owner===b.owner&&
   JSON.stringify(a.measuredOutcome??null)===JSON.stringify(b.measuredOutcome??null);
 }
 function isoDay(value:unknown):value is string {
