@@ -146,7 +146,7 @@ describe("supplier invoice server-side register search", () => {
       purchaseOrders: [],
       initialInvoiceId,
     }));
-    await screen.findByRole("button", { name: /INV-001/ });
+    await screen.findByRole("button", { name: initialInvoiceId ? /INV-026/ : /INV-001/ });
     await waitFor(() => expect(mocks.fetchWorkspace).toHaveBeenCalledTimes(1));
   }
 
@@ -228,7 +228,7 @@ describe("supplier invoice server-side register search", () => {
 
   it("clears a previous user's search and status when the authenticated identity changes", async () => {
     const props = { mode: "capture" as const, accounts: [], purchaseOrders: [] as const };
-    render(createElement(SupplierInvoiceWorkspace, props));
+    const { rerender } = render(createElement(SupplierInvoiceWorkspace, props));
     await screen.findByRole("button", { name: /INV-001/ });
 
     fireEvent.change(screen.getByRole("searchbox", { name: "بحث فواتير المورد" }), {
@@ -242,7 +242,6 @@ describe("supplier invoice server-side register search", () => {
       sessionRevision: 2,
       user: { id: "manager-2", profileId: "manager-profile-2", roles: ["manager"] },
     });
-    const { rerender } = render(createElement(SupplierInvoiceWorkspace, props));
     rerender(createElement(SupplierInvoiceWorkspace, props));
 
     expect(await screen.findByRole("button", { name: /INV-001/ })).toBeInTheDocument();
