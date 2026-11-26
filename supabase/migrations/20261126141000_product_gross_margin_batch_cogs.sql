@@ -90,7 +90,6 @@ BEGIN
      AND cii.invoice_id=scope.invoice_id
     LEFT JOIN public.order_items oi
       ON oi.id=cii.order_item_id
-     AND oi.organization_id=scope.organization_id
      AND oi.order_id=scope.order_id
     LEFT JOIN public.products p
       ON p.id=cii.product_id
