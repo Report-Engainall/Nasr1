@@ -91,6 +91,13 @@ describe("replenishment decision integration", () => {
     })).toEqual([]);
   });
 
+  it("rejects recommendation evidence that is not linked to the product source metrics", () => {
+    expect(buildReplenishmentDecisionCandidates({
+      asOf, products: [product()],
+      recommendations: [recommendation({ evidenceIds: ["evidence:unrelated"] })],
+    })).toEqual([]);
+  });
+
   it("rejects duplicate product references and malformed snapshot clocks", () => {
     expect(buildReplenishmentDecisionCandidates({
       asOf: "2026-02-31T02:00:00.000Z",
