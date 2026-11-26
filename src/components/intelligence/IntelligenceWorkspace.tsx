@@ -545,8 +545,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     }
     setProductGrossMarginLoading(true);
     try {
-      const asOf = snapshotAt.current.toISOString();
-      const to = utcDay(snapshotAt.current);
+      const requestTime = new Date();
+      const asOf = requestTime.toISOString();
+      const to = utcDay(requestTime);
       const from = shiftUtcDay(to, -89);
       const response = await fetchProductGrossMargin({ from, to, asOf });
       if (active()) setProductGrossMarginResult(response);
