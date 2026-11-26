@@ -2,11 +2,20 @@ import { useMemo, useState } from "react";
 import { ArrowRight, Download, FileSpreadsheet, FileText, PackageCheck, RefreshCw, ShieldCheck } from "lucide-react";
 import { ONYX_PRO_DATASETS, buildOnyxProHeaderCsv, type OnyxProDataset } from "@/lib/onyx-pro-schema";
 import {
+  buildOnyxProDataCsv,
+  buildOnyxProDataWorkbook,
   buildOnyxProWorkbook,
   onyxProDatasetCsvFilename,
+  onyxProLiveDatasetCsvFilename,
+  onyxProLiveWorkbookFilename,
   onyxProWorkbookFilename,
   ONYX_PRO_WORKBOOK_MIME,
 } from "@/lib/onyx-pro-workbook";
+import {
+  fetchOnyxProLiveExportRecords,
+  ONYX_PRO_LIVE_DATASET_IDS,
+  type OnyxProLiveDatasetId,
+} from "@/lib/onyx-pro-live-export";
 
 type Props = {
   onBack: () => void;
@@ -70,6 +79,9 @@ function DatasetCard({ dataset, onDownload }: {
 export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImports, onOpenSnapshots }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() => ONYX_PRO_DATASETS.map((dataset) => dataset.id));
   const [notice, setNotice] = useState("");
+  const [liveSelectedIds, setLiveSelectedIds] = useState<OnyxProLiveDatasetId[]>(["products", "customers"]);
+  const [liveExporting, setLiveExporting] = useState(false);
+  const [liveExportNotice, setLiveExportNotice] = useState("");
   const selectedCount = selectedIds.length;
   const selectionLabel = useMemo(() =>
     ONYX_PRO_DATASETS.filter((dataset) => selectedIds.includes(dataset.id)).map((dataset) => dataset.label).join("، "),
@@ -104,6 +116,51 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
     }
   }
 
+  function toggleLiveDataset(datasetId: OnyxProLiveDatasetId, checked: boolean) {
+    setLiveSelectedIds((current) => checked
+      ? [...current, datasetId].filter((id, index, all) => all.indexOf(id) === index)
+      : current.filter((id) => id !== datasetId));
+  }
+
+  async function downloadLiveWorkbook() {
+    if (!canManageImports) { setLiveExportNotice("تصدير السجلات الحية متاح للمدير ومدير النظام فقط."); return; }
+    if (liveExporting || liveSelectedIds.length === 0) return;
+    setLiveExporting(true);
+    setLiveExportNotice("");
+    try {
+      const records = await fetchOnyxProLiveExportRecords(liveSelectedIds);
+      const bytes = buildOnyxProDataWorkbook(liveSelectedIds, records);
+      const binary = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+      downloadFile(onyxProLiveWorkbookFilename(), binary, ONYX_PRO_WORKBOOK_MIME);
+      const counts = liveSelectedIds.map((id) =>
+        (id === "products" ? "الأصناف" : "العملاء") + ": " + (records[id]?.length ?? 0),
+      ).join("، ");
+      setLiveExportNotice("تم تنزيل ملف السجلات الحية — " + counts + ". استُبعدت الأسعار والتكاليف والهوامش والأرصدة والحدود الائتمانية.");
+    } catch (cause) {
+      setLiveExportNotice(cause instanceof Error ? cause.message : "تعذر إنشاء ملف السجلات الحية.");
+    } finally {
+      setLiveExporting(false);
+    }
+  }
+
+  async function downloadLiveCsv(datasetId: OnyxProLiveDatasetId) {
+    if (!canManageImports) { setLiveExportNotice("تصدير السجلات الحية متاح للمدير ومدير النظام فقط."); return; }
+    if (liveExporting) return;
+    setLiveExporting(true);
+    setLiveExportNotice("");
+    try {
+      const records = await fetchOnyxProLiveExportRecords([datasetId]);
+      const rows = records[datasetId] ?? [];
+      const csv = buildOnyxProDataCsv(datasetId, rows);
+      downloadFile(onyxProLiveDatasetCsvFilename(datasetId), csv, "text/csv;charset=utf-8");
+      setLiveExportNotice("تم تنزيل " + (datasetId === "products" ? "الأصناف" : "العملاء") + " من بيانات النظام الحية: " + rows.length + " سجل. استُبعدت البيانات المالية الحساسة.");
+    } catch (cause) {
+      setLiveExportNotice(cause instanceof Error ? cause.message : "تعذر إنشاء ملف CSV الحي.");
+    } finally {
+      setLiveExporting(false);
+    }
+  }
+
   return (
     <main dir="rtl" style={{ display: "grid", gap: 18 }}>
       <div className="toolbar">
@@ -118,6 +175,47 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       </div>
 
       {notice && <div role="status" aria-live="polite" className="privacy-note"><ShieldCheck size={17} /><span>{notice}</span></div>}
+
+      {canManageImports && (
+        <section className="panel" style={{ display: "grid", gap: 12 }} aria-label="تصدير سجلات أونكس الحية">
+          <div className="panel-head">
+            <div>
+              <h2>تصدير سجلات النظام الحية</h2>
+              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء الفعلية في قاعدة بيانات المؤسسة.</p>
+            </div>
+            <FileSpreadsheet size={23} />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {ONYX_PRO_LIVE_DATASET_IDS.map((datasetId) => (
+              <label key={datasetId} style={{ display: "flex", gap: 8, alignItems: "center", border: "1px solid var(--border)", borderRadius: 9, padding: 10, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={liveSelectedIds.includes(datasetId)}
+                  disabled={liveExporting}
+                  onChange={(event) => toggleLiveDataset(datasetId, event.target.checked)}
+                />
+                <span>{datasetId === "products" ? "الأصناف" : "العملاء"}</span>
+              </label>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button type="button" className="btn primary" onClick={() => void downloadLiveWorkbook()} disabled={liveExporting || liveSelectedIds.length === 0}>
+              {liveExporting ? <RefreshCw size={16} /> : <Download size={16} />}
+              {liveExporting ? "جار تجهيز البيانات الحية…" : "تنزيل Excel بالبيانات الفعلية"}
+            </button>
+            <button type="button" className="btn secondary" onClick={() => void downloadLiveCsv("products")} disabled={liveExporting}>
+              <Download size={15} /> CSV الأصناف الحية
+            </button>
+            <button type="button" className="btn secondary" onClick={() => void downloadLiveCsv("customers")} disabled={liveExporting}>
+              <Download size={15} /> CSV العملاء الحية
+            </button>
+          </div>
+          {liveExportNotice && <p className="report-note" role="status" aria-live="polite" style={{ margin: 0 }}>{liveExportNotice}</p>}
+          <p className="report-note" style={{ margin: 0 }}>
+            التصدير الحي للمدير ومدير النظام فقط، وبحد أقصى 10,000 سجل لكل مجموعة. ملفات السجلات لا تتضمن أسعار الشرائح أو التكلفة أو الهوامش أو الأرصدة أو حدود الائتمان أو معرّفات حسابات الدخول.
+          </p>
+        </section>
+      )}
 
       <section className="panel" style={{ display: "grid", gap: 12 }}>
         <div className="panel-head">
@@ -151,7 +249,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       <section className="panel" style={{ display: "grid", gap: 10 }}>
         <div className="panel-head"><div><h2>المسارات التشغيلية الموجودة</h2><p>تُستخدم المحركات الموجودة ولا تنشأ مسارات بيانات موازية.</p></div><PackageCheck size={22} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
-          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تُقرأ ورقتا Products وCustomers من المصنف نفسه كدفعتين مستقلتين، مع فحص التكرار والمراجعة قبل اعتماد السجلات.</p></div>
+          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد يمر عبر الدفعات ومراجعة التكرار قبل الاعتماد. أصبح تصدير السجلات الحية متاحاً لهاتين المجموعتين بصلاحية المدير، مع إسقاط يستبعد الحقول المالية والحسابية الحساسة.</p></div>
           <div><strong>الوحدات والمخزون</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تُرحّل ProductUnits إلى أمر تحويل وحدات ذري بعد اعتماد الأصناف، وتُرحّل StockBalances إلى لقطة مستقلة ثم مصالحة محددة لكل مخزن. الرفع وحده لا يغيّر الأرصدة.</p></div>
           <div><strong>الطلبات وقوائم الأسعار</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>قوالب Orders وOrderLines وPriceLists وPriceListLines مُعرّفة، لكن استيرادها التشغيلي وتصدير السجلات الحية لهذه المجموعات ما زال غير موصول؛ لا تُمرّر إلى جداول غير مطابقة.</p></div>
         </div>
