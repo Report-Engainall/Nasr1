@@ -137,6 +137,8 @@
     "src/lib/intelligence/free-ai-provider-failover.test.ts",
     "src/lib/intelligence/cashflow-forecast.ts",
     "src/components/intelligence/IntelligenceWorkspace.tsx",
+    "src/lib/intelligence/product-performance-growth-client.ts",
+    "src/lib/intelligence/product-performance-growth-client.test.ts",
     "src/components/intelligence/ReplenishmentCard.tsx",
     "src/components/intelligence/ReplenishmentPurchaseDraft.tsx",
     "src/components/intelligence/ReplenishmentPurchaseDraft.test.tsx",
