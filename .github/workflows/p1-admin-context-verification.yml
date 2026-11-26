@@ -402,6 +402,8 @@ on:
       - "src/components/CustomerAssetsPanel.test.tsx"
       - "src/test/customer-my-devices-pagination.test.tsx"
       - "src/components/TaskCenter.tsx"
+      - "src/components/intelligence/TaskQualityReviewCenter.tsx"
+      - "src/components/intelligence/TaskQualityReviewCenter.test.tsx"
       - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"
       - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
       - ".github/workflows/onyx-import-postgres-acceptance.yml"
@@ -823,6 +825,13 @@ on:
       - "src/lib/customer-shopping-lists-xlsx.ts"
       - "src/lib/customer-shopping-lists-xlsx.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/components/intelligence/TaskQualityReviewCenter.tsx"
+      - "src/components/intelligence/TaskQualityReviewCenter.test.tsx"
+      - ".github/workflows/p1-admin-context-verification.yml"
   workflow_dispatch:
 
 permissions:
