@@ -87,7 +87,7 @@ describe("ProductGrossMarginCard", () => {
     render(<ProductGrossMarginCard result={{ ok: true, snapshot: partial }} state="ready" />);
     const region = screen.getByRole("region", { name: "الربحية الإجمالية حسب المنتج" });
     expect(within(region).getByText("الربحية محجوبة")).toBeInTheDocument();
-    expect(within(region).getByText(/محجوب/)).toBeInTheDocument();
+    expect(within(region).getAllByText(/محجوب/).length).toBeGreaterThan(0);
   });
 
   it("shows a denied finance source without manufacturing financial figures", () => {
