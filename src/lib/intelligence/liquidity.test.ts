@@ -244,6 +244,11 @@ describe("evidence-gated liquidity forecasts", () => {
     });
     expect(result.positions[0].forecast.status).toBe("UNAVAILABLE");
     expect(result.positions[0].forecast.horizons.every(item => item.projectedBalance === null)).toBe(true);
+    expect(result.positions[0].forecast.horizons[0]).toMatchObject({
+      flowCount: null,
+      overdueCollections: null,
+      overdueObligations: null,
+    });
     expect(result.positions[0].forecast.warnings).toContain("FORECAST_COVERAGE_NOT_SUPPLIED");
   });
 });
