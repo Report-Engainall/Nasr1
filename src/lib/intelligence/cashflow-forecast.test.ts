@@ -107,6 +107,7 @@ describe("scheduled cash-flow forecast",()=>{
   const withAsOf=(m:MetricSnapshot):MetricSnapshot=>({...m,asOf:offsetAsOf,lineage:{...m.lineage,calculatedAt:offsetAsOf}});
   const result=buildCashflowForecast({
    ...source,
+   generatedAt:offsetAsOf,
    asOf:offsetAsOf,
    openingBalances:source.openingBalances.map(withAsOf),
    entries:source.entries.map(item=>({...item,amount:withAsOf(item.amount)})),
