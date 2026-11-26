@@ -191,7 +191,7 @@ describe("decision learning strict evidence clocks", () => {
   const actual = metric("actual", "2.00");
   for (const sourceTimestamp of ["2026-02-31T00:00:00.000Z", "2026-11-25T23:50:00.000"]) {
    const invalidEvidence = { ...evidence(expected), sourceTimestamp };
-   const result = evaluate(expected, actual, [invalidEvidence]);
+   const result = evaluate(expected, actual, [invalidEvidence, evidence(actual)]);
    expect(result.status).toBe("NEEDS_REVIEW");
    expect(result.variance).toBeNull();
    expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
