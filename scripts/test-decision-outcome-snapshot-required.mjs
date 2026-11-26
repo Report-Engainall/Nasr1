@@ -68,7 +68,6 @@ async function main() {
     await db.begin(async (tx) => {
       await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)", [claims.sub]);
       await tx.unsafe("select set_config('request.jwt.claims',$1,true)", [JSON.stringify({ ...claims, role: "authenticated" })]);
-      await tx.unsafe("set local role authenticated");
 
       const suffix = randomUUID();
       const candidateId = "p2-decision-snapshot:" + suffix;
@@ -92,6 +91,48 @@ async function main() {
       const command = [candidateId, snapshot.ruleId, snapshot.ruleVersion, actor.profile_id,
         snapshot.expectedOutcome, "قبول قاعدة بيانات محلي داخل معاملة ستُلغى بالكامل.",
         JSON.stringify(snapshot), idempotencyKey];
+
+      // Diagnose the exact validator input as the trusted local migration owner before
+      // lowering the transaction to authenticated. This is test-only; no policy is relaxed.
+      const validation = await tx.unsafe(
+        "select public._is_valid_decision_candidate_snapshot($1::jsonb,$2::text,$3::text,$4::text) as valid, " +
+        "jsonb_build_object(" +
+        "'schemaVersion', $1::jsonb->>'schemaVersion', " +
+        "'candidateIdMatches', ($1::jsonb->>'candidateId')=$2::text, " +
+        "'ruleIdMatches', ($1::jsonb->>'ruleId')=$3::text, " +
+        "'ruleVersionMatches', ($1::jsonb->>'ruleVersion')=$4::text, " +
+        "'expectedOutcomeMatches', ($1::jsonb->>'expectedOutcome')=$5::text, " +
+        "'priority', $1::jsonb->>'priority', " +
+        "'priorityScoreText', $1::jsonb->>'priorityScore', " +
+        "'proofType', jsonb_typeof($1::jsonb->'proof'), " +
+        "'evidenceIdsType', jsonb_typeof($1::jsonb#>'{proof,evidenceIds}'), " +
+        "'metricKeysType', jsonb_typeof($1::jsonb#>'{proof,metricKeys}'), " +
+        "'formulaVersionsType', jsonb_typeof($1::jsonb#>'{proof,formulaVersions}'), " +
+        "'evidenceIdsCount', jsonb_array_length($1::jsonb#>'{proof,evidenceIds}'), " +
+        "'metricKeysCount', jsonb_array_length($1::jsonb#>'{proof,metricKeys}'), " +
+        "'formulaVersionsCount', jsonb_array_length($1::jsonb#>'{proof,formulaVersions}'), " +
+        "'impactStatus', $1::jsonb->>'impactStatus', " +
+        "'impactJsonType', jsonb_typeof($1::jsonb->'impact'), " +
+        "'whatLength', char_length(btrim(coalesce($1::jsonb->>'what',''))), " +
+        "'whyLength', char_length(btrim(coalesce($1::jsonb->>'why',''))), " +
+        "'riskLength', char_length(btrim(coalesce($1::jsonb->>'risk',''))), " +
+        "'soWhatLength', char_length(btrim(coalesce($1::jsonb->>'soWhat',''))), " +
+        "'whatNextLength', char_length(btrim(coalesce($1::jsonb->>'whatNext',''))), " +
+        "'ownerLength', char_length(btrim(coalesce($1::jsonb->>'owner',''))), " +
+        "'expectedOutcomeLength', char_length(btrim(coalesce($1::jsonb->>'expectedOutcome',''))), " +
+        "'createdAt', $1::jsonb->>'createdAt', " +
+        "'asOf', $1::jsonb#>>'{proof,asOf}', " +
+        "'ownerProfilePresent', $6::uuid is not null, " +
+        "'idempotencyLength', char_length(btrim($7::text))" +
+        ") as diagnostics",
+        [JSON.stringify(snapshot), candidateId, snapshot.ruleId, snapshot.ruleVersion,
+          snapshot.expectedOutcome, actor.profile_id, idempotencyKey],
+      );
+      if (validation[0]?.valid !== true) {
+        throw new Error("Decision snapshot validator rejected the test payload: " + JSON.stringify(validation[0]?.diagnostics));
+      }
+      await tx.unsafe("set local role authenticated");
+
       const create = async (payload) => {
         const rows = await tx.unsafe(
           "select public.create_decision_outcome_proposal_with_snapshot(" +
