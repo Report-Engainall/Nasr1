@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+
+afterEach(() => cleanup());
 import type { SupplierPerformanceResult } from "@/lib/intelligence/supplier-performance";
 import { SupplierPerformancePanel } from "./SupplierPerformancePanel";
 
