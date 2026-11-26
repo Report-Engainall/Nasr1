@@ -50,6 +50,7 @@ describe("replenishment decision integration", () => {
     expect(candidates[0]).toMatchObject({
       ruleId: "inventory.replenishment.review",
       priority: "P1", priorityScore: 300,
+      ruleVersion: "1.0.0",
       impact: null, impactStatus: "WITHHELD",
       impactReason: "UNIT_COST_OR_CURRENCY_NOT_VERIFIED",
       owner: "مسؤول المشتريات والمخزون",
