@@ -268,6 +268,7 @@ BEGIN
         AND root.unit_cost IS NOT NULL
         AND root.unit_cost>=0
         AND root.unit_cost=pri.unit_cost
+        AND poi.unit_cost=pri.unit_cost
         AND pri.organization_id=v_org
         AND pri.product_id=sm.product_id
         AND pri.receipt_id=root.receipt_id
@@ -485,7 +486,7 @@ BEGIN
     coverage.invoice_count,coverage.invoice_line_count,coverage.invoices_without_lines,
     coverage.unmapped_line_count,coverage.invalid_credit_line_count,
     count(assessed.product_id)::integer,
-    count(*) FILTER(WHERE assessed.row_status='VERIFIED')::integer,
+    count(*) FILTER(WHERE coverage.complete_population AND assessed.row_status='VERIFIED')::integer,
     coalesce(jsonb_agg(
       jsonb_build_object(
         'productRef',assessed.product_id::text,
@@ -616,7 +617,8 @@ BEGIN
     'formulaDescription','Net revenue is issued invoice-line value less same-tenant posted return credit memos. COGS uses exact shipped sale movements joined to the purchase-receipt root of the consumed FEFO batch lineage. Physical returns, uncosted or unattributed batches, unmatched shipment quantities, incomplete invoice mappings, and non-YER currency withhold gross profit. Excludes tax, freight, overhead and operating expenses; this is product gross profit, not net profit.',
     'sourceTables',jsonb_build_array(
       'customer_invoices','customer_invoice_items','customer_return_credit_memos',
-      'customer_return_credit_memo_items','orders','order_items','inventory_movements',
+      'customer_return_credit_memo_items','customer_return_request_items',
+      'customer_return_receipt_items','customer_return_receipts','orders','order_items','inventory_movements',
       'inventory_batches','purchase_receipt_items','purchase_receipts','purchase_order_items'
     ),
     'sideEffects','NONE'
