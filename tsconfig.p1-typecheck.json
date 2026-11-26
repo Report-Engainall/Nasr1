@@ -171,6 +171,10 @@
     "src/components/InventoryBalanceAdjustmentPanel.test.tsx",
     "src/components/Storefront.tsx",
     "src/lib/storefront-product-structured-data.ts",
-    "src/lib/storefront-product-structured-data.test.ts"
+    "src/lib/storefront-product-structured-data.test.ts",
+    "src/lib/intelligence/daily-decisions.ts",
+    "src/lib/intelligence/daily-decisions.test.ts",
+    "src/lib/intelligence/learning-loop.ts",
+    "src/lib/intelligence/learning-loop.test.ts"
   ]
 }

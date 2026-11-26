@@ -13,6 +13,49 @@ export interface WithheldDecision {ruleId:string;metricKey:string;reason:Withhel
 export interface BuildDailyDecisionsInput {generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[];rules:DecisionRule[]}
 export interface DailyDecisionResult {generatedAt:string;asOf:string;modelMode:"RULE_BASED";candidates:DecisionCandidate[];withheld:WithheldDecision[]}
 const scores:Record<DecisionPriority,number>={P0:400,P1:300,P2:200,P3:100};
+function strictIsoDay(value:unknown):value is string {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const time=Date.parse(value+"T00:00:00.000Z");
+ return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value;
+}
+function strictTimestamp(value:unknown):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.]\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
+ if(!strictIsoDay(value.slice(0,10)))return null;
+ const parsed=Date.parse(value);
+ return Number.isFinite(parsed)?parsed:null;
+}
+function validEvidencePeriod(period:EvidencePeriod|null):boolean {
+ return period===null||(strictIsoDay(period.from)&&strictIsoDay(period.to)&&period.from<=period.to);
+}
+function reviewInvalidEvidence(input:EvidenceRecord[]):EvidenceRecord[] {
+ return input.map(record=>{
+  const warnings=[...record.warnings];
+  if(strictTimestamp(record.sourceTimestamp)===null||strictTimestamp(record.asOf)===null){
+   warnings.push("INVALID_EVIDENCE_TIMESTAMP");
+   return {...record,status:"NEEDS_REVIEW" as const,warnings:[...new Set(warnings)]};
+  }
+  if(!validEvidencePeriod(record.period)){
+   warnings.push("INVALID_EVIDENCE_PERIOD");
+   return {...record,status:"NEEDS_REVIEW" as const,warnings:[...new Set(warnings)]};
+  }
+  return record;
+ });
+}
+function reviewInvalidMetricSnapshots(input:MetricSnapshot[],generatedAtTime:number):MetricSnapshot[] {
+ return input.map(metric=>{
+  const warnings=[...metric.warnings];
+  const calculatedAtTime=strictTimestamp(metric.lineage.calculatedAt);
+  if(strictTimestamp(metric.asOf)===null||calculatedAtTime===null||calculatedAtTime>generatedAtTime){
+   warnings.push(calculatedAtTime!==null&&calculatedAtTime>generatedAtTime?"METRIC_CALCULATED_AFTER_GENERATION":"INVALID_METRIC_TIMESTAMP");
+   return {...metric,status:"NEEDS_REVIEW" as const,completeness:"PARTIAL" as const,warnings:[...new Set(warnings)]};
+  }
+  if(!validEvidencePeriod(metric.period)){
+   warnings.push("INVALID_METRIC_PERIOD");
+   return {...metric,status:"NEEDS_REVIEW" as const,completeness:"PARTIAL" as const,warnings:[...new Set(warnings)]};
+  }
+  return metric;
+ });
+}
 const validOperators = new Set<DecisionOperator>(["GTE","GT","LTE","LT","EQ"]);
 function numeric(value:number|string|null):number|null {
  if(typeof value==="number")return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER?value:null;
@@ -144,8 +187,12 @@ function statusReason(status:EvidenceStatus):{reason:WithheldDecisionReason;mess
 }
 /** Deterministic rule engine. Unknown values stay null; there is no model or write side effect. */
 export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisionResult {
- if(!Number.isFinite(Date.parse(input.generatedAt))||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
- const passport=buildEvidencePassport({id:"daily-decisions:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:input.metrics});
+ const generatedAtTime=strictTimestamp(input.generatedAt),asOfTime=strictTimestamp(input.asOf);
+ if(generatedAtTime===null||asOfTime===null||generatedAtTime<asOfTime)
+  throw new Error("generatedAt and asOf must be valid ordered ISO timestamps");
+ const safeEvidence=reviewInvalidEvidence(input.evidenceRecords);
+ const safeMetrics=reviewInvalidMetricSnapshots(input.metrics,generatedAtTime);
+ const passport=buildEvidencePassport({id:"daily-decisions:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:safeEvidence,metrics:safeMetrics});
  const index=new Map<string,MetricSnapshot[]>();for(const m of passport.metrics){const rows=index.get(m.key)??[];rows.push(m);index.set(m.key,rows)}
  const candidates:DecisionCandidate[]=[],reasons:WithheldDecision[]=[],seen=new Set<string>();
  for(const candidate of input.rules){
