@@ -112,7 +112,7 @@ describe("ProductGrossMarginCard", () => {
 
   it("does not show totals for an empty source", () => {
     render(<ProductGrossMarginCard result={{ ok: true, snapshot: { ...snapshot, status: "EMPTY", invoiceCount: 0, invoiceLineCount: 0, productCount: 0, verifiedProductCount: 0, products: [], evidenceRecords: [] } }} state="ready" />);
-    expect(screen.getByText("لا توجد فواتير صادرة ضمن هذه الفترة")).toBeInTheDocument();
+    expect(screen.getByText(/لا توجد فواتير صادرة ضمن هذه الفترة/)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 });
