@@ -31,11 +31,23 @@ export interface LiquiditySnapshot {id:string;generatedAt:string;asOf:string;per
 interface MetricValue {value:number|null;minorUnits:bigint|null;status:EvidenceStatus;warnings:string[]}
 const FORMULA_ID="liquidity.net-available";
 const FORMULA_VERSION="1.0.0";
-function metricValue(metric:MetricSnapshot|null|undefined,index:Map<string,MetricSnapshot>,currency:string,asOf:string,period:EvidencePeriod,allowNegative=false):MetricValue {
+function strictTimestamp(value:unknown):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value))return null;
+ const day=value.slice(0,10);
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return null;
+ const dayTime=Date.parse(day+"T00:00:00.000Z");
+ if(!Number.isFinite(dayTime)||new Date(dayTime).toISOString().slice(0,10)!==day)return null;
+ const parsed=Date.parse(value);
+ return Number.isFinite(parsed)?parsed:null;
+}
+function metricValue(metric:MetricSnapshot|null|undefined,index:Map<string,MetricSnapshot>,currency:string,asOf:string,period:EvidencePeriod,generatedAtMs:number,allowNegative=false):MetricValue {
  if(!metric)return {value:null,minorUnits:null,status:"UNAVAILABLE",warnings:["METRIC_NOT_SUPPLIED"]};
  const verified=index.get(metric.id);
  if(!verified)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["METRIC_ID_AMBIGUOUS_OR_MISSING"]};
  if(verified.status!=="VERIFIED")return {value:null,minorUnits:null,status:verified.status,warnings:[...verified.warnings,"METRIC_NOT_VERIFIED"]};
+ const calculatedAtMs=strictTimestamp(verified.lineage.calculatedAt);
+ if(calculatedAtMs===null)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["METRIC_CALCULATION_TIMESTAMP_INVALID"]};
+ if(calculatedAtMs>generatedAtMs)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["METRIC_CALCULATED_AFTER_GENERATION"]};
  if(verified.unit!=="CURRENCY"||verified.currency!==currency)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["CURRENCY_OR_UNIT_MISMATCH"]};
  if(verified.asOf!==asOf)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["AS_OF_MISMATCH"]};
  if(!verified.period||verified.period.from!==period.from||verified.period.to!==period.to)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["PERIOD_MISMATCH"]};
@@ -84,7 +96,8 @@ function buildMetricEvidence(args:{
 }
 /** Computes reconciled liquidity independently by currency; this engine contains no FX conversion. */
 export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnapshot {
- if(!Number.isFinite(Date.parse(input.generatedAt))||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
+ const generatedAtMs=Date.parse(input.generatedAt);
+ if(!Number.isFinite(generatedAtMs)||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
  const all=input.currencies.flatMap(allMetricInputs);
  const passport=buildEvidencePassport({id:"liquidity:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:all});
  const idCounts=new Map<string,number>();for(const m of passport.metrics)idCounts.set(m.id,(idCounts.get(m.id)??0)+1);
@@ -94,19 +107,19 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
  const warnings:string[]=[];
  const positions=input.currencies.map(position=>{
   const duplicate=(currencyCounts.get(position.currency)??0)>1;
-  const available=metricValue(position.availableBalance,index,position.currency,input.asOf,input.period,true);
-  const collections=metricValue(position.expectedCollections,index,position.currency,input.asOf,input.period);
-  const obligations=metricValue(position.dueObligations,index,position.currency,input.asOf,input.period);
+  const available=metricValue(position.availableBalance,index,position.currency,input.asOf,input.period,generatedAtMs,true);
+  const collections=metricValue(position.expectedCollections,index,position.currency,input.asOf,input.period,generatedAtMs);
+  const obligations=metricValue(position.dueObligations,index,position.currency,input.asOf,input.period,generatedAtMs);
   const required=[available,collections,obligations],baseStatus=statusOf(required);
   const netMinorUnits=!duplicate&&baseStatus==="VERIFIED"&&available.minorUnits!==null&&collections.minorUnits!==null&&obligations.minorUnits!==null
    ?available.minorUnits+collections.minorUnits-obligations.minorUnits:null;
   const net=netMinorUnits===null?null:minorUnitsToNumber(netMinorUnits,6);
   const arithmeticUnsafe=netMinorUnits!==null&&net===null;
   const status:EvidenceStatus=arithmeticUnsafe?"NEEDS_REVIEW":duplicate&&baseStatus==="VERIFIED"?"NEEDS_REVIEW":baseStatus;
-  const overdue=metricValue(position.overdueReceivables,index,position.currency,input.asOf,input.period);
-  const stock=metricValue(position.stagnantStockCost,index,position.currency,input.asOf,input.period);
+  const overdue=metricValue(position.overdueReceivables,index,position.currency,input.asOf,input.period,generatedAtMs);
+  const stock=metricValue(position.stagnantStockCost,index,position.currency,input.asOf,input.period,generatedAtMs);
   const aging=(position.receivableAging??[]).map(item=>{
-   const value=metricValue(item.amount,index,position.currency,input.asOf,input.period);
+   const value=metricValue(item.amount,index,position.currency,input.asOf,input.period,generatedAtMs);
    return {bucket:item.bucket,amount:value.value,status:value.status,warnings:value.warnings};
   });
   const metricEvidence=[

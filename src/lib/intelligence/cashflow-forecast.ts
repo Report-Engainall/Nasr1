@@ -20,6 +20,13 @@ function parseDay(day:string):string|null {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return null;
  const d=new Date(day+"T00:00:00.000Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===day?day:null;
 }
+function strictTimestamp(value:unknown):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value))return null;
+ const day=parseDay(value.slice(0,10));
+ if(day===null)return null;
+ const parsed=Date.parse(value);
+ return Number.isFinite(parsed)?parsed:null;
+}
 function statusOf(status:EvidenceStatus,completeness:DataCompleteness,quality:DataQuality):EvidenceStatus {
  if(status==="UNVERIFIED"||quality==="INVALID")return "UNVERIFIED";
  if(status==="UNAVAILABLE")return "UNAVAILABLE";
@@ -49,8 +56,9 @@ function resolveCashflowPointStatus(
 
 /** Forecasts scheduled movements only; no probability, sales extrapolation or assumed collection rate. */
 export function buildCashflowForecast(input:BuildCashflowForecastInput):CashflowForecast {
- if(!Number.isFinite(Date.parse(input.generatedAt))||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
- const day=new Date(Date.parse(input.asOf)).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
+ const generatedAtMs=Date.parse(input.generatedAt),asOfMs=Date.parse(input.asOf);
+ if(!Number.isFinite(generatedAtMs)||!Number.isFinite(asOfMs))throw new Error("generatedAt and asOf must be valid timestamps");
+ const day=new Date(asOfMs).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
  const metrics=[...input.openingBalances,...input.entries.map(e=>e.amount)];
  const passport=buildEvidencePassport({id:"cashflow:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const duplicates=new Set<string>(),metricCounts=new Map<string,number>();
@@ -66,10 +74,12 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  }
  const validEntries=input.entries.map(entry=>{
   const metric=byId.get(entry.amount.id),dueDate=parseDay(entry.dueDate),amountMinor=metric?decimalToMinorUnits(metric.value,2):null;
-  const valid=Boolean(metric&&metric.status==="VERIFIED"&&metric.unit==="CURRENCY"&&metric.currency&&metric.asOf===input.asOf&&
+  const calculatedAtMs=metric?strictTimestamp(metric.lineage.calculatedAt):null;
+  const calculationClockValid=calculatedAtMs!==null&&calculatedAtMs<=generatedAtMs;
+  const valid=Boolean(metric&&calculationClockValid&&metric.status==="VERIFIED"&&metric.unit==="CURRENCY"&&metric.currency&&metric.asOf===input.asOf&&
     metric.completeness==="COMPLETE"&&metric.quality==="ACCEPTABLE"&&metric.lineage.evidenceIds.length&&
     amountMinor!==null&&amountMinor>=0n&&dueDate&&(entry.direction==="INFLOW"||entry.direction==="OUTFLOW")&&entry.id.trim());
-  return {entry,metric,dueDate,amountMinor,valid};
+  return {entry,metric,dueDate,amountMinor,calculationClockValid,valid};
  });
  const duplicateEntryIds=new Set<string>(),seen=new Set<string>();
  for(const entry of input.entries){if(seen.has(entry.id))duplicateEntryIds.add(entry.id);seen.add(entry.id)}
@@ -84,10 +94,12 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  ]);
  for(const currency of [...currencies].sort()){
   const opening=openingCurrencies.get(currency);
+  const openingCalculatedAtMs=opening?strictTimestamp(opening.lineage.calculatedAt):null;
+  const openingCalculationClockValid=openingCalculatedAtMs!==null&&openingCalculatedAtMs<=generatedAtMs;
   const openingMinor=opening?decimalToMinorUnits(opening.value,2,true):null;
   const openingValue=openingMinor===null?null:minorUnitsToNumber(openingMinor,2);
   const openingValid=Boolean(opening&&!duplicateOpening.has(currency)&&opening.status==="VERIFIED"&&opening.unit==="CURRENCY"&&opening.currency===currency&&
-   opening.asOf===input.asOf&&opening.completeness==="COMPLETE"&&opening.quality==="ACCEPTABLE"&&opening.lineage.evidenceIds.length>0&&openingMinor!==null&&openingValue!==null);
+   opening.asOf===input.asOf&&openingCalculationClockValid&&opening.completeness==="COMPLETE"&&opening.quality==="ACCEPTABLE"&&opening.lineage.evidenceIds.length>0&&openingMinor!==null&&openingValue!==null);
   const scoped=validEntries.filter(x=>(x.metric?.currency??x.entry.amount.currency)===currency);
   const badScoped=validEntries.some(x=>x.entry.amount.currency===currency&&!x.valid);
   const duplicateScoped=input.entries.some(e=>duplicateEntryIds.has(e.id)&&e.amount.currency===currency);
@@ -96,6 +108,8 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
   const complete=scheduleStatus==="VERIFIED"&&!badScoped&&!duplicateScoped&&dateCoverageValid&&!hasUnclassifiedCurrency;
   const baseWarnings=[
    ...(openingValid?[]:["OPENING_BALANCE_NOT_VERIFIED"]),
+   ...(opening&&!openingCalculationClockValid?["OPENING_BALANCE_CALCULATION_CLOCK_INVALID"]:[]),
+   ...(scoped.some(x=>x.metric&&!x.calculationClockValid)?["SCHEDULE_METRIC_CALCULATION_CLOCK_INVALID"]:[]),
    ...(scheduleStatus==="VERIFIED"?[]:["SCHEDULE_SOURCE_NOT_COMPLETE_OR_VERIFIED"]),
    ...(badScoped?["SCHEDULE_ENTRY_NOT_VERIFIED"]:[]),
    ...(duplicateScoped?["DUPLICATE_SCHEDULE_ENTRY_ID"]:[]),

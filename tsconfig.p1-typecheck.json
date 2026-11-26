@@ -171,6 +171,9 @@
     "src/components/InventoryBalanceAdjustmentPanel.test.tsx",
     "src/components/Storefront.tsx",
     "src/lib/storefront-product-structured-data.ts",
-    "src/lib/storefront-product-structured-data.test.ts"
+    "src/lib/storefront-product-structured-data.test.ts",
+    "src/lib/intelligence/cashflow-forecast.test.ts",
+    "src/lib/intelligence/liquidity.ts",
+    "src/lib/intelligence/liquidity.test.ts"
   ]
 }
