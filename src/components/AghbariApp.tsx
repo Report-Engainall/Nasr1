@@ -244,7 +244,7 @@ function AdminWorkspaceContent({
     case "offers":
       return <Offers onNotice={onNotice} />;
     case "suppliers":
-      return <Suppliers onNotice={onNotice} initialSearch={recordContext?.kind === "supplier" ? recordContext.title : undefined} />;
+      return <Suppliers onNotice={onNotice} initialSearch={recordContext?.kind === "supplier" ? recordContext.title : undefined} initialSupplierInvoiceId={recordContext?.kind === "supplier_invoice" ? recordContext.id : undefined} />;
     case "purchase-orders":
       return <PurchaseOrdersPage initialPurchaseOrderId={recordContext?.kind === "purchase_order" ? recordContext.id : undefined} />;
     case "devices":
@@ -254,8 +254,8 @@ function AdminWorkspaceContent({
     case "intelligence":
       return <IntelligenceWorkspace
         onOpenSupplierInvoice={(invoiceId) => {
-          keepSourceContext("supplier_invoice", invoiceId, "فاتورة مورد", "مرجع فاتورة مصدره مركز ذكاء الأعمال", "finance");
-          onNotice("تم فتح مساحة المالية مع الاحتفاظ بمرجع فاتورة المورد: " + invoiceId);
+          keepSourceContext("supplier_invoice", invoiceId, "فاتورة مورد", "مرجع فاتورة مصدره مركز ذكاء الأعمال", "suppliers");
+          onNotice("تم فتح سجل فواتير الموردين مع الاحتفاظ بمرجع الفاتورة: " + invoiceId);
         }}
         onOpenPurchaseOrder={(purchaseOrderId) => {
           keepSourceContext("purchase_order", purchaseOrderId, "أمر شراء", "مرجع أمر شراء من مركز ذكاء الأعمال", "purchase-orders");

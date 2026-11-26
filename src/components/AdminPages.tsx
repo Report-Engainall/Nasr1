@@ -1088,7 +1088,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   </AdminPage>;
 }
 
-export function Suppliers({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
+export function Suppliers({ onNotice, initialSearch, initialSupplierInvoiceId }: { onNotice: (m: string) => void; initialSearch?: string; initialSupplierInvoiceId?: string }) {
   const { data, loading, error, refetch } = useFetch(fetchSuppliers);
   const [modal, setModal] = useState(false);
   const [query, setQuery] = useState(initialSearch ?? '');
@@ -1148,7 +1148,7 @@ export function Suppliers({ onNotice, initialSearch }: { onNotice: (m: string) =
       </>
     }
     <Suspense fallback={<div role="status" style={{ marginBlock: 16, color: 'var(--muted-foreground, #64748b)' }}>جار تحميل المساحات المالية للموردين...</div>}>
-      <SupplierFinancialWorkspaceHub />
+      <SupplierFinancialWorkspaceHub initialSupplierInvoiceId={initialSupplierInvoiceId} />
     </Suspense>
     {modal && <SupplierModal onClose={() => setModal(false)} onSaved={() => { setModal(false); void refetch(); onNotice('تمت إضافة المورد'); }} />}
   </AdminPage>;

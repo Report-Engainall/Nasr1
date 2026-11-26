@@ -53,6 +53,12 @@ describe("supplier invoice page filters", () => {
     expect(filterSupplierInvoicePage([row], "الأَغْبَرِي")).toEqual([row]);
   });
 
+  it("matches a supplier invoice record by its UUID reference", () => {
+    const row = invoice({ id: "11111111-1111-4111-8111-111111111111" });
+
+    expect(filterSupplierInvoicePage([row], row.id)).toEqual([row]);
+  });
+
   it("matches multi-word queries across invoice number and purchase order fields", () => {
     const row = invoice({ supplierName: "مؤسسة الساحل", invoiceNumber: "SUP-045" });
 

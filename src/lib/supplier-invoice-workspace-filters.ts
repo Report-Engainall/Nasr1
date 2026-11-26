@@ -31,6 +31,7 @@ export function filterSupplierInvoicePage(
     if (terms.length === 0) return true;
 
     const searchable = normalizeSearchText([
+      invoice.id,
       invoice.invoiceNumber,
       invoice.supplierName,
       invoice.purchaseOrderNumber,

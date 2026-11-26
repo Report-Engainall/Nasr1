@@ -90,8 +90,9 @@ function eventLabel(action: string): string {
 }
 
 
-export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false }: {
+export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false, initialInvoiceId }: {
   mode: WorkspaceMode;
+  initialInvoiceId?: string;
   accounts?: AccountingLedgerAccount[];
   onRefresh?: () => Promise<void>;
   purchaseOrders?: readonly { items: readonly { id: string; quantity_ordered: number }[] }[];
@@ -417,7 +418,11 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     evidenceLinkRequestRef.current += 1;
     setEvidenceLinkBusy(null);
     setWorkspace(null);
-    setInvoiceQuery("");
+    const linkedInvoiceId = typeof initialInvoiceId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(initialInvoiceId.trim())
+      ? initialInvoiceId.trim()
+      : "";
+    setInvoiceQuery(linkedInvoiceId);
     setInvoiceStatusFilter("all");
     setOffset(0);
     setOrderOptions([]);
@@ -431,7 +436,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     submissionKey.current = null;
     accountingKey.current = null;
     void load(0, isCapture ? purchaseOrderId || null : null);
-  }, [canUseFinance, isCapture, purchaseOrderId, user?.id, user?.profileId, sessionRevision]);
+  }, [canUseFinance, isCapture, purchaseOrderId, initialInvoiceId, user?.id, user?.profileId, sessionRevision]);
 
   useEffect(() => {
     let active = true;

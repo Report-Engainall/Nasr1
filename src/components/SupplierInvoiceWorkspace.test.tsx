@@ -125,6 +125,23 @@ describe("supplier invoice workspace register controls", () => {
     await waitFor(() => expect(mocks.fetchWorkspace).toHaveBeenCalledTimes(1));
   }
 
+  it("opens a linked supplier invoice by its UUID within the loaded server page", async () => {
+    const invoiceId = invoices[1].id;
+    render(createElement(SupplierInvoiceWorkspace, {
+      mode: "capture",
+      accounts: [],
+      purchaseOrders: [],
+      initialInvoiceId: invoiceId,
+    }));
+
+    const linkedInvoice = await screen.findByRole("button", { name: /INV-002/ });
+    await waitFor(() => {
+      expect(screen.getByRole("searchbox", { name: "بحث فواتير المورد" })).toHaveValue(invoiceId);
+      expect(linkedInvoice).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(screen.queryByRole("button", { name: /INV-001/ })).not.toBeInTheDocument();
+  });
+
   it("searches supplier and invoice fields with Arabic normalization without another server request", async () => {
     await mountWorkspace();
 
