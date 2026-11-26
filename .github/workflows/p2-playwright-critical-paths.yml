@@ -10,6 +10,7 @@ on:
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
       - "scripts/test-customer-order-amendment-replay.mjs"
+      - "scripts/test-customer-asset-replacement.mjs"
       - "scripts/test-authorization-capability-registry.mjs"
       - "scripts/test-product-image-storage.ts"
       - "scripts/prepare-p2-local-storage-migrations.mjs"
@@ -613,6 +614,8 @@ jobs:
         run: node scripts/test-claim-evidence-drilldown.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
         run: node scripts/test-customer-order-amendment-replay.mjs
+      - name: Test atomic customer asset replacement, SHA-256 idempotency, concurrency and tenant isolation on PostgreSQL 17
+        run: node scripts/test-customer-asset-replacement.mjs
       - name: Test server authorization capability registry and six-role legacy parity
         run: node scripts/test-authorization-capability-registry.mjs
       - name: Test immutable decision snapshot, append-only event, idempotency and legacy RPC denial on PostgreSQL 17
