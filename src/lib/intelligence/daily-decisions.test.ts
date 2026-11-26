@@ -201,5 +201,20 @@ describe("daily decision engine",()=>{
   expect(result.withheld[0].reason).toBe("UNIT_MISMATCH");
  });
 
+ it("withholds an impact formula when distinct metric keys alias the same source metric identifier",()=>{
+  const sharedOne=metric({id:"shared-source",key:"source.one",value:3,lineage:{...metric().lineage,evidenceIds:["ev-1"]}});
+  const sharedTwo=metric({id:"shared-source",key:"source.two",value:3,lineage:{...metric().lineage,evidenceIds:["ev-1"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),sharedOne,sharedTwo],
+   rules:[rule({impactFormula:{
+    id:"aliased-source-sum",version:"1",operation:"SUM",metricKeys:["source.one","source.two"],resultUnit:"COUNT",
+   }})],
+  }));
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactStatus).toBe("WITHHELD");
+  expect(result.candidates[0].impactReason).toBe("IMPACT_SOURCE_DUPLICATED");
+ });
+
  });
 });

@@ -72,6 +72,8 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  for(const key of formula.metricKeys){const rows=index.get(key)??[];if(rows.length!==1)return {impact:null,status:"WITHHELD",reason:"IMPACT_SOURCE_MISSING"};
   const m=rows[0];if(m.status!=="VERIFIED"||m.completeness!=="COMPLETE"||m.quality!=="ACCEPTABLE"||m.value===null||!m.lineage.evidenceIds.length)
    return {impact:null,status:"WITHHELD",reason:"IMPACT_NOT_VERIFIED"};sources.push(m)}
+ if(new Set(sources.map(source=>source.id)).size!==sources.length)
+  return {impact:null,status:"WITHHELD",reason:"IMPACT_SOURCE_DUPLICATED"};
  const samePeriod=(a:EvidencePeriod|null,b:EvidencePeriod|null)=>a===null||b===null?a===b:a.from===b.from&&a.to===b.to;
  if(sources.some(m=>m.asOf!==anchor.asOf||!samePeriod(m.period,anchor.period)))return {impact:null,status:"WITHHELD",reason:"IMPACT_SCOPE_MISMATCH"};
  const values=sources.map(m=>numeric(m.value));if(values.some(v=>v===null))return {impact:null,status:"WITHHELD",reason:"IMPACT_NOT_VERIFIED"};
