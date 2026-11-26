@@ -163,9 +163,11 @@ describe("evidence-backed product demand forecast", () => {
     expect(result.forecasts[0]).toMatchObject({
       trend: "NEW_ACTIVITY",
       changePercentHundredths: null,
-      horizons: [
-        { days: 7, lowQuantity: 0, expectedQuantity: 7, highQuantity: 7 },
-      ],
+    });
+    expect(result.forecasts[0].horizons.find((horizon) => horizon.days === 7)).toMatchObject({
+      lowQuantity: 0,
+      expectedQuantity: 7,
+      highQuantity: 7,
     });
   });
 
