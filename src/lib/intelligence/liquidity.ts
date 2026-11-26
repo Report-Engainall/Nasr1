@@ -148,7 +148,7 @@ function readForecastAmount(metric:MetricSnapshot|undefined,index:Map<string,Met
   return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["FORECAST_AMOUNT_AS_OF_MISMATCH"]};
  if(source.unit!=="CURRENCY"||source.currency!==currency)
   return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["FORECAST_AMOUNT_CURRENCY_MISMATCH"]};
- if(source.period&&(source.period.from!==period.from||source.period.to!==period.to))
+ if(!source.period||source.period.from!==period.from||source.period.to!==period.to)
   return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["FORECAST_AMOUNT_PERIOD_MISMATCH"]};
  const minorUnits=decimalToMinorUnits(source.value,6);
  const value=minorUnits===null?null:minorUnitsToNumber(minorUnits,6);
@@ -189,11 +189,15 @@ function buildCurrencyForecast(args:{
  const recordsById=new Map<string,EvidenceRecord[]>();
  for(const record of evidenceRecords){const list=recordsById.get(record.id)??[];list.push(record);recordsById.set(record.id,list);}
  const coverageRecords=coverage.evidenceIds.map(id=>recordsById.get(id)??[]);
+ const coveragePeriodMismatch=coverageRecords.some(matches=>matches.length===1&&
+  (!matches[0].period||matches[0].period.from!==period.from||matches[0].period.to!==period.to));
  const coverageEvidenceValid=coverageRecords.every(matches=>matches.length===1&&
   matches[0].status==="VERIFIED"&&matches[0].completeness==="COMPLETE"&&matches[0].quality==="ACCEPTABLE"&&
   matches[0].asOf===asOf&&forecastTimestamp(matches[0].sourceTimestamp)!==null&&
-  Date.parse(matches[0].sourceTimestamp)<=Date.parse(asOf)&&matches[0].currency===currency);
- if(!coverageEvidenceValid)return empty("UNVERIFIED","FORECAST_COVERAGE_EVIDENCE_INVALID");
+  Date.parse(matches[0].sourceTimestamp)<=Date.parse(asOf)&&matches[0].currency===currency&&
+  matches[0].period!==null&&matches[0].period.from===period.from&&matches[0].period.to===period.to);
+ if(!coverageEvidenceValid)return empty(coveragePeriodMismatch?"NEEDS_REVIEW":"UNVERIFIED",
+  coveragePeriodMismatch?"FORECAST_COVERAGE_PERIOD_MISMATCH":"FORECAST_COVERAGE_EVIDENCE_INVALID");
  const flowIdCounts=new Map<string,number>();
  for(const flow of flows){const id=typeof flow?.id==="string"?flow.id.trim():"";if(id)flowIdCounts.set(id,(flowIdCounts.get(id)??0)+1);}
  const duplicateFlowIds=[...flowIdCounts.values()].some(count=>count>1);
