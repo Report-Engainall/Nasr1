@@ -193,3 +193,80 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
  candidates.sort((a,b)=>b.priorityScore-a.priorityScore||a.ruleId.localeCompare(b.ruleId)||a.id.localeCompare(b.id));
  return {generatedAt:input.generatedAt,asOf:input.asOf,modelMode:"RULE_BASED",candidates,withheld:reasons};
 }
+
+export interface DailyDecisionHighlightSelection {
+  candidates: DecisionCandidate[];
+  totalCandidates: number;
+  omittedCount: number;
+  limit: number;
+}
+
+function comparableCurrencyImpact(candidate: DecisionCandidate): { currency: string; magnitude: bigint } | null {
+  if (
+    candidate.impactStatus !== "CALCULATED" ||
+    candidate.impact?.unit !== "CURRENCY" ||
+    typeof candidate.impact.currency !== "string" ||
+    !/^[A-Z]{3}$/.test(candidate.impact.currency)
+  ) return null;
+  const amount = decimalToMinorUnits(candidate.impact.value, 6, true);
+  if (amount === null) return null;
+  return { currency: candidate.impact.currency, magnitude: amount < 0n ? -amount : amount };
+}
+
+/**
+ * Selects the daily action shortlist without treating unlike currencies as comparable.
+ * Priority is always dominant; verified currency impact only orders candidates inside
+ * the same currency bucket. Currency buckets retain their stable first-seen order.
+ */
+export function selectTopDailyDecisions(
+  candidates: readonly DecisionCandidate[],
+  limit = 10,
+): DailyDecisionHighlightSelection {
+  if (!Number.isInteger(limit) || limit < 5 || limit > 10) {
+    throw new RangeError("Daily decision highlight limit must be an integer from 5 through 10.");
+  }
+
+  const stable = [...candidates].sort((a, b) =>
+    b.priorityScore - a.priorityScore ||
+    a.ruleId.localeCompare(b.ruleId) ||
+    a.id.localeCompare(b.id)
+  );
+  const priorityOrder = [...new Set(stable.map(candidate => candidate.priorityScore))]
+    .sort((a, b) => b - a);
+  const ranked: DecisionCandidate[] = [];
+
+  for (const priorityScore of priorityOrder) {
+    const buckets = new Map<string, { currency: string | null; rows: Array<{ candidate: DecisionCandidate; magnitude: bigint | null }> }>();
+    for (const candidate of stable) {
+      if (candidate.priorityScore !== priorityScore) continue;
+      const comparable = comparableCurrencyImpact(candidate);
+      const key = comparable ? "currency:" + comparable.currency : "unpriced";
+      const bucket = buckets.get(key) ?? { currency: comparable?.currency ?? null, rows: [] };
+      bucket.rows.push({ candidate, magnitude: comparable?.magnitude ?? null });
+      buckets.set(key, bucket);
+    }
+
+    for (const bucket of buckets.values()) {
+      if (bucket.currency !== null) {
+        bucket.rows.sort((a, b) => {
+          if (a.magnitude !== null && b.magnitude !== null && a.magnitude !== b.magnitude) {
+            return a.magnitude > b.magnitude ? -1 : 1;
+          }
+          if (a.magnitude !== null && b.magnitude === null) return -1;
+          if (a.magnitude === null && b.magnitude !== null) return 1;
+          return a.candidate.ruleId.localeCompare(b.candidate.ruleId) ||
+            a.candidate.id.localeCompare(b.candidate.id);
+        });
+      }
+      ranked.push(...bucket.rows.map(row => row.candidate));
+    }
+  }
+
+  const selected = ranked.slice(0, limit);
+  return {
+    candidates: selected,
+    totalCandidates: ranked.length,
+    omittedCount: Math.max(0, ranked.length - selected.length),
+    limit,
+  };
+}
