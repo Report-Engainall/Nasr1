@@ -1357,6 +1357,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               onWishlist={() => toggleWishlist(selectedProduct.id)}
               onCompare={() => toggleCompare(selectedProduct.id)}
               onOpenRelated={openProduct}
+              onOpenRecommendation={(productId) => void navigate({ to: '/product/$id', params: { id: productId } })}
             />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
@@ -1759,6 +1760,7 @@ export function ProductDetail({
   onWishlist,
   onCompare,
   onOpenRelated,
+  onOpenRecommendation,
 }: {
   product: ProductWithInventory;
   isStaff: boolean;
@@ -1779,6 +1781,7 @@ export function ProductDetail({
   onWishlist: () => void;
   onCompare: () => void;
   onOpenRelated: (product: ProductWithInventory) => void;
+  onOpenRecommendation: (productId: string) => void;
 }) {
   const rawAvailableQuantity = product.inventory?.quantity_available;
   const quantityKnown = typeof rawAvailableQuantity === 'number' &&
