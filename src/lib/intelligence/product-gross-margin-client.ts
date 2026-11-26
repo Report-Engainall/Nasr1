@@ -191,7 +191,9 @@ function parseProduct(value: unknown): ProductGrossMarginRow | null {
 
   if (status === "VERIFIED") {
     if (raw.currency !== "YER" || raw.currencyCount !== 1 || raw.hasReturns ||
-        !raw.unitOfMeasure || raw.unitVariantCount !== 1 ||
+        raw.unitVariantCount < 1 ||
+        (raw.unitVariantCount === 1 && !raw.unitOfMeasure) ||
+        (raw.unitVariantCount > 1 && raw.unitOfMeasure !== null) ||
         expectedShippedQuantity !== actualShippedQuantity ||
         expectedShippedQuantity !== invoicedQuantity ||
         raw.saleMovementCount < 1 || raw.uncostedMovementCount !== 0 ||
