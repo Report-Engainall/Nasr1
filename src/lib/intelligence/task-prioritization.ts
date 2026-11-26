@@ -14,8 +14,24 @@ const PRIORITY_WEIGHT: Record<string, number> = {
   low: 1,
 };
 
+function parseTaskInstant(value: unknown): number | null {
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
+    return null;
+  }
+  const day = value.slice(0, 10);
+  const dayTime = Date.parse(day + "T00:00:00.000Z");
+  if (!Number.isFinite(dayTime) || new Date(dayTime).toISOString().slice(0, 10) !== day) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function isValidEvaluationTime(value: number): boolean {
+  return Number.isSafeInteger(value) && Number.isFinite(new Date(value).getTime());
+}
+
 function urgencyFor(dueAt: string | null, now: number): { band: number; reason: string; dueTime: number } {
-  const dueTime = dueAt ? Date.parse(dueAt) : Number.NaN;
+  const dueTime = dueAt ? parseTaskInstant(dueAt) ?? Number.NaN : Number.NaN;
   if (!Number.isFinite(dueTime)) {
     return { band: 0, reason: "لا يوجد موعد استحقاق صالح مثبت في المصدر", dueTime: Number.POSITIVE_INFINITY };
   }
@@ -45,7 +61,8 @@ export function prioritizeOperationalTasks(
   now = Date.now(),
   limit = 5,
 ): OperationalTaskAttentionItem[] {
-  const safeNow = Number.isFinite(now) ? now : Date.now();
+  if (!isValidEvaluationTime(now)) return [];
+  const safeNow = now;
   const safeLimit = Number.isInteger(limit) ? Math.min(7, Math.max(3, limit)) : 5;
 
   return tasks
@@ -54,7 +71,7 @@ export function prioritizeOperationalTasks(
       const urgency = urgencyFor(task.due_at, safeNow);
       const priority = PRIORITY_WEIGHT[task.priority] ?? 0;
       const activeWork = task.status === "in_progress" ? 1 : 0;
-      const createdAt = Date.parse(task.created_at);
+      const createdAt = parseTaskInstant(task.created_at) ?? Number.NaN;
       const order = urgency.band * 100 + priority * 10 + activeWork;
       const priorityReason = task.priority === "critical"
         ? "أولوية حرجة"
@@ -102,8 +119,8 @@ export function suggestOperationalTaskAssignee(
   eligibleAssignees: readonly OperationalTaskAssignee[],
   now = Date.now(),
 ): OperationalTaskAssigneeSuggestion | null {
-  if (eligibleAssignees.length === 0) return null;
-  const safeNow = Number.isFinite(now) ? now : Date.now();
+  if (eligibleAssignees.length === 0 || !isValidEvaluationTime(now)) return null;
+  const safeNow = now;
   const priorityExtra: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
 
   const ranked = eligibleAssignees.map((assignee) => {
@@ -112,13 +129,13 @@ export function suggestOperationalTaskAssignee(
       (task.status === "pending" || task.status === "in_progress"),
     );
     const overdueTaskCount = openTasks.filter((task) => {
-      const due = task.due_at ? Date.parse(task.due_at) : Number.NaN;
-      return Number.isFinite(due) && due < safeNow;
+      const due = task.due_at ? parseTaskInstant(task.due_at) : null;
+      return due !== null && due < safeNow;
     }).length;
     const weightedLoad = openTasks.reduce((total, task) => {
       const base = 1 + (priorityExtra[task.priority] ?? 0);
-      const due = task.due_at ? Date.parse(task.due_at) : Number.NaN;
-      return total + base + (Number.isFinite(due) && due < safeNow ? 2 : 0);
+      const due = task.due_at ? parseTaskInstant(task.due_at) : null;
+      return total + base + (due !== null && due < safeNow ? 2 : 0);
     }, 0);
     return { assignee, openTaskCount: openTasks.length, overdueTaskCount, weightedLoad };
   });
