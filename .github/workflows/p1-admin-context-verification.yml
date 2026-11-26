@@ -384,6 +384,8 @@ on:
       - "src/lib/intelligence/liquidity.test.ts"
       - "src/lib/intelligence/replenishment.ts"
       - "src/lib/intelligence/replenishment.test.ts"
+      - "src/lib/intelligence/supplier-performance.ts"
+      - "src/lib/intelligence/supplier-performance.test.ts"
   pull_request:
     branches:
       - main
