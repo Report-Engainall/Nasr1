@@ -1,0 +1,55 @@
+name: Onyx inventory source-date guard — PostgreSQL 17
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql"
+      - "supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql"
+      - ".github/workflows/onyx-inventory-asof-postgres17.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql"
+      - "supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql"
+      - ".github/workflows/onyx-inventory-asof-postgres17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onyx-inventory-asof-postgres17-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  postgres17-source-date-acceptance:
+    name: PostgreSQL 17 Onyx source as-of-date freshness and replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Apply existing reconciliation contract and prove source-date guard
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
+            --file supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql

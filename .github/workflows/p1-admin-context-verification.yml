@@ -409,6 +409,18 @@ on:
       - "scripts/test-finance-bank-match-retry.mjs"
       - "scripts/test-finance-opening-balance-retry.mjs"
       - "e2e/finance-reconciliation-retry-storage.spec.ts"
+      - "src/components/OnyxProExchangeWorkspace.tsx"
+      - "src/components/OnyxSnapshotCenter.tsx"
+      - "src/lib/onyx-product-unit-import.ts"
+      - "src/lib/onyx-product-unit-import.test.ts"
+      - "src/lib/onyx-snapshot-acceptance.ts"
+      - "src/lib/onyx-snapshot-acceptance.test.ts"
+      - "src/lib/onyx-stock-balance-import.ts"
+      - "src/lib/onyx-stock-balance-import.test.ts"
+      - "scripts/test-onyx-product-unit-import.mjs"
+      - "scripts/test-onyx-stock-balance-import-profile.mjs"
+      - ".github/workflows/onyx-product-unit-import-postgres.yml"
+      - ".github/workflows/onyx-stock-balance-profile-postgres.yml"
   pull_request:
     branches:
       - main
