@@ -81,12 +81,13 @@ describe("replenishment decision integration", () => {
 
   it("does not create candidates for NO_ACTION, WITHHELD or automatic-purchase recommendations", () => {
     const valid = recommendation();
+    const autoPurchaseAttempt = { ...valid, automaticPurchase: true } as unknown as ReplenishmentRecommendation;
     expect(buildReplenishmentDecisionCandidates({
       asOf, products: [product()],
       recommendations: [
         { ...valid, action: "NO_ACTION" },
         { ...valid, action: "WITHHELD" },
-        { ...valid, automaticPurchase: true },
+        autoPurchaseAttempt,
       ],
     })).toEqual([]);
   });
