@@ -99,7 +99,8 @@ export function buildReplenishmentDecisionCandidates(input: {
     const priority = urgent ? "P1" as const : "P2" as const;
     const priorityScore = urgent ? 300 : 200;
     const evidenceIds = unique(recommendation.evidenceIds);
-    if (!evidenceIds.length) continue;
+    const sourceEvidenceIds = new Set(unique(metrics.flatMap(metric => metric.lineage.evidenceIds)));
+    if (!evidenceIds.length || evidenceIds.some(id => !sourceEvidenceIds.has(id))) continue;
 
     const id = ("inventory.replenishment:" + productRef.slice(0, 90) + ":" + input.asOf.slice(0, 10)).slice(0, 150);
     const formulaVersions = unique([
