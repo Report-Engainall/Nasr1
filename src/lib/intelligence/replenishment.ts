@@ -101,7 +101,7 @@ export function buildReplenishmentRecommendations(input:{
  const asOfMs=isoInstant(input.asOf);
  if(asOfMs===null)throw new Error("asOf must be valid");
  const periodDays=dayCount(input.period),periodEnd=isoDay(input.period.to);
- if(periodDays<1||periodEnd===null||periodEnd+86400000>asOfMs)
+ if(periodDays<1||periodEnd===null||periodEnd>asOfMs)
   throw new Error("invalid or incomplete period");
  const metrics=input.products.flatMap(p=>[p.availableToPromise,p.reorderPoint,p.soldQuantityWindow,p.supplierLeadTimeDays,p.incomingPurchaseQuantity,...(p.minimumOrderQuantity?[p.minimumOrderQuantity]:[]),...(p.orderMultiple?[p.orderMultiple]:[])]);
  const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
