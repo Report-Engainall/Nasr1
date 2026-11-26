@@ -17,10 +17,34 @@ function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
  if(numerator<=0n)return 0n;
  return (numerator+denominator-1n)/denominator;
 }
+function isoDay(value:string):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+ const time=Date.parse(value+"T00:00:00Z");
+ return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
+}
+function isoTimestamp(value:unknown):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.]\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
+ if(isoDay(value.slice(0,10))===null)return null;
+ const parsed=Date.parse(value);return Number.isFinite(parsed)?parsed:null;
+}
+function sanitizeEvidence(records:EvidenceRecord[]):EvidenceRecord[] {
+ return records.map(record=>{
+  const warnings=[...record.warnings];
+  const badTimestamp=isoTimestamp(record.sourceTimestamp)===null||isoTimestamp(record.asOf)===null;
+  const badPeriod=record.period!==null&&
+   (isoDay(record.period.from)===null||isoDay(record.period.to)===null||record.period.from>record.period.to);
+  if(badTimestamp||badPeriod){
+   warnings.push(...(badTimestamp?["INVALID_EVIDENCE_TIMESTAMP"]:[]),...(badPeriod?["INVALID_EVIDENCE_PERIOD"]:[]));
+   return {...record,status:"NEEDS_REVIEW" as const,warnings:[...new Set(warnings)]};
+  }
+  return record;
+ });
+}
 function dayCount(period:EvidencePeriod):number {
- const from=Date.parse(period.from+"T00:00:00Z"),to=Date.parse(period.to+"T00:00:00Z");
- if(!Number.isFinite(from)||!Number.isFinite(to)||to<from)return 0;
- return Math.floor((to-from)/86400000)+1;
+ const from=isoDay(period.from),to=isoDay(period.to);
+ if(from===null||to===null||to<from)return 0;
+ const days=Math.floor((to-from)/86400000)+1;
+ return Number.isSafeInteger(days)&&days>0?days:0;
 }
 
 type ReplenishmentMetricRead = { value: number | null; minorUnits: bigint | null; status: EvidenceStatus; metric: MetricSnapshot | null };
@@ -38,11 +62,18 @@ function readReplenishmentMetric(args: {
   const { metric, unit, expectedQuantityUnit, asOf, period, soldQuantityMetricId, index, warnings } = args;
   const source = index.get(metric.id);
   if (!source) return { value: null, minorUnits: null, status: "UNVERIFIED", metric: null };
+  const sourceAsOfTime=isoTimestamp(source.asOf);
+  const calculatedAtTime=isoTimestamp(source.lineage.calculatedAt);
+  const expectedAsOfTime=isoTimestamp(asOf);
   if (
     source.status !== "VERIFIED" ||
     source.completeness !== "COMPLETE" ||
     source.quality !== "ACCEPTABLE" ||
     source.asOf !== asOf ||
+    sourceAsOfTime === null ||
+    calculatedAtTime === null ||
+    expectedAsOfTime === null ||
+    calculatedAtTime > expectedAsOfTime ||
     source.unit !== unit ||
     !source.lineage.evidenceIds.length
   ) {
@@ -85,14 +116,26 @@ function readReplenishmentMetric(args: {
 export function buildReplenishmentRecommendations(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:ReplenishmentProductInput[];
 }):{id:string;asOf:string;period:EvidencePeriod;recommendations:ReplenishmentRecommendation[]} {
- if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be valid");
+ if(isoTimestamp(input.asOf)===null)throw new Error("asOf must be a valid ISO timestamp");
  const periodDays=dayCount(input.period);if(periodDays<1)throw new Error("invalid period");
  const metrics=input.products.flatMap(p=>[p.availableToPromise,p.reorderPoint,p.soldQuantityWindow,p.supplierLeadTimeDays,p.incomingPurchaseQuantity,...(p.minimumOrderQuantity?[p.minimumOrderQuantity]:[]),...(p.orderMultiple?[p.orderMultiple]:[])]);
- const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
+ const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:sanitizeEvidence(input.evidenceRecords),metrics});
  const counts=new Map<string,number>();for(const m of passport.metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(counts.get(m.id)===1)index.set(m.id,m);
+ const productRefCounts=new Map<string,number>();
+ for(const product of input.products){
+  const ref=typeof product.productRef==="string"?product.productRef.trim():"";
+  if(ref)productRefCounts.set(ref,(productRefCounts.get(ref)??0)+1);
+ }
  const recommendations:ReplenishmentRecommendation[]=input.products.map((product):ReplenishmentRecommendation=>{
-  const warnings:string[]=[],expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.incomingPurchaseQuantity.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
+  const productRef=typeof product.productRef==="string"?product.productRef.trim():"";
+  const invalidRef=!productRef,duplicateRef=!invalidRef&&(productRefCounts.get(productRef)??0)>1;
+  const warnings:string[]=invalidRef?["PRODUCT_REFERENCE_MISSING"]:duplicateRef?["DUPLICATE_PRODUCT_REFERENCE"]:[];
+  if(invalidRef||duplicateRef)return {
+   productRef,status:"UNVERIFIED",action:"WITHHELD",quantityUnit:null,availableToPromise:null,incomingPurchaseQuantity:null,coveredAfterIncoming:null,reorderPoint:null,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds:[],warnings,automaticPurchase:false,
+  };
+  const expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.incomingPurchaseQuantity.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
   const read = (metric: MetricSnapshot, unit: string) => readReplenishmentMetric({
     metric,
     unit,
