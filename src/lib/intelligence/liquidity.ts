@@ -154,7 +154,8 @@ function buildCurrencyForecast(args:{
  if(!forecast)return empty("UNAVAILABLE","FORECAST_COVERAGE_NOT_SUPPLIED");
  if(!/^[A-Z]{3}$/.test(currency))return empty("NEEDS_REVIEW","FORECAST_CURRENCY_INVALID");
  if(asOfDay===null||forecastTimestamp(asOf)===null)return empty("NEEDS_REVIEW","FORECAST_AS_OF_INVALID");
- const flows=Array.isArray(forecast.flows)?forecast.flows:[];
+ if(!Array.isArray(forecast.flows))return empty("NEEDS_REVIEW","FORECAST_FLOW_POPULATION_INVALID");
+ const flows=forecast.flows;
  const coverage=forecast.coverage;
  if(!coverage||coverage.status!=="VERIFIED"||coverage.completeness!=="COMPLETE"||coverage.quality!=="ACCEPTABLE"||
    !Number.isSafeInteger(coverage.expectedFlowCount)||coverage.expectedFlowCount<0||
