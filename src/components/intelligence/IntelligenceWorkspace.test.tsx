@@ -399,7 +399,7 @@ describe("production intelligence workspace inventory screens", () => {
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
       candidateId: expect.stringMatching(/^inventory\.replenishment:SKU-1:/),
       ruleId: "inventory.replenishment.review",
-      ruleVersion: "1.1.1",
+      ruleVersion: "1.0.0",
       ownerProfileId: "admin-profile",
       candidateSnapshot: expect.objectContaining({
         priority: "P2",
