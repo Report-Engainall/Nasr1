@@ -108,7 +108,7 @@ describe("public catalog privacy and tenant query contract", () => {
 
     const products = queryFor("products");
     expect(products.columns).toBe(
-      "id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple",
+      "id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,updated_at,min_order_quantity,order_quantity_multiple",
     );
     expect(products.columns).not.toMatch(/organization_id|warehouse_id|quantity_on_hand/i);
     expect(products.columns).not.toMatch(/base_price|cost_price|retail_price|wholesale_price|purchase_cost/i);

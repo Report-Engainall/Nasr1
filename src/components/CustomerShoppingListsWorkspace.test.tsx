@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -190,7 +190,7 @@ describe("customer shopping list catalog server pagination", () => {
     fireEvent.change(screen.getByPlaceholderText("ابحث بالاسم أو رمز الصنف أو SKU أو الباركود"), {
       target: { value: "SKU-404" },
     });
-    expect(await screen.findByText("صنف اختبار 404")).toBeInTheDocument();
+    expect(await within(screen.getByRole("table")).findByText("صنف اختبار 404")).toBeInTheDocument();
   });
 
 });
