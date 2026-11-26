@@ -20,12 +20,12 @@ function sameEvent(a:DecisionOutcomeEventRecord,b:DecisionOutcomeEvent):boolean 
   JSON.stringify(a.measuredOutcome??null)===JSON.stringify(b.measuredOutcome??null);
 }
 function isoDay(value:unknown):value is string {
- if(typeof value!=="string"||!/^\\d{4}-\\d{2}-\\d{2}$/.test(value))return false;
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
  const parsed=Date.parse(value+"T00:00:00.000Z");
  return Number.isFinite(parsed)&&new Date(parsed).toISOString().slice(0,10)===value;
 }
 function timestamp(value:unknown):number|null {
- if(typeof value!=="string"||!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(value))return null;
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
  if(!isoDay(value.slice(0,10)))return null;
  const parsed=Date.parse(value);
  return Number.isFinite(parsed)?parsed:null;
