@@ -5,6 +5,7 @@ import { fetchCashReconciliationWorkspace } from "@/lib/finance-cash-account-rec
 import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
+import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/replenishment-decisions";
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
@@ -1183,6 +1184,45 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     });
   }, [inventoryData, deadStockReport]);
 
+  const replenishmentReport = useMemo(() => {
+    if (!inventoryData) return null;
+    return buildReplenishmentRecommendations({
+      id: "replenishment:" + inventoryData.asOf,
+      asOf: inventoryData.asOf,
+      period: inventoryData.period,
+      evidenceRecords: inventoryData.evidenceRecords,
+      products: inventoryData.replenishmentProducts,
+    });
+  }, [inventoryData]);
+  const replenishmentDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
+    if (!inventoryData || !replenishmentReport) return [];
+    const candidates = buildReplenishmentDecisionCandidates({
+      asOf: inventoryData.asOf,
+      products: inventoryData.replenishmentProducts,
+      recommendations: replenishmentReport.recommendations,
+    });
+    return candidates.flatMap((decision) => {
+      const source = inventoryData.replenishmentProducts.find((product) =>
+        decision.id.startsWith("inventory.replenishment:" + product.productRef.slice(0, 90) + ":"),
+      );
+      if (!source) return [];
+      return [{
+        decision,
+        proof: null,
+        candidateId: decision.id,
+        metricIds: [
+          source.availableToPromise.id,
+          source.reorderPoint.id,
+          source.soldQuantityWindow.id,
+          source.supplierLeadTimeDays.id,
+          source.incomingPurchaseQuantity.id,
+          ...(source.minimumOrderQuantity ? [source.minimumOrderQuantity.id] : []),
+          ...(source.orderMultiple ? [source.orderMultiple.id] : []),
+        ],
+      }];
+    });
+  }, [inventoryData, replenishmentReport]);
+
   const claimEvidencePassports = useMemo(() => {
     if (!claimEvidenceSourcePassport) return [];
     const observations = claimEvidenceSourcePassport.metrics.map((metric) => ({
@@ -1194,7 +1234,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       metricIds: [metric.id],
       boundaries: metric.warnings,
     }));
-    const actions = [...evidenceBackedActions, ...stockDecisionActions];
+    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions];
     const drivers = actions.flatMap(({ decision, metricIds }) => {
       const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
       return linkedMetricIds.length ? [{
@@ -1219,26 +1259,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
     }] : [];
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
-  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
 
-  const dailyDecisionActions = useMemo(() => [...evidenceBackedActions, ...stockDecisionActions]
-    .sort((left,right) => right.decision.priorityScore-left.decision.priorityScore ||
-      (left.decision.impact && right.decision.impact &&
-       left.decision.impact.currency===right.decision.impact.currency
-        ? Math.abs(right.decision.impact.value)-Math.abs(left.decision.impact.value) : 0) ||
-      left.candidateId.localeCompare(right.candidateId)).slice(0,10),
-  [evidenceBackedActions, stockDecisionActions]);
-
-  const replenishmentReport = useMemo(() => {
-    if (!inventoryData) return null;
-    return buildReplenishmentRecommendations({
-      id: "replenishment:" + inventoryData.asOf,
-      asOf: inventoryData.asOf,
-      period: inventoryData.period,
-      evidenceRecords: inventoryData.evidenceRecords,
-      products: inventoryData.replenishmentProducts,
-    });
-  }, [inventoryData]);
+  const dailyDecisionActions = useMemo(() =>
+    [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions]
+      .sort((left,right) => right.decision.priorityScore-left.decision.priorityScore ||
+        (left.decision.impact && right.decision.impact &&
+         left.decision.impact.currency===right.decision.impact.currency
+          ? Math.abs(right.decision.impact.value)-Math.abs(left.decision.impact.value) : 0) ||
+        left.candidateId.localeCompare(right.candidateId)).slice(0,10),
+  [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -1386,7 +1416,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   };
 
   const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string) => {
-    if (!data || !user?.profileId || outcomeBusyId !== null) return;
+    if (!user?.profileId || outcomeBusyId !== null) return;
     setOutcomeBusyId("candidate:" + candidateId.slice(0,60));
     setOutcomeMessage(null);
     const candidateSnapshot = {

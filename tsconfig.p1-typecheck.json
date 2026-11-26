@@ -132,6 +132,8 @@
     "src/lib/intelligence/natural-language-assistant.ts",
     "src/lib/intelligence/product-performance-growth-client.test.ts",
     "src/lib/intelligence/product-performance-growth-client.ts",
+    "src/lib/intelligence/replenishment-decisions.test.ts",
+    "src/lib/intelligence/replenishment-decisions.ts",
     "src/lib/intelligence/replenishment.test.ts",
     "src/lib/intelligence/replenishment.ts",
     "src/lib/intelligence/supplier-payable-concentration-trend.test.ts",
