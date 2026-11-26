@@ -171,6 +171,8 @@
     "src/components/InventoryBalanceAdjustmentPanel.test.tsx",
     "src/components/Storefront.tsx",
     "src/lib/storefront-product-structured-data.ts",
-    "src/lib/storefront-product-structured-data.test.ts"
+    "src/lib/storefront-product-structured-data.test.ts",
+    "src/lib/intelligence/replenishment.ts",
+    "src/lib/intelligence/replenishment.test.ts"
   ]
 }

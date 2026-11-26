@@ -261,3 +261,61 @@ describe("replenishment recommendation engine", () => {
     });
   });
 });
+
+
+describe("replenishment snapshot calculation clock", () => {
+  it("withholds a recommendation when a required metric was calculated after the snapshot", () => {
+    const item = product("p-17");
+    item.availableToPromise = {
+      ...item.availableToPromise,
+      lineage: {
+        ...item.availableToPromise.lineage,
+        calculatedAt: "2026-11-26T00:00:00.001Z",
+      },
+    };
+
+    const result = build([item]);
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
+    expect(result.recommendations[0].warnings).toContain("METRIC_CALCULATED_AFTER_SNAPSHOT");
+  });
+
+  it("accepts a required metric calculated exactly at the snapshot boundary", () => {
+    const item = product("p-18");
+    item.availableToPromise = {
+      ...item.availableToPromise,
+      lineage: {
+        ...item.availableToPromise.lineage,
+        calculatedAt: asOf,
+      },
+    };
+
+    const result = build([item]);
+    expect(result.recommendations[0]).toMatchObject({
+      status: "VERIFIED",
+      action: "RECOMMEND",
+    });
+  });
+
+  it("withholds a recommendation when a metric calculation timestamp has no timezone", () => {
+    const item = product("p-19");
+    item.soldQuantityWindow = {
+      ...item.soldQuantityWindow,
+      lineage: {
+        ...item.soldQuantityWindow.lineage,
+        calculatedAt: "2026-11-26T00:00:00",
+      },
+    };
+
+    const result = build([item]);
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
+    expect(result.recommendations[0].warnings).toContain("METRIC_CALCULATION_TIMESTAMP_INVALID");
+  });
+});
