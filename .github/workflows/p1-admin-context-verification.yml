@@ -831,7 +831,6 @@ on:
     paths:
       - "src/components/intelligence/TaskQualityReviewCenter.tsx"
       - "src/components/intelligence/TaskQualityReviewCenter.test.tsx"
-      - "src/lib/onyx-pro-workbook.test.ts"
       - ".github/workflows/p1-admin-context-verification.yml"
   workflow_dispatch:
 
