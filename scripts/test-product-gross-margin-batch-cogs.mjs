@@ -38,7 +38,7 @@ const organizationId = "a0000000-0000-0000-0000-000000000001";
 const seedProductId = "a1000000-0000-0000-0000-000000000001";
 const supplierId = "a2000000-0000-0000-0000-000000000001";
 const warehouseId = "d0000000-0000-0000-0000-000000000001";
-const unitCost = "125.50";
+const unitCost = 125.50;
 const testSuffix = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
 const testProductId = randomUUID();
 const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
@@ -187,6 +187,11 @@ async function main() {
     [testProductId,"Gross margin acceptance "+testSuffix,"GM-"+testSuffix,"كرتون",organizationId,seedProductId],
   );
   assert.equal(productRows.length, 1, "isolated product fixture must be created in the test tenant");
+  await db.unsafe(
+    "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) " +
+    "values($1::uuid,'vip',38500,1,true),($1::uuid,'wholesale',38500,1,true),($1::uuid,'retail',38500,1,true)",
+    [testProductId],
+  );
 
   const receipt = await createReceipt(manager, testProductId);
   await setIdentity(manager);
