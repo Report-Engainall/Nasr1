@@ -35,7 +35,7 @@ function validMeasurement(m:DecisionMeasuredOutcome|undefined,eventAt:string):bo
  const monetary=m.unit==="CURRENCY"||m.unit==="CURRENCY_PER_UNIT";
  const asOf=timestamp(m.asOf),measuredAt=timestamp(m.measuredAt),eventTime=timestamp(eventAt);
  const periodValid=m.period===null||
-  (Boolean(m.period)&&isoDay(m.period.from)&&isoDay(m.period.to)&&m.period.from<=m.period.to);
+  (m.period!==undefined&&isoDay(m.period.from)&&isoDay(m.period.to)&&m.period.from<=m.period.to);
  const evidenceIds=Array.isArray(m.evidenceIds)?m.evidenceIds:[];
  const valueValid=typeof m.value==="number"&&Number.isFinite(m.value)&&Math.abs(m.value)<=Number.MAX_SAFE_INTEGER&&
   (m.unit!=="COUNT"||(Number.isSafeInteger(m.value)&&m.value>=0));
