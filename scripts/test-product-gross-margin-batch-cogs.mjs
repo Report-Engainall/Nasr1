@@ -129,8 +129,8 @@ async function createReceipt(manager, productId) {
     [organizationId, receivedAt.receipt.id],
   );
   assert.equal(receiptRows.length, 1);
-  assert.equal(receiptRows[0].unit_cost, unitCost);
-  assert.equal(receiptRows[0].order_unit_cost, unitCost);
+  assert.equal(cents(receiptRows[0].unit_cost), cents(unitCost));
+  assert.equal(cents(receiptRows[0].order_unit_cost), cents(unitCost));
   assert.equal(cents(receiptRows[0].line_total), cents(unitCost));
   assert.equal(cents(receiptRows[0].received_cost), cents(unitCost));
   assert.ok(receiptRows[0].unit_snapshot?.trim());
