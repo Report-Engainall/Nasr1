@@ -196,7 +196,8 @@ BEGIN
     JOIN public.warehouses w
       ON w.id=im.warehouse_id
      AND w.organization_id=v_org
-    WHERE im.reference_type='order'
+    WHERE im.organization_id=v_org
+      AND im.reference_type='order'
       AND im.movement_type='sale'
       AND im.quantity<0
       AND im.created_at<=v_as_of
