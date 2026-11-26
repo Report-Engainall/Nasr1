@@ -1,0 +1,53 @@
+name: Onyx StockBalances PostgreSQL 17 Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261117211000_onyx_stock_balance_import_profile.sql"
+      - "supabase/tests/onyx_stock_balance_profile_acceptance.sql"
+      - ".github/workflows/onyx-stock-balance-profile-postgres.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261117211000_onyx_stock_balance_import_profile.sql"
+      - "supabase/tests/onyx_stock_balance_profile_acceptance.sql"
+      - ".github/workflows/onyx-stock-balance-profile-postgres.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onyx-stock-balance-profile-postgres-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  postgres-stock-profile-acceptance:
+    name: PostgreSQL 17 stock profile and tenant isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Verify stock profile creation, replay, roles and tenant isolation
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/onyx_stock_balance_profile_acceptance.sql
