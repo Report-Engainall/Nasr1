@@ -108,6 +108,40 @@ type OnyxProStockBalanceSource = {
 
 type OnyxProWarehouseSource = { id: string; code: string | null };
 
+/** Resolve an all-warehouse or single active-warehouse export scope without trusting UI values. */
+export function resolveOnyxProExportWarehouses(
+  warehouses: readonly OnyxProWarehouseSource[],
+  selectedWarehouseId?: string | null,
+): Array<{ id: string; code: string }> {
+  if (!Array.isArray(warehouses)) {
+    throw new Error("تعذر تأكيد قائمة المستودعات قبل التصدير.");
+  }
+  const selectedId = optionalText(selectedWarehouseId);
+  const scoped = selectedId
+    ? warehouses.filter((warehouse) => warehouse?.id === selectedId)
+    : [...warehouses];
+  if (selectedId && scoped.length !== 1) {
+    throw new Error("المستودع المحدد غير نشط أو لا يتبع المؤسسة الحالية.");
+  }
+  if (scoped.length === 0) {
+    throw new Error("لا يوجد مستودع نشط يحتوي نطاق التصدير المحدد.");
+  }
+
+  const ids = new Set<string>();
+  const codes = new Set<string>();
+  return scoped.map((warehouse) => {
+    const id = requiredText(warehouse?.id, "معرّف المخزن");
+    const code = requiredText(warehouse?.code, "كود المخزن");
+    const normalizedCode = code.toLocaleUpperCase("en");
+    if (ids.has(id) || codes.has(normalizedCode)) {
+      throw new Error("تصدير أرصدة المخزون موقوف: يوجد معرّف أو كود مخزن مكرر.");
+    }
+    ids.add(id);
+    codes.add(normalizedCode);
+    return { id, code };
+  });
+}
+
 /**
  * A narrow Onyx stock-balance projection. Source IDs, warehouse IDs, prices,
  * costs, inventory values and account identifiers are deliberately omitted.
@@ -158,23 +192,13 @@ export function mapOnyxProStockBalanceRecord(
   };
 }
 
-async function fetchStockBalancesForExport(): Promise<OnyxProLiveRecord[]> {
+async function fetchStockBalancesForExport(selectedWarehouseId?: string | null): Promise<OnyxProLiveRecord[]> {
   const warehouses = await fetchActiveInventoryWarehouses();
   if (!Array.isArray(warehouses)) {
     throw new Error("تعذر تأكيد قائمة المستودعات قبل تصدير أرصدة المخزون.");
   }
 
-  const warehouseCodes = new Set<string>();
-  const preparedWarehouses = warehouses.map((warehouse) => {
-    const id = requiredText(warehouse?.id, "معرّف المخزن");
-    const code = requiredText(warehouse?.code, "كود المخزن");
-    const normalizedCode = code.toLocaleUpperCase("en");
-    if (warehouseCodes.has(normalizedCode)) {
-      throw new Error("تصدير أرصدة المخزون موقوف: يوجد كود مخزن مكرر.");
-    }
-    warehouseCodes.add(normalizedCode);
-    return { id, code };
-  });
+  const preparedWarehouses = resolveOnyxProExportWarehouses(warehouses, selectedWarehouseId);
 
   const records: OnyxProLiveRecord[] = [];
   const seenProductIds = new Set<string>();
@@ -304,8 +328,14 @@ async function fetchCustomersForExport(): Promise<OnyxProLiveRecord[]> {
 }
 
 /** Tenant- and role-scoped live export for the two Onyx datasets with complete source readers. */
+export type OnyxProLiveExportOptions = {
+  /** Empty means all active warehouses; a supplied ID is revalidated against the active tenant list. */
+  stockWarehouseId?: string | null;
+};
+
 export async function fetchOnyxProLiveExportRecords(
   datasetIds: readonly OnyxProLiveDatasetId[],
+  options: OnyxProLiveExportOptions = {},
 ): Promise<OnyxProLiveRows> {
   if (!Array.isArray(datasetIds) || datasetIds.length === 0) {
     throw new Error("اختر مجموعة واحدة على الأقل لتصدير السجلات الحية.");
@@ -332,7 +362,9 @@ export async function fetchOnyxProLiveExportRecords(
     tasks.push(fetchCustomersForExport().then((rows) => { result.customers = rows; }));
   }
   if (datasetIds.includes("stock_balances")) {
-    tasks.push(fetchStockBalancesForExport().then((rows) => { result.stock_balances = rows; }));
+    tasks.push(fetchStockBalancesForExport(options.stockWarehouseId).then((rows) => { result.stock_balances = rows; }));
+  } else if (options.stockWarehouseId) {
+    throw new Error("لا يمكن تحديد مستودع دون اختيار تصدير أرصدة المخزون.");
   }
 
   await Promise.all(tasks);

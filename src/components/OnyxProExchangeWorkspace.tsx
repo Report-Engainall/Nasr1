@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Download, FileSpreadsheet, FileText, PackageCheck, RefreshCw, ShieldCheck } from "lucide-react";
+import { fetchActiveInventoryWarehouses, type ActiveInventoryWarehouse } from "@/lib/api";
 import { ONYX_PRO_DATASETS, buildOnyxProHeaderCsv, type OnyxProDataset } from "@/lib/onyx-pro-schema";
 import {
   buildOnyxProDataCsv,
@@ -88,6 +89,30 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
   const [liveSelectedIds, setLiveSelectedIds] = useState<OnyxProLiveDatasetId[]>(["products", "customers", "stock_balances"]);
   const [liveExporting, setLiveExporting] = useState(false);
   const [liveExportNotice, setLiveExportNotice] = useState("");
+  const [liveWarehouseId, setLiveWarehouseId] = useState("");
+  const [liveWarehouses, setLiveWarehouses] = useState<ActiveInventoryWarehouse[]>([]);
+  const [liveWarehousesLoading, setLiveWarehousesLoading] = useState(false);
+  const [liveWarehousesError, setLiveWarehousesError] = useState("");
+  useEffect(() => {
+    if (!canManageImports) return;
+    let active = true;
+    setLiveWarehousesLoading(true);
+    setLiveWarehousesError("");
+    void fetchActiveInventoryWarehouses()
+      .then((rows) => {
+        if (active) setLiveWarehouses(rows);
+      })
+      .catch((cause) => {
+        if (active) setLiveWarehousesError(cause instanceof Error ? cause.message : "تعذر تحميل المستودعات النشطة.");
+      })
+      .finally(() => {
+        if (active) setLiveWarehousesLoading(false);
+      });
+    return () => { active = false; };
+  }, [canManageImports]);
+  const stockBalancesSelected = liveSelectedIds.includes("stock_balances");
+  const stockExportAvailable = !stockBalancesSelected ||
+    (!liveWarehousesLoading && !liveWarehousesError && liveWarehouses.length > 0);
   const selectedCount = selectedIds.length;
   const selectionLabel = useMemo(() =>
     ONYX_PRO_DATASETS.filter((dataset) => selectedIds.includes(dataset.id)).map((dataset) => dataset.label).join("، "),
@@ -134,7 +159,9 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
     setLiveExporting(true);
     setLiveExportNotice("");
     try {
-      const records = await fetchOnyxProLiveExportRecords(liveSelectedIds);
+      const records = await fetchOnyxProLiveExportRecords(liveSelectedIds, {
+        stockWarehouseId: liveSelectedIds.includes("stock_balances") ? liveWarehouseId || null : null,
+      });
       const bytes = buildOnyxProDataWorkbook(liveSelectedIds, records);
       const binary = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
       downloadFile(onyxProLiveWorkbookFilename(), binary, ONYX_PRO_WORKBOOK_MIME);
@@ -155,7 +182,9 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
     setLiveExporting(true);
     setLiveExportNotice("");
     try {
-      const records = await fetchOnyxProLiveExportRecords([datasetId]);
+      const records = await fetchOnyxProLiveExportRecords([datasetId], {
+        stockWarehouseId: datasetId === "stock_balances" ? liveWarehouseId || null : null,
+      });
       const rows = records[datasetId] ?? [];
       const csv = buildOnyxProDataCsv(datasetId, rows);
       downloadFile(onyxProLiveDatasetCsvFilename(datasetId), csv, "text/csv;charset=utf-8");
@@ -187,7 +216,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
           <div className="panel-head">
             <div>
               <h2>تصدير سجلات النظام الحية</h2>
-              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء وأرصدة المخزون الفعلية للمؤسسة، باستخدام إسقاطات منفصلة وقوائم حقول مسموحة لكل مجموعة.</p>
+              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء وأرصدة المخزون الفعلية للمؤسسة، مع إمكانية تحديد مستودع واحد أو تصدير جميع المستودعات النشطة.</p>
             </div>
             <FileSpreadsheet size={23} />
           </div>
@@ -204,13 +233,43 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
               </label>
             ))}
           </div>
+          {stockBalancesSelected && (
+            <div style={{ display: "grid", gap: 6, maxWidth: 520 }}>
+              <label htmlFor="onyx-live-stock-warehouse" style={{ fontSize: 13, fontWeight: 700 }}>
+                نطاق تصدير أرصدة المخزون
+              </label>
+              <select
+                id="onyx-live-stock-warehouse"
+                value={liveWarehouseId}
+                disabled={liveExporting || liveWarehousesLoading || Boolean(liveWarehousesError)}
+                onChange={(event) => setLiveWarehouseId(event.target.value)}
+              >
+                <option value="">جميع المستودعات النشطة</option>
+                {liveWarehouses.map((warehouse) => (
+                  <option key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}{warehouse.code ? " — " + warehouse.code : ""}
+                  </option>
+                ))}
+              </select>
+              {liveWarehousesLoading && <span className="report-note">جار تحميل المستودعات النشطة…</span>}
+              {liveWarehousesError && <span role="alert" className="report-note">{liveWarehousesError}</span>}
+              {!liveWarehousesLoading && !liveWarehousesError && liveWarehouses.length === 0 && (
+                <span role="alert" className="report-note">لا يوجد مستودع نشط داخل المؤسسة؛ تصدير الأرصدة غير متاح.</span>
+              )}
+              <span className="report-note">
+                {liveWarehouseId
+                  ? "سيقتصر تصدير الأرصدة على المستودع المحدد، مع إعادة التحقق من صلاحية المستودع عند القراءة."
+                  : "سيشمل التصدير جميع المستودعات النشطة، مع التحقق من تكرار الأكواد واتساق الكميات."}
+              </span>
+            </div>
+          )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <button type="button" className="btn primary" onClick={() => void downloadLiveWorkbook()} disabled={liveExporting || liveSelectedIds.length === 0}>
+            <button type="button" className="btn primary" onClick={() => void downloadLiveWorkbook()} disabled={liveExporting || liveSelectedIds.length === 0 || !stockExportAvailable}>
               {liveExporting ? <RefreshCw size={16} /> : <Download size={16} />}
               {liveExporting ? "جار تجهيز البيانات الحية…" : "تنزيل Excel بالبيانات الفعلية"}
             </button>
             {ONYX_PRO_LIVE_DATASET_IDS.map((datasetId) => (
-              <button key={datasetId} type="button" className="btn secondary" onClick={() => void downloadLiveCsv(datasetId)} disabled={liveExporting}>
+              <button key={datasetId} type="button" className="btn secondary" onClick={() => void downloadLiveCsv(datasetId)} disabled={liveExporting || (datasetId === "stock_balances" && !stockExportAvailable)}>
                 <Download size={15} /> CSV {LIVE_DATASET_LABELS[datasetId]} الحية
               </button>
             ))}

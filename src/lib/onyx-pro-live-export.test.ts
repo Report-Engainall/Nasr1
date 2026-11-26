@@ -5,7 +5,46 @@ import {
   mapOnyxProCustomerRecord,
   mapOnyxProProductRecord,
   mapOnyxProStockBalanceRecord,
+  resolveOnyxProExportWarehouses,
 } from "./onyx-pro-live-export";
+
+describe("Onyx Pro live export warehouse scope", () => {
+
+  it("keeps the default export across active warehouses and narrows an explicit selection", () => {
+    const warehouses = [
+      { id: "warehouse-1", code: "WH-01" },
+      { id: "warehouse-2", code: "WH-02" },
+    ];
+    expect(resolveOnyxProExportWarehouses(warehouses)).toEqual(warehouses);
+    expect(resolveOnyxProExportWarehouses(warehouses, "warehouse-2")).toEqual([
+      { id: "warehouse-2", code: "WH-02" },
+    ]);
+  });
+
+  it("rejects a missing, inactive or foreign warehouse selection instead of silently exporting all", () => {
+    const warehouses = [{ id: "warehouse-1", code: "WH-01" }];
+    expect(() => resolveOnyxProExportWarehouses(warehouses, "warehouse-other"))
+      .toThrow("لا يتبع المؤسسة الحالية");
+    expect(() => resolveOnyxProExportWarehouses(warehouses, "warehouse-1"))
+      .not.toThrow();
+    expect(() => resolveOnyxProExportWarehouses([], "warehouse-1"))
+      .toThrow("لا يتبع المؤسسة الحالية");
+    expect(() => resolveOnyxProExportWarehouses([]))
+      .toThrow("لا يوجد مستودع نشط");
+  });
+
+  it("rejects ambiguous warehouse identities and duplicate business codes", () => {
+    expect(() => resolveOnyxProExportWarehouses([
+      { id: "warehouse-1", code: "WH-01" },
+      { id: "warehouse-1", code: "WH-02" },
+    ])).toThrow("مكرر");
+    expect(() => resolveOnyxProExportWarehouses([
+      { id: "warehouse-1", code: "WH-01" },
+      { id: "warehouse-2", code: "wh-01" },
+    ])).toThrow("مكرر");
+  });
+
+});
 
 describe("Onyx Pro live export projections", () => {
   it("maps product identity and inventory thresholds without exposing prices or costs", () => {
