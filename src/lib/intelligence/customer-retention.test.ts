@@ -74,6 +74,7 @@ function build(
     truncated?: boolean;
     coverageStatus?: EvidenceRecord["status"];
     evidenceRecords?: EvidenceRecord[];
+    asOf?: string;
   } = {},
 ) {
   const metrics = [
@@ -84,7 +85,7 @@ function build(
     id: "coverage:customers",
     source: { kind: "RPC", name: "test.customer_retention.coverage", version: "1.0.0" },
     sourceTimestamp: "2026-11-25T23:50:00.000Z",
-    asOf,
+    asOf: options.asOf ?? asOf,
     period: currentPeriod,
     status: options.coverageStatus ?? "VERIFIED",
     completeness: "COMPLETE",
@@ -308,5 +309,31 @@ describe("customer retention follow-up queue", () => {
     expect(queue.omittedCount).toBe(2);
     expect(() => buildCustomerRetentionActionQueue(build(customers, []), 0)).toThrow(RangeError);
     expect(() => buildCustomerRetentionActionQueue(build(customers, []), 201)).toThrow(RangeError);
+  });
+});
+
+
+describe("customer retention strict evidence clocks", () => {
+  it("rejects an impossible as-of timestamp", () => {
+    const { customers, sales } = baseline();
+    expect(() => build(customers, sales, { asOf: "2026-02-31T00:00:00.000Z" })).toThrow(
+      "asOf must be a valid ISO timestamp",
+    );
+  });
+
+  it("withholds retention conclusions when a metric was calculated after its as-of snapshot", () => {
+    const broken = customer("future-metric", 2, 1, "2026-11-20T12:00:00.000Z");
+    broken.ordersCurrentPeriod = {
+      ...broken.ordersCurrentPeriod,
+      lineage: {
+        ...broken.ordersCurrentPeriod.lineage,
+        calculatedAt: "2026-11-26T00:00:01.000Z",
+      },
+    };
+    const result = build([broken], [sale("future-metric", "YER", "10.00")]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.population.total).toBeNull();
+    expect(result.customers[0].status).toBe("NEEDS_REVIEW");
+    expect(result.warnings).toContain("CUSTOMER_COUNT_METRIC_INVALID_OR_UNVERIFIED");
   });
 });
