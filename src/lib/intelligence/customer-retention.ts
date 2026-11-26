@@ -90,8 +90,12 @@ export function buildCustomerRetentionReport(input:{
   let activity:CustomerRetentionReport["customers"][number]["activity"]="UNKNOWN";
   if(age!==null&&age>=0)activity=age<=30?"ACTIVE":age<=60?"COOLING":age<=90?"AT_RISK":"INACTIVE";
   else if(customer.lastOrderAt===null&&current===0&&previous===0)activity="NO_ORDER_DATE";
+  const evidenceIds=[...new Set([customer.ordersCurrentPeriod,customer.ordersPreviousPeriod]
+   .flatMap(metric=>index.get(metric.id)?.lineage.evidenceIds??[]))];
   return {customerRef:customer.customerRef,orderCountCurrent:current,orderCountPrevious:previous,lastOrderAt:customer.lastOrderAt,
-   daysSinceLastOrder:age,activity,repeatCustomer:current===null?null:current>=2,status:current!==null&&previous!==null&&activity!=="UNKNOWN"?"VERIFIED" as const:"NEEDS_REVIEW" as const};
+   daysSinceLastOrder:age,activity,repeatCustomer:current===null?null:current>=2,
+   status:current!==null&&previous!==null&&activity!=="UNKNOWN"&&evidenceIds.length>0?"VERIFIED" as const:"NEEDS_REVIEW" as const,
+   evidenceIds};
  });
  const saleRows=input.salesByCurrency.map(sale=>{
   const numericValue=read(sale.sales,"CURRENCY",input.period,sale.currency);
