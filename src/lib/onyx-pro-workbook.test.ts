@@ -115,6 +115,44 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
   });
 
 
+
+  it("exports active warehouse business identity without internal IDs or sensitive location data", async () => {
+    const dataset = ONYX_PRO_DATASETS.find((item) => item.id === "warehouses");
+    const fields = getOnyxProLiveHeaders("warehouses");
+    expect(fields).toContain(dataset?.fields.find((field) => field.field === "warehouse_code")?.header);
+    expect(fields).toContain(dataset?.fields.find((field) => field.field === "warehouse_name")?.header);
+    for (const forbidden of ["warehouse_id", "address", "manager_name", "phone"]) {
+      const header = dataset?.fields.find((field) => field.field === forbidden)?.header;
+      if (header) expect(fields).not.toContain(header);
+    }
+
+    const bytes = buildOnyxProDataWorkbook(["warehouses"], {
+      warehouses: [{
+        warehouse_code: "WH-01",
+        warehouse_name: "المستودع الرئيسي",
+        is_active: "نعم",
+      }],
+    });
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    const rows: string[][] = [];
+    const parsed = await parseXlsxFirstWorksheet(
+      new Blob([buffer]),
+      (row) => rows.push(row),
+      { preferredWorksheetNames: ["Warehouses"] },
+    );
+    expect(parsed.worksheetName).toBe("Warehouses");
+    expect(parsed.rowCount).toBe(2);
+    expect(rows[0]).toEqual(fields);
+    expect(rows[1][fields.indexOf(dataset?.fields.find((field) => field.field === "warehouse_code")?.header ?? "")]).toBe("WH-01");
+    expect(rows[1][fields.indexOf(dataset?.fields.find((field) => field.field === "warehouse_name")?.header ?? "")]).toBe("المستودع الرئيسي");
+    expect(() => buildOnyxProDataCsv("warehouses", [{
+      warehouse_code: "WH-01",
+      warehouse_name: "مستودع",
+      address: "عنوان داخلي",
+    }])).toThrow("حقل غير معتمد");
+  });
+
   it("exports live stock balances with quantity-only columns and an explicit source-read timestamp", async () => {
     const fields = getOnyxProLiveHeaders("stock_balances");
     const stockDataset = ONYX_PRO_DATASETS.find((dataset) => dataset.id === "stock_balances");

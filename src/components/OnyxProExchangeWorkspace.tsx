@@ -21,6 +21,7 @@ import {
 const LIVE_DATASET_LABELS: Record<OnyxProLiveDatasetId, string> = {
   products: "الأصناف",
   customers: "العملاء",
+  warehouses: "المستودعات",
   stock_balances: "أرصدة المخزون",
 };
 
@@ -86,7 +87,7 @@ function DatasetCard({ dataset, onDownload }: {
 export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImports, onOpenSnapshots }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() => ONYX_PRO_DATASETS.map((dataset) => dataset.id));
   const [notice, setNotice] = useState("");
-  const [liveSelectedIds, setLiveSelectedIds] = useState<OnyxProLiveDatasetId[]>(["products", "customers", "stock_balances"]);
+  const [liveSelectedIds, setLiveSelectedIds] = useState<OnyxProLiveDatasetId[]>(["products", "customers", "warehouses", "stock_balances"]);
   const [liveExporting, setLiveExporting] = useState(false);
   const [liveExportNotice, setLiveExportNotice] = useState("");
   const [liveWarehouseId, setLiveWarehouseId] = useState("");
@@ -219,7 +220,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
           <div className="panel-head">
             <div>
               <h2>تصدير سجلات النظام الحية</h2>
-              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء وأرصدة المخزون الفعلية للمؤسسة، مع إمكانية تحديد مستودع واحد أو تصدير جميع المستودعات النشطة.</p>
+              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء والمستودعات وأرصدة المخزون الفعلية للمؤسسة، مع إمكانية تحديد نطاق المستودعات.</p>
             </div>
             <FileSpreadsheet size={23} />
           </div>
@@ -316,7 +317,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       <section className="panel" style={{ display: "grid", gap: 10 }}>
         <div className="panel-head"><div><h2>المسارات التشغيلية الموجودة</h2><p>تُستخدم المحركات الموجودة ولا تنشأ مسارات بيانات موازية.</p></div><PackageCheck size={22} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
-          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد يمر عبر الدفعات ومراجعة التكرار قبل الاعتماد. التصدير الحي يغطي هاتين المجموعتين، إضافة إلى أرصدة الصنف والمخزن بكميات الموجود والمحجوز والمتاح.</p></div>
+          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد يمر عبر الدفعات ومراجعة التكرار قبل الاعتماد. التصدير الحي يدعم بيانات الأصناف والعملاء والمستودعات النشطة، إضافة إلى أرصدة الصنف والمخزن بكميات الموجود والمحجوز والمتاح.</p></div>
           <div><strong>الوحدات والمخزون</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تُرحّل ProductUnits إلى أمر تحويل وحدات ذري بعد اعتماد الأصناف، وتُرحّل StockBalances إلى لقطة مستقلة ثم مصالحة محددة لكل مخزن. الرفع وحده لا يغيّر الأرصدة.</p></div>
           <div><strong>الطلبات وقوائم الأسعار</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>قوالب Orders وOrderLines وPriceLists وPriceListLines مُعرّفة، لكن استيرادها التشغيلي وتصدير السجلات الحية لهذه المجموعات ما زال غير موصول؛ لا تُمرّر إلى جداول غير مطابقة.</p></div>
         </div>

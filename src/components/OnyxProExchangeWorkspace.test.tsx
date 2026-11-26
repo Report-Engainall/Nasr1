@@ -43,6 +43,7 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
     mocks.fetchOnyxProLiveExportRecords.mockResolvedValue({
       products: [],
       customers: [],
+      warehouses: [],
       stock_balances: [],
     });
     mocks.buildOnyxProDataWorkbook.mockReturnValue(new Uint8Array([1, 2, 3]));
@@ -94,10 +95,11 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
     fireEvent.click(screen.getByRole("button", { name: "تنزيل Excel بالبيانات الفعلية" }));
 
     await waitFor(() => expect(mocks.fetchOnyxProLiveExportRecords).toHaveBeenCalledWith(
-      ["products", "customers", "stock_balances"],
+      ["products", "customers", "warehouses", "stock_balances"],
       { stockWarehouseId: "warehouse-2" },
     ));
-    expect(await screen.findByRole("status")).toHaveTextContent("أرصدة المخزون: 0");
+    expect(await screen.findByRole("status")).toHaveTextContent("المستودعات: 0");
+    expect(screen.getByRole("status")).toHaveTextContent("أرصدة المخزون: 0");
     expect(mocks.buildOnyxProDataWorkbook).toHaveBeenCalledTimes(1);
   });
 

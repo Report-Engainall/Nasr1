@@ -5,6 +5,7 @@ import {
   mapOnyxProCustomerRecord,
   mapOnyxProProductRecord,
   mapOnyxProStockBalanceRecord,
+  mapOnyxProWarehouseRecord,
   resolveOnyxProExportWarehouses,
 } from "./onyx-pro-live-export";
 
@@ -42,6 +43,40 @@ describe("Onyx Pro live export warehouse scope", () => {
       { id: "warehouse-1", code: "WH-01" },
       { id: "warehouse-2", code: "wh-01" },
     ])).toThrow("مكرر");
+  });
+
+});
+
+describe("Onyx Pro live warehouse projection", () => {
+
+  it("maps active warehouses to business codes and names without exporting internal location details", () => {
+    const warehouse = {
+      id: "warehouse-internal-1",
+      code: "WH-01",
+      name: "المستودع الرئيسي",
+      address: "عنوان داخلي",
+      manager_name: "أمين المخزن",
+      phone: "777000000",
+    };
+    const row = mapOnyxProWarehouseRecord(warehouse);
+    expect(row).toEqual({
+      warehouse_code: "WH-01",
+      warehouse_name: "المستودع الرئيسي",
+      is_active: "نعم",
+    });
+    expect(Object.keys(row)).not.toContain("warehouse_id");
+    expect(Object.keys(row)).not.toContain("address");
+    expect(Object.keys(row)).not.toContain("manager_name");
+    expect(Object.keys(row)).not.toContain("phone");
+  });
+
+  it("rejects an active warehouse without a stable business code or name", () => {
+    expect(() => mapOnyxProWarehouseRecord({
+      id: "warehouse-1", code: " ", name: "مستودع",
+    })).toThrow("كود المخزن");
+    expect(() => mapOnyxProWarehouseRecord({
+      id: "warehouse-1", code: "WH-01", name: " ",
+    })).toThrow("اسم المخزن");
   });
 
 });

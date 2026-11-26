@@ -4,7 +4,7 @@ import { getCurrentTenantScope } from "./supabase";
 import type { CellValue } from "./onyx-export";
 import type { ProductWithInventory } from "./types";
 
-export const ONYX_PRO_LIVE_DATASET_IDS = ["products", "customers", "stock_balances"] as const;
+export const ONYX_PRO_LIVE_DATASET_IDS = ["products", "customers", "warehouses", "stock_balances"] as const;
 export type OnyxProLiveDatasetId = (typeof ONYX_PRO_LIVE_DATASET_IDS)[number];
 export type OnyxProLiveRecord = Record<string, CellValue>;
 export type OnyxProLiveRows = { [datasetId: string]: OnyxProLiveRecord[] | undefined };
@@ -95,6 +95,52 @@ export function mapOnyxProCustomerRecord(customer: CustomerDirectoryRow): OnyxPr
   };
 }
 
+
+
+type OnyxProWarehouseDirectorySource = {
+  id: string;
+  code: string | null;
+  name: string;
+};
+
+/** Public business identity only; internal ID, address and warehouse-manager data never leave Aghbari. */
+export function mapOnyxProWarehouseRecord(
+  warehouse: OnyxProWarehouseDirectorySource,
+): OnyxProLiveRecord {
+  requiredText(warehouse?.id, "معرّف المخزن");
+  const code = requiredText(warehouse.code, "كود المخزن");
+  const name = requiredText(warehouse.name, "اسم المخزن");
+  return {
+    warehouse_code: code,
+    warehouse_name: name,
+    is_active: "نعم",
+  };
+}
+
+async function fetchWarehousesForExport(): Promise<OnyxProLiveRecord[]> {
+  const warehouses = await fetchActiveInventoryWarehouses();
+  if (!Array.isArray(warehouses)) {
+    throw new Error("تعذر تأكيد قائمة المستودعات النشطة قبل التصدير.");
+  }
+  if (warehouses.length > MAX_ONYX_PRO_LIVE_EXPORT_ROWS) {
+    throw new Error("يتجاوز عدد المستودعات حد التصدير الآمن (" +
+      MAX_ONYX_PRO_LIVE_EXPORT_ROWS.toLocaleString("en") + ").");
+  }
+
+  const ids = new Set<string>();
+  const codes = new Set<string>();
+  return warehouses.map((warehouse) => {
+    const id = requiredText(warehouse?.id, "معرّف المخزن");
+    const record = mapOnyxProWarehouseRecord(warehouse);
+    const code = String(record.warehouse_code).toLocaleUpperCase("en");
+    if (ids.has(id) || codes.has(code)) {
+      throw new Error("تصدير المستودعات موقوف: يوجد معرّف أو كود مخزن مكرر.");
+    }
+    ids.add(id);
+    codes.add(code);
+    return record;
+  });
+}
 
 type OnyxProStockBalanceSource = {
   product_id: string;
@@ -364,6 +410,9 @@ export async function fetchOnyxProLiveExportRecords(
   }
   if (datasetIds.includes("customers")) {
     tasks.push(fetchCustomersForExport().then((rows) => { result.customers = rows; }));
+  }
+  if (datasetIds.includes("warehouses")) {
+    tasks.push(fetchWarehousesForExport().then((rows) => { result.warehouses = rows; }));
   }
   if (datasetIds.includes("stock_balances")) {
     tasks.push(fetchStockBalancesForExport(options.stockWarehouseId).then((rows) => { result.stock_balances = rows; }));

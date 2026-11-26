@@ -17,6 +17,7 @@ const ONYX_PRO_LIVE_EXPORT_FIELDS: Readonly<Record<string, readonly string[]>> =
     "customer_id", "customer_code", "customer_name", "business_name", "phone", "email",
     "price_level_code", "customer_status", "created_at",
   ],
+  warehouses: ["warehouse_code", "warehouse_name", "is_active"],
   stock_balances: [
     "product_code", "warehouse_code", "quantity_on_hand", "quantity_reserved",
     "quantity_available", "last_movement_date", "as_of_date",
