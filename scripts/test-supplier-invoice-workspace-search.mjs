@@ -61,8 +61,6 @@ async function main(){
  assert.equal(foreignNameSearch.invoice_count,0,"search by another tenant's supplier name must reveal no invoice");
  assert.deepEqual(foreignNameSearch.invoices,[]);
  await db.unsafe("reset role");
- await db.unsafe("update public.purchase_supplier_invoices set supplier_id=$3::uuid where organization_id=$1::uuid and purchase_order_id=$2::uuid",[org,po.id,supplier]);
- await db.unsafe("update public.purchase_orders set supplier_id=$3::uuid where organization_id=$1::uuid and id=$2::uuid",[org,po.id,supplier]);
  const acl=await db.unsafe("select pg_catalog.has_function_privilege('anon','public.fetch_purchase_supplier_invoice_workspace_filtered(uuid,integer,integer,text,text)'::regprocedure,'EXECUTE') as anon_allowed,pg_catalog.has_function_privilege('authenticated','public.fetch_purchase_supplier_invoice_workspace_filtered(uuid,integer,integer,text,text)'::regprocedure,'EXECUTE') as auth_allowed");
  assert.equal(acl[0].anon_allowed,false);assert.equal(acl[0].auth_allowed,true);
  await identity(customer.auth_user_id,customer.email);let denied;try{await rpc("select public.fetch_purchase_supplier_invoice_workspace_filtered(NULL::uuid,25,0,NULL::text,'all'::text) as result",[]);}catch(e){denied=e;}
