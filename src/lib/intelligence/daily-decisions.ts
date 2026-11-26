@@ -8,7 +8,7 @@ export interface DecisionRule {
  id:string;version:string;metricKey:string;operator:DecisionOperator;threshold:number;priority:DecisionPriority;
  what:string;why:string;soWhat:string;whatNext:string;owner:string;expectedOutcome:string;expiresInDays?:number;impactFormula?:ImpactFormula;
 }
-export type WithheldDecisionReason="NO_SOURCE"|"CONFLICTING_SIGNALS"|"DUPLICATE_METRIC"|"UNAVAILABLE"|"UNVERIFIED"|"NEEDS_REVIEW"|"INCOMPLETE_DATA"|"UNKNOWN_VALUE"|"INVALID_RULE"|"IMPACT_SOURCE_MISSING"|"IMPACT_NOT_VERIFIED"|"CURRENCY_MISMATCH"|"UNIT_MISMATCH"|"INVALID_IMPACT_FORMULA";
+export type WithheldDecisionReason="NO_SOURCE"|"CONFLICTING_SIGNALS"|"DUPLICATE_METRIC"|"UNAVAILABLE"|"UNVERIFIED"|"NEEDS_REVIEW"|"INCOMPLETE_DATA"|"UNKNOWN_VALUE"|"INVALID_THRESHOLD"|"INVALID_RULE"|"IMPACT_SOURCE_MISSING"|"IMPACT_NOT_VERIFIED"|"CURRENCY_MISMATCH"|"UNIT_MISMATCH"|"INVALID_IMPACT_FORMULA";
 export interface WithheldDecision {ruleId:string;metricKey:string;reason:WithheldDecisionReason;evidenceStatus:EvidenceStatus|null;explanation:string}
 export interface BuildDailyDecisionsInput {generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[];rules:DecisionRule[]}
 export interface DailyDecisionResult {generatedAt:string;asOf:string;modelMode:"RULE_BASED";candidates:DecisionCandidate[];withheld:WithheldDecision[]}
@@ -22,7 +22,27 @@ function numeric(value:number|string|null):number|null {
 function meets(value:number,op:DecisionOperator,threshold:number):boolean {
  switch(op){case "GTE":return value>=threshold;case "GT":return value>threshold;case "LTE":return value<=threshold;case "LT":return value<threshold;case "EQ":return value===threshold}
 }
-const withheld=(rule:DecisionRule,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:rule.id,metricKey:rule.metricKey,reason,evidenceStatus:status,explanation});
+function meetsExact(value:bigint,op:DecisionOperator,threshold:bigint):boolean {
+ switch(op){case "GTE":return value>=threshold;case "GT":return value>threshold;case "LTE":return value<=threshold;case "LT":return value<threshold;case "EQ":return value===threshold}
+}
+function compareMetricThreshold(metric:MetricSnapshot,operator:DecisionOperator,threshold:number,numericValue:number):
+ {matches:boolean|null;reason:"UNKNOWN_VALUE"|"INVALID_THRESHOLD"|"UNIT_MISMATCH"|null} {
+ if(metric.unit==="COUNT"){
+  if(!Number.isSafeInteger(numericValue))return {matches:null,reason:"UNKNOWN_VALUE"};
+  if(!Number.isSafeInteger(threshold))return {matches:null,reason:"INVALID_THRESHOLD"};
+  return {matches:meets(numericValue,operator,threshold),reason:null};
+ }
+ if(metric.unit==="CURRENCY"||metric.unit==="CURRENCY_PER_UNIT"||metric.unit==="QUANTITY"||metric.unit==="RATIO"||metric.unit==="DAYS"){
+  const source=decimalToMinorUnits(metric.value,6,true);
+  if(source===null)return {matches:null,reason:"UNKNOWN_VALUE"};
+  const limit=decimalToMinorUnits(threshold,6,true);
+  if(limit===null)return {matches:null,reason:"INVALID_THRESHOLD"};
+  return {matches:meetsExact(source,operator,limit),reason:null};
+ }
+ return {matches:null,reason:"UNIT_MISMATCH"};
+}
+const withheld=(rule:DecisionRule|null|undefined,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:typeof rule?.id==="string"&&rule.id.trim()?rule.id:"invalid-rule",metricKey:typeof rule?.metricKey==="string"&&rule.metricKey.trim()?rule.metricKey:"unknown-metric",reason,evidenceStatus:status,explanation});
+function hasText(value:unknown):value is string {return typeof value==="string"&&value.trim().length>0;}
 function isImpactFormulaValid(formula: ImpactFormula): boolean {
  if (!formula || typeof formula.id !== "string" || !formula.id.trim() ||
   typeof formula.version !== "string" || !formula.version.trim() ||
@@ -52,6 +72,8 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  for(const key of formula.metricKeys){const rows=index.get(key)??[];if(rows.length!==1)return {impact:null,status:"WITHHELD",reason:"IMPACT_SOURCE_MISSING"};
   const m=rows[0];if(m.status!=="VERIFIED"||m.completeness!=="COMPLETE"||m.quality!=="ACCEPTABLE"||m.value===null||!m.lineage.evidenceIds.length)
    return {impact:null,status:"WITHHELD",reason:"IMPACT_NOT_VERIFIED"};sources.push(m)}
+ if(new Set(sources.map(source=>source.id)).size!==sources.length)
+  return {impact:null,status:"WITHHELD",reason:"IMPACT_SOURCE_DUPLICATED"};
  const samePeriod=(a:EvidencePeriod|null,b:EvidencePeriod|null)=>a===null||b===null?a===b:a.from===b.from&&a.to===b.to;
  if(sources.some(m=>m.asOf!==anchor.asOf||!samePeriod(m.period,anchor.period)))return {impact:null,status:"WITHHELD",reason:"IMPACT_SCOPE_MISMATCH"};
  const values=sources.map(m=>numeric(m.value));if(values.some(v=>v===null))return {impact:null,status:"WITHHELD",reason:"IMPACT_NOT_VERIFIED"};
@@ -81,7 +103,15 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  }
 
  let value:number|null=null;
- if(formula.operation==="IDENTITY")value=values[0] as number;
+ if(formula.operation==="IDENTITY"){
+  const source=sources[0];
+  if(source.unit==="CURRENCY"||source.unit==="CURRENCY_PER_UNIT"||source.unit==="QUANTITY"){
+   const minor=decimalToMinorUnits(source.value,6,true);
+   if(minor===null)return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_UNSUPPORTED"};
+   value=minorUnitsToNumber(minor,6);
+   if(value===null)return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_OVERFLOW"};
+  }else value=values[0] as number;
+ }
  if(formula.operation==="SUM"){
   const minor=sources.map(m=>decimalToMinorUnits(m.value,6,true));
   if(minor.some(v=>v===null))return {impact:null,status:"WITHHELD",reason:"IMPACT_PRECISION_UNSUPPORTED"};
@@ -118,11 +148,15 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
  const passport=buildEvidencePassport({id:"daily-decisions:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:input.metrics});
  const index=new Map<string,MetricSnapshot[]>();for(const m of passport.metrics){const rows=index.get(m.key)??[];rows.push(m);index.set(m.key,rows)}
  const candidates:DecisionCandidate[]=[],reasons:WithheldDecision[]=[],seen=new Set<string>();
- for(const rule of input.rules){
-  if(seen.has(rule.id)){reasons.push(withheld(rule,"INVALID_RULE",null,"Rule ID is duplicated."));continue}seen.add(rule.id);
+ for(const candidate of input.rules){
+  const rule=candidate as DecisionRule|null;
+  if(!rule||typeof rule!=="object"){reasons.push(withheld(rule,"INVALID_RULE",null,"Rule is not a valid object."));continue}
+  const ruleId=typeof rule.id==="string"?rule.id:"";
+  if(ruleId&&seen.has(ruleId)){reasons.push(withheld(rule,"INVALID_RULE",null,"Rule ID is duplicated."));continue}
+  if(ruleId)seen.add(ruleId);
   const invalidExpiry=rule.expiresInDays!==undefined&&(!Number.isInteger(rule.expiresInDays)||rule.expiresInDays<1||rule.expiresInDays>3650);
-  if(!rule.id.trim()||!rule.version.trim()||!rule.metricKey.trim()||!Number.isFinite(rule.threshold)||!["P0","P1","P2","P3"].includes(rule.priority)||
-   !validOperators.has(rule.operator)||invalidExpiry||!rule.what.trim()||!rule.why.trim()||!rule.soWhat.trim()||!rule.whatNext.trim()||!rule.owner.trim()||!rule.expectedOutcome.trim()){
+  if(!hasText(rule.id)||!hasText(rule.version)||!hasText(rule.metricKey)||!Number.isFinite(rule.threshold)||!["P0","P1","P2","P3"].includes(rule.priority)||
+   !validOperators.has(rule.operator)||invalidExpiry||!hasText(rule.what)||!hasText(rule.why)||!hasText(rule.soWhat)||!hasText(rule.whatNext)||!hasText(rule.owner)||!hasText(rule.expectedOutcome)){
    reasons.push(withheld(rule,"INVALID_RULE",null,"Rule metadata is incomplete or invalid."));continue}
   const rows=index.get(rule.metricKey)??[];
   if(!rows.length){reasons.push(withheld(rule,"NO_SOURCE",null,"No sourced metric was provided."));continue}
@@ -134,10 +168,17 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
   if(metric.status!=="VERIFIED"){const r=statusReason(metric.status);reasons.push(withheld(rule,r.reason,metric.status,r.message));continue}
   if(metric.completeness!=="COMPLETE"||metric.quality!=="ACCEPTABLE"){reasons.push(withheld(rule,"INCOMPLETE_DATA",metric.status,"Metric quality or completeness gate failed."));continue}
   const value=numeric(metric.value);if(value===null){reasons.push(withheld(rule,"UNKNOWN_VALUE",metric.status,"Metric is unknown or nonnumeric; it was not converted to zero."));continue}
-  if(metric.unit==="CURRENCY"&&!metric.currency?.trim()){reasons.push(withheld(rule,"CURRENCY_MISMATCH",metric.status,"Currency is not identified."));continue}
-  if(!meets(value,rule.operator,rule.threshold))continue;
+  if((metric.unit==="CURRENCY"||metric.unit==="CURRENCY_PER_UNIT")&&!metric.currency?.trim()){reasons.push(withheld(rule,"CURRENCY_MISMATCH",metric.status,"Currency is not identified."));continue}
+  if((metric.unit==="QUANTITY"||metric.unit==="CURRENCY_PER_UNIT")&&!hasText(metric.unitOfMeasure)){reasons.push(withheld(rule,"UNIT_MISMATCH",metric.status,"The metric quantity unit is not identified."));continue}
+  const comparison=compareMetricThreshold(metric,rule.operator,rule.threshold,value);
+  if(comparison.reason){reasons.push(withheld(rule,comparison.reason,metric.status,
+   comparison.reason==="INVALID_THRESHOLD"?"Rule threshold exceeds the supported precision or integer domain."
+    :comparison.reason==="UNIT_MISMATCH"?"A numeric decision requires a supported unit of measure."
+    :"Metric value exceeds the supported precision or numeric domain."));continue}
+  if(!comparison.matches)continue;
   const impact=impactFor(rule.impactFormula,index,metric);
-  const related=(rule.impactFormula?.metricKeys??[]).flatMap(key=>index.get(key)??[]);
+  const formulaMetricKeys=rule.impactFormula&&isImpactFormulaValid(rule.impactFormula)?rule.impactFormula.metricKeys:[];
+  const related=formulaMetricKeys.flatMap(key=>index.get(key)??[]);
   const proofMetrics=[metric,...related],evidenceIds=[...new Set(proofMetrics.flatMap(m=>m.lineage.evidenceIds))];
   const formulaVersions=[...new Set(proofMetrics.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];
   if(impact.impact)formulaVersions.push(impact.impact.formulaId+"@"+impact.impact.formulaVersion);
@@ -145,10 +186,87 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
    id:rule.id+":"+metric.id+":"+metric.asOf,ruleId:rule.id,ruleVersion:rule.version,priority:rule.priority,priorityScore:scores[rule.priority],
    what:rule.what,why:rule.why+" Observed "+value+" "+metric.unit+" against "+rule.operator+" "+rule.threshold+".",
    soWhat:rule.soWhat,impact:impact.impact,impactStatus:impact.status,impactReason:impact.reason,whatNext:rule.whatNext,
-   proof:{evidenceIds,metricKeys:[...new Set([metric.key,...(rule.impactFormula?.metricKeys??[])])],asOf:metric.asOf,formulaVersions},
+   proof:{evidenceIds,metricKeys:[...new Set([metric.key,...formulaMetricKeys])],asOf:metric.asOf,formulaVersions},
    owner:rule.owner,expectedOutcome:rule.expectedOutcome,createdAt:input.generatedAt,expiresAt:expiry(input.generatedAt,rule.expiresInDays),
   });
  }
  candidates.sort((a,b)=>b.priorityScore-a.priorityScore||a.ruleId.localeCompare(b.ruleId)||a.id.localeCompare(b.id));
  return {generatedAt:input.generatedAt,asOf:input.asOf,modelMode:"RULE_BASED",candidates,withheld:reasons};
+}
+
+export interface DailyDecisionHighlightSelection {
+  candidates: DecisionCandidate[];
+  totalCandidates: number;
+  omittedCount: number;
+  limit: number;
+}
+
+function comparableCurrencyImpact(candidate: DecisionCandidate): { currency: string; magnitude: bigint } | null {
+  if (
+    candidate.impactStatus !== "CALCULATED" ||
+    candidate.impact?.unit !== "CURRENCY" ||
+    typeof candidate.impact.currency !== "string" ||
+    !/^[A-Z]{3}$/.test(candidate.impact.currency)
+  ) return null;
+  const amount = decimalToMinorUnits(candidate.impact.value, 6, true);
+  if (amount === null) return null;
+  return { currency: candidate.impact.currency, magnitude: amount < 0n ? -amount : amount };
+}
+
+/**
+ * Selects the daily action shortlist without treating unlike currencies as comparable.
+ * Priority is always dominant; verified currency impact only orders candidates inside
+ * the same currency bucket. Currency buckets retain their stable first-seen order.
+ */
+export function selectTopDailyDecisions(
+  candidates: readonly DecisionCandidate[],
+  limit = 10,
+): DailyDecisionHighlightSelection {
+  if (!Number.isInteger(limit) || limit < 5 || limit > 10) {
+    throw new RangeError("Daily decision highlight limit must be an integer from 5 through 10.");
+  }
+
+  const stable = [...candidates].sort((a, b) =>
+    b.priorityScore - a.priorityScore ||
+    a.ruleId.localeCompare(b.ruleId) ||
+    a.id.localeCompare(b.id)
+  );
+  const priorityOrder = [...new Set(stable.map(candidate => candidate.priorityScore))]
+    .sort((a, b) => b - a);
+  const ranked: DecisionCandidate[] = [];
+
+  for (const priorityScore of priorityOrder) {
+    const buckets = new Map<string, { currency: string | null; rows: Array<{ candidate: DecisionCandidate; magnitude: bigint | null }> }>();
+    for (const candidate of stable) {
+      if (candidate.priorityScore !== priorityScore) continue;
+      const comparable = comparableCurrencyImpact(candidate);
+      const key = comparable ? "currency:" + comparable.currency : "unpriced";
+      const bucket = buckets.get(key) ?? { currency: comparable?.currency ?? null, rows: [] };
+      bucket.rows.push({ candidate, magnitude: comparable?.magnitude ?? null });
+      buckets.set(key, bucket);
+    }
+
+    for (const bucket of buckets.values()) {
+      if (bucket.currency !== null) {
+        bucket.rows.sort((a, b) => {
+          if (a.magnitude !== null && b.magnitude !== null && a.magnitude !== b.magnitude) {
+            return a.magnitude > b.magnitude ? -1 : 1;
+          }
+          if (a.magnitude !== null && b.magnitude === null) return -1;
+          if (a.magnitude === null && b.magnitude !== null) return 1;
+          return a.candidate.ruleId.localeCompare(b.candidate.ruleId) ||
+            a.candidate.id.localeCompare(b.candidate.id);
+        });
+      }
+      ranked.push(...bucket.rows.map(row => row.candidate));
+    }
+  }
+
+  const selected = ranked.slice(0, limit);
+  return {
+    candidates: selected,
+    totalCandidates: ranked.length,
+    omittedCount: Math.max(0, ranked.length - selected.length),
+    limit,
+  };
 }

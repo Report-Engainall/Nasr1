@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { buildCustomerRetentionReport, type CustomerRetentionCoverage, type CustomerRetentionRecord, type CustomerRetentionReport, type CustomerRetentionSaleRecord } from "./customer-retention";
+import { buildCustomerRetentionActionQueue, buildCustomerRetentionReport, type CustomerRetentionActionQueue, type CustomerRetentionCoverage, type CustomerRetentionRecord, type CustomerRetentionReport, type CustomerRetentionSaleRecord } from "./customer-retention";
 import { buildGrowthOpportunityRadar, type GrowthOpportunityRadarResult, type GrowthOpportunitySignal, type GrowthOpportunitySourceCoverage } from "./growth-opportunities";
 import { fetchUnavailableProductSearchDemand } from "./unavailable-product-search-demand-client";
 import { fetchProductPerformanceGrowthContext } from "./product-performance-growth-client";
@@ -16,6 +16,7 @@ export type CustomerRetentionAggregateResult =
   | {
       ok: true;
       data: CustomerRetentionReport;
+      actionQueue: CustomerRetentionActionQueue;
       growthInputs: CustomerRetentionGrowthInputs;
     }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
@@ -247,7 +248,7 @@ export async function fetchCustomerRetentionAggregate(
       signals: growthSignals,
       sourceSnapshotVerified,
     };
-    return { ok: true, data: report, growthInputs };
+    return { ok: true, data: report, actionQueue: buildCustomerRetentionActionQueue(report), growthInputs };
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بخدمة تحليلات الاحتفاظ بالعملاء." };
   }

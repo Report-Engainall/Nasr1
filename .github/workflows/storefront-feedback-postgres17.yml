@@ -39,6 +39,7 @@ on:
       - "bun.lock"
       - "package.json"
       - ".github/workflows/storefront-feedback-postgres17.yml"
+      - "scripts/test-authorization-bootstrap.mjs"
   pull_request:
     branches: [main]
     paths:
@@ -77,6 +78,7 @@ on:
       - "bun.lock"
       - "package.json"
       - ".github/workflows/storefront-feedback-postgres17.yml"
+      - "scripts/test-authorization-bootstrap.mjs"
   workflow_dispatch:
 
 permissions:
@@ -209,6 +211,9 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+
+      - name: Accept Authorization V2 bootstrap and six-role deny-by-default contract
+        run: node scripts/test-authorization-bootstrap.mjs
 
       - name: Accept Authorization V2 capability parity and customer/staff scope isolation on PostgreSQL 17
         run: node scripts/test-authorization-capability-registry.mjs

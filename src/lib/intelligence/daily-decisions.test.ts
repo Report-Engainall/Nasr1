@@ -1,6 +1,6 @@
 import {describe,expect,it} from "vitest";
-import {buildDailyDecisions} from "./daily-decisions";
-import type {DecisionRule,EvidenceRecord,MetricSnapshot} from "./index";
+import {buildDailyDecisions,selectTopDailyDecisions} from "./daily-decisions";
+import type {DecisionCandidate,DecisionRule,EvidenceRecord,MetricSnapshot} from "./index";
 const evidence=(id="ev-1"):EvidenceRecord=>({id,source:{kind:"RPC",name:"analytics.orders",version:"v1"},sourceTimestamp:"2026-10-30T07:00:00Z",asOf:"2026-10-30T07:00:00Z",period:{from:"2026-10-01",to:"2026-10-30"},status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",warnings:[]});
 const metric=(overrides:Partial<MetricSnapshot>={}):MetricSnapshot=>({id:"m-1",key:"orders.pending",value:7,unit:"COUNT",status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:{from:"2026-10-01",to:"2026-10-30"},asOf:"2026-10-30T07:00:00Z",lineage:{evidenceIds:["ev-1"],calculatedAt:"2026-10-30T07:05:00Z",formulaId:"pending.count",formulaVersion:"1.0",transformations:[]},warnings:[],...overrides});
 const rule=(overrides:Partial<DecisionRule>={}):DecisionRule=>({id:"pending",version:"1.0",metricKey:"orders.pending",operator:"GTE",threshold:5,priority:"P1",what:"مراجعة الطلبات المتراكمة",why:"تجاوز العدد الحد المحدد.",soWhat:"قد تتأخر المعالجة.",whatNext:"راجع الطلبات المفتوحة وسجلاتها.",owner:"operations_manager",expectedOutcome:"معالجة الطلبات المتأخرة المثبتة.",...overrides});
@@ -126,10 +126,132 @@ describe("daily decision engine",()=>{
   expect(result.candidates[0].impactStatus).toBe("WITHHELD");
   expect(result.candidates[0].impactReason).toBe("INVALID_IMPACT_FORMULA");
  });
+ it("withholds malformed rule and impact formula payloads without throwing",()=>{
+  const invalidMetadata={...rule(),id:null,owner:null} as unknown as DecisionRule;
+  const invalidFormula=rule({id:"invalid-formula",impactFormula:{id:"bad",version:"1",operation:"SUM",metricKeys:"orders.pending",resultUnit:"COUNT"} as unknown as DecisionRule["impactFormula"]});
+  const result=buildDailyDecisions(input({rules:[invalidMetadata,invalidFormula]}));
+  expect(result.withheld[0]).toMatchObject({ruleId:"invalid-rule",metricKey:"orders.pending",reason:"INVALID_RULE"});
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactReason).toBe("INVALID_IMPACT_FORMULA");
+ });
+ it("uses bounded exact decimal precision for currency identity impacts",()=>{
+  const exact=metric({id:"cash-exact",key:"cash.exact",value:"125.123456",unit:"CURRENCY",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-cash-exact"]}});
+  const exactResult=buildDailyDecisions(input({
+   metrics:[metric(),exact],
+   evidenceRecords:[evidence(),{...evidence("ev-cash-exact"),currency:"YER"}],
+   rules:[rule({impactFormula:{id:"cash-identity",version:"1",operation:"IDENTITY",metricKeys:["cash.exact"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(exactResult.candidates[0].impact).toMatchObject({value:125.123456,unit:"CURRENCY",currency:"YER"});
+  const overPrecision=metric({id:"cash-overprecision",key:"cash.overprecision",value:"125.1234567",unit:"CURRENCY",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-cash-overprecision"]}});
+  const withheldResult=buildDailyDecisions(input({
+   metrics:[metric(),overPrecision],
+   evidenceRecords:[evidence(),{...evidence("ev-cash-overprecision"),currency:"YER"}],
+   rules:[rule({impactFormula:{id:"cash-identity-overprecision",version:"1",operation:"IDENTITY",metricKeys:["cash.overprecision"],resultUnit:"CURRENCY"}})],
+  }));
+  expect(withheldResult.candidates[0].impact).toBeNull();
+  expect(withheldResult.candidates[0].impactReason).toBe("IMPACT_PRECISION_UNSUPPORTED");
+ });
  it("withholds impact across different metric periods",()=>{
   const priorPeriod={from:"2026-09-01",to:"2026-09-30"};
   const prior=metric({id:"prior",key:"orders.prior",value:3,period:priorPeriod,lineage:{...metric().lineage,evidenceIds:["ev-prior"]}});
   const r=buildDailyDecisions(input({metrics:[metric(),prior],evidenceRecords:[evidence(),{...evidence("ev-prior"),period:priorPeriod}],rules:[rule({impactFormula:{id:"period-sum",version:"1",operation:"SUM",metricKeys:["orders.pending","orders.prior"],resultUnit:"COUNT"}})]}));
   expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactStatus).toBe("WITHHELD");expect(r.candidates[0].impactReason).toBe("IMPACT_SCOPE_MISMATCH");
+ });
+ it("compares quantity decision thresholds with exact six-place decimal arithmetic",()=>{
+  const quantity=metric({id:"quantity-exact",key:"stock.available",value:"0.300001",unit:"QUANTITY",unitOfMeasure:"EA"});
+  const result=buildDailyDecisions(input({
+   metrics:[quantity],
+   rules:[rule({metricKey:"stock.available",operator:"GTE",threshold:0.300001})],
+  }));
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].why).toContain("0.300001");
+  expect(result.withheld).toEqual([]);
+ });
+ it("withholds quantity decisions when the source value has unsupported fractional precision",()=>{
+  const quantity=metric({id:"quantity-overprecision",key:"stock.available",value:"0.3000001",unit:"QUANTITY",unitOfMeasure:"EA"});
+  const result=buildDailyDecisions(input({
+   metrics:[quantity],
+   rules:[rule({metricKey:"stock.available",threshold:0.3})],
+  }));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0].reason).toBe("UNKNOWN_VALUE");
+ });
+ it("rejects decision thresholds beyond the supported decimal precision",()=>{
+  const quantity=metric({id:"quantity-exact",key:"stock.available",value:"0.300001",unit:"QUANTITY",unitOfMeasure:"EA"});
+  const result=buildDailyDecisions(input({
+   metrics:[quantity],
+   rules:[rule({metricKey:"stock.available",threshold:0.3000001})],
+  }));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0].reason).toBe("INVALID_THRESHOLD");
+ });
+ it("requires whole-number values and thresholds for count-based decisions",()=>{
+  const fractionalCount=metric({id:"fractional-count",key:"orders.pending",value:"2.5",unit:"COUNT"});
+  const valueResult=buildDailyDecisions(input({metrics:[fractionalCount]}));
+  expect(valueResult.candidates).toEqual([]);
+  expect(valueResult.withheld[0].reason).toBe("UNKNOWN_VALUE");
+  const thresholdResult=buildDailyDecisions(input({metrics:[metric({value:3})],rules:[rule({threshold:2.5})]}));
+  expect(thresholdResult.candidates).toEqual([]);
+  expect(thresholdResult.withheld[0].reason).toBe("INVALID_THRESHOLD");
+ });
+ it("withholds numeric decisions for text metrics instead of interpreting their payload as a number",()=>{
+  const textMetric=metric({id:"text-state",key:"orders.state",value:"7",unit:"TEXT"});
+  const result=buildDailyDecisions(input({metrics:[textMetric],rules:[rule({metricKey:"orders.state"})]}));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0].reason).toBe("UNIT_MISMATCH");
+ });
+
+ it("withholds an impact formula when distinct metric keys alias the same source metric identifier",()=>{
+  const sharedOne=metric({id:"shared-source",key:"source.one",value:3,lineage:{...metric().lineage,evidenceIds:["ev-1"]}});
+  const sharedTwo=metric({id:"shared-source",key:"source.two",value:3,lineage:{...metric().lineage,evidenceIds:["ev-1"]}});
+  const result=buildDailyDecisions(input({
+   metrics:[metric(),sharedOne,sharedTwo],
+   rules:[rule({impactFormula:{
+    id:"aliased-source-sum",version:"1",operation:"SUM",metricKeys:["source.one","source.two"],resultUnit:"COUNT",
+   }})],
+  }));
+  expect(result.candidates).toHaveLength(1);
+  expect(result.candidates[0].impact).toBeNull();
+  expect(result.candidates[0].impactStatus).toBe("WITHHELD");
+  expect(result.candidates[0].impactReason).toBe("IMPACT_SOURCE_DUPLICATED");
+ });
+
+});
+
+const decisionCandidate=(overrides:Partial<DecisionCandidate>={}):DecisionCandidate=>({
+ id:"decision-a",ruleId:"decision-a",ruleVersion:"1.0",priority:"P1",priorityScore:300,
+ what:"إجراء تشغيلي",why:"سبب مثبت",soWhat:"أثر متوقع",impact:null,impactStatus:"NOT_CONFIGURED",impactReason:null,
+ whatNext:"تنفيذ الإجراء",proof:{evidenceIds:["ev-1"],metricKeys:["orders.pending"],asOf:"2026-10-30T07:00:00Z",formulaVersions:["pending@1.0"]},
+ owner:"operations_manager",expectedOutcome:"نتيجة قابلة للقياس",createdAt:"2026-10-30T07:10:00Z",expiresAt:null,
+ ...overrides,
+});
+const currencyImpact=(value:number,currency:string)=>({
+ value,unit:"CURRENCY",currency,formulaId:"verified-impact",formulaVersion:"1.0",sourceMetricIds:["impact-source"],
+});
+describe("daily decision shortlist",()=>{
+ it("limits the shortlist to a selectable five through ten and reports omitted decisions",()=>{
+  const candidates=Array.from({length:12},(_,index)=>decisionCandidate({id:"d-"+index,ruleId:"rule-"+String(index).padStart(2,"0")}));
+  const result=selectTopDailyDecisions(candidates,5);
+  expect(result.candidates).toHaveLength(5);
+  expect(result.totalCandidates).toBe(12);
+  expect(result.omittedCount).toBe(7);
+  expect(()=>selectTopDailyDecisions(candidates,4)).toThrow(RangeError);
+  expect(()=>selectTopDailyDecisions(candidates,11)).toThrow(RangeError);
+ });
+ it("always ranks higher operational risk before a larger lower-priority financial impact",()=>{
+  const lowerRisk=decisionCandidate({id:"low",ruleId:"a-low",priority:"P2",priorityScore:200,impact:currencyImpact(900000,"YER"),impactStatus:"CALCULATED"});
+  const higherRisk=decisionCandidate({id:"high",ruleId:"z-high",priority:"P0",priorityScore:400,impact:currencyImpact(1,"YER"),impactStatus:"CALCULATED"});
+  expect(selectTopDailyDecisions([lowerRisk,higherRisk],5).candidates.map(item=>item.id)).toEqual(["high","low"]);
+ });
+ it("ranks verified financial impact exactly within one currency",()=>{
+  const smaller=decisionCandidate({id:"small",ruleId:"a-small",impact:currencyImpact(1.200001,"YER"),impactStatus:"CALCULATED"});
+  const larger=decisionCandidate({id:"large",ruleId:"z-large",impact:currencyImpact(1.200002,"YER"),impactStatus:"CALCULATED"});
+  expect(selectTopDailyDecisions([smaller,larger],5).candidates.map(item=>item.id)).toEqual(["large","small"]);
+ });
+ it("never compares numeric impact across different currencies without an FX contract",()=>{
+  const usd=decisionCandidate({id:"usd",ruleId:"a-usd",impact:currencyImpact(10,"USD"),impactStatus:"CALCULATED"});
+  const yer=decisionCandidate({id:"yer",ruleId:"b-yer",impact:currencyImpact(500000,"YER"),impactStatus:"CALCULATED"});
+  expect(selectTopDailyDecisions([usd,yer],5).candidates.map(item=>item.id)).toEqual(["usd","yer"]);
  });
 });

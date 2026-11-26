@@ -17,6 +17,7 @@ import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-product
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { ProductDataQualityPanel } from '@/components/store/ProductDataQualityPanel';
 import { StorefrontProductOffers } from '@/components/store/StorefrontProductOffers';
+import { StorefrontProductFacts } from '@/components/store/StorefrontProductFacts';
 import { formatProductUpdatedAt } from '@/lib/storefront-product-data-quality';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
@@ -62,7 +63,7 @@ const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 type CartItem = { product: ProductWithInventory; quantity: number };
 type ProductUnitSelection = { unit_name: string; base_units_per_unit: number; selected_quantity: number };
 type StorefrontProductsSnapshot =
-  | ({ mode: 'paged'; identityKey: string; search: string; categoryId: string | null; availableOnly: boolean } & StorefrontCatalogPage)
+  | ({ mode: 'paged'; identityKey: string; search: string; categoryId: string | null; availableOnly: boolean; brandId: string | null; unit: string | null; priceDisplayableOnly: boolean } & StorefrontCatalogPage)
   | { mode: 'full'; items: ProductWithInventory[]; identityKey: string; publicCacheable: boolean };
 
 function formatCartReviewAmount(amount: number, currency: string): string {
@@ -128,6 +129,9 @@ type StorefrontProps = {
   initialQuery?: string;
   initialCategoryId?: string;
   initialAvailableOnly?: boolean;
+  initialBrandId?: string;
+  initialUnit?: string;
+  initialPriceDisplayableOnly?: boolean;
 };
 
 /**
@@ -159,7 +163,7 @@ function describeCustomerCartSyncState(state: string, isOnline: boolean): string
   return 'سلة الحساب تُزامن تلقائيًا عند فتحها أو تعديلها.';
 }
 
-function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: StorefrontProps) {
+function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly, initialBrandId, initialUnit, initialPriceDisplayableOnly }: StorefrontProps) {
   const { user, ready: authReady } = useAuth();
   const effectiveRoles = Array.isArray(user?.roles) ? [...user.roles].sort() : [];
   const storefrontIdentityKey = JSON.stringify({
@@ -174,6 +178,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
   const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
+  const [brandId, setBrandId] = useState<string>(initialBrandId ?? '');
+  const [unit, setUnit] = useState<string>(initialUnit ?? '');
+  const [priceDisplayableOnly, setPriceDisplayableOnly] = useState<boolean>(initialPriceDisplayableOnly ?? false);
   const [catalogPage, setCatalogPage] = useState(1);
   const [debouncedQuery, setDebouncedQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const isPagedView = initialView === 'shop' && view === 'shop';
@@ -182,7 +189,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       // The Supabase session is authoritative. useAuth can briefly lag a sign-in,
       // sign-out, account switch, or token refresh; all catalog modes fail closed on mismatch.
       const emptySnapshot = (): StorefrontProductsSnapshot => isPagedView
-        ? { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [] }
+        ? { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, brandId: brandId || null, unit: unit || null, priceDisplayableOnly, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [], filters: { brands: [], units: [] } }
         : { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
       if (view === 'cart' || view === 'checkout') return emptySnapshot();
       if (!authReady) return emptySnapshot();
@@ -225,6 +232,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           page: catalogPage,
           pageSize: 24,
           availableOnly,
+          brandId: brandId || null,
+          unit: unit || null,
+          priceDisplayableOnly,
         });
         let sessionUserAfter: string | null;
         try {
@@ -233,7 +243,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
         }
         assertLiveIdentity(sessionUserAfter, 'after');
-        return { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, ...page };
+        return { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, brandId: brandId || null, unit: unit || null, priceDisplayableOnly, ...page };
       }
 
       const items = await fetchProducts();
@@ -245,7 +255,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       }
       assertLiveIdentity(sessionUserAfter, 'after');
       return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable: anonymousContext };
-    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, storefrontIdentityKey]);
+    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, brandId, unit, priceDisplayableOnly, initialView, storefrontIdentityKey]);
   // useFetch retains its previous result while a new request is pending or fails.
   // Only use data produced under the current session/role identity.
   const snapshotMatchesIdentity = productSnapshot?.identityKey === storefrontIdentityKey;
@@ -467,9 +477,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     setCatalogPage(1);
   }, [initialAvailableOnly]);
 
+  useEffect(() => { setBrandId(initialBrandId ?? ''); setCatalogPage(1); }, [initialBrandId]);
+  useEffect(() => { setUnit(initialUnit ?? ''); setCatalogPage(1); }, [initialUnit]);
+  useEffect(() => { setPriceDisplayableOnly(initialPriceDisplayableOnly ?? false); setCatalogPage(1); }, [initialPriceDisplayableOnly]);
+
   useEffect(() => {
     setCatalogPage(1);
-  }, [debouncedQuery, activeCat, availableOnly]);
+  }, [debouncedQuery, activeCat, availableOnly, brandId, unit, priceDisplayableOnly]);
 
   useEffect(() => {
     cachedProductsRef.current = cachedProducts;
@@ -1074,29 +1088,48 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         ...(normalizedSearch ? { q: normalizedSearch } : {}),
         ...(categoryId ? { category: categoryId } : {}),
         ...(availableOnly ? { available: '1' as const } : {}),
+        ...(brandId ? { brand: brandId } : {}),
+        ...(unit ? { unit } : {}),
+        ...(priceDisplayableOnly ? { priced: '1' as const } : {}),
       },
     });
   }
 
-  const serverPageActive = Boolean(
-    isPagedView && pageInfo && !productsLoading && !productsError && isOnline && query === debouncedQuery
-  );
+  function updateCatalogFilters(next: Partial<{ availableOnly: boolean; brandId: string; unit: string; priceDisplayableOnly: boolean }>) {
+    const filters = { availableOnly: next.availableOnly ?? availableOnly, brandId: next.brandId ?? brandId, unit: next.unit ?? unit, priceDisplayableOnly: next.priceDisplayableOnly ?? priceDisplayableOnly };
+    setAvailableOnly(filters.availableOnly); setBrandId(filters.brandId); setUnit(filters.unit); setPriceDisplayableOnly(filters.priceDisplayableOnly); setCatalogPage(1);
+    const normalizedSearch = normalizeCatalogSearchQuery(query).trim();
+    void navigate({ to: '/catalog', search: {
+      ...(normalizedSearch ? { q: normalizedSearch } : {}),
+      ...(activeCat ? { category: activeCat } : {}),
+      ...(filters.availableOnly ? { available: '1' as const } : {}),
+      ...(filters.brandId ? { brand: filters.brandId } : {}),
+      ...(filters.unit ? { unit: filters.unit } : {}),
+      ...(filters.priceDisplayableOnly ? { priced: '1' as const } : {}),
+    } });
+  }
+
+  const pageSnapshotMatchesCurrentFilters = Boolean(isPagedView && pageInfo &&
+    pageInfo.search === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
+    pageInfo.categoryId === (activeCat || null) && pageInfo.availableOnly === availableOnly &&
+    pageInfo.brandId === (brandId || null) && pageInfo.unit === (unit || null) &&
+    pageInfo.priceDisplayableOnly === priceDisplayableOnly && pageInfo.page === catalogPage &&
+    brandId === (initialBrandId ?? '') && unit === (initialUnit ?? '') &&
+    priceDisplayableOnly === (initialPriceDisplayableOnly ?? false));
+  const pageSnapshotReady = Boolean(pageSnapshotMatchesCurrentFilters && !productsLoading && !productsError && query === debouncedQuery);
+  const serverPageActive = Boolean(pageSnapshotReady && isOnline);
   const filtered = useMemo(() => {
+    if (isPagedView) return pageSnapshotReady ? (products ?? []) : [];
     let list = products ?? [];
-    if (!serverPageActive) {
-      if (activeCat) list = list.filter((p) => p.category_id === activeCat);
-      if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
-      if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
-    }
+    if (activeCat) list = list.filter((p) => p.category_id === activeCat);
+    if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
+    if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
     return list;
-  }, [products, activeCat, query, availableOnly, serverPageActive]);
-  const catalogCount = serverPageActive && pageInfo ? pageInfo.totalCount : products.length;
+  }, [isPagedView, pageSnapshotReady, products, activeCat, query, availableOnly]);
+  const catalogCount = isPagedView ? (pageSnapshotReady && pageInfo ? pageInfo.totalCount : 0) : products.length;
   const predictiveSearchQuery = normalizeCatalogSearchQuery(query).trim();
   const predictiveSearchHasQuery = predictiveSearchQuery.length >= 2;
-  const predictiveSearchSnapshotIsCurrent = Boolean(authReady && isPagedView && pageInfo &&
-    pageInfo.search === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
-    pageInfo.categoryId === (activeCat || null) &&
-    pageInfo.availableOnly === availableOnly);
+  const predictiveSearchSnapshotIsCurrent = Boolean(authReady && pageSnapshotMatchesCurrentFilters);
   const predictiveSearchProducts = isPagedView && predictiveSearchHasQuery &&
     predictiveSearchQuery === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
     predictiveSearchSnapshotIsCurrent && !productsLoading && !productsError && isOnline
@@ -1243,6 +1276,23 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             )}
 
             <section className="sf-products">
+              {isPagedView ? (
+                <section aria-label="فلاتر الكتالوج" data-testid="storefront-catalog-filters" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 12, padding: '14px 16px', marginBottom: 14, border: '1px solid #dce9e8', borderRadius: 14, background: '#fbfdfc' }}>
+                  <label style={{ display: 'grid', gap: 5, minWidth: 170, flex: '1 1 190px', fontSize: 12, fontWeight: 800 }}>العلامة التجارية
+                    <select aria-label="العلامة التجارية" value={brandId} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ brandId: event.currentTarget.value })}>
+                      <option value="">كل العلامات التجارية</option>{(pageInfo?.filters.brands ?? []).map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: 'grid', gap: 5, minWidth: 150, flex: '1 1 170px', fontSize: 12, fontWeight: 800 }}>وحدة البيع
+                    <select aria-label="وحدة البيع" value={unit} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ unit: event.currentTarget.value })}>
+                      <option value="">كل الوحدات</option>{(pageInfo?.filters.units ?? []).map((unitOption) => <option key={unitOption} value={unitOption}>{unitOption}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40 }}><input type="checkbox" checked={availableOnly} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ availableOnly: event.currentTarget.checked })} /> الأصناف المتاحة فقط</label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40 }}><input type="checkbox" checked={priceDisplayableOnly} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ priceDisplayableOnly: event.currentTarget.checked })} /> ذات السعر المصرح بعرضه فقط</label>
+                  {(brandId || unit || availableOnly || priceDisplayableOnly) ? <button type="button" className="sf-btn-secondary" disabled={!pageInfo || productsLoading} onClick={() => updateCatalogFilters({ availableOnly: false, brandId: '', unit: '', priceDisplayableOnly: false })}>مسح الفلاتر</button> : null}
+                </section>
+              ) : null}
               <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
@@ -2058,6 +2108,7 @@ export function ProductDetail({
         error={promotionsError}
         onRetry={onRetryPromotions}
       />
+      <StorefrontProductFacts key={product.id} productId={product.id} onOpenProduct={onOpenRecommendation} />
       {relatedProducts.length > 0 && (
         <section className="sf-related-products" aria-labelledby="sf-related-products-title">
           <div className="sf-related-header">

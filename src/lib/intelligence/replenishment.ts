@@ -17,10 +17,16 @@ function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
  if(numerator<=0n)return 0n;
  return (numerator+denominator-1n)/denominator;
 }
+function isoDay(value:string):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+ const time=Date.parse(value+"T00:00:00Z");
+ return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
+}
 function dayCount(period:EvidencePeriod):number {
- const from=Date.parse(period.from+"T00:00:00Z"),to=Date.parse(period.to+"T00:00:00Z");
- if(!Number.isFinite(from)||!Number.isFinite(to)||to<from)return 0;
- return Math.floor((to-from)/86400000)+1;
+ const from=isoDay(period.from),to=isoDay(period.to);
+ if(from===null||to===null||to<from)return 0;
+ const days=Math.floor((to-from)/86400000)+1;
+ return Number.isSafeInteger(days)&&days>0?days:0;
 }
 
 type ReplenishmentMetricRead = { value: number | null; minorUnits: bigint | null; status: EvidenceStatus; metric: MetricSnapshot | null };
@@ -91,8 +97,20 @@ export function buildReplenishmentRecommendations(input:{
  const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const counts=new Map<string,number>();for(const m of passport.metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(counts.get(m.id)===1)index.set(m.id,m);
+ const productRefCounts=new Map<string,number>();
+ for(const product of input.products){
+  const ref=typeof product.productRef==="string"?product.productRef.trim():"";
+  if(ref)productRefCounts.set(ref,(productRefCounts.get(ref)??0)+1);
+ }
  const recommendations:ReplenishmentRecommendation[]=input.products.map((product):ReplenishmentRecommendation=>{
-  const warnings:string[]=[],expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.incomingPurchaseQuantity.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
+  const productRef=typeof product.productRef==="string"?product.productRef.trim():"";
+  const invalidRef=!productRef,duplicateRef=!invalidRef&&(productRefCounts.get(productRef)??0)>1;
+  const warnings:string[]=invalidRef?["PRODUCT_REFERENCE_MISSING"]:duplicateRef?["DUPLICATE_PRODUCT_REFERENCE"]:[];
+  if(invalidRef||duplicateRef)return {
+   productRef,status:"UNVERIFIED",action:"WITHHELD",quantityUnit:null,availableToPromise:null,incomingPurchaseQuantity:null,coveredAfterIncoming:null,reorderPoint:null,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds:[],warnings,automaticPurchase:false,
+  };
+  const expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.incomingPurchaseQuantity.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
   const read = (metric: MetricSnapshot, unit: string) => readReplenishmentMetric({
     metric,
     unit,
