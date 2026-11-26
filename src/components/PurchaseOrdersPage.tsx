@@ -17,6 +17,7 @@ import { SupplierQuoteWorkspace } from '@/components/SupplierQuoteWorkspace';
 import { SupplierReturnWorkspace } from '@/components/SupplierReturnWorkspace';
 import { SupplierInvoiceWorkspace } from '@/components/SupplierInvoiceWorkspace';
 import { PurchaseReceiptPrintActions } from '@/components/PurchaseReceiptPrintActions';
+import { fetchPurchaseReceiptPrintDocument } from '@/lib/purchase-receipt-print';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
 import {
   projectPurchaseOrderPrintDocument,
@@ -326,13 +327,19 @@ function PurchaseOrderPrintViews({ printMode, orderDocument, resultsDocument }: 
   );
 }
 
-export function PurchaseOrdersPage(props: { initialPurchaseOrderId?: string } = {}) {
+export function PurchaseOrdersPage(props: { initialPurchaseOrderId?: string; initialReceiptId?: string } = {}) {
   const { user, sessionRevision } = useAuth();
   const sessionKey = [user?.id ?? "anonymous", user?.profileId ?? "unresolved", sessionRevision ?? 0].join(":");
-  return <PurchaseOrdersPageSession key={sessionKey} initialPurchaseOrderId={props.initialPurchaseOrderId} />;
+  return (
+    <PurchaseOrdersPageSession
+      key={sessionKey}
+      initialPurchaseOrderId={props.initialPurchaseOrderId}
+      initialReceiptId={props.initialReceiptId}
+    />
+  );
 }
 
-function PurchaseOrdersPageSession({ initialPurchaseOrderId }: { initialPurchaseOrderId?: string } = {}) {
+function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }: { initialPurchaseOrderId?: string; initialReceiptId?: string } = {}) {
   const { user, sessionRevision } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [orders,setOrders] = useState<PurchaseOrder[]>([]);
@@ -429,6 +436,31 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId }: { initialPurchase
     setStatusFilter("all");
     setSelectedId(target.id);
   }, [initialPurchaseOrderId, loading, orders]);
+  useEffect(() => {
+    if (!initialReceiptId || loading || !canManage) return;
+    let active = true;
+    void fetchPurchaseReceiptPrintDocument(initialReceiptId).then((receipt) => {
+      if (!active) return;
+      // Purchase order numbers are unique within an organization. The existing
+      // authenticated receipt-print RPC resolves the receipt under the manager's tenant.
+      const target = orders.find((order) =>
+        order.purchase_order_number === receipt.purchase_order_number &&
+        order.supplier_name === receipt.supplier_name
+      );
+      if (!target) {
+        setError("تعذر العثور على أمر الشراء المرتبط بإيصال الاستلام ضمن الأوامر المتاحة لحسابك.");
+        return;
+      }
+      setStatusFilter("all");
+      setSelectedId(target.id);
+      setNotice("تم فتح أمر الشراء المرتبط بإيصال الاستلام: " + receipt.receipt_number);
+    }).catch((cause: unknown) => {
+      if (!active) return;
+      setError(cause instanceof Error ? cause.message : "تعذر فتح إيصال الاستلام المرتبط بأمر الشراء.");
+    });
+    return () => { active = false; };
+  }, [canManage, initialReceiptId, loading, orders]);
+
   useEffect(() => {
     setReceiveDrafts({});
     setReceiveBatchDrafts({});
