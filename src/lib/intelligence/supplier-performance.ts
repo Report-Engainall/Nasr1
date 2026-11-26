@@ -32,7 +32,7 @@ function day(v:unknown):v is string {
  if(typeof v!=="string"||!DAY.test(v))return false;
  const d=new Date(v+"T00:00:00.000Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===v;
 }
-const timestamp=(v:unknown):v is string=>typeof v==="string"&&v.includes("T")&&/(?:Z|[+-]\\d{2}:\\d{2})$/i.test(v)&&Number.isFinite(Date.parse(v));
+const timestamp=(v:unknown):v is string=>typeof v==="string"&&v.includes("T")&&/(?:Z|[+-]\d{2}:\d{2})$/i.test(v)&&Number.isFinite(Date.parse(v));
 function parsePeriod(v:unknown):SupplierPerformancePeriod|null {
  const r=obj(v);return r&&day(r.from)&&day(r.to)&&r.from<=r.to&&r.timeZone==="UTC"?{from:r.from,to:r.to,timeZone:"UTC"}:null;
 }
