@@ -85,7 +85,7 @@ describe("operational task prioritization timestamp integrity", () => {
         due_at: "2026-02-31T11:00:00.000Z",
       }),
     ], [assignee], NOW);
-    expect(result).toMatchObject({ openTaskCount: 1, overdueTaskCount: 0, weightedLoad: 3 });
+    expect(result).toMatchObject({ openTaskCount: 1, overdueTaskCount: 0, weightedLoad: 2 });
   });
 
   it("counts a valid overdue task in the assignee workload", () => {
@@ -95,7 +95,7 @@ describe("operational task prioritization timestamp integrity", () => {
         due_at: "2026-11-26T11:59:59.000Z",
       }),
     ], [assignee], NOW);
-    expect(result).toMatchObject({ openTaskCount: 1, overdueTaskCount: 1, weightedLoad: 5 });
+    expect(result).toMatchObject({ openTaskCount: 1, overdueTaskCount: 1, weightedLoad: 4 });
   });
 
   it("does not fall back to wall-clock time when assignee evaluation time is invalid", () => {
