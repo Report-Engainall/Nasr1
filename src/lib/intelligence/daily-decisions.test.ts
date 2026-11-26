@@ -1,6 +1,6 @@
 import {describe,expect,it} from "vitest";
-import {buildDailyDecisions} from "./daily-decisions";
-import type {DecisionRule,EvidenceRecord,MetricSnapshot} from "./index";
+import {buildDailyDecisions,selectTopDailyDecisions} from "./daily-decisions";
+import type {DecisionCandidate,DecisionRule,EvidenceRecord,MetricSnapshot} from "./index";
 const evidence=(id="ev-1"):EvidenceRecord=>({id,source:{kind:"RPC",name:"analytics.orders",version:"v1"},sourceTimestamp:"2026-10-30T07:00:00Z",asOf:"2026-10-30T07:00:00Z",period:{from:"2026-10-01",to:"2026-10-30"},status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",warnings:[]});
 const metric=(overrides:Partial<MetricSnapshot>={}):MetricSnapshot=>({id:"m-1",key:"orders.pending",value:7,unit:"COUNT",status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:{from:"2026-10-01",to:"2026-10-30"},asOf:"2026-10-30T07:00:00Z",lineage:{evidenceIds:["ev-1"],calculatedAt:"2026-10-30T07:05:00Z",formulaId:"pending.count",formulaVersion:"1.0",transformations:[]},warnings:[],...overrides});
 const rule=(overrides:Partial<DecisionRule>={}):DecisionRule=>({id:"pending",version:"1.0",metricKey:"orders.pending",operator:"GTE",threshold:5,priority:"P1",what:"مراجعة الطلبات المتراكمة",why:"تجاوز العدد الحد المحدد.",soWhat:"قد تتأخر المعالجة.",whatNext:"راجع الطلبات المفتوحة وسجلاتها.",owner:"operations_manager",expectedOutcome:"معالجة الطلبات المتأخرة المثبتة.",...overrides});
@@ -217,4 +217,41 @@ describe("daily decision engine",()=>{
   expect(result.candidates[0].impactReason).toBe("IMPACT_SOURCE_DUPLICATED");
  });
 
+});
+
+const decisionCandidate=(overrides:Partial<DecisionCandidate>={}):DecisionCandidate=>({
+ id:"decision-a",ruleId:"decision-a",ruleVersion:"1.0",priority:"P1",priorityScore:300,
+ what:"إجراء تشغيلي",why:"سبب مثبت",soWhat:"أثر متوقع",impact:null,impactStatus:"NOT_CONFIGURED",impactReason:null,
+ whatNext:"تنفيذ الإجراء",proof:{evidenceIds:["ev-1"],metricKeys:["orders.pending"],asOf:"2026-10-30T07:00:00Z",formulaVersions:["pending@1.0"]},
+ owner:"operations_manager",expectedOutcome:"نتيجة قابلة للقياس",createdAt:"2026-10-30T07:10:00Z",expiresAt:null,
+ ...overrides,
+});
+const currencyImpact=(value:number,currency:string)=>({
+ value,unit:"CURRENCY",currency,formulaId:"verified-impact",formulaVersion:"1.0",sourceMetricIds:["impact-source"],
+});
+describe("daily decision shortlist",()=>{
+ it("limits the shortlist to a selectable five through ten and reports omitted decisions",()=>{
+  const candidates=Array.from({length:12},(_,index)=>decisionCandidate({id:"d-"+index,ruleId:"rule-"+String(index).padStart(2,"0")}));
+  const result=selectTopDailyDecisions(candidates,5);
+  expect(result.candidates).toHaveLength(5);
+  expect(result.totalCandidates).toBe(12);
+  expect(result.omittedCount).toBe(7);
+  expect(()=>selectTopDailyDecisions(candidates,4)).toThrow(RangeError);
+  expect(()=>selectTopDailyDecisions(candidates,11)).toThrow(RangeError);
+ });
+ it("always ranks higher operational risk before a larger lower-priority financial impact",()=>{
+  const lowerRisk=decisionCandidate({id:"low",ruleId:"a-low",priority:"P2",priorityScore:200,impact:currencyImpact(900000,"YER"),impactStatus:"CALCULATED"});
+  const higherRisk=decisionCandidate({id:"high",ruleId:"z-high",priority:"P0",priorityScore:400,impact:currencyImpact(1,"YER"),impactStatus:"CALCULATED"});
+  expect(selectTopDailyDecisions([lowerRisk,higherRisk],5).candidates.map(item=>item.id)).toEqual(["high","low"]);
+ });
+ it("ranks verified financial impact exactly within one currency",()=>{
+  const smaller=decisionCandidate({id:"small",ruleId:"a-small",impact:currencyImpact(1.200001,"YER"),impactStatus:"CALCULATED"});
+  const larger=decisionCandidate({id:"large",ruleId:"z-large",impact:currencyImpact(1.200002,"YER"),impactStatus:"CALCULATED"});
+  expect(selectTopDailyDecisions([smaller,larger],5).candidates.map(item=>item.id)).toEqual(["large","small"]);
+ });
+ it("never compares numeric impact across different currencies without an FX contract",()=>{
+  const usd=decisionCandidate({id:"usd",ruleId:"a-usd",impact:currencyImpact(10,"USD"),impactStatus:"CALCULATED"});
+  const yer=decisionCandidate({id:"yer",ruleId:"b-yer",impact:currencyImpact(500000,"YER"),impactStatus:"CALCULATED"});
+  expect(selectTopDailyDecisions([usd,yer],5).candidates.map(item=>item.id)).toEqual(["usd","yer"]);
+ });
 });
