@@ -1,5 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
-import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
+import {decimalToMinorUnits,minorUnitsToNumber,roundedPercentageHundredths} from "./financial-precision";
 import type {EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
 export interface CustomerRetentionRecord {
@@ -24,6 +24,12 @@ function day(value:string):number|null {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
  const time=Date.parse(value+"T00:00:00.000Z");
  return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
+}
+function timestamp(value:string):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
+ if(day(value.slice(0,10))===null)return null;
+ const parsed=Date.parse(value);
+ return Number.isFinite(parsed)?parsed:null;
 }
 function num(value:number|string|null):number|null {
  if(typeof value==="number")return Number.isFinite(value)&&value>=0&&value<=Number.MAX_SAFE_INTEGER?value:null;
@@ -78,8 +84,8 @@ export function buildCustomerRetentionReport(input:{
  };
  const mapped=input.customers.map(customer=>{
   const current=read(customer.ordersCurrentPeriod,"COUNT",input.period),previous=read(customer.ordersPreviousPeriod,"COUNT",input.previousPeriod);
-  const rawTime=customer.lastOrderAt?Date.parse(customer.lastOrderAt):null;
-  const lastDay=rawTime!==null&&Number.isFinite(rawTime)?new Date(rawTime).setUTCHours(0,0,0,0):null;
+  const rawTime=customer.lastOrderAt?timestamp(customer.lastOrderAt):null;
+  const lastDay=rawTime!==null?new Date(rawTime).setUTCHours(0,0,0,0):null;
   const age=lastDay!==null?Math.floor((asOfDay-lastDay)/86400000):null;
   let activity:CustomerRetentionReport["customers"][number]["activity"]="UNKNOWN";
   if(age!==null&&age>=0)activity=age<=30?"ACTIVE":age<=60?"COOLING":age<=90?"AT_RISK":"INACTIVE";
@@ -107,10 +113,17 @@ export function buildCustomerRetentionReport(input:{
   const total=totalMinor===null?null:minorUnitsToNumber(totalMinor,2);
   const valid=fullCoverage&&knownRows&&total!==null;
   const topMinor=knownRows?group.map(s=>s.minorUnits as bigint).sort((a,b)=>a===b?0:a>b?-1:1).slice(0,5).reduce((sum,v)=>sum+v,0n):null;
-  return {currency,totalSales:valid?total:null,top5SalesConcentration:valid&&totalMinor!==null&&totalMinor>0n&&topMinor!==null?Number(topMinor)/Number(totalMinor)*100:valid?0:null,customerCount:new Set(group.map(s=>s.customerRef)).size,status:valid?"VERIFIED" as const:"NEEDS_REVIEW" as const};
+  const concentrationHundredths=valid&&totalMinor!==null&&totalMinor>0n&&topMinor!==null
+   ?roundedPercentageHundredths(topMinor,totalMinor):null;
+  return {currency,totalSales:valid?total:null,
+   top5SalesConcentration:valid&&totalMinor===0n?0:concentrationHundredths===null?null:Number(concentrationHundredths)/100,
+   customerCount:new Set(group.map(s=>s.customerRef)).size,status:valid?"VERIFIED" as const:"NEEDS_REVIEW" as const};
  });
  const allSalesMetricsValid=saleRows.every(sale=>sale.minorUnits!==null)&&focusByCurrency.every(group=>group.status==="VERIFIED");
  const status:EvidenceStatus=fullCoverage&&allCustomerMetricsValid&&allSalesMetricsValid?"VERIFIED":"NEEDS_REVIEW";
+ const activeOrderTotal=active.reduce((sum,customer)=>sum+BigInt(customer.orderCountCurrent??0),0n);
+ const averageOrdersPerActiveCustomer=status==="VERIFIED"&&active.length>0&&activeOrderTotal<=BigInt(Number.MAX_SAFE_INTEGER)
+  ?Number(activeOrderTotal)/active.length:null;
  const countActivity=(activity:CustomerRetentionReport["customers"][number]["activity"])=>status==="VERIFIED"?mapped.filter(c=>c.activity===activity).length:null;
  const warnings:string[]=[];
  if(!fullCoverage)warnings.push("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
@@ -118,13 +131,14 @@ export function buildCustomerRetentionReport(input:{
  if(saleRows.some(sale=>sale.precisionInvalid))warnings.push("CUSTOMER_CURRENCY_PRECISION_INVALID");
  if(focusByCurrency.some(group=>group.totalSales===null&&group.status!=="NEEDS_REVIEW"||group.status==="NEEDS_REVIEW"&&saleRows.some(sale=>sale.currency===group.currency&&sale.minorUnits!==null)))warnings.push("CUSTOMER_CURRENCY_TOTAL_UNAVAILABLE_OR_OVERFLOW");
  if(!allCustomerMetricsValid||!allSalesMetricsValid)warnings.push("CUSTOMER_METRIC_EVIDENCE_INCOMPLETE");
+ if(active.length>0&&activeOrderTotal>BigInt(Number.MAX_SAFE_INTEGER))warnings.push("CUSTOMER_ORDER_COUNT_AGGREGATE_OVERFLOW");
  return {
   id:input.id,asOf:input.asOf,period:input.period,previousPeriod:input.previousPeriod,status,
   population:{total:status==="VERIFIED"?mapped.length:null,activeCurrentPeriod:status==="VERIFIED"?active.length:null,
    priorPeriodCohort:status==="VERIFIED"?prior.length:null,retainedCustomers:status==="VERIFIED"?retained.length:null,repeatPurchaseCustomers:status==="VERIFIED"?repeat.length:null},
   retentionRate:status==="VERIFIED"&&prior.length>0?retained.length/prior.length*100:null,
   repeatPurchaseRate:status==="VERIFIED"&&active.length>0?repeat.length/active.length*100:null,
-  averageOrdersPerActiveCustomer:status==="VERIFIED"&&active.length>0?active.reduce((sum,c)=>sum+(c.orderCountCurrent??0),0)/active.length:null,
+  averageOrdersPerActiveCustomer,
   activity:{active30Days:countActivity("ACTIVE"),cooling31To60Days:countActivity("COOLING"),atRisk61To90Days:countActivity("AT_RISK"),inactiveOver90Days:countActivity("INACTIVE"),noOrderDate:countActivity("NO_ORDER_DATE")},
   focusByCurrency,customers:mapped,warnings,
  };
