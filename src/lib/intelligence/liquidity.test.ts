@@ -290,15 +290,17 @@ describe("liquidity forecast source alignment", () => {
     expect(result.positions[0].forecast.horizons[0].warnings).toContain("FORECAST_AMOUNT_PERIOD_MISMATCH");
   });
 
-  it("withholds forecast coverage evidence from a different reporting period", () => {
+  it("withholds forecast coverage evidence when its reporting period is missing or different", () => {
     const oldPeriod = { from: "2026-10-01", to: "2026-10-31" };
-    const result = buildForecast([
-      forecastFlow("aligned-amount", "COLLECTION", "2026-11-27", 10),
-    ], { coveragePeriod: oldPeriod });
+    const flows = [forecastFlow("aligned-amount", "COLLECTION", "2026-11-27", 10)];
+    const mismatched = buildForecast(flows, { coveragePeriod: oldPeriod });
+    const missing = buildForecast(flows, { coveragePeriod: null });
 
-    expect(result.positions[0].forecast.status).toBe("NEEDS_REVIEW");
-    expect(result.positions[0].forecast.horizons.every(item => item.projectedBalance === null)).toBe(true);
-    expect(result.positions[0].forecast.warnings).toContain("FORECAST_COVERAGE_PERIOD_MISMATCH");
+    for (const result of [mismatched, missing]) {
+      expect(result.positions[0].forecast.status).toBe("NEEDS_REVIEW");
+      expect(result.positions[0].forecast.horizons.every(item => item.projectedBalance === null)).toBe(true);
+      expect(result.positions[0].forecast.warnings).toContain("FORECAST_COVERAGE_PERIOD_MISMATCH");
+    }
   });
 
   it("withholds scheduled flows sourced from a different reporting period", () => {
