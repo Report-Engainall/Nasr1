@@ -199,10 +199,12 @@ async function createSnapshot(product, manager, targetQuantity, suffix) {
   // import job through the canonical idempotent RPC instead of writing a null
   // provenance pointer into the test snapshot.
   await as(manager);
-  const profileId = await rpc(
-    "select to_jsonb(public.ensure_onyx_stock_balance_import_profile()) as result",
-    [],
+  // The ensure function returns a PostgreSQL UUID scalar, not JSONB.
+  // Read its text representation directly instead of passing it through rpc()/JSON.parse().
+  const profileRows = await db.unsafe(
+    "select public.ensure_onyx_stock_balance_import_profile()::text as profile_id",
   );
+  const profileId = profileRows[0]?.profile_id;
   assert.match(profileId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   const sourceImportJob = await rpc(
     "select public.create_import_job_idempotent($1::uuid,$2::text,$3::text,$4::bigint,$5::text,$6::text,$7::uuid,$8::text,$9::text,$10::text) as result",
