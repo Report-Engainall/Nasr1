@@ -94,7 +94,7 @@ function build(
   };
   return buildCustomerRetentionReport({
     id: "retention-fixture",
-    asOf,
+    asOf: options.asOf ?? asOf,
     period: currentPeriod,
     previousPeriod,
     evidenceRecords: options.evidenceRecords ?? [coverageEvidence, ...metrics.map(evidence)],
