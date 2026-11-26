@@ -64,7 +64,7 @@ BEGIN
       MESSAGE='product gross margin period must be a current bounded UTC window';
   END IF;
 
-  WITH invoice_scope AS MATERIALIZED (
+  WITH RECURSIVE invoice_scope AS MATERIALIZED (
     SELECT ci.id AS invoice_id,ci.order_id,ci.organization_id,
            ci.currency,ci.issued_at
       FROM public.customer_invoices ci
@@ -202,7 +202,7 @@ BEGIN
       AND o.updated_at<=v_as_of
       AND o.status IN ('shipped','delivered','invoiced')
   ),
-  RECURSIVE batch_walk AS (
+  batch_walk AS (
     SELECT sm.movement_id,sm.order_id,sm.product_id,sm.warehouse_id,
       b.id AS batch_id,b.parent_batch_id,b.source_type,b.receipt_id,
       b.receipt_item_id,b.source_reference_type,b.source_reference_id,
@@ -393,18 +393,28 @@ BEGIN
   product_revenue AS (
     SELECT product_id,
       min(product_label) AS product_label,
-      min(unit_of_measure) AS unit_of_measure,
+      CASE WHEN count(DISTINCT unit_of_measure)=1 THEN min(unit_of_measure) ELSE NULL END AS unit_of_measure,
+      count(DISTINCT unit_of_measure)::integer AS unit_variant_count,
+      CASE WHEN count(DISTINCT currency)=1 THEN min(currency) ELSE NULL END AS currency,
+      count(DISTINCT currency)::integer AS currency_count,
       count(DISTINCT invoice_id)::integer AS invoice_count,
       count(*)::integer AS invoice_line_count,
       sum(quantity)::numeric(18,3) AS invoiced_quantity,
-      sum(line_total)::numeric(18,2) AS gross_invoice_line_amount,
-      sum(posted_credit_amount)::numeric(18,2) AS posted_credit_amount,
       CASE
-        WHEN bool_and(source_line_valid AND credit_line_valid)
+        WHEN bool_and(source_line_valid AND credit_line_valid) AND count(DISTINCT currency)=1
+        THEN sum(line_total)::numeric(18,2) ELSE NULL
+      END AS gross_invoice_line_amount,
+      CASE
+        WHEN bool_and(source_line_valid AND credit_line_valid) AND count(DISTINCT currency)=1
+        THEN sum(posted_credit_amount)::numeric(18,2) ELSE NULL
+      END AS posted_credit_amount,
+      CASE
+        WHEN bool_and(source_line_valid AND credit_line_valid) AND count(DISTINCT currency)=1
         THEN sum(line_total-posted_credit_amount)::numeric(18,2)
         ELSE NULL
       END AS net_revenue,
-      coalesce(bool_and(source_line_valid AND credit_line_valid),false) AS revenue_complete,
+      (coalesce(bool_and(source_line_valid AND credit_line_valid),false)
+        AND count(DISTINCT currency)=1) AS revenue_complete,
       sum(invalid_credit_item_count)::integer AS invalid_credit_item_count
     FROM invoice_lines
     WHERE product_id IS NOT NULL
@@ -412,6 +422,7 @@ BEGIN
   ),
   product_assessment AS (
     SELECT revenue.product_id,revenue.product_label,revenue.unit_of_measure,
+      revenue.currency,revenue.currency_count,revenue.unit_variant_count,
       revenue.invoice_count,revenue.invoice_line_count,revenue.invoiced_quantity,
       revenue.gross_invoice_line_amount,revenue.posted_credit_amount,revenue.net_revenue,
       revenue.revenue_complete,
@@ -436,12 +447,15 @@ BEGIN
         AND shipment_cost_complete
         AND NOT has_returns
         AND v_currency='YER'
+        AND currency='YER'
+        AND currency_count=1
       ) AS gross_profit_verified,
       CASE
         WHEN revenue_complete AND expected_shipped_quantity>0
          AND actual_shipped_quantity=expected_shipped_quantity
          AND sale_movement_count>0 AND shipment_cost_complete
          AND NOT has_returns AND v_currency='YER'
+         AND currency='YER' AND currency_count=1
         THEN 'VERIFIED'
         WHEN NOT revenue_complete OR has_returns OR v_currency<>'YER'
         THEN 'NEEDS_REVIEW'
@@ -458,7 +472,7 @@ BEGIN
       invoice_coverage.invalid_credit_line_count,
       (invoice_coverage.invoice_count>0
         AND invoice_coverage.invoice_line_count>0
-        AND invoice_coverage.invoices_without_lines=0
+        AND invoice_coverage.invoice_count=invoice_coverage.invoices_with_lines
         AND invoice_coverage.unmapped_line_count=0
         AND invoice_coverage.invalid_credit_line_count=0
         AND v_currency='YER') AS complete_population
@@ -473,8 +487,10 @@ BEGIN
       jsonb_build_object(
         'productRef',assessed.product_id::text,
         'productLabel',assessed.product_label,
-        'currency',v_currency,
+        'currency',assessed.currency,
+        'currencyCount',assessed.currency_count,
         'unitOfMeasure',assessed.unit_of_measure,
+        'unitVariantCount',assessed.unit_variant_count,
         'status',CASE WHEN NOT coverage.complete_population AND assessed.row_status='VERIFIED' THEN 'NEEDS_REVIEW' ELSE assessed.row_status END,
         'invoiceCount',assessed.invoice_count,
         'invoiceLineCount',assessed.invoice_line_count,
@@ -504,7 +520,8 @@ BEGIN
           CASE WHEN assessed.expected_shipped_quantity<=0 OR assessed.actual_shipped_quantity<>assessed.expected_shipped_quantity THEN 'SHIPPED_QUANTITY_NOT_RECONCILED_TO_INVOICE' END,
           CASE WHEN assessed.uncosted_movement_count>0 OR NOT assessed.shipment_cost_complete THEN 'SALE_BATCH_COST_NOT_FULLY_TRACEABLE_TO_PURCHASE_RECEIPT' END,
           CASE WHEN assessed.has_returns THEN 'RETURNED_PRODUCT_GROSS_PROFIT_WITHHELD' END,
-          CASE WHEN v_currency<>'YER' THEN 'MULTI_CURRENCY_OR_FX_POLICY_UNAVAILABLE' END,
+          CASE WHEN v_currency<>'YER' OR assessed.currency IS DISTINCT FROM 'YER' OR assessed.currency_count<>1
+            THEN 'MULTI_CURRENCY_OR_FX_POLICY_UNAVAILABLE' END,
           CASE WHEN NOT coverage.complete_population THEN 'INVOICE_COHORT_NOT_COMPLETE' END
         ],NULL))
       ) ORDER BY assessed.product_label,assessed.product_id
@@ -539,7 +556,7 @@ BEGIN
       'status',source.status,
       'completeness',CASE WHEN source.status='VERIFIED' THEN 'COMPLETE' ELSE 'PARTIAL' END,
       'quality',CASE WHEN source.status='VERIFIED' THEN 'ACCEPTABLE' ELSE 'WARNINGS' END,
-      'currency',v_currency,
+      'currency',source.currency,
       'warnings',CASE WHEN source.status='VERIFIED' THEN '[]'::jsonb ELSE jsonb_build_array(source.warning) END
     ) ORDER BY source.id
   ),'[]'::jsonb)
@@ -548,28 +565,31 @@ BEGIN
     SELECT
       'product-gross-margin:'||product.productRef||':invoice-lines' AS id,
       'customer_invoice_items_net_posted_credit_memos' AS name,
-      CASE WHEN product.netRevenue IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END AS status,
+      CASE WHEN product.status='VERIFIED' AND product.netRevenue IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END AS status,
+      product.currency,
       'INVOICE_LINE_OR_CREDIT_EVIDENCE_INCOMPLETE' AS warning
     FROM jsonb_to_recordset(v_products) AS product(
-      productRef text,netRevenue text,status text
+      productRef text,netRevenue text,status text,currency text
     )
     UNION ALL
     SELECT
       'product-gross-margin:'||product.productRef||':shipment-batches',
       'inventory_sale_movements_batch_lineage',
-      CASE WHEN product.costOfGoodsSold IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
+      CASE WHEN product.status='VERIFIED' AND product.costOfGoodsSold IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
+      product.currency,
       'SALE_BATCH_COST_NOT_FULLY_TRACEABLE_TO_PURCHASE_RECEIPT'
     FROM jsonb_to_recordset(v_products) AS product(
-      productRef text,costOfGoodsSold text
+      productRef text,costOfGoodsSold text,status text,currency text
     )
     UNION ALL
     SELECT
       'product-gross-margin:'||product.productRef||':receipt-costs',
       'purchase_receipt_items_cost_lineage',
-      CASE WHEN product.costOfGoodsSold IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
+      CASE WHEN product.status='VERIFIED' AND product.costOfGoodsSold IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
+      product.currency,
       'PURCHASE_RECEIPT_COST_LINEAGE_INCOMPLETE'
     FROM jsonb_to_recordset(v_products) AS product(
-      productRef text,costOfGoodsSold text
+      productRef text,costOfGoodsSold text,status text,currency text
     )
   ) source;
 
