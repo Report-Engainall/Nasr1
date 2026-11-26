@@ -19,7 +19,7 @@ function normalizeQuantityDigits(value: string): string {
     })
     .replace(/[٬,]/g, "")
     .trim();
-  if (!/^-?\\d+(?:\\.\\d+)?$/.test(normalized)) return normalized;
+  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return normalized;
   const [whole, fraction = ""] = normalized.split(".");
   const significantFraction = fraction.replace(/0+$/, "");
   return significantFraction ? whole + "." + significantFraction : whole;
