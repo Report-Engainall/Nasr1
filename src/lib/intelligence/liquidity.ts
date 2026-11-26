@@ -28,8 +28,8 @@ export interface LiquidityMetricEvidence {
 }
 export interface LiquidityForecastHorizon {
  days:7|30|90;through:string;status:EvidenceStatus;openingBalance:number|null;expectedCollections:number|null;
- committedObligations:number|null;projectedBalance:number|null;flowCount:number;
- overdueCollections:number;overdueObligations:number;evidenceIds:string[];warnings:string[];
+ committedObligations:number|null;projectedBalance:number|null;flowCount:number|null;
+ overdueCollections:number|null;overdueObligations:number|null;evidenceIds:string[];warnings:string[];
 }
 export interface LiquidityForecastPosition {
  currency:string;asOf:string;status:EvidenceStatus;horizons:LiquidityForecastHorizon[];warnings:string[];
@@ -149,8 +149,8 @@ function buildCurrencyForecast(args:{
   currency,asOf,status,warnings:[warning],horizons:horizons.map(days=>({
    days,through:asOfDay===null?asOf.slice(0,10):new Date(asOfDay+days*86400000).toISOString().slice(0,10),
    status,openingBalance:openingBalance.status==="VERIFIED"?openingBalance.value:null,
-   expectedCollections:null,committedObligations:null,projectedBalance:null,flowCount:0,
-   overdueCollections:0,overdueObligations:0,evidenceIds:[],warnings:[warning],
+   expectedCollections:null,committedObligations:null,projectedBalance:null,flowCount:null,
+   overdueCollections:null,overdueObligations:null,evidenceIds:[],warnings:[warning],
   })),
  });
  if(!forecast)return empty("UNAVAILABLE","FORECAST_COVERAGE_NOT_SUPPLIED");
