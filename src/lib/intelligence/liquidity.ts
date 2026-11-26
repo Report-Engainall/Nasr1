@@ -119,7 +119,7 @@ function forecastStatus(statuses:EvidenceStatus[]):EvidenceStatus {
  if(statuses.includes("UNAVAILABLE"))return "UNAVAILABLE";
  return "VERIFIED";
 }
-function readForecastAmount(metric:MetricSnapshot|undefined,index:Map<string,MetricSnapshot>,currency:string,asOf:string):MetricValue {
+function readForecastAmount(metric:MetricSnapshot|undefined,index:Map<string,MetricSnapshot>,currency:string,asOf:string,period:EvidencePeriod):MetricValue {
  if(!metric)return {value:null,minorUnits:null,status:"UNAVAILABLE",warnings:["FORECAST_AMOUNT_NOT_SUPPLIED"]};
  const source=index.get(metric.id);
  if(!source)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["FORECAST_AMOUNT_SOURCE_AMBIGUOUS_OR_MISSING"]};
@@ -131,16 +131,18 @@ function readForecastAmount(metric:MetricSnapshot|undefined,index:Map<string,Met
   return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["FORECAST_AMOUNT_AS_OF_MISMATCH"]};
  if(source.unit!=="CURRENCY"||source.currency!==currency)
   return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["FORECAST_AMOUNT_CURRENCY_MISMATCH"]};
+ if(source.period&&(source.period.from!==period.from||source.period.to!==period.to))
+  return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["FORECAST_AMOUNT_PERIOD_MISMATCH"]};
  const minorUnits=decimalToMinorUnits(source.value,6);
  const value=minorUnits===null?null:minorUnitsToNumber(minorUnits,6);
  if(minorUnits===null||value===null)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["FORECAST_AMOUNT_PRECISION_UNSUPPORTED"]};
  return {value,minorUnits,status:"VERIFIED",warnings:[]};
 }
 function buildCurrencyForecast(args:{
- currency:string;asOf:string;openingBalance:MetricValue;openingBalanceMetric:MetricSnapshot|null;forecast:LiquidityCurrencyForecastInput|null|undefined;
+ currency:string;asOf:string;period:EvidencePeriod;openingBalance:MetricValue;openingBalanceMetric:MetricSnapshot|null;forecast:LiquidityCurrencyForecastInput|null|undefined;
  index:Map<string,MetricSnapshot>;evidenceRecords:EvidenceRecord[];
 }):LiquidityForecastPosition {
- const {currency,asOf,openingBalance,openingBalanceMetric,forecast,index,evidenceRecords}=args;
+ const {currency,asOf,period,openingBalance,openingBalanceMetric,forecast,index,evidenceRecords}=args;
  const asOfDay=utcDay(asOf.slice(0,10));
  const horizons=[7,30,90] as const;
  const empty=(status:EvidenceStatus,warning:string):LiquidityForecastPosition=>({
@@ -191,7 +193,7 @@ function buildCurrencyForecast(args:{
   const through=new Date(throughDay).toISOString().slice(0,10);
   const included=normalized.filter(row=>row.day<=throughDay&&
    (row.day>=asOfDay||row.flow.direction==="COMMITTED_OBLIGATION"));
-  const amountReads=included.map(row=>({row,amount:readForecastAmount(row.flow.amount,index,currency,asOf)}));
+  const amountReads=included.map(row=>({row,amount:readForecastAmount(row.flow.amount,index,currency,asOf,period)}));
   const bad=amountReads.find(item=>item.amount.status!=="VERIFIED");
   const evidenceIds=[...new Set([...coverage.evidenceIds,...(openingBalanceMetric?.lineage.evidenceIds??[]),
    ...amountReads.flatMap(item=>item.row.flow.amount.lineage?.evidenceIds??[])])];
@@ -277,7 +279,7 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
    dueObligations:obligations.value,dueObligationsStatus:obligations.status,
    netAvailableLiquidity:duplicate?null:net,stagnantStockExposure:stock.value,stagnantStockExposureStatus:stock.status,
    receivableAging:aging,metricEvidence,
-   forecast:buildCurrencyForecast({currency:position.currency,asOf:input.asOf,openingBalance:available,
+   forecast:buildCurrencyForecast({currency:position.currency,asOf:input.asOf,period:input.period,openingBalance:available,
     openingBalanceMetric:position.availableBalance,forecast:position.forecast,index,evidenceRecords:passport.evidenceRecords}),
    formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,lineage:{metricIds,evidenceIds,formulaVersions},warnings:positionWarnings,
   };
