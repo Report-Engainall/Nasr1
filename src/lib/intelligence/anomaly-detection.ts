@@ -244,6 +244,7 @@ export function buildAnomalyDetection(input: {
 
   const rules = new Map<string, AnomalyRule[]>();
   for (const rule of input.rules) {
+    if (!rule || typeof rule.id !== "string" || !rule.id.trim()) continue;
     const rows = rules.get(rule.id) ?? [];
     rows.push(rule);
     rules.set(rule.id, rows);
