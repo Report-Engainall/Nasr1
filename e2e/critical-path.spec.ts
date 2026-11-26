@@ -91,7 +91,7 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
   const runLabel = "Playwright E2E " + (process.env.GITHUB_RUN_ID ?? new Date().toISOString());
   await page.locator('textarea[placeholder="أي ملاحظات على الطلب..."]').fill(runLabel);
 
-  const submit = page.getByRole("button", { name: "تأكيد الطلب", exact: true });
+  const submit = page.getByRole("button", { name: "اعتماد الطلب وإرساله", exact: true });
   await expect(submit, "Server-side cart and pricing validation must finish before submission.").toBeEnabled({ timeout: 45_000 });
   await submit.click();
   // Checkout intentionally replaces the form with the persisted order-detail route.
