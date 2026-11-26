@@ -15,6 +15,7 @@ import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/inte
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
+import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -56,6 +57,7 @@ import {
   EvidencePassport,
   EvidenceSourceComparisonPanel,
   GrowthOpportunityRadar,
+  ProductGrossMarginCard,
   LiquiditySummary,
   ReplenishmentCard,
   ShiftOperationsCenter,
@@ -412,6 +414,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [retentionResult, setRetentionResult] = useState<CustomerRetentionAggregateResult | null>(null);
   const [retentionLoading, setRetentionLoading] = useState(true);
   const [growthRadarResult, setGrowthRadarResult] = useState<GrowthOpportunityRadarResult | null>(null);
+  const [productGrossMarginResult, setProductGrossMarginResult] = useState<ProductGrossMarginFetchResult | null>(null);
+  const [productGrossMarginLoading, setProductGrossMarginLoading] = useState(true);
+  const productGrossMarginRequestGeneration = useRef(0);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
@@ -532,6 +537,26 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     }
   }, [canManage]);
 
+  const loadProductGrossMargin = useCallback(async (active: () => boolean) => {
+    if (!canManage) {
+      setProductGrossMarginResult({ ok: false, status: "DENIED", message: "تتطلب قراءة ربحية المنتجات صلاحية المدير المالي." });
+      setProductGrossMarginLoading(false);
+      return;
+    }
+    setProductGrossMarginLoading(true);
+    try {
+      const asOf = snapshotAt.current.toISOString();
+      const to = utcDay(snapshotAt.current);
+      const from = shiftUtcDay(to, -89);
+      const response = await fetchProductGrossMargin({ from, to, asOf });
+      if (active()) setProductGrossMarginResult(response);
+    } catch {
+      if (active()) setProductGrossMarginResult({ ok: false, status: "ERROR", message: "تعذر إعداد طلب ربحية المنتجات." });
+    } finally {
+      if (active()) setProductGrossMarginLoading(false);
+    }
+  }, [canManage]);
+
   const loadShiftWorkspace = useCallback(async (active: () => boolean) => {
     const generation = ++shiftRequestGeneration.current;
     if (!canManage) {
@@ -609,6 +634,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       supplierPerformanceRequestGeneration.current += 1;
     };
   }, [canManage, processFrom, processTo, supplierPerformanceRefreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    const generation = ++productGrossMarginRequestGeneration.current;
+    void loadProductGrossMargin(() => mounted && generation === productGrossMarginRequestGeneration.current);
+    return () => {
+      mounted = false;
+      productGrossMarginRequestGeneration.current += 1;
+    };
+  }, [loadProductGrossMargin, refreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -1728,6 +1763,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
               onRetry={() => setRefreshKey((value) => value + 1)}
               onOpenRecord={onOpenRecord}
+            />
+            <ProductGrossMarginCard
+              result={productGrossMarginResult}
+              state={productGrossMarginLoading ? "loading"
+                : productGrossMarginResult && !productGrossMarginResult.ok &&
+                  (productGrossMarginResult.status === "DENIED" || productGrossMarginResult.status === "ERROR")
+                  ? "error" : productGrossMarginResult ? "ready" : "unavailable"}
+              onRetry={() => setRefreshKey((value) => value + 1)}
             />
           </section>
 
