@@ -191,7 +191,17 @@ describe("decision learning strict evidence clocks", () => {
   const actual = metric("actual", "2.00");
   for (const sourceTimestamp of ["2026-02-31T00:00:00.000Z", "2026-11-25T23:50:00.000"]) {
    const invalidEvidence = { ...evidence(expected), sourceTimestamp };
-   const result = evaluate(expected, actual, [invalidEvidence, evidence(actual)]);
+   const result = evaluateDecisionLearning({
+    id: "learning-fixture",
+    measuredAt,
+    evidenceRecords: [invalidEvidence, evidence(actual)],
+    expected,
+    actual,
+    expectedRuleId: "daily.sales",
+    expectedRuleVersion: "1.0.0",
+    currentRuleId: "daily.sales",
+    currentRuleVersion: "1.1.0",
+   });
    expect(result.status).toBe("NEEDS_REVIEW");
    expect(result.variance).toBeNull();
    expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
