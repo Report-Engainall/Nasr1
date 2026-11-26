@@ -28,6 +28,13 @@ function dayCount(period:EvidencePeriod):number {
  const days=Math.floor((to-from)/86400000)+1;
  return Number.isSafeInteger(days)&&days>0?days:0;
 }
+function isoInstant(value:unknown):number|null {
+ if(typeof value!=="string"||
+  !/^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/.test(value)||
+  isoDay(value.slice(0,10))===null)return null;
+ const parsed=Date.parse(value);
+ return Number.isFinite(parsed)?parsed:null;
+}
 
 type ReplenishmentMetricRead = { value: number | null; minorUnits: bigint | null; status: EvidenceStatus; metric: MetricSnapshot | null };
 
@@ -91,8 +98,11 @@ function readReplenishmentMetric(args: {
 export function buildReplenishmentRecommendations(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:ReplenishmentProductInput[];
 }):{id:string;asOf:string;period:EvidencePeriod;recommendations:ReplenishmentRecommendation[]} {
- if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be valid");
- const periodDays=dayCount(input.period);if(periodDays<1)throw new Error("invalid period");
+ const asOfMs=isoInstant(input.asOf);
+ if(asOfMs===null)throw new Error("asOf must be valid");
+ const periodDays=dayCount(input.period),periodEnd=isoDay(input.period.to);
+ if(periodDays<1||periodEnd===null||periodEnd+86400000>asOfMs)
+  throw new Error("invalid or incomplete period");
  const metrics=input.products.flatMap(p=>[p.availableToPromise,p.reorderPoint,p.soldQuantityWindow,p.supplierLeadTimeDays,p.incomingPurchaseQuantity,...(p.minimumOrderQuantity?[p.minimumOrderQuantity]:[]),...(p.orderMultiple?[p.orderMultiple]:[])]);
  const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const counts=new Map<string,number>();for(const m of passport.metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
@@ -130,6 +140,14 @@ export function buildReplenishmentRecommendations(input:{
     product.minimumOrderQuantity ? read(product.minimumOrderQuantity, "QUANTITY") : null,
     product.orderMultiple ? read(product.orderMultiple, "QUANTITY") : null,
   ];
+  const invalidConfiguredConstraint = [
+    { metric: optional[0], warning: "MINIMUM_ORDER_QUANTITY_MUST_BE_POSITIVE" },
+    { metric: optional[1], warning: "ORDER_MULTIPLE_MUST_BE_POSITIVE" },
+  ].find(item => item.metric !== null && item.metric.minorUnits === 0n);
+  if (invalidConfiguredConstraint) {
+    warnings.push(invalidConfiguredConstraint.warning);
+    (invalidConfiguredConstraint.metric as ReplenishmentMetricRead).status = "NEEDS_REVIEW";
+  }
   const required=[atp,rop,sold,lead,incoming],bad=required.find(r=>r.status!=="VERIFIED")??optional.find(r=>r&&r.status!=="VERIFIED");
   if(bad){warnings.push("REQUIRED_OR_CONFIGURED_INPUT_NOT_VERIFIED");return {
    productRef:product.productRef,status:bad.status,action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
