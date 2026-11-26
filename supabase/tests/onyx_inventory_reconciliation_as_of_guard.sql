@@ -446,4 +446,246 @@ BEGIN
 END;
 $acceptance$;
 
+
+-- Snapshot every business row touched by an Onyx command. The rejection paths below
+-- must preserve this state byte-for-byte, including ledger and append-only audit rows.
+CREATE OR REPLACE FUNCTION public.onyx_reconciliation_acceptance_state(
+  p_product_id uuid,
+  p_command_id uuid
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path=''
+AS $function$
+  SELECT pg_catalog.jsonb_build_object(
+    'balance',(
+      SELECT pg_catalog.to_jsonb(b)
+        FROM public.inventory_balances b
+       WHERE b.product_id=p_product_id
+         AND b.warehouse_id='40000000-0000-4000-8000-000000000001'
+    ),
+    'movements',coalesce((
+      SELECT pg_catalog.jsonb_agg(pg_catalog.to_jsonb(m) ORDER BY m.id)
+        FROM public.inventory_movements m
+       WHERE m.product_id=p_product_id
+         AND m.warehouse_id='40000000-0000-4000-8000-000000000001'
+    ),'[]'::jsonb),
+    'command',(
+      SELECT pg_catalog.to_jsonb(c)
+        FROM public.onyx_inventory_reconciliation_commands c
+       WHERE c.id=p_command_id
+    ),
+    'items',coalesce((
+      SELECT pg_catalog.jsonb_agg(pg_catalog.to_jsonb(i) ORDER BY i.product_id,i.id)
+        FROM public.onyx_inventory_reconciliation_items i
+       WHERE i.command_id=p_command_id
+    ),'[]'::jsonb),
+    'audit',coalesce((
+      SELECT pg_catalog.jsonb_agg(pg_catalog.to_jsonb(a) ORDER BY a.id)
+        FROM public.audit_logs a
+       WHERE a.entity_type='onyx_inventory_reconciliation'
+         AND a.entity_id=p_command_id
+    ),'[]'::jsonb)
+  )
+$function$;
+
+DO $mutation_windows$
+DECLARE
+  v_org uuid:='10000000-0000-4000-8000-000000000001';
+  v_warehouse uuid:='40000000-0000-4000-8000-000000000001';
+  v_profile uuid:='20000000-0000-4000-8000-000000000001';
+  v_today date:=(pg_catalog.statement_timestamp() AT TIME ZONE 'UTC')::date;
+  v_product uuid;
+  v_snapshot uuid;
+  v_row uuid;
+  v_command uuid;
+  v_data jsonb;
+  v_result jsonb;
+  v_before jsonb;
+  v_after jsonb;
+  v_denied boolean;
+  v_available numeric(15,3);
+  v_status text;
+BEGIN
+  -- A stock movement committed after preview invalidates the baseline.
+  -- Apply must reject the stale command before writing its own movement, state or audit.
+  v_product:='50000000-0000-4000-8000-000000000010';
+  v_snapshot:='60000000-0000-4000-8000-000000000010';
+  v_row:='80000000-0000-4000-8000-000000000010';
+  INSERT INTO public.products(id,organization_id,item_code,status,min_stock)
+  VALUES(v_product,v_org,'P2-ASOF-CHANGED-AFTER-PREVIEW','active',0);
+  INSERT INTO public.inventory_balances(
+    product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point,
+    last_movement_at,updated_at
+  ) VALUES(
+    v_product,v_warehouse,5,1,0,
+    pg_catalog.statement_timestamp()-interval '3 days',
+    pg_catalog.statement_timestamp()-interval '3 days'
+  );
+  INSERT INTO public.inventory_movements(
+    product_id,warehouse_id,movement_type,quantity,balance_after,
+    reference_type,reference_id,reason,created_by,created_at
+  ) VALUES(
+    v_product,v_warehouse,'opening',5,5,'acceptance_fixture',v_product,
+    'baseline before Onyx preview',v_profile,
+    pg_catalog.statement_timestamp()-interval '3 days'
+  );
+  INSERT INTO public.onyx_snapshots(
+    id,organization_id,status,source_file_hash,report_type,metrics,row_count
+  ) VALUES(
+    v_snapshot,v_org,'ready',pg_catalog.md5(v_snapshot::text),'inventory_stock','{}'::jsonb,1
+  );
+  v_data:=pg_catalog.jsonb_build_object(
+    'item_code','P2-ASOF-CHANGED-AFTER-PREVIEW',
+    'warehouse_id',v_warehouse,'quantity','7',
+    'as_of_date',pg_catalog.to_char(v_today,'YYYY-MM-DD')
+  );
+  INSERT INTO public.onyx_snapshot_rows(
+    id,snapshot_id,organization_id,row_number,canonical_key,status,data,row_hash
+  ) VALUES(
+    v_row,v_snapshot,v_org,1,'P2-ASOF-CHANGED-AFTER-PREVIEW',
+    'valid',v_data,pg_catalog.md5(v_data::text)
+  );
+  v_result:=public.preview_onyx_inventory_reconciliation(
+    v_snapshot,v_warehouse,'p2-asof-window-preview-0001',
+    'Reject apply after stock changes since preview'
+  );
+  v_command:=(v_result->>'command_id')::uuid;
+  IF v_result->>'status'<>'previewed' THEN
+    RAISE EXCEPTION 'fresh source did not create the expected preview: %',v_result;
+  END IF;
+
+  -- Simulate a legitimate receipt between review and apply.
+  UPDATE public.inventory_balances
+     SET quantity_on_hand=quantity_on_hand+1,
+         last_movement_at=pg_catalog.clock_timestamp(),
+         updated_at=pg_catalog.clock_timestamp()
+   WHERE product_id=v_product AND warehouse_id=v_warehouse
+   RETURNING quantity_available INTO v_available;
+  INSERT INTO public.inventory_movements(
+    product_id,warehouse_id,movement_type,quantity,balance_after,
+    reference_type,reference_id,reason,created_by,created_at
+  ) VALUES(
+    v_product,v_warehouse,'purchase_receipt',1,v_available,
+    'acceptance_fixture',v_product,'intervening receipt after Onyx preview',
+    v_profile,pg_catalog.clock_timestamp()
+  );
+
+  v_before:=public.onyx_reconciliation_acceptance_state(v_product,v_command);
+  v_denied:=false;
+  BEGIN
+    PERFORM public.apply_onyx_inventory_reconciliation(
+      v_command,'p2-asof-window-apply-0001'
+    );
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    v_denied:=true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'Onyx apply unexpectedly overwrote stock changed after preview';
+  END IF;
+  v_after:=public.onyx_reconciliation_acceptance_state(v_product,v_command);
+  IF v_after IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'denied apply changed balance, movements, reconciliation items, command or audit';
+  END IF;
+  SELECT status INTO v_status
+    FROM public.onyx_inventory_reconciliation_commands WHERE id=v_command;
+  IF v_status<>'previewed' THEN
+    RAISE EXCEPTION 'stale apply denial changed command state to %',v_status;
+  END IF;
+
+  -- A compensating rollback must not overwrite any receipt or issue that happened
+  -- after an earlier successful apply. It must preserve the applied command and ledger.
+  v_product:='50000000-0000-4000-8000-000000000011';
+  v_snapshot:='60000000-0000-4000-8000-000000000011';
+  v_row:='80000000-0000-4000-8000-000000000011';
+  INSERT INTO public.products(id,organization_id,item_code,status,min_stock)
+  VALUES(v_product,v_org,'P2-ASOF-ROLLBACK-LATER-MOVEMENT','active',0);
+  INSERT INTO public.inventory_balances(
+    product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point,
+    last_movement_at,updated_at
+  ) VALUES(
+    v_product,v_warehouse,8,2,0,
+    pg_catalog.statement_timestamp()-interval '3 days',
+    pg_catalog.statement_timestamp()-interval '3 days'
+  );
+  INSERT INTO public.inventory_movements(
+    product_id,warehouse_id,movement_type,quantity,balance_after,
+    reference_type,reference_id,reason,created_by,created_at
+  ) VALUES(
+    v_product,v_warehouse,'opening',8,8,'acceptance_fixture',v_product,
+    'baseline before Onyx apply',v_profile,
+    pg_catalog.statement_timestamp()-interval '3 days'
+  );
+  INSERT INTO public.onyx_snapshots(
+    id,organization_id,status,source_file_hash,report_type,metrics,row_count
+  ) VALUES(
+    v_snapshot,v_org,'ready',pg_catalog.md5(v_snapshot::text),'inventory_stock','{}'::jsonb,1
+  );
+  v_data:=pg_catalog.jsonb_build_object(
+    'item_code','P2-ASOF-ROLLBACK-LATER-MOVEMENT',
+    'warehouse_id',v_warehouse,'quantity','9',
+    'as_of_date',pg_catalog.to_char(v_today,'YYYY-MM-DD')
+  );
+  INSERT INTO public.onyx_snapshot_rows(
+    id,snapshot_id,organization_id,row_number,canonical_key,status,data,row_hash
+  ) VALUES(
+    v_row,v_snapshot,v_org,1,'P2-ASOF-ROLLBACK-LATER-MOVEMENT',
+    'valid',v_data,pg_catalog.md5(v_data::text)
+  );
+  v_result:=public.preview_onyx_inventory_reconciliation(
+    v_snapshot,v_warehouse,'p2-asof-rollback-window-preview-01',
+    'Rollback must preserve later stock movement'
+  );
+  v_command:=(v_result->>'command_id')::uuid;
+  v_result:=public.apply_onyx_inventory_reconciliation(
+    v_command,'p2-asof-rollback-window-apply-0001'
+  );
+  IF v_result->>'status'<>'applied' THEN
+    RAISE EXCEPTION 'rollback safety fixture could not be applied: %',v_result;
+  END IF;
+
+  -- An independent receipt advances both the aggregate balance and movement ledger.
+  UPDATE public.inventory_balances
+     SET quantity_on_hand=quantity_on_hand+1,
+         last_movement_at=pg_catalog.clock_timestamp(),
+         updated_at=pg_catalog.clock_timestamp()
+   WHERE product_id=v_product AND warehouse_id=v_warehouse
+   RETURNING quantity_available INTO v_available;
+  INSERT INTO public.inventory_movements(
+    product_id,warehouse_id,movement_type,quantity,balance_after,
+    reference_type,reference_id,reason,created_by,created_at
+  ) VALUES(
+    v_product,v_warehouse,'purchase_receipt',1,v_available,
+    'acceptance_fixture',v_product,'later receipt after Onyx apply',
+    v_profile,pg_catalog.clock_timestamp()
+  );
+
+  v_before:=public.onyx_reconciliation_acceptance_state(v_product,v_command);
+  v_denied:=false;
+  BEGIN
+    PERFORM public.rollback_onyx_inventory_reconciliation(
+      v_command,'p2-asof-rollback-window-key-0001',
+      'Do not roll back over an intervening receipt'
+    );
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    v_denied:=true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'Onyx rollback unexpectedly overwrote a later inventory movement';
+  END IF;
+  v_after:=public.onyx_reconciliation_acceptance_state(v_product,v_command);
+  IF v_after IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'denied rollback changed balance, movements, reconciliation items, command or audit';
+  END IF;
+  SELECT status INTO v_status
+    FROM public.onyx_inventory_reconciliation_commands WHERE id=v_command;
+  IF v_status<>'applied' THEN
+    RAISE EXCEPTION 'denied rollback changed applied command state to %',v_status;
+  END IF;
+
+  RAISE NOTICE 'PASS Onyx mutation windows: post-preview stock changes block apply without side effects; post-apply stock changes block compensating rollback without side effects';
+END;
+$mutation_windows$;
+
 ROLLBACK;
