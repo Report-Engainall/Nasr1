@@ -167,3 +167,59 @@ describe("decision outcome learning precision and dimensional safety", () => {
     expect(result.variance).toBeNull();
   });
 });
+
+
+describe("decision learning strict evidence clocks", () => {
+  it("rejects a measured-at timestamp with an impossible calendar day", () => {
+    expect(() => evaluateDecisionLearning({
+      id: "invalid-measurement-clock",
+      measuredAt: "2026-02-31T00:00:00.000Z",
+      evidenceRecords: [],
+      expected: metric("expected", 1),
+      actual: metric("actual", 2),
+      expectedRuleId: "daily.sales",
+      expectedRuleVersion: "1.0.0",
+      currentRuleId: "daily.sales",
+      currentRuleVersion: "1.1.0",
+    })).toThrow();
+  });
+
+  it("withholds measured variance when source evidence has an impossible timestamp", () => {
+    const expected = metric("expected", "1.00");
+    const actual = metric("actual", "2.00");
+    const invalidEvidence = {
+      ...evidence(expected),
+      sourceTimestamp: "2026-02-31T00:00:00.000Z",
+    };
+    const result = evaluate(expected, actual, [invalidEvidence]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.variance).toBeNull();
+    expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+  });
+
+  it("withholds measured variance when metric calculation occurred after its measurement clock", () => {
+    const expected = metric("expected", "1.00");
+    const actual = metric("actual", "2.00");
+    const futureCalculatedMetric = {
+      ...expected,
+      lineage: {
+        ...expected.lineage,
+        calculatedAt: "2026-11-26T00:00:01.000Z",
+      },
+    };
+    const result = evaluate(futureCalculatedMetric, actual);
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.variance).toBeNull();
+    expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+  });
+
+  it("withholds metrics whose reporting period contains an impossible date", () => {
+    const invalidPeriod = { from: "2026-11-01", to: "2026-11-31" };
+    const expected = metric("expected", "1.00", "CURRENCY", { currency: "YER", period: invalidPeriod });
+    const actual = metric("actual", "2.00", "CURRENCY", { currency: "YER", period: invalidPeriod });
+    const result = evaluate(expected, actual);
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.variance).toBeNull();
+    expect(result.warnings).toContain("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+  });
+});
