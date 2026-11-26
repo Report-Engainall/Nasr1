@@ -295,6 +295,7 @@ describe("deterministic evidence-backed anomaly detection", () => {
       metrics: [],
       rules: [],
       signals: [],
+      sourceSnapshotVerified: true,
     })).toThrow("anomaly_detection_timestamp_or_id_invalid");
   });
 });
