@@ -733,6 +733,8 @@ on:
       - "src/components/UnifiedImportEngine.tsx"
       - "src/components/OnyxProExchangeWorkspace.tsx"
       - "src/components/OnyxSnapshotCenter.tsx"
+      - "src/lib/onyx-pro-workbook.ts"
+      - "src/lib/onyx-pro-workbook.test.ts"
       - "src/lib/onyx-product-unit-import.ts"
       - "src/lib/onyx-product-unit-import.test.ts"
       - "src/lib/onyx-stock-balance-import.ts"
