@@ -282,6 +282,9 @@ export function parseProductGrossMarginSnapshot(
     return null;
   }
   const raw = object(value);
+  const sourceTables = Array.isArray(raw?.sourceTables)
+    ? raw.sourceTables.filter((table: unknown): table is string => typeof table === "string")
+    : null;
   if (!raw || !validInstant(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(request.asOf) ||
       !isPeriod(raw.period) || raw.period.from !== request.from || raw.period.to !== request.to ||
       !["VERIFIED", "PARTIAL", "EMPTY"].includes(String(raw.status)) ||
@@ -296,7 +299,8 @@ export function parseProductGrossMarginSnapshot(
       !Array.isArray(raw.evidenceRecords) || raw.evidenceRecords.length > 6000 ||
       raw.formulaId !== FORMULA_ID || raw.formulaVersion !== "1" ||
       typeof raw.formulaDescription !== "string" || raw.formulaDescription.length < 40 || raw.formulaDescription.length > 1600 ||
-      !Array.isArray(raw.sourceTables) || SOURCE_TABLES.some(table => !raw.sourceTables.includes(table)) ||
+      sourceTables === null || sourceTables.length !== (raw.sourceTables as unknown[]).length ||
+      SOURCE_TABLES.some(table => !sourceTables.includes(table)) ||
       raw.sideEffects !== "NONE") {
     return null;
   }
@@ -348,7 +352,7 @@ export function parseProductGrossMarginSnapshot(
     formulaId: FORMULA_ID,
     formulaVersion: "1",
     formulaDescription: raw.formulaDescription,
-    sourceTables: raw.sourceTables as string[],
+    sourceTables,
   };
 }
 
