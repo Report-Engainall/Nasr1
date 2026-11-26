@@ -57,7 +57,11 @@ function evaluate(
   return evaluateDecisionLearning({
     id: "learning-fixture",
     measuredAt,
-    evidenceRecords: [...extraEvidence, evidence(expected), evidence(actual)],
+    evidenceRecords: [
+      ...new Map(
+        [evidence(expected), evidence(actual), ...extraEvidence].map((record) => [record.id, record]),
+      ).values(),
+    ],
     expected,
     actual,
     expectedRuleId: "daily.sales",
