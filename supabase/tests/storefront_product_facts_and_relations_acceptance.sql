@@ -165,15 +165,28 @@ GRANT EXECUTE ON FUNCTION public.test_read_product_name(uuid) TO authenticated;
 -- scripts/test-authorization-capability-registry.mjs on the repository's local Supabase stack.
 CREATE TABLE public.authorization_capabilities(
   capability_key text PRIMARY KEY,
-  is_active boolean NOT NULL DEFAULT true
+  domain text NOT NULL,
+  resource text NOT NULL,
+  action text NOT NULL,
+  sensitivity text NOT NULL CHECK(sensitivity IN ('public','commercial','catalog','inventory','customer','financial','identity','operational','data','audit')),
+  scope_kind text NOT NULL CHECK(scope_kind IN ('organization','branch','warehouse','team','assigned_customer','resource_owner')),
+  approval_mode text NOT NULL DEFAULT 'none' CHECK(approval_mode IN ('none','approval_required','maker_checker')),
+  separation_of_duties boolean NOT NULL DEFAULT false,
+  state_requirements jsonb NOT NULL DEFAULT '{}'::jsonb,
+  legacy_operation_id text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT statement_timestamp(),
+  updated_at timestamptz NOT NULL DEFAULT statement_timestamp()
 );
 CREATE TABLE public.authorization_role_capabilities(
-  role text NOT NULL,
-  capability_key text NOT NULL REFERENCES public.authorization_capabilities(capability_key),
+  role text NOT NULL CHECK(role IN ('admin','manager','staff','accountant','customer_manager','customer')),
+  capability_key text NOT NULL REFERENCES public.authorization_capabilities(capability_key) ON DELETE RESTRICT,
   grant_source text NOT NULL,
   valid_from timestamptz NOT NULL DEFAULT statement_timestamp(),
   expires_at timestamptz,
-  PRIMARY KEY(role,capability_key)
+  created_at timestamptz NOT NULL DEFAULT statement_timestamp(),
+  PRIMARY KEY(role,capability_key),
+  CHECK(expires_at IS NULL OR expires_at>valid_from)
 );
 CREATE TABLE public.authorization_profile_denials(
   organization_id uuid NOT NULL,
