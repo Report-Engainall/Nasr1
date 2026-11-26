@@ -29,3 +29,11 @@ No hosted Supabase, production DB, live Onyx or WhatsApp request, deployment or 
 
 ## Handoff
 P2 owns this acceptance. P1 retains sole merge authority; P2 will not merge, close another role's PR, or edit the shared execution state / acceptance matrix.
+
+
+## Current-main synchronization — 2026-11-27
+
+- The first PR synchronization commit `c8816d51d0cebff5006bd43afec13a54575bd24d` incorporated main `f7473bfdf2972bc327ccaac1e41b713513797f0a`. PostgreSQL 17 Onyx acceptance passed on that exact PR head (run [45908084649](https://github.com/Report-Engainall/Nasr1/actions/runs/45908084649)); the public Chromium job in [45908084646](https://github.com/Report-Engainall/Nasr1/actions/runs/45908084646) was still running at last inspection.
+- Main subsequently advanced to `2981c0d1facab554fac56293a19798eca642ff79`. The P2 branch was synchronized again with a normal two-parent commit `9ded806ab3657b2683aaa3dda7ad8f13b04734e1`, preserving the prior PR head as its second parent. The tree continues to contain only the three owned P2 files listed above; no production RPC/migration/RLS changes were introduced.
+- The earlier `c8816d5` PASS is historical for that exact SHA and is **not** evidence for the new main-synchronized candidate. Exact-head PostgreSQL 17 and P2 browser reruns are required after this checkpoint refresh.
+- Current main/P1 source is preserved. P2 has not merged this PR and has not modified the shared execution pointer or acceptance matrix.
