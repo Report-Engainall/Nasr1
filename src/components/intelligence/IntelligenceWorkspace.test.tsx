@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   fetchInventory: vi.fn(),
   fetchShiftWorkspace: vi.fn(),
   fetchProcessBottlenecks: vi.fn(),
+  fetchProductGrossMargin: vi.fn(),
   startShift: vi.fn(),
   recordShiftCash: vi.fn(),
   recordShiftHandover: vi.fn(),
@@ -65,6 +66,9 @@ vi.mock("@/lib/intelligence/shift-operations-client", () => ({
 }));
 vi.mock("@/lib/intelligence/process-bottlenecks-client", () => ({
   fetchProcessBottlenecks: mocks.fetchProcessBottlenecks,
+}));
+vi.mock("@/lib/intelligence/product-gross-margin-client", () => ({
+  fetchProductGrossMargin: mocks.fetchProductGrossMargin,
 }));
 vi.mock("@/lib/intelligence/commerce-policy-governance-client", () => ({
   fetchCommercePolicyCatalog: mocks.fetchPolicyCatalog,
@@ -294,6 +298,9 @@ describe("production intelligence workspace inventory screens", () => {
     });
     mocks.fetchProcessBottlenecks.mockReset().mockResolvedValue({
       ok: false, status: "UNAVAILABLE", message: "process fixture unavailable",
+    });
+    mocks.fetchProductGrossMargin.mockReset().mockResolvedValue({
+      ok: false, status: "DENIED", message: "gross margin finance source denied in workspace fixture",
     });
     mocks.startShift.mockReset().mockResolvedValue({ ok: true, data: { shiftId: "shift-1" } });
     mocks.recordShiftCash.mockReset().mockResolvedValue({ ok: true, data: {} });
