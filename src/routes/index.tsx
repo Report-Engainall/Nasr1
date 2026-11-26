@@ -1,12 +1,13 @@
 import { createFileRoute, ClientOnly, useNavigate } from "@tanstack/react-router";
 import { Storefront } from "@/components/Storefront";
+import { buildAghbariDocumentTitle } from "@/lib/aghbari-brand";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "إنجاز | الأغبري — متجر الجملة للمواد الغذائية" },
+      { title: buildAghbariDocumentTitle("متجر الجملة للمواد الغذائية") },
       { name: "description", content: "متجر الأغبري للتجارة بالجملة: كتالوج المواد الغذائية، أسعار ومخزون مباشر، وطلب سريع للمنشآت." },
-      { property: "og:title", content: "إنجاز | متجر الأغبري — Aghbari Commerce" },
+      { property: "og:title", content: buildAghbariDocumentTitle("متجر الجملة للمواد الغذائية") },
       { property: "og:description", content: "متجر الجملة B2B للمواد الغذائية مع أسعار ومخزون مباشر." },
     ],
   }),
