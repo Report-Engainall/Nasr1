@@ -255,3 +255,48 @@ describe("daily decision shortlist",()=>{
   expect(selectTopDailyDecisions([usd,yer],5).candidates.map(item=>item.id)).toEqual(["usd","yer"]);
  });
 });
+
+
+describe("daily decision strict source clocks", () => {
+ it("rejects impossible calendar dates, timezone-less timestamps and inverted generated/as-of clocks", () => {
+  expect(() => buildDailyDecisions({ ...input(), generatedAt: "2026-02-31T07:10:00Z" })).toThrow();
+  expect(() => buildDailyDecisions({ ...input(), asOf: "2026-02-30T07:00:00Z" })).toThrow();
+  expect(() => buildDailyDecisions({ ...input(), generatedAt: "2026-10-30T07:10:00" })).toThrow();
+  expect(() => buildDailyDecisions({
+   ...input(), generatedAt: "2026-10-30T06:00:00Z", asOf: "2026-10-30T07:00:00Z",
+  })).toThrow();
+ });
+
+ it("withholds a decision when a source evidence timestamp normalizes an impossible day", () => {
+  const invalidEvidence = { ...evidence(), sourceTimestamp: "2026-02-31T07:00:00Z" };
+  const result = buildDailyDecisions(input({ evidenceRecords: [invalidEvidence] }));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0]).toMatchObject({ reason: "NEEDS_REVIEW", evidenceStatus: "NEEDS_REVIEW" });
+ });
+
+ it("withholds a decision when a metric calculation timestamp is impossible or lacks a timezone", () => {
+  const invalidCalendarMetric = {
+   ...metric(), lineage: { ...metric().lineage, calculatedAt: "2026-02-31T07:05:00Z" },
+  };
+  const invalidTimezoneMetric = {
+   ...metric(), lineage: { ...metric().lineage, calculatedAt: "2026-10-30T07:05:00" },
+  };
+  for (const invalidMetric of [invalidCalendarMetric, invalidTimezoneMetric]) {
+   const result = buildDailyDecisions(input({ metrics: [invalidMetric] }));
+   expect(result.candidates).toEqual([]);
+   expect(result.withheld[0]).toMatchObject({ reason: "NEEDS_REVIEW", evidenceStatus: "NEEDS_REVIEW" });
+  }
+ });
+
+ it("withholds decisions when a metric or source evidence period contains an impossible day", () => {
+  const invalidPeriod = { from: "2026-02-01", to: "2026-02-30" };
+  const invalidMetric = { ...metric(), period: invalidPeriod };
+  const invalidEvidence = { ...evidence(), period: invalidPeriod };
+  const result = buildDailyDecisions(input({
+   metrics: [invalidMetric],
+   evidenceRecords: [invalidEvidence],
+  }));
+  expect(result.candidates).toEqual([]);
+  expect(result.withheld[0].reason).toBe("NEEDS_REVIEW");
+ });
+});
