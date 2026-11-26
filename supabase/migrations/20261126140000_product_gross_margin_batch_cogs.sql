@@ -526,7 +526,7 @@ BEGIN
           CASE WHEN NOT coverage.complete_population THEN 'INVOICE_COHORT_NOT_COMPLETE' END
         ],NULL))
       ) ORDER BY assessed.product_label,assessed.product_id
-    ),'[]'::jsonb)
+    ) FILTER(WHERE assessed.product_id IS NOT NULL),'[]'::jsonb)
   INTO v_invoice_count,v_invoice_line_count,v_invoices_without_lines,
     v_unmapped_line_count,v_invalid_credit_line_count,v_product_count,
     v_verified_product_count,v_products
