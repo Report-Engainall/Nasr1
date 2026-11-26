@@ -1,4 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
+import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
 import type {DataCompleteness,EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
 export interface LiquidityAgingBucketInput {bucket:string;amount:MetricSnapshot}
@@ -27,26 +28,22 @@ export interface LiquidityPosition {
  formulaId:string;formulaVersion:string;lineage:LiquidityLineage;warnings:string[];
 }
 export interface LiquiditySnapshot {id:string;generatedAt:string;asOf:string;period:EvidencePeriod;positions:LiquidityPosition[];warnings:string[]}
-interface MetricValue {value:number|null;status:EvidenceStatus;warnings:string[]}
+interface MetricValue {value:number|null;minorUnits:bigint|null;status:EvidenceStatus;warnings:string[]}
 const FORMULA_ID="liquidity.net-available";
 const FORMULA_VERSION="1.0.0";
-function numeric(value:number|string|null):number|null {
- if(typeof value==="number")return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER?value:null;
- if(typeof value!=="string"||! /^-?\d+(?:\.\d+)?$/.test(value.trim()))return null;
- const n=Number(value);return Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER?n:null;
-}
 function metricValue(metric:MetricSnapshot|null|undefined,index:Map<string,MetricSnapshot>,currency:string,asOf:string,period:EvidencePeriod,allowNegative=false):MetricValue {
- if(!metric)return {value:null,status:"UNAVAILABLE",warnings:["METRIC_NOT_SUPPLIED"]};
+ if(!metric)return {value:null,minorUnits:null,status:"UNAVAILABLE",warnings:["METRIC_NOT_SUPPLIED"]};
  const verified=index.get(metric.id);
- if(!verified)return {value:null,status:"UNVERIFIED",warnings:["METRIC_ID_AMBIGUOUS_OR_MISSING"]};
- if(verified.status!=="VERIFIED")return {value:null,status:verified.status,warnings:[...verified.warnings,"METRIC_NOT_VERIFIED"]};
- if(verified.unit!=="CURRENCY"||verified.currency!==currency)return {value:null,status:"UNVERIFIED",warnings:["CURRENCY_OR_UNIT_MISMATCH"]};
- if(verified.asOf!==asOf)return {value:null,status:"NEEDS_REVIEW",warnings:["AS_OF_MISMATCH"]};
- if(!verified.period||verified.period.from!==period.from||verified.period.to!==period.to)return {value:null,status:"NEEDS_REVIEW",warnings:["PERIOD_MISMATCH"]};
- const value=numeric(verified.value);
- if(value===null)return {value:null,status:"NEEDS_REVIEW",warnings:["UNKNOWN_AMOUNT"]};
- if(!allowNegative&&value<0)return {value:null,status:"NEEDS_REVIEW",warnings:["NEGATIVE_AMOUNT_NOT_ALLOWED"]};
- return {value,status:"VERIFIED",warnings:[]};
+ if(!verified)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["METRIC_ID_AMBIGUOUS_OR_MISSING"]};
+ if(verified.status!=="VERIFIED")return {value:null,minorUnits:null,status:verified.status,warnings:[...verified.warnings,"METRIC_NOT_VERIFIED"]};
+ if(verified.unit!=="CURRENCY"||verified.currency!==currency)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["CURRENCY_OR_UNIT_MISMATCH"]};
+ if(verified.asOf!==asOf)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["AS_OF_MISMATCH"]};
+ if(!verified.period||verified.period.from!==period.from||verified.period.to!==period.to)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["PERIOD_MISMATCH"]};
+ const minorUnits=decimalToMinorUnits(verified.value,6,allowNegative);
+ if(minorUnits===null)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["FINANCIAL_PRECISION_UNSUPPORTED_OR_OVERFLOW"]};
+ const value=minorUnitsToNumber(minorUnits,6);
+ if(value===null)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["FINANCIAL_PRECISION_UNSUPPORTED_OR_OVERFLOW"]};
+ return {value,minorUnits,status:"VERIFIED",warnings:[]};
 }
 function statusOf(values:MetricValue[]):EvidenceStatus {
  if(values.some(v=>v.status==="UNVERIFIED"))return "UNVERIFIED";
@@ -101,11 +98,11 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
   const collections=metricValue(position.expectedCollections,index,position.currency,input.asOf,input.period);
   const obligations=metricValue(position.dueObligations,index,position.currency,input.asOf,input.period);
   const required=[available,collections,obligations],baseStatus=statusOf(required);
-  const rawNet=!duplicate&&baseStatus==="VERIFIED"&&available.value!==null&&collections.value!==null&&obligations.value!==null?
-   available.value+collections.value-obligations.value:null;
-  const arithmeticUnsafe=rawNet!==null&&(!Number.isFinite(rawNet)||Math.abs(rawNet)>Number.MAX_SAFE_INTEGER);
+  const netMinorUnits=!duplicate&&baseStatus==="VERIFIED"&&available.minorUnits!==null&&collections.minorUnits!==null&&obligations.minorUnits!==null
+   ?available.minorUnits+collections.minorUnits-obligations.minorUnits:null;
+  const net=netMinorUnits===null?null:minorUnitsToNumber(netMinorUnits,6);
+  const arithmeticUnsafe=netMinorUnits!==null&&net===null;
   const status:EvidenceStatus=arithmeticUnsafe?"NEEDS_REVIEW":duplicate&&baseStatus==="VERIFIED"?"NEEDS_REVIEW":baseStatus;
-  const net=arithmeticUnsafe?null:rawNet;
   const overdue=metricValue(position.overdueReceivables,index,position.currency,input.asOf,input.period);
   const stock=metricValue(position.stagnantStockCost,index,position.currency,input.asOf,input.period);
   const aging=(position.receivableAging??[]).map(item=>{

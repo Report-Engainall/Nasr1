@@ -112,9 +112,17 @@ async function main(){
  const rejectedInvoice=await db.unsafe("select count(*)::integer as count from public.customer_invoices where id=$1::uuid",[ids.invoices[2]]);
  assert.equal(rejectedInvoice[0].count,0,"rejected cross-tenant invoice must not persist");
  await setIdentity(managerDb,manager.auth_user_id,manager.email);
+ const invoiceFixtureDiagnostics=await db.unsafe(
+  "select i.id::text as invoice_id,i.customer_id::text as customer_id,coalesce(c.business_name,c.contact_name) as customer_name,i.status,i.currency,i.total_amount::text as total_amount,i.issued_at,i.due_at "+
+  "from public.customer_invoices i left join public.customers c on c.id=i.customer_id and c.organization_id=i.organization_id "+
+  "where i.id=any($1::uuid[]) order by i.customer_id,i.id",
+  [ids.invoices]
+ );
+ process.stdout.write("Receivable aging invoice fixtures: "+JSON.stringify(invoiceFixtureDiagnostics)+"\\n");
  const response=await managerDb.unsafe("select public.fetch_executive_receivable_customer_aging() as result");
  assert.equal(response.length,1);
  const result=asJson(response[0].result);
+ process.stdout.write("Receivable aging RPC diagnostic: "+JSON.stringify({status:result?.status,totalGroups:result?.totalGroups,returnedGroups:result?.returnedGroups,unresolvedRows:result?.unresolvedRows,items:(result?.items??[]).filter(item=>item.customerName===sameName).map(item=>({customerId:item.customerId,customerName:item.customerName,currency:item.currency,totalOutstanding:item.totalOutstanding,invoiceCount:item.invoiceCount,evidence:item.agingBuckets?.flatMap(bucket=>bucket.evidenceIds??[])}))})+"\\n");
  assert.ok(result&&Array.isArray(result.items),"finance aging RPC must return item rows");
  const rows=result.items.filter(item=>item.customerName===sameName&&item.currency==="YER");
  assert.equal(rows.length,2,"different customer IDs with one display name must remain separate");

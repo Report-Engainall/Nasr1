@@ -184,9 +184,8 @@ async function assertAdminMobileNavigation(page: Page): Promise<void> {
 
 const ADMIN_SCREEN_PATHS = ["/admin","/admin/products","/admin/customers","/admin/orders","/admin/pricing","/admin/stock-count","/admin/inventory-transfers","/admin/offers","/admin/suppliers","/admin/purchase-orders","/admin/devices","/admin/reports","/admin/intelligence","/admin/ai","/admin/notifications","/admin/data","/admin/operations","/admin/settings","/admin/quotes","/admin/finance","/admin/tasks","/admin/audit"] as const;
 
-async function assertRouteViewport(page: Page, route: string, width: number) {
+async function assertRouteViewportAtWidth(page: Page, route: string, width: number) {
   await page.setViewportSize({ width, height: 800 });
-  await page.goto(route, { waitUntil: "domcontentloaded" });
 
   if (route === "/admin/exports") {
     await expect(page.getByRole("heading", { name: "تصدير الطلبات غير المتزامن" })).toBeVisible({ timeout: 20_000 });
@@ -299,6 +298,17 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
   return { route, width, ...measured, overflow: false };
 }
 
+// One real navigation per route is sufficient: CSS breakpoint behavior is exercised
+// at both widths on the same rendered screen, avoiding a duplicate app boot per route.
+async function assertRouteViewports(page: Page, route: string) {
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+  const results = [];
+  for (const width of [360, 1280]) {
+    results.push(await assertRouteViewportAtWidth(page, route, width));
+  }
+  return results;
+}
+
 async function assertAdminRouteViewportMatrix(page: Page) {
   const results: Array<{
     route: string;
@@ -309,10 +319,8 @@ async function assertAdminRouteViewportMatrix(page: Page) {
     documentWidth: number;
     overflow: boolean;
   }> = [];
-  for (const width of [360, 1280]) {
-    for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
-      results.push(await assertRouteViewport(page, route, width));
-    }
+  for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
+    results.push(...await assertRouteViewports(page, route));
   }
   await test.info().attach("admin-route-responsive-rtl-matrix.json", {
     body: JSON.stringify({
@@ -355,9 +363,11 @@ test("authorized finance documents and operational-task print remain tenant-scop
     // Admin sales-order print must show only persisted order values, never editable draft values.
     await manager.goto("/admin/orders");
     await expect(manager.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
-    const salesOrderRow = manager.getByRole("row").filter({ hasText: orderNumber }).first();
-    await expect(salesOrderRow).toBeVisible({ timeout: 30_000 });
-    await salesOrderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+    // The live orders workspace renders semantic article cards, not table rows.
+    // Anchor the acceptance to the persisted order card and its actual review action.
+    const salesOrderCard = manager.locator("article.admin-order-card").filter({ hasText: orderNumber }).first();
+    await expect(salesOrderCard).toBeVisible({ timeout: 30_000 });
+    await salesOrderCard.getByRole("button", { name: "تفاصيل الطلب ومراجعته", exact: true }).click();
     await expect(manager.getByRole("heading", { name: "الطلب #" + orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
     const salesOrderPrintButton = manager.getByRole("button", { name: "طباعة أمر البيع", exact: true });
     await expect(salesOrderPrintButton).toBeEnabled();
@@ -373,6 +383,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(1);
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(manager.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(manager, "manager");
@@ -459,10 +470,15 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
     await taskPagination.getByRole("button", { name: "التالي", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ٢");
-    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
+    await expect(taskPagination.getByRole("status")).toHaveText("عرض ١١–١٧ من ١٧ مهمة");
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(7);
     await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ١");
-    await manager.getByLabel("الحالة").selectOption("all");
+    const taskStatusFilter = manager.getByRole("combobox", { name: "الحالة", exact: true });
+    await expect(taskStatusFilter).toHaveCount(1);
+    await expect(taskStatusFilter).toBeVisible();
+    await expect(taskStatusFilter).toBeEnabled();
+    await taskStatusFilter.selectOption("all");
     await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
     await manager.getByLabel("نطاق الطباعة").selectOption("all");
     const printTasksButton = manager.getByRole("button", { name: "طباعة كل المهام المسموحة", exact: true });
@@ -593,6 +609,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await signIn(accountant, accountantEmail, accountantPassword);
     await accountant.goto("/admin/finance");
     await expect(accountant.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
+    await expect(accountant.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(1);
     await expect(accountant.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(accountant.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(accountant, "accountant");
@@ -661,6 +678,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await customer.goto("/admin/finance");
     await expect(customer.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true })).toHaveCount(0);
     await expect(customer.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" })).toHaveCount(0);
+    await expect(customer.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(0);
     await customer.goto("/admin/purchase-orders");
     // The app-level RBAC gate rejects customer accounts before the purchasing page mounts.
     await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة" })).toBeVisible();

@@ -310,15 +310,49 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
       if (rpcError) throw new Error(rpcError.message || "تعذر عكس الإشعار الدائن؛ لم تتغير الحالة إلى معكوس.");
       const result = readReturnCreditMemoReversalMutation(data);
       onNotice(
-        (result.replayed ? "استُعيد قيد العكس " : "رُحّل قيد العكس ") + result.reversal_journal_entry_number +
-        " للإشعار " + result.memo_number +
-        ". أُعيد أثر الذمم فقط؛ لا توجد حركة مخزون أو استرداد نقدي.",
+        result.status === "reversal_pending"
+          ? "أُعدت مسودة قيد العكس " + result.reversal_journal_entry_number + " للإشعار " + result.memo_number +
+            ". يلزم مستخدم مالي مستقل لترحيلها؛ لم تتغير الذمم أو المخزون أو النقدية."
+          : (result.replayed ? "استُعيد قيد العكس " : "رُحّل قيد العكس ") + result.reversal_journal_entry_number +
+            " للإشعار " + result.memo_number + ". أُعيد أثر الذمم فقط؛ لا توجد حركة مخزون أو استرداد نقدي.",
       );
       setReversalReason((current) => { const next = { ...current }; delete next[memo.id]; return next; });
       setReversalRetryKeys((current) => { const next = { ...current }; delete next[memo.id]; return next; });
       await load();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "تعذر عكس الإشعار الدائن.";
+      setError(message);
+      onNotice(message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function postReversal(memo: ReturnCreditMemoSummary) {
+    if (memo.status !== "posted" || memo.reversal_journal_status !== "draft" ||
+        !memo.reversal_journal_entry_id) {
+      setError("لا توجد مسودة عكس صالحة بانتظار مراجع مستقل.");
+      return;
+    }
+    setError("");
+    setBusyId(memo.id);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("post_customer_return_credit_memo_reversal", {
+        p_credit_memo_id: memo.id,
+      });
+      if (rpcError) throw new Error(rpcError.message || "تعذر ترحيل قيد العكس؛ يجب أن يختلف المراجع عن منشئ المسودة.");
+      const result = readReturnCreditMemoReversalMutation(data);
+      if (result.status !== "reversed" || result.reversal_status !== "posted") {
+        throw new Error("لم يؤكد الخادم ترحيل قيد العكس وإغلاق الإشعار.");
+      }
+      onNotice(
+        (result.replayed ? "استُعيد ترحيل قيد العكس " : "رُحّل قيد العكس ") +
+        result.reversal_journal_entry_number + " للإشعار " + result.memo_number +
+        ". أُعيد أثر الذمم مرة واحدة؛ لا توجد حركة مخزون أو استرداد نقدي.",
+      );
+      await load();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "تعذر ترحيل قيد العكس.";
       setError(message);
       onNotice(message);
     } finally {
@@ -476,14 +510,26 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
                 {memo.status === "posted" && (
                   <>
                     <p style={{ ...muted, color: "#176b55", display: "flex", gap: 6, alignItems: "center" }}><ShieldAlert size={15}/> مرحّل؛ تم تحديث رصيد ذمم العميل بعد تحقق الحارس المحاسبي من المصدر والقيد.</p>
-                    <p style={muted}>عكس الإشعار ينشئ قيدًا عكسيًا متوازنًا ويحافظ على القيد الأصلي. لا يُصدر استردادًا نقديًا ولا يعيد حركة المخزون.</p>
-                    <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 8, alignItems: "end" }}>
-                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
-                        سبب عكس الإشعار المُرحّل
-                        <input aria-label={"سبب عكس الإشعار " + memo.memo_number} value={reversalReason[memo.id] ?? ""} maxLength={500} onChange={(event) => setReversalReason((current) => ({ ...current,[memo.id]:event.target.value }))} style={field} disabled={busyId !== null}/>
-                      </label>
-                      <button type="button" style={button} disabled={busyId !== null || loading || (reversalReason[memo.id] ?? "").trim().length < 5} onClick={() => void reversePosted(memo)}>عكس الإشعار والقيد</button>
-                    </div>
+                    {memo.reversal_journal_status === "draft" ? (
+                      <>
+                        <p style={{ ...muted, color: "#805413", fontWeight: 800 }}>مسودة قيد العكس بانتظار مُرحِّل مستقل. لم تتغير الذمم أو النقدية أو المخزون بعد.</p>
+                        <p style={muted}>تاريخ إعداد المسودة: {memo.reversal_created_at ?? "وقت غير متاح"} · مرجع الترحيل يجب أن يختلف عن منشئ المسودة.</p>
+                        <button type="button" style={primary} disabled={busyId !== null || loading} onClick={() => void postReversal(memo)}>ترحيل قيد العكس</button>
+                      </>
+                    ) : memo.reversal_journal_status === "posted" ? (
+                      <p role="alert" style={{ ...muted, color: "#a32929" }}>تعذر اتساق حالة الإشعار مع قيد العكس المرحّل؛ أوقف النظام الإجراء ويلزم فحص المحاسبة.</p>
+                    ) : (
+                      <>
+                        <p style={muted}>إعداد العكس ينشئ مسودة متوازنة مستقلة، ولا يغيّر ذمم العميل حتى يرحلها مستخدم آخر لديه صلاحية المحاسبة. لا يُصدر استردادًا نقديًا ولا يعيد حركة المخزون.</p>
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 8, alignItems: "end" }}>
+                          <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
+                            سبب عكس الإشعار المُرحّل
+                            <input aria-label={"سبب عكس الإشعار " + memo.memo_number} value={reversalReason[memo.id] ?? ""} maxLength={500} onChange={(event) => setReversalReason((current) => ({ ...current,[memo.id]:event.target.value }))} style={field} disabled={busyId !== null}/>
+                          </label>
+                          <button type="button" style={button} disabled={busyId !== null || loading || (reversalReason[memo.id] ?? "").trim().length < 5} onClick={() => void reversePosted(memo)}>إعداد مسودة قيد العكس</button>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
                 {memo.status === "reversed" && (
