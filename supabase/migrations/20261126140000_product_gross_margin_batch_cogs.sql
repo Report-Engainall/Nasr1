@@ -487,7 +487,7 @@ BEGIN
     coverage.invoice_count,coverage.invoice_line_count,coverage.invoices_without_lines,
     coverage.unmapped_line_count,coverage.invalid_credit_line_count,
     count(assessed.product_id)::integer,
-    count(*) FILTER(WHERE coverage.complete_population AND assessed.row_status='VERIFIED')::integer,
+    count(*) FILTER(WHERE assessed.row_status='VERIFIED')::integer,
     coalesce(jsonb_agg(
       jsonb_build_object(
         'productRef',assessed.product_id::text,
@@ -496,7 +496,7 @@ BEGIN
         'currencyCount',assessed.currency_count,
         'unitOfMeasure',assessed.unit_of_measure,
         'unitVariantCount',assessed.unit_variant_count,
-        'status',CASE WHEN NOT coverage.complete_population AND assessed.row_status='VERIFIED' THEN 'NEEDS_REVIEW' ELSE assessed.row_status END,
+        'status',assessed.row_status,
         'invoiceCount',assessed.invoice_count,
         'invoiceLineCount',assessed.invoice_line_count,
         'invoicedQuantity',assessed.invoiced_quantity::text,
