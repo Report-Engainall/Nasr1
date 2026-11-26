@@ -15,6 +15,7 @@ import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/inte
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
+import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -56,6 +57,7 @@ import {
   EvidencePassport,
   EvidenceSourceComparisonPanel,
   GrowthOpportunityRadar,
+  DemandForecastCard,
   LiquiditySummary,
   ReplenishmentCard,
   ShiftOperationsCenter,
@@ -412,6 +414,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [retentionResult, setRetentionResult] = useState<CustomerRetentionAggregateResult | null>(null);
   const [retentionLoading, setRetentionLoading] = useState(true);
   const [growthRadarResult, setGrowthRadarResult] = useState<GrowthOpportunityRadarResult | null>(null);
+  const [demandForecastResult, setDemandForecastResult] = useState<DemandForecastResult | null>(null);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
@@ -512,6 +515,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     if (!canManage) {
       setRetentionResult({ ok: false, status: "DENIED", message: "تتطلب قراءة مجتمع العملاء صلاحية موظف نشط داخل المؤسسة." });
       setGrowthRadarResult(null);
+      setDemandForecastResult(null);
       setRetentionLoading(false);
       return;
     }
@@ -521,11 +525,13 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       if (active()) {
         setRetentionResult(response.retentionResult);
         setGrowthRadarResult(response.growthRadar);
+        setDemandForecastResult(response.demandForecast);
       }
     } catch {
       if (active()) {
         setRetentionResult({ ok: false, status: "ERROR", message: "تعذر إنشاء لقطة الاحتفاظ بالعملاء." });
         setGrowthRadarResult(null);
+        setDemandForecastResult(null);
       }
     } finally {
       if (active()) setRetentionLoading(false);
@@ -1722,6 +1728,12 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </>
             ) : null}
+            <DemandForecastCard
+              result={demandForecastResult}
+              state={retentionLoading ? "loading" : demandForecastResult ? "ready"
+                : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
+              onRetry={() => setRefreshKey((value) => value + 1)}
+            />
             <GrowthOpportunityRadar
               result={growthRadarResult}
               state={retentionLoading ? "loading" : growthRadarResult ? "ready"
