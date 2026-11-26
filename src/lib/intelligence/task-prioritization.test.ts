@@ -68,14 +68,15 @@ describe("operational task prioritization timestamp integrity", () => {
 
   it("returns no ranking when the caller supplies an invalid snapshot time", () => {
     expect(prioritizeOperationalTasks([task("one")], Number.NaN)).toEqual([]);
+    expect(prioritizeOperationalTasks([task("one")], Number.MAX_SAFE_INTEGER)).toEqual([]);
   });
 
   it("uses task id as the stable tie-breaker when a creation timestamp is invalid", () => {
     const result = prioritizeOperationalTasks([
       task("z-invalid", { created_at: "2026-02-31T08:00:00.000Z" }),
-      task("a-valid", { created_at: "2026-11-20T08:00:00.000Z" }),
+      task("a-invalid", { created_at: "2026-02-30T08:00:00.000Z" }),
     ], NOW);
-    expect(result.map(item => item.task.id)).toEqual(["a-valid", "z-invalid"]);
+    expect(result.map(item => item.task.id)).toEqual(["a-invalid", "z-invalid"]);
   });
 
   it("does not count malformed due dates as overdue workload", () => {
