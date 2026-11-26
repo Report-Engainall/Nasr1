@@ -61,13 +61,17 @@ export function parseSupplierFinanceLedgerAccounts(value: unknown): SupplierFina
   });
 }
 
-export function SupplierFinancialWorkspaceHub() {
+export function SupplierFinancialWorkspaceHub({ initialSupplierInvoiceId }: { initialSupplierInvoiceId?: string } = {}) {
   const { user, ready, sessionRevision } = useAuth();
   const accountRequestRef = useRef(0);
   const canManageFinance = Boolean(user?.roles.some((role) =>
     role === "admin" || role === "manager" || role === "accountant"
   ));
-  const [tab, setTab] = useState<SupplierFinanceTab>("payments");
+  const [tab, setTab] = useState<SupplierFinanceTab>(initialSupplierInvoiceId ? "invoice-review" : "payments");
+  useEffect(() => {
+    if (initialSupplierInvoiceId) setTab("invoice-review");
+  }, [initialSupplierInvoiceId]);
+
   const [accounts, setAccounts] = useState<SupplierFinanceLedgerAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountsError, setAccountsError] = useState("");
@@ -166,7 +170,7 @@ export function SupplierFinancialWorkspaceHub() {
         <Suspense fallback={<p role="status" style={{ color: "var(--muted-foreground, #64748b)" }}>جار تحميل مساحة العمل...</p>}>
           {tab === "payments" && <PaymentWorkspace accounts={accounts} onRefresh={refreshFinanceViews} />}
           {tab === "invoice-capture" && <InvoiceWorkspace mode="capture" accounts={accounts} onRefresh={refreshFinanceViews} />}
-          {tab === "invoice-review" && <InvoiceWorkspace mode="review" accounts={accounts} onRefresh={refreshFinanceViews} />}
+          {tab === "invoice-review" && <InvoiceWorkspace mode="review" accounts={accounts} onRefresh={refreshFinanceViews} initialInvoiceId={initialSupplierInvoiceId} />}
           {tab === "activity" && <AccountActivityWorkspace refreshKey={activityRefreshKey} />}
         </Suspense>
       </div>
