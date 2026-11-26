@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+
+afterEach(() => cleanup());
 import type { CustomerRetentionActionQueue } from "@/lib/intelligence/customer-retention";
 import { CustomerRetentionActionQueuePanel } from "./CustomerRetentionActionQueuePanel";
 
