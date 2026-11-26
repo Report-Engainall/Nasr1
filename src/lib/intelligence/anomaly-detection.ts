@@ -92,7 +92,7 @@ function object(value: unknown): value is Record<string, unknown> {
 
 function validInstant(value: string): boolean {
   if (typeof value !== "string" ||
-      !/^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/.test(value)) {
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
     return false;
   }
   const day = value.slice(0, 10);
@@ -103,7 +103,7 @@ function validInstant(value: string): boolean {
 }
 
 function validDay(value: string): boolean {
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = Date.parse(value + "T00:00:00.000Z");
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
 }
@@ -293,7 +293,8 @@ export function buildAnomalyDetection(input: {
         unitIdentity(current.metric) !== unitIdentity(baseline.metric) ||
         current.metric.lineage.formulaId !== baseline.metric.lineage.formulaId ||
         current.metric.lineage.formulaVersion !== baseline.metric.lineage.formulaVersion ||
-        !comparablePeriods(current.metric.period as EvidencePeriod, baseline.metric.period as EvidencePeriod, input.asOf)) {
+        !current.metric.period || !baseline.metric.period ||
+        !comparablePeriods(current.metric.period, baseline.metric.period, input.asOf)) {
       withheldSignals.push(withheld(signal, "INVALID_COMPARISON"));
       continue;
     }
