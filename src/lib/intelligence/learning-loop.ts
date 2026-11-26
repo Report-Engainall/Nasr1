@@ -1,4 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
+import {decimalToMinorUnits,minorUnitsToNumber,roundedPercentageHundredths} from "./financial-precision";
 import type {EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 export interface LearningEvaluationInput {
  id:string;measuredAt:string;evidenceRecords:EvidenceRecord[];expected:MetricSnapshot;actual:MetricSnapshot;
@@ -24,24 +25,38 @@ export function evaluateDecisionLearning(input:LearningEvaluationInput):Learning
  if(expected.key!==actual.key)warnings.push("METRIC_KEY_MISMATCH");
  if(expected.unit!==actual.unit)warnings.push("UNIT_MISMATCH");
  if(expected.currency!==actual.currency)warnings.push("CURRENCY_MISMATCH");
+ if(expected.unitOfMeasure!==actual.unitOfMeasure)warnings.push("UNIT_OF_MEASURE_MISMATCH");
+ if((expected.unit==="QUANTITY"||expected.unit==="CURRENCY_PER_UNIT")&&
+   (!expected.unitOfMeasure?.trim()||!actual.unitOfMeasure?.trim()))warnings.push("UNIT_OF_MEASURE_MISSING");
  if(JSON.stringify(expected.period)!==JSON.stringify(actual.period))warnings.push("PERIOD_MISMATCH");
  if(expected.lineage.formulaId!==actual.lineage.formulaId||
    expected.lineage.formulaVersion!==actual.lineage.formulaVersion)warnings.push("FORMULA_MISMATCH");
  if(!input.expectedRuleId.trim()||!input.expectedRuleVersion.trim()||!input.currentRuleId.trim()||!input.currentRuleVersion.trim())warnings.push("RULE_VERSION_MISSING");
  const left=numberValue(expected.value),right=numberValue(actual.value);
  if(left===null||right===null)warnings.push("UNKNOWN_EXPECTED_OR_ACTUAL_VALUE");
- let valid=warnings.length===0&&left!==null&&right!==null;
+ if(expected.unit==="COUNT"&&
+   (left===null||right===null||!Number.isSafeInteger(left)||!Number.isSafeInteger(right)))
+  warnings.push("COUNT_VALUE_NOT_INTEGER");
+ const expectedMinor=left===null?null:decimalToMinorUnits(expected.value,6,true);
+ const actualMinor=right===null?null:decimalToMinorUnits(actual.value,6,true);
+ if(left!==null&&right!==null&&(expectedMinor===null||actualMinor===null))
+  warnings.push("OUTCOME_PRECISION_UNSUPPORTED");
+ let valid=warnings.length===0&&left!==null&&right!==null&&expectedMinor!==null&&actualMinor!==null;
  let variance:number|null=null,percent:number|null=null;
  if(valid){
-  const candidate=(right as number)-(left as number);
-  const candidatePercent=left!==0?candidate/Math.abs(left as number)*100:null;
-  if(!Number.isFinite(candidate)||Math.abs(candidate)>Number.MAX_SAFE_INTEGER||
-    (candidatePercent!==null&&(!Number.isFinite(candidatePercent)||Math.abs(candidatePercent)>Number.MAX_SAFE_INTEGER))){
+  const varianceMinor=(actualMinor as bigint)-(expectedMinor as bigint);
+  const exactVariance=minorUnitsToNumber(varianceMinor,6);
+  const denominator=(expectedMinor as bigint)<0n?-(expectedMinor as bigint):(expectedMinor as bigint);
+  const numerator=varianceMinor<0n?-varianceMinor:varianceMinor;
+  const percentHundredths=denominator>0n?roundedPercentageHundredths(numerator,denominator):null;
+  const exactPercent=percentHundredths===null?null:Number(percentHundredths)/100*(varianceMinor<0n?-1:1);
+  if(exactVariance===null||(percentHundredths!==null&&
+    (percentHundredths>BigInt(Number.MAX_SAFE_INTEGER)||!Number.isFinite(exactPercent)||Math.abs(exactPercent as number)>Number.MAX_SAFE_INTEGER))){
    warnings.push("OUTCOME_ARITHMETIC_UNSAFE");
    valid=false;
   }else{
-   variance=candidate;
-   percent=candidatePercent;
+   variance=exactVariance;
+   percent=exactPercent;
   }
  }
  const status:EvidenceStatus=valid?"VERIFIED":expected.status==="UNVERIFIED"||actual.status==="UNVERIFIED"?"UNVERIFIED":"NEEDS_REVIEW";
