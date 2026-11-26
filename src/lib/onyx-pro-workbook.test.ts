@@ -42,7 +42,7 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const buffer = new ArrayBuffer(bytes.byteLength);
     new Uint8Array(buffer).set(bytes);
     const rows: string[][] = [];
-    const parsed = await parseXlsxFirstWorksheet(new Blob([buffer]), (values) => { rows.push(values); });
+    const parsed = await parseXlsxFirstWorksheet(new Blob([buffer]), (values) => rows.push(values));
     expect(parsed.worksheetName).toBe("Products");
     expect(rows[0]).toEqual(getOnyxProHeaders("products"));
     expect(parsed.rowCount).toBe(1);
@@ -55,7 +55,7 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const rows: string[][] = [];
     const parsed = await parseXlsxFirstWorksheet(
       new Blob([buffer]),
-      (values) => { rows.push(values); },
+      (values) => rows.push(values),
       { preferredWorksheetNames: ["Products"] },
     );
     expect(parsed.worksheetNames).toEqual(["Orders", "Products", "StockBalances"]);
@@ -68,7 +68,7 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const customerRows: string[][] = [];
     const customerParsed = await parseXlsxFirstWorksheet(
       new Blob([customerBuffer]),
-      (values) => { customerRows.push(values); },
+      (values) => customerRows.push(values),
       { preferredWorksheetNames: ["Customers"] },
     );
     expect(customerParsed.worksheetName).toBe("Customers");
@@ -90,7 +90,7 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const buffer = new ArrayBuffer(bytes.byteLength);
     new Uint8Array(buffer).set(bytes);
     const products: string[][] = [];
-    const productResult = await parseXlsxFirstWorksheet(new Blob([buffer]), (row) => { products.push(row); });
+    const productResult = await parseXlsxFirstWorksheet(new Blob([buffer]), (row) => products.push(row));
     expect(productResult.rowCount).toBe(2);
     expect(products[0]).toEqual(getOnyxProLiveHeaders("products"));
     expect(products[1][getOnyxProLiveHeaders("products").indexOf("رقم الصنف")]).toBe("000125");
@@ -102,7 +102,7 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const customers: string[][] = [];
     const customerResult = await parseXlsxFirstWorksheet(
       new Blob([buffer]),
-      (row) => { customers.push(row); },
+      (row) => customers.push(row),
       { preferredWorksheetNames: ["Customers"] },
     );
     expect(customerResult.rowCount).toBe(2);
@@ -138,7 +138,7 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const rows: string[][] = [];
     const parsed = await parseXlsxFirstWorksheet(
       new Blob([buffer]),
-      (row) => { rows.push(row); },
+      (row) => rows.push(row),
       { preferredWorksheetNames: ["Warehouses"] },
     );
     expect(parsed.worksheetName).toBe("Warehouses");
@@ -179,7 +179,7 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     const rows: string[][] = [];
     const parsed = await parseXlsxFirstWorksheet(
       new Blob([buffer]),
-      (row) => { rows.push(row); },
+      (row) => rows.push(row),
       { preferredWorksheetNames: ["StockBalances"] },
     );
     expect(parsed.worksheetName).toBe("StockBalances");
