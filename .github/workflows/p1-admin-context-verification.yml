@@ -5,6 +5,10 @@ on:
     branches:
       - main
     paths:
+      - "src/routes/index.tsx"
+      - "src/routes/admin.tsx"
+      - "src/lib/aghbari-brand.ts"
+      - "src/lib/aghbari-brand.test.ts"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
@@ -424,6 +428,10 @@ on:
     branches:
       - main
     paths:
+      - "src/routes/index.tsx"
+      - "src/routes/admin.tsx"
+      - "src/lib/aghbari-brand.ts"
+      - "src/lib/aghbari-brand.test.ts"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
