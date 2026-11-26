@@ -160,6 +160,17 @@ describe("product gross margin client", () => {
     expect(result).toBeNull();
   });
 
+  it("accepts monetary gross margin across multiple independently reconciled product units without reporting a single unit", () => {
+    const multiUnit = product({ unitOfMeasure: null, unitVariantCount: 2 });
+    const parsed = parseProductGrossMarginSnapshot(response({ products: [multiUnit] }), request);
+    expect(parsed?.products[0]).toMatchObject({
+      status: "VERIFIED",
+      unitOfMeasure: null,
+      unitVariantCount: 2,
+      grossProfit: 45,
+    });
+  });
+
   it("rejects a verified profit when the shipment quantity differs from invoiced quantity", () => {
     const result = parseProductGrossMarginSnapshot(
       response({ products: [product({ actualShippedQuantity: "9.000" })] }),
