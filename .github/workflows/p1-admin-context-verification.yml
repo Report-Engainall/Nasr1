@@ -472,6 +472,8 @@ on:
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
       - "src/components/admin/operations/**"
+      - "src/components/intelligence/TaskQualityReviewCenter.tsx"
+      - "src/components/intelligence/TaskQualityReviewCenter.test.tsx"
       - "src/components/reference-model/observability/**"
       - "src/components/Storefront.tsx"
       - "src/components/CartShoppingListsAccess.tsx"
@@ -825,13 +827,6 @@ on:
       - "src/lib/customer-shopping-lists-xlsx.ts"
       - "src/lib/customer-shopping-lists-xlsx.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "src/components/intelligence/TaskQualityReviewCenter.tsx"
-      - "src/components/intelligence/TaskQualityReviewCenter.test.tsx"
-      - ".github/workflows/p1-admin-context-verification.yml"
   workflow_dispatch:
 
 permissions:
