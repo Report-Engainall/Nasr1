@@ -1289,9 +1289,9 @@ async function main() {
         assert.equal(batchTransferLines[0].lines, 1, "batch-transfer replay must not duplicate transfer lines");
         const batchTransferMovements = await tx.unsafe(
           "select count(*)::integer as movements from public.inventory_movements m " +
-          "join public.inventory_transfers t on t.id=m.reference_id and t.organization_id=m.organization_id " +
-          "where m.reference_type='inventory_transfer' and t.batch_id=$1::uuid",
-          [batchTransfer.batch_id],
+          "join public.inventory_transfers t on t.id=m.reference_id " +
+          "where m.reference_type='inventory_transfer' and t.organization_id=$1::uuid and t.batch_id=$2::uuid",
+          [organizationId, batchTransfer.batch_id],
         );
         assert.equal(batchTransferMovements[0].movements, 2,
           "batch-transfer replay must not duplicate source and destination stock movements");
