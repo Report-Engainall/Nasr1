@@ -501,6 +501,13 @@ describe("production intelligence workspace inventory screens", () => {
     expect(screen.getAllByText(/المصدر غير متاح/).length).toBeGreaterThanOrEqual(4);
     expect(screen.queryByText("0 EA")).not.toBeInTheDocument();
   });
+  it("loads the finance-authorized product gross margin card independently in the intelligence workspace", async () => {
+    render(<IntelligenceWorkspace />);
+    const margin = await screen.findByRole("region", { name: "الربحية الإجمالية حسب المنتج" });
+    expect(margin).toHaveTextContent("gross margin finance source denied in workspace fixture");
+    expect(mocks.fetchProductGrossMargin).toHaveBeenCalledTimes(1);
+  });
+
   it("mounts the executive liquidity command center in the intelligence workspace", async () => {
     render(<IntelligenceWorkspace />);
     const commandCenter = await screen.findByRole("region", { name: "مركز القيادة المالية والسيولة" });
