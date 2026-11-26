@@ -15,6 +15,11 @@ function cents(value) {
   const magnitude = BigInt(match[2]) * 100n + BigInt((match[3] ?? "").padEnd(2, "0") || "0");
   return match[1] === "-" ? -magnitude : magnitude;
 }
+function milliUnits(value) {
+  const match = String(value).match(/^(\d+)(?:\.(\d{1,3}))?$/);
+  assert.ok(match, "expected a non-negative quantity with at most three decimal places");
+  return BigInt(match[1]) * 1000n + BigInt((match[2] ?? "").padEnd(3, "0") || "0");
+}
 function date(value) {
   const result = new Date(value);
   assert.ok(Number.isFinite(result.getTime()));
@@ -242,10 +247,7 @@ async function main() {
   const asOf = new Date().toISOString();
   const before = await sideEffectCounts();
 
-  const managerDb = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
-  const customerDb = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
-  try {
-    await setIdentity(manager);
+  await setIdentity(manager);
     const grossMargin = await callJson(
       "select public.fetch_product_gross_margin_by_invoice_source($1::date,$2::date,$3::timestamptz) as result",
       [periodFrom, periodTo, asOf],
@@ -269,8 +271,8 @@ async function main() {
     assert.equal(cents(row.grossInvoiceLineAmount), cents(invoice.line_total));
     assert.equal(cents(row.postedCreditAmount), 0n);
     assert.equal(cents(row.netRevenue), cents(invoice.line_total));
-    assert.equal(cents(row.expectedShippedQuantity), 1000n);
-    assert.equal(cents(row.actualShippedQuantity), 1000n);
+    assert.equal(milliUnits(row.expectedShippedQuantity), 1000n);
+    assert.equal(milliUnits(row.actualShippedQuantity), 1000n);
     assert.equal(row.saleMovementCount, 1);
     assert.equal(row.uncostedMovementCount, 0);
     assert.equal(cents(row.costOfGoodsSold), cents(unitCost));
@@ -286,36 +288,33 @@ async function main() {
     assert.ok(grossMargin.evidenceRecords.every(item => item.status === "VERIFIED" && item.completeness === "COMPLETE"));
 
     await setIdentity(customer);
-    let denied;
-    try {
-      await callJson(
-        "select public.fetch_product_gross_margin_by_invoice_source($1::date,$2::date,$3::timestamptz) as result",
-        [periodFrom, periodTo, asOf],
-      );
-    } catch (error) { denied = error; }
-    assert.ok(denied, "customer must not read finance-only product gross margin");
-    expectSqlState("non-finance customer gross margin read", denied, "42501");
+    await expectSqlStateInSavepoint(
+      "non-finance customer gross margin read",
+      "select public.fetch_product_gross_margin_by_invoice_source($1::date,$2::date,$3::timestamptz) as result",
+      [periodFrom, periodTo, asOf],
+      "42501",
+      "gm_denied",
+    );
 
     await setIdentity(manager);
-    let invalidRange;
-    try {
-      await callJson(
-        "select public.fetch_product_gross_margin_by_invoice_source($1::date,$2::date,$3::timestamptz) as result",
-        [periodTo, periodFrom, asOf],
-      );
-    } catch (error) { invalidRange = error; }
-    expectSqlState("reversed gross margin period", invalidRange, "22023");
+    await expectSqlStateInSavepoint(
+      "reversed gross margin period",
+      "select public.fetch_product_gross_margin_by_invoice_source($1::date,$2::date,$3::timestamptz) as result",
+      [periodTo, periodFrom, asOf],
+      "22023",
+      "gm_reversed",
+    );
 
     const futureAsOf = new Date(Date.now() + 10 * 60_000).toISOString();
-    let future;
-    try {
-      await callJson(
-        "select public.fetch_product_gross_margin_by_invoice_source($1::date,$2::date,$3::timestamptz) as result",
-        [periodFrom, periodTo, futureAsOf],
-      );
-    } catch (error) { future = error; }
-    expectSqlState("future gross margin snapshot", future, "22023");
+    await expectSqlStateInSavepoint(
+      "future gross margin snapshot",
+      "select public.fetch_product_gross_margin_by_invoice_source($1::date,$2::date,$3::timestamptz) as result",
+      [periodFrom, periodTo, futureAsOf],
+      "22023",
+      "gm_future",
+    );
 
+    await db.unsafe("reset role");
     const after = await sideEffectCounts();
     assert.deepEqual(after, before, "gross margin RPC, denied request and invalid ranges must not write audit, inventory, invoice, memo or journal rows");
 
@@ -324,28 +323,34 @@ async function main() {
       "invoice/order-line provenance, exact revenue minus source cost arithmetic, finance authorization, " +
       "customer denial, time guards, evidence lineage and read-only behavior.\n",
     );
-  } finally {
-    await Promise.all([managerDb.end(), customerDb.end()]);
-  }
 }
 
-let transactionStarted = false;
-main().catch(error => {
-  process.stderr.write("FAIL PostgreSQL 17 product gross margin acceptance: " + String(error?.stack ?? error) + "\n");
-  process.exitCode = 1;
-}).finally(async () => {
-  await db.unsafe("reset role").catch(() => {});
-  if (transactionStarted) await db.unsafe("rollback").catch(() => {});
-  await db.end({ timeout: 5 }).catch(() => {});
-});
-process.once("beforeExit", () => {});
-db.unsafe("begin").then(() => { transactionStarted = true; return main(); }).then(() => {
-  process.stdout.write("Local fixture transaction is ready for rollback.\n");
-}).catch(error => {
-  process.stderr.write("FAIL PostgreSQL 17 product gross margin transaction: " + String(error?.stack ?? error) + "\n");
-  process.exitCode = 1;
-}).finally(async () => {
-  await db.unsafe("reset role").catch(() => {});
-  if (transactionStarted) await db.unsafe("rollback").catch(() => {});
-  await db.end({ timeout: 5 }).catch(() => {});
-});
+async function expectSqlStateInSavepoint(label, sql, parameters, expectedCode, savepoint) {
+  await db.unsafe("savepoint " + savepoint);
+  let caught;
+  try {
+    await db.unsafe(sql, parameters);
+  } catch (error) {
+    caught = error;
+  }
+  await db.unsafe("rollback to savepoint " + savepoint);
+  await db.unsafe("release savepoint " + savepoint);
+  expectSqlState(label, caught, expectedCode);
+}
+
+async function run() {
+  let transactionStarted = false;
+  try {
+    await db.unsafe("begin");
+    transactionStarted = true;
+    await main();
+  } catch (error) {
+    process.stderr.write("FAIL PostgreSQL 17 product gross margin acceptance: " + String(error?.stack ?? error) + "\n");
+    process.exitCode = 1;
+  } finally {
+    await db.unsafe("reset role").catch(() => {});
+    if (transactionStarted) await db.unsafe("rollback").catch(() => {});
+    await db.end({ timeout: 5 }).catch(() => {});
+  }
+}
+void run();
