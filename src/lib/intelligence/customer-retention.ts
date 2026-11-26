@@ -43,8 +43,8 @@ export function buildCustomerRetentionReport(input:{
  id:string;asOf:string;period:EvidencePeriod;previousPeriod:EvidencePeriod;evidenceRecords:EvidenceRecord[];
  coverage:CustomerRetentionCoverage;customers:CustomerRetentionRecord[];salesByCurrency:CustomerRetentionSaleRecord[];
 }):CustomerRetentionReport {
- const asOfTime=Date.parse(input.asOf);
- if(!Number.isFinite(asOfTime))throw new Error("asOf must be a valid timestamp");
+ const asOfTime=timestamp(input.asOf);
+ if(asOfTime===null)throw new Error("asOf must be a valid ISO timestamp");
  const asOfDay=new Date(asOfTime).setUTCHours(0,0,0,0);
  const customerRefs=input.customers.map(c=>c.customerRef);
  const uniqueCustomers=new Set(customerRefs);
@@ -61,8 +61,9 @@ export function buildCustomerRetentionReport(input:{
  const coverageEvidenceValid=coverageEvidenceIds.length>0&&new Set(coverageEvidenceIds).size===coverageEvidenceIds.length&&
   Number.isFinite(asOfTime)&&coverageEvidenceIds.every(id=>{
    const matches=coverageEvidenceMap.get(id)??[];
+   const sourceTime=matches.length===1?timestamp(matches[0].sourceTimestamp):null;
    return matches.length===1&&matches[0].status==="VERIFIED"&&matches[0].completeness==="COMPLETE"&&matches[0].quality==="ACCEPTABLE"&&
-    matches[0].asOf===input.asOf&&Number.isFinite(Date.parse(matches[0].sourceTimestamp))&&Date.parse(matches[0].sourceTimestamp)<=asOfTime;
+    matches[0].asOf===input.asOf&&sourceTime!==null&&sourceTime<=asOfTime;
   });
  const fullCoverage=coverage.status==="VERIFIED"&&coverage.completeness==="COMPLETE"&&coverage.quality==="ACCEPTABLE"&&!coverage.truncated&&countsValid&&
   customerPopulationValid&&salesRowsValid&&coverage.expectedCustomerCount===coverage.returnedCustomerCount&&
@@ -76,7 +77,9 @@ export function buildCustomerRetentionReport(input:{
  const read=(metric:MetricSnapshot|undefined,unit:string,period:EvidencePeriod,currency?:string):number|null=>{
   if(!metric)return null;
   const source=index.get(metric.id);
-  if(!source||source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.unit!==unit||source.asOf!==input.asOf||!source.lineage.evidenceIds.length)return null;
+  const calculatedAt=source?timestamp(source.lineage.calculatedAt):null;
+  if(!source||source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.unit!==unit||
+   source.asOf!==input.asOf||calculatedAt===null||calculatedAt>asOfTime||!source.lineage.evidenceIds.length)return null;
   if(!source.period||source.period.from!==period.from||source.period.to!==period.to)return null;
   if(unit==="CURRENCY"&&source.currency!==currency)return null;
   const value=num(source.value);
