@@ -166,10 +166,11 @@ export function SupplierFinancialWorkspaceHub({ initialSupplierInvoiceId }: { in
       {accountsLoading && <p role="status" style={{ margin: 0, fontSize: 13 }}>جار تحميل دليل الحسابات النشط من دفتر الأستاذ...</p>}
       {accountsError && (
         <div
-          role="alert"
-          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 9, margin: 0, color: "#991b1b", fontSize: 13 }}
+          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 9, margin: 0, fontSize: 13 }}
         >
-          <span>{accountsError} لا تُعرض حسابات افتراضية ولا تُنشأ أرصدة تلقائيًا.</span>
+          <p role="alert" style={{ flex: "1 1 320px", margin: 0, color: "#991b1b" }}>
+            {accountsError} لا تُعرض حسابات افتراضية ولا تُنشأ أرصدة تلقائيًا.
+          </p>
           <button
             type="button"
             className="btn outline"
