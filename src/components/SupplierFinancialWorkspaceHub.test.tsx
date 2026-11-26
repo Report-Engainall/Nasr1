@@ -15,8 +15,8 @@ vi.mock("@/components/SupplierPaymentWorkspace", () => ({
   SupplierPaymentWorkspace: () => <div>supplier-payment-workspace-mounted</div>,
 }));
 vi.mock("@/components/SupplierInvoiceWorkspace", () => ({
-  SupplierInvoiceWorkspace: ({ mode }: { mode: string }) =>
-    <div>{mode === "capture" ? "supplier-invoice-capture-mounted" : "supplier-invoice-review-mounted"}</div>,
+  SupplierInvoiceWorkspace: ({ mode, initialInvoiceId }: { mode: string; initialInvoiceId?: string }) =>
+    <div>{mode === "capture" ? "supplier-invoice-capture-mounted" : "supplier-invoice-review-mounted"}{initialInvoiceId ? `:${initialInvoiceId}` : ""}</div>,
 }));
 vi.mock("@/components/SupplierAccountActivityWorkspace", () => ({
   SupplierAccountActivityWorkspace: () => <div>supplier-account-activity-mounted</div>,
@@ -72,6 +72,16 @@ describe("supplier financial workspace hub", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "كشف حساب المورد" }));
     expect(await screen.findByText("supplier-account-activity-mounted")).toBeInTheDocument();
+  });
+
+  it("opens supplier invoice review and forwards an intelligence invoice reference", async () => {
+    const invoiceId = "11111111-1111-4111-8111-111111111111";
+    const { rerender } = render(createElement(SupplierFinancialWorkspaceHub));
+    expect(await screen.findByText("supplier-payment-workspace-mounted")).toBeInTheDocument();
+
+    rerender(createElement(SupplierFinancialWorkspaceHub, { initialSupplierInvoiceId: invoiceId }));
+    expect(await screen.findByText("supplier-invoice-review-mounted:" + invoiceId)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "مراجعة فروقات الأسعار" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("reloads ledger account options after an authenticated session change", async () => {
