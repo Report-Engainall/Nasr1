@@ -461,6 +461,16 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(taskPagination).toBeVisible();
     await expect(taskPagination.getByRole("button", { name: "التالي", exact: true })).toBeEnabled();
     await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
+    // Source-backed supplier purchase/invoice events can add legitimate operational tasks.
+    // Read the tenant-scoped total from the real pagination control instead of assuming a fixed seed count.
+    const firstPageTaskStatus = await taskPagination.getByRole("status").textContent();
+    const totalTaskMatch = firstPageTaskStatus?.match(/من ([٠-٩]+) مهمة/);
+    expect(totalTaskMatch, "the task pagination must expose a localized total count").not.toBeNull();
+    const totalTaskCount = Number(
+      totalTaskMatch![1].replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))),
+    );
+    expect(Number.isSafeInteger(totalTaskCount)).toBe(true);
+    expect(totalTaskCount).toBeGreaterThan(10);
     const firstTaskCard = manager.locator(".task-center-list .task-card").first();
     await expect(firstTaskCard.getByRole("button", { name: "فتح مراجعة الجودة", exact: true })).toHaveAttribute("aria-expanded", "false");
     await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
@@ -470,8 +480,10 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
     await taskPagination.getByRole("button", { name: "التالي", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ٢");
-    await expect(taskPagination.getByRole("status")).toHaveText("عرض ١١–١٧ من ١٧ مهمة");
-    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(7);
+    const lastTaskOnSecondPage = Math.min(totalTaskCount, 20);
+    const expectedSecondPageStatus = `عرض ${(11).toLocaleString("ar-YE")}–${lastTaskOnSecondPage.toLocaleString("ar-YE")} من ${totalTaskCount.toLocaleString("ar-YE")} مهمة`;
+    await expect(taskPagination.getByRole("status")).toHaveText(expectedSecondPageStatus);
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(totalTaskCount - 10);
     await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ١");
     const taskStatusFilter = manager.getByRole("combobox", { name: "الحالة", exact: true });

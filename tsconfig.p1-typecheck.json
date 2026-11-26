@@ -79,6 +79,7 @@
     "src/lib/supplier-invoice-messages.ts",
     "src/lib/supplier-invoice-messages.test.ts",
     "src/components/SupplierInvoiceWorkspace.tsx",
+    "src/lib/supplier-invoices.ts",
     "src/components/SupplierInvoiceWorkspace.test.tsx",
     "src/lib/supplier-invoice-workspace-filters.ts",
     "src/lib/supplier-invoice-workspace-filters.test.ts",
