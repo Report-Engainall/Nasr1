@@ -383,6 +383,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toBeVisible();
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(manager.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(manager, "manager");
@@ -604,6 +605,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await signIn(accountant, accountantEmail, accountantPassword);
     await accountant.goto("/admin/finance");
     await expect(accountant.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
+    await expect(accountant.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toBeVisible();
     await expect(accountant.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(accountant.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(accountant, "accountant");
@@ -672,6 +674,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await customer.goto("/admin/finance");
     await expect(customer.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true })).toHaveCount(0);
     await expect(customer.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" })).toHaveCount(0);
+    await expect(customer.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(0);
     await customer.goto("/admin/purchase-orders");
     // The app-level RBAC gate rejects customer accounts before the purchasing page mounts.
     await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة" })).toBeVisible();
