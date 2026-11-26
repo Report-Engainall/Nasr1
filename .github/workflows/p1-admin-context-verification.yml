@@ -419,6 +419,8 @@ on:
       - "src/lib/customer-shopping-lists-xlsx-archive.test.ts"
       - "src/lib/customer-shopping-lists-xlsx.ts"
       - "src/lib/customer-shopping-lists-xlsx.test.ts"
+      - "src/lib/intelligence/task-prioritization.ts"
+      - "src/lib/intelligence/task-prioritization.test.ts"
 
   pull_request:
     branches:
@@ -766,6 +768,8 @@ on:
       - "src/lib/customer-shopping-lists-xlsx.ts"
       - "src/lib/customer-shopping-lists-xlsx.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
+      - "src/lib/intelligence/task-prioritization.ts"
+      - "src/lib/intelligence/task-prioritization.test.ts"
   workflow_dispatch:
 
 permissions:
