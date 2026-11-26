@@ -95,7 +95,7 @@ async function main() {
       // Diagnose the exact validator input as the trusted local migration owner before
       // lowering the transaction to authenticated. This is test-only; no policy is relaxed.
       const validation = await tx.unsafe(
-        "select public._is_valid_decision_candidate_snapshot($1::jsonb,$2::text,$3::text,$4::text) as valid, " +
+        "select public._is_valid_decision_candidate_snapshot($1::jsonb,$2::text,$3::text,$4::text,$5::text) as valid, " +
         "jsonb_build_object(" +
         "'schemaVersion', $1::jsonb->>'schemaVersion', " +
         "'candidateIdMatches', ($1::jsonb->>'candidateId')=$2::text, " +
