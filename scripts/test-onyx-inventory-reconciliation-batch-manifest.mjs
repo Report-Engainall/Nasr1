@@ -177,7 +177,6 @@ async function balance(productId) {
 async function createSnapshot(product, manager, targetQuantity, suffix) {
   const snapshotId = randomUUID();
   const rowId = randomUUID();
-  const sourceHash = createHash("sha256").update("p2-onyx-fefo-" + suffix).digest("hex");
   const dateRows = await db.unsafe(
     "select to_char((pg_catalog.now() at time zone 'UTC')::date,'YYYY-MM-DD') as as_of_date",
   );
@@ -188,6 +187,41 @@ async function createSnapshot(product, manager, targetQuantity, suffix) {
     quantity: String(targetQuantity),
     as_of_date: asOfDate,
   };
+  const sourceFileName = "P2-Onyx-FEFO-" + suffix + ".csv";
+  const sourceCsv = [
+    "item_code,warehouse_id,quantity,as_of_date",
+    [product.item_code, warehouseId, String(targetQuantity), asOfDate].join(","),
+    "",
+  ].join("\n");
+  const sourceHash = createHash("sha256").update(sourceCsv).digest("hex");
+
+  // onyx_snapshots.source_import_job_id is NOT NULL. Create a real, tenant-scoped
+  // import job through the canonical idempotent RPC instead of writing a null
+  // provenance pointer into the test snapshot.
+  await as(manager);
+  const profileId = await rpc(
+    "select to_jsonb(public.ensure_onyx_stock_balance_import_profile()) as result",
+    [],
+  );
+  assert.match(profileId, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  const sourceImportJob = await rpc(
+    "select public.create_import_job_idempotent($1::uuid,$2::text,$3::text,$4::bigint,$5::text,$6::text,$7::uuid,$8::text,$9::text,$10::text) as result",
+    [
+      randomUUID(),
+      sourceFileName,
+      sourceHash,
+      Buffer.byteLength(sourceCsv, "utf8"),
+      "inventory_stock",
+      "P2-Onyx-FEFO-" + suffix,
+      profileId,
+      asOfDate,
+      "onyx_pro",
+      "new_version",
+    ],
+  );
+  assert.match(sourceImportJob.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(sourceImportJob.profile_id, profileId);
+  assert.equal(sourceImportJob.file_hash, sourceHash);
 
   const snapshotRecord = {
     id: snapshotId,
@@ -197,8 +231,10 @@ async function createSnapshot(product, manager, targetQuantity, suffix) {
     report_type: "inventory_stock",
     metrics: {},
     row_count: 1,
-    source_file_name: "P2-Onyx-FEFO-" + suffix + ".csv",
-    source_import_job_id: null,
+    source_file_name: sourceFileName,
+    source_import_job_id: sourceImportJob.id,
+    profile_id: sourceImportJob.profile_id,
+    profile_version: sourceImportJob.profile_version,
     period_key: asOfDate,
     snapshot_version: 1,
     data_quality_score: 100,
