@@ -13,21 +13,21 @@ vi.mock("@/lib/api", () => ({
   fetchActiveInventoryWarehouses: mocks.fetchActiveInventoryWarehouses,
 }));
 
-vi.mock("@/lib/onyx-pro-live-export", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/onyx-pro-live-export")>();
-  return {
-    ...actual,
-    fetchOnyxProLiveExportRecords: mocks.fetchOnyxProLiveExportRecords,
-  };
-});
+vi.mock("@/lib/onyx-pro-live-export", () => ({
+  ONYX_PRO_LIVE_DATASET_IDS: ["products", "customers", "warehouses", "stock_balances"],
+  fetchOnyxProLiveExportRecords: mocks.fetchOnyxProLiveExportRecords,
+}));
 
-vi.mock("@/lib/onyx-pro-workbook", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/onyx-pro-workbook")>();
-  return {
-    ...actual,
-    buildOnyxProDataWorkbook: mocks.buildOnyxProDataWorkbook,
-  };
-});
+vi.mock("@/lib/onyx-pro-workbook", () => ({
+  buildOnyxProDataCsv: vi.fn(() => ""),
+  buildOnyxProDataWorkbook: mocks.buildOnyxProDataWorkbook,
+  buildOnyxProWorkbook: vi.fn(() => new Uint8Array([1])),
+  onyxProDatasetCsvFilename: vi.fn(() => "Aghbari-Onyx-Headers.csv"),
+  onyxProLiveDatasetCsvFilename: vi.fn(() => "Aghbari-Onyx-Live.csv"),
+  onyxProLiveWorkbookFilename: vi.fn(() => "Aghbari-Onyx-Live.xlsx"),
+  onyxProWorkbookFilename: vi.fn(() => "Aghbari-Onyx-Template.xlsx"),
+  ONYX_PRO_WORKBOOK_MIME: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}));
 
 import { OnyxProExchangeWorkspace } from "./OnyxProExchangeWorkspace";
 
