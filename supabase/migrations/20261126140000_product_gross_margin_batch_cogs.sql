@@ -196,8 +196,7 @@ BEGIN
     JOIN public.warehouses w
       ON w.id=im.warehouse_id
      AND w.organization_id=v_org
-    WHERE im.organization_id=v_org
-      AND im.reference_type='order'
+    WHERE im.reference_type='order'
       AND im.movement_type='sale'
       AND im.quantity<0
       AND im.created_at<=v_as_of
@@ -507,10 +506,10 @@ BEGIN
         'actualShippedQuantity',assessed.actual_shipped_quantity::text,
         'saleMovementCount',assessed.sale_movement_count,
         'uncostedMovementCount',assessed.uncosted_movement_count,
-        'costOfGoodsSold',CASE WHEN coverage.complete_population AND assessed.gross_profit_verified THEN assessed.cost_of_goods_sold::text ELSE NULL END,
-        'grossProfit',CASE WHEN coverage.complete_population AND assessed.gross_profit_verified
+        'costOfGoodsSold',CASE WHEN assessed.gross_profit_verified THEN assessed.cost_of_goods_sold::text ELSE NULL END,
+        'grossProfit',CASE WHEN assessed.gross_profit_verified
           THEN (assessed.net_revenue-assessed.cost_of_goods_sold)::numeric(18,2)::text ELSE NULL END,
-        'grossMarginPercent',CASE WHEN coverage.complete_population AND assessed.gross_profit_verified AND assessed.net_revenue>0
+        'grossMarginPercent',CASE WHEN assessed.gross_profit_verified AND assessed.net_revenue>0
           THEN round(((assessed.net_revenue-assessed.cost_of_goods_sold)/assessed.net_revenue)*100,2)::text ELSE NULL END,
         'hasReturns',assessed.has_returns,
         'evidenceIds',jsonb_build_array(
@@ -574,7 +573,7 @@ BEGIN
       product.currency,
       'INVOICE_LINE_OR_CREDIT_EVIDENCE_INCOMPLETE' AS warning
     FROM jsonb_to_recordset(v_products) AS product(
-      productRef text,netRevenue text,status text,currency text
+      "productRef" text,"netRevenue" text,status text,currency text
     )
     UNION ALL
     SELECT
@@ -584,7 +583,7 @@ BEGIN
       product.currency,
       'SALE_BATCH_COST_NOT_FULLY_TRACEABLE_TO_PURCHASE_RECEIPT'
     FROM jsonb_to_recordset(v_products) AS product(
-      productRef text,costOfGoodsSold text,status text,currency text
+      "productRef" text,"costOfGoodsSold" text,status text,currency text
     )
     UNION ALL
     SELECT
@@ -594,7 +593,7 @@ BEGIN
       product.currency,
       'PURCHASE_RECEIPT_COST_LINEAGE_INCOMPLETE'
     FROM jsonb_to_recordset(v_products) AS product(
-      productRef text,costOfGoodsSold text,status text,currency text
+      "productRef" text,"costOfGoodsSold" text,status text,currency text
     )
   ) source;
 
