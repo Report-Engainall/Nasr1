@@ -76,8 +76,10 @@ describe("supplier financial workspace hub", () => {
 
   it("opens supplier invoice review and forwards an intelligence invoice reference", async () => {
     const invoiceId = "11111111-1111-4111-8111-111111111111";
-    render(createElement(SupplierFinancialWorkspaceHub, { initialSupplierInvoiceId: invoiceId }));
+    const { rerender } = render(createElement(SupplierFinancialWorkspaceHub));
+    expect(await screen.findByText("supplier-payment-workspace-mounted")).toBeInTheDocument();
 
+    rerender(createElement(SupplierFinancialWorkspaceHub, { initialSupplierInvoiceId: invoiceId }));
     expect(await screen.findByText("supplier-invoice-review-mounted:" + invoiceId)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "مراجعة فروقات الأسعار" })).toHaveAttribute("aria-selected", "true");
   });

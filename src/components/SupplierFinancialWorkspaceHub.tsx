@@ -68,6 +68,10 @@ export function SupplierFinancialWorkspaceHub({ initialSupplierInvoiceId }: { in
     role === "admin" || role === "manager" || role === "accountant"
   ));
   const [tab, setTab] = useState<SupplierFinanceTab>(initialSupplierInvoiceId ? "invoice-review" : "payments");
+  useEffect(() => {
+    if (initialSupplierInvoiceId) setTab("invoice-review");
+  }, [initialSupplierInvoiceId]);
+
   const [accounts, setAccounts] = useState<SupplierFinanceLedgerAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountsError, setAccountsError] = useState("");
