@@ -336,4 +336,31 @@ describe("customer retention strict evidence clocks", () => {
     expect(result.customers[0].status).toBe("NEEDS_REVIEW");
     expect(result.warnings).toContain("CUSTOMER_COUNT_METRIC_INVALID_OR_UNVERIFIED");
   });
+
+  it("withholds customer population conclusions when coverage evidence has an impossible source time", () => {
+    const { customers, sales } = baseline();
+    const metrics = [
+      ...customers.flatMap(item => [item.ordersCurrentPeriod, item.ordersPreviousPeriod]),
+      ...sales.map(item => item.sales),
+    ];
+    const invalidCoverage: EvidenceRecord = {
+      id: "coverage:customers",
+      source: { kind: "RPC", name: "test.customer_retention.coverage", version: "1.0.0" },
+      sourceTimestamp: "2026-02-31T00:00:00.000Z",
+      asOf,
+      period: currentPeriod,
+      status: "VERIFIED",
+      completeness: "COMPLETE",
+      quality: "ACCEPTABLE",
+      warnings: [],
+    };
+    const result = build(customers, sales, {
+      evidenceRecords: [invalidCoverage, ...metrics.map(evidence)],
+    });
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.population.total).toBeNull();
+    expect(result.retentionRate).toBeNull();
+    expect(result.warnings).toContain("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
+  });
+
 });
