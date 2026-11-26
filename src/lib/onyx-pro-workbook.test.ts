@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { ONYX_PRO_DATASETS, getOnyxProHeaders } from "./onyx-pro-schema";
 import { parseXlsxFirstWorksheet } from "./unified-import";
 import {
+  buildOnyxProDataCsv,
+  buildOnyxProDataWorkbook,
   buildOnyxProWorkbook,
   onyxProDatasetCsvFilename,
+  onyxProLiveDatasetCsvFilename,
+  onyxProLiveWorkbookFilename,
   onyxProWorkbookFilename,
 } from "./onyx-pro-workbook";
 
@@ -77,15 +81,72 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     expect(findAscii(bytes, 'name="Orders"')).toBe(false);
   });
 
-  it("rejects empty, duplicate and unknown dataset selections", () => {
+  it("embeds live product and customer rows in their selected Excel worksheets", async () => {
+    const bytes = buildOnyxProDataWorkbook(["products", "customers"], {
+      products: [{ product_id: "product-1", product_code: "000125", product_name: "أرز بسمتي" }],
+      customers: [{ customer_id: "customer-1", customer_code: "0007", customer_name: "مؤسسة اختبار" }],
+    });
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    const products: string[][] = [];
+    const productResult = await parseXlsxFirstWorksheet(new Blob([buffer]), (row) => products.push(row));
+    expect(productResult.rowCount).toBe(2);
+    expect(products[1][getOnyxProHeaders("products").indexOf("رقم الصنف")]).toBe("000125");
+    expect(products[1][getOnyxProHeaders("products").indexOf("اسم الصنف")]).toBe("أرز بسمتي");
+
+    const customers: string[][] = [];
+    const customerResult = await parseXlsxFirstWorksheet(
+      new Blob([buffer]),
+      (row) => customers.push(row),
+      { preferredWorksheetNames: ["Customers"] },
+    );
+    expect(customerResult.rowCount).toBe(2);
+    expect(customers[1][getOnyxProHeaders("customers").indexOf("رقم العميل")]).toBe("0007");
+    expect(customers[1][getOnyxProHeaders("customers").indexOf("اسم العميل")]).toBe("مؤسسة اختبار");
+  });
+
+  it("rejects unapproved fields and invalid cell values instead of silently exporting them", () => {
+    expect(() => buildOnyxProDataWorkbook(["products"], {
+      products: [{ product_code: "P-1", cost_price: 20 }],
+    })).toThrow("حقل غير معتمد");
+    expect(() => buildOnyxProDataWorkbook(["customers"], {
+      customers: [{ customer_code: "C-1", credit_limit: 50_000 }],
+    })).toThrow("حقل غير معتمد");
+    expect(() => buildOnyxProDataCsv("products", [
+      { product_code: "P-1", price_wholesale: 10 },
+    ])).toThrow("حقل غير معتمد");
+    expect(() => buildOnyxProDataWorkbook(["price_lists"], {
+      price_lists: [],
+    })).toThrow("لا يتوفر تصدير سجلات حية آمن");
+    expect(() => buildOnyxProDataWorkbook(["products"], {
+      products: [{ product_code: "P-1", product_name: { internal: true } as never }],
+    })).toThrow("قيمة غير صالحة");
+    expect(() => buildOnyxProDataWorkbook(["products"], {
+      products: Array.from({ length: 10_001 }, () => ({})),
+    })).toThrow("حد ملف Excel الآمن");
+  });
+
+  it("neutralizes spreadsheet formula injection in live CSV text fields", () => {
+    const csv = buildOnyxProDataCsv("products", [
+      { product_code: "=HYPERLINK(\"https://example.invalid\",\"open\")", product_name: "صنف" },
+    ]);
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain("صنف");
+    expect(csv.endsWith("\r\n")).toBe(true);
+  });
+
+  it("keeps live and header-template filenames distinct", () => {
+    expect(onyxProWorkbookFilename()).toBe("Aghbari-Onyx-Pro-Exchange-Template.xlsx");
+    expect(onyxProDatasetCsvFilename("stock_balances")).toContain("StockBalances-Headers.csv");
+    expect(onyxProLiveDatasetCsvFilename("products")).toContain("Products-Data.csv");
+    expect(onyxProLiveWorkbookFilename(new Date("2026-11-27T00:00:00.000Z"))).toBe("Aghbari-Onyx-Pro-Live-Export-2026-11-27.xlsx");
+    expect(() => onyxProDatasetCsvFilename("missing")).toThrow();
+  });
+
+  it("rejects empty, duplicate and unknown template selections", () => {
     expect(() => buildOnyxProWorkbook([])).toThrow();
     expect(() => buildOnyxProWorkbook(["customers", "customers"])).toThrow();
     expect(() => buildOnyxProWorkbook(["not_a_dataset"])).toThrow();
-  });
-
-  it("uses safe and predictable template filenames", () => {
-    expect(onyxProWorkbookFilename()).toBe("Aghbari-Onyx-Pro-Exchange-Template.xlsx");
-    expect(onyxProDatasetCsvFilename("stock_balances")).toContain("StockBalances");
-    expect(() => onyxProDatasetCsvFilename("missing")).toThrow();
   });
 });
