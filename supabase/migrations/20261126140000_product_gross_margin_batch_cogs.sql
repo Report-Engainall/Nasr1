@@ -567,9 +567,9 @@ BEGIN
   INTO v_evidence
   FROM (
     SELECT
-      'product-gross-margin:'||product.productRef||':invoice-lines' AS id,
+      'product-gross-margin:'||product."productRef"||':invoice-lines' AS id,
       'customer_invoice_items_net_posted_credit_memos' AS name,
-      CASE WHEN product.status='VERIFIED' AND product.netRevenue IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END AS status,
+      CASE WHEN product.status='VERIFIED' AND product."netRevenue" IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END AS status,
       product.currency,
       'INVOICE_LINE_OR_CREDIT_EVIDENCE_INCOMPLETE' AS warning
     FROM jsonb_to_recordset(v_products) AS product(
@@ -577,9 +577,9 @@ BEGIN
     )
     UNION ALL
     SELECT
-      'product-gross-margin:'||product.productRef||':shipment-batches',
+      'product-gross-margin:'||product."productRef"||':shipment-batches',
       'inventory_sale_movements_batch_lineage',
-      CASE WHEN product.status='VERIFIED' AND product.costOfGoodsSold IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
+      CASE WHEN product.status='VERIFIED' AND product."costOfGoodsSold" IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
       product.currency,
       'SALE_BATCH_COST_NOT_FULLY_TRACEABLE_TO_PURCHASE_RECEIPT'
     FROM jsonb_to_recordset(v_products) AS product(
@@ -587,9 +587,9 @@ BEGIN
     )
     UNION ALL
     SELECT
-      'product-gross-margin:'||product.productRef||':receipt-costs',
+      'product-gross-margin:'||product."productRef"||':receipt-costs',
       'purchase_receipt_items_cost_lineage',
-      CASE WHEN product.status='VERIFIED' AND product.costOfGoodsSold IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
+      CASE WHEN product.status='VERIFIED' AND product."costOfGoodsSold" IS NOT NULL THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END,
       product.currency,
       'PURCHASE_RECEIPT_COST_LINEAGE_INCOMPLETE'
     FROM jsonb_to_recordset(v_products) AS product(
