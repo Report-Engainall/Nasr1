@@ -32,7 +32,7 @@ function day(v:unknown):v is string {
  if(typeof v!=="string"||!DAY.test(v))return false;
  const d=new Date(v+"T00:00:00.000Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===v;
 }
-const timestamp=(v:unknown):v is string=>typeof v==="string"&&v.includes("T")&&Number.isFinite(Date.parse(v));
+const timestamp=(v:unknown):v is string=>typeof v==="string"&&v.includes("T")&&/(?:Z|[+-]\\d{2}:\\d{2})$/i.test(v)&&Number.isFinite(Date.parse(v));
 function parsePeriod(v:unknown):SupplierPerformancePeriod|null {
  const r=obj(v);return r&&day(r.from)&&day(r.to)&&r.from<=r.to&&r.timeZone==="UTC"?{from:r.from,to:r.to,timeZone:"UTC"}:null;
 }
@@ -44,6 +44,7 @@ function parseOrder(v:unknown):SupplierPerformanceOrder|null {
   !int(r.receiptCount)||!nullableNum(r.actualLeadDays)||
   (r.promisedDeliveryDays!==null&&!int(r.promisedDeliveryDays))||(r.onTime!==null&&typeof r.onTime!=="boolean"))return null;
  if((r.actualLeadDays!==null&&(r.status!=="received"||r.lastReceivedAt===null||r.receiptCount===0))||
+  (r.lastReceivedAt!==null&&(Date.parse(r.lastReceivedAt as string)<Date.parse(r.submittedAt as string)||r.receiptCount===0))||
   (r.onTime!==null&&(r.promisedDeliveryDays===null||r.actualLeadDays===null)))return null;
  return {purchaseOrderId:r.purchaseOrderId,purchaseOrderNumber:r.purchaseOrderNumber,
   status:r.status as SupplierPerformanceOrder["status"],submittedAt:r.submittedAt,lastReceivedAt:r.lastReceivedAt as string|null,
@@ -58,10 +59,12 @@ function parseSupplier(v:unknown):SupplierPerformanceSupplier|null {
   !int(r.completedOrderCount)||!int(r.openOrderCount)||!int(r.inconsistentReceivedCount)||!int(r.backlogLineCount)||
   !int(r.leadTimeSampleCount)||!nullableNum(r.averageLeadDays)||!nullableNum(r.medianLeadDays)||!nullableNum(r.p90LeadDays)||
   !int(r.promisedDeliverySampleCount)||!int(r.onTimeCount)||!int(r.completedWithoutPromiseCount)||
-  !timestamp(r.latestSubmittedAt)||!Array.isArray(r.recentOrders)||r.recentOrders.length>5)return null;
- if(r.completedOrderCount+r.openOrderCount+r.inconsistentReceivedCount>r.purchaseOrderCount||
-  r.leadTimeSampleCount>r.completedOrderCount||r.promisedDeliverySampleCount>r.leadTimeSampleCount||
-  r.onTimeCount>r.promisedDeliverySampleCount||r.completedWithoutPromiseCount>r.completedOrderCount||
+  !timestamp(r.latestSubmittedAt)||!Array.isArray(r.recentOrders)||r.recentOrders.length<1||r.recentOrders.length>5)return null;
+ if(r.completedOrderCount+r.openOrderCount+r.inconsistentReceivedCount!==r.purchaseOrderCount||
+  r.leadTimeSampleCount!==r.completedOrderCount||
+  r.promisedDeliverySampleCount+r.completedWithoutPromiseCount!==r.completedOrderCount||
+  r.onTimeCount>r.promisedDeliverySampleCount||
+  (r.medianLeadDays!==null&&r.p90LeadDays!==null&&r.p90LeadDays<r.medianLeadDays)||
   (r.leadTimeSampleCount===0&&(r.averageLeadDays!==null||r.medianLeadDays!==null||r.p90LeadDays!==null))||
   (r.leadTimeSampleCount>0&&(r.averageLeadDays===null||r.medianLeadDays===null||r.p90LeadDays===null)))return null;
  const recent=r.recentOrders.map(parseOrder);
@@ -80,11 +83,29 @@ export function parseSupplierPerformanceSnapshot(value:unknown):SupplierPerforma
  if(!r||!timestamp(r.asOf)||r.source!==SOURCE||!int(r.totalSupplierCount)||!int(r.returnedSupplierCount)||
   !int(r.resultLimit)||r.resultLimit<1||r.resultLimit>200||typeof r.completePopulation!=="boolean"||!Array.isArray(r.suppliers))return null;
  const p=parsePeriod(r.period);
- if(!p||r.returnedSupplierCount!==r.suppliers.length||r.returnedSupplierCount>r.resultLimit||
+ if(!p||((Date.parse(p.to+"T00:00:00.000Z")-Date.parse(p.from+"T00:00:00.000Z"))/86400000)>730||
+  r.returnedSupplierCount!==r.suppliers.length||r.returnedSupplierCount>r.resultLimit||
   r.returnedSupplierCount>r.totalSupplierCount||r.completePopulation!==(r.totalSupplierCount<=r.resultLimit)||
   (r.completePopulation&&r.returnedSupplierCount!==r.totalSupplierCount))return null;
  const values=r.suppliers.map(parseSupplier);
  if(values.some(x=>x===null)||new Set((values as SupplierPerformanceSupplier[]).map(x=>x.supplierId)).size!==values.length)return null;
+ const asOfMs=Date.parse(r.asOf as string);
+ const periodStart=Date.parse(p.from+"T00:00:00.000Z");
+ const periodEndExclusive=Date.parse(p.to+"T00:00:00.000Z")+86400000;
+ for(const supplier of values as SupplierPerformanceSupplier[]){
+  const submittedTimes=supplier.recentOrders.map(order=>Date.parse(order.submittedAt));
+  if(Date.parse(supplier.latestSubmittedAt)>asOfMs||
+   Date.parse(supplier.latestSubmittedAt)<periodStart||Date.parse(supplier.latestSubmittedAt)>=periodEndExclusive||
+   Math.max(...submittedTimes)!==Date.parse(supplier.latestSubmittedAt)||
+   submittedTimes.some((submitted,index)=>!Number.isFinite(submitted)||submitted<periodStart||
+    submitted>=periodEndExclusive||submitted>asOfMs||(index>0&&submittedTimes[index-1]<submitted)))return null;
+  for(const order of supplier.recentOrders){
+   if(order.lastReceivedAt!==null){
+    const received=Date.parse(order.lastReceivedAt),submitted=Date.parse(order.submittedAt);
+    if(received<submitted||received>asOfMs)return null;
+   }
+  }
+ }
  return {asOf:r.asOf,period:p,source:r.source,totalSupplierCount:r.totalSupplierCount,
   returnedSupplierCount:r.returnedSupplierCount,resultLimit:r.resultLimit,completePopulation:r.completePopulation,
   suppliers:values as SupplierPerformanceSupplier[]};
