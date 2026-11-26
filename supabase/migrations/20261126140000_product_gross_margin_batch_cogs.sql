@@ -110,15 +110,17 @@ BEGIN
           AND cmi.order_item_id IS NOT DISTINCT FROM il.order_item_id
       ),0)::numeric(18,2) AS posted_credit_amount,
       count(*) FILTER(
-        WHERE cm.status='posted'
-          AND cm.posted_at IS NOT NULL
-          AND cm.posted_at<=v_as_of
+        WHERE cmi.id IS NOT NULL
           AND (
-            cm.organization_id IS DISTINCT FROM v_org
-            OR cm.invoice_id IS DISTINCT FROM il.invoice_id
-            OR cm.currency IS DISTINCT FROM il.currency
-            OR cmi.product_id IS DISTINCT FROM il.product_id
-            OR cmi.order_item_id IS DISTINCT FROM il.order_item_id
+            cm.id IS NULL
+            OR (cm.status='posted' AND cm.posted_at IS NOT NULL AND cm.posted_at<=v_as_of
+              AND (
+                cm.organization_id IS DISTINCT FROM v_org
+                OR cm.invoice_id IS DISTINCT FROM il.invoice_id
+                OR cm.currency IS DISTINCT FROM il.currency
+                OR cmi.product_id IS DISTINCT FROM il.product_id
+                OR cmi.order_item_id IS DISTINCT FROM il.order_item_id
+              ))
           )
       )::integer AS invalid_credit_item_count,
       count(*) FILTER(
