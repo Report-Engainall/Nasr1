@@ -386,6 +386,30 @@ describe("production intelligence workspace inventory screens", () => {
     expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(2, 50, 0);
   });
 
+  it("turns a verified replenishment recommendation into a saveable daily decision with withheld financial impact", async () => {
+    render(<IntelligenceWorkspace />);
+
+    const heading = await screen.findByRole("heading", { name: /مراجعة إعادة توريد الصنف SKU-1/ });
+    const actionCard = heading.closest("article");
+    expect(actionCard).not.toBeNull();
+    expect(actionCard).toHaveTextContent("الأثر غير متاح");
+    expect(actionCard).toHaveTextContent("طلب مهلة التوريد");
+
+    fireEvent.click(within(actionCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      candidateId: expect.stringMatching(/^inventory\.replenishment:SKU-1:/),
+      ruleId: "inventory.replenishment.review",
+      ruleVersion: "1.1.1",
+      ownerProfileId: "admin-profile",
+      candidateSnapshot: expect.objectContaining({
+        priority: "P2",
+        impact: null,
+        impactStatus: "WITHHELD",
+        impactReason: "UNIT_COST_OR_CURRENCY_NOT_VERIFIED",
+      }),
+    })));
+  });
+
   it("renders movement classification and a verified replenishment quantity from server evidence", async () => {
     render(<IntelligenceWorkspace />);
 
