@@ -157,6 +157,7 @@ describe("daily decision engine",()=>{
   const prior=metric({id:"prior",key:"orders.prior",value:3,period:priorPeriod,lineage:{...metric().lineage,evidenceIds:["ev-prior"]}});
   const r=buildDailyDecisions(input({metrics:[metric(),prior],evidenceRecords:[evidence(),{...evidence("ev-prior"),period:priorPeriod}],rules:[rule({impactFormula:{id:"period-sum",version:"1",operation:"SUM",metricKeys:["orders.pending","orders.prior"],resultUnit:"COUNT"}})]}));
   expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactStatus).toBe("WITHHELD");expect(r.candidates[0].impactReason).toBe("IMPACT_SCOPE_MISMATCH");
+ });
  it("compares quantity decision thresholds with exact six-place decimal arithmetic",()=>{
   const quantity=metric({id:"quantity-exact",key:"stock.available",value:"0.300001",unit:"QUANTITY",unitOfMeasure:"EA"});
   const result=buildDailyDecisions(input({
@@ -216,5 +217,4 @@ describe("daily decision engine",()=>{
   expect(result.candidates[0].impactReason).toBe("IMPACT_SOURCE_DUPLICATED");
  });
 
- });
 });
