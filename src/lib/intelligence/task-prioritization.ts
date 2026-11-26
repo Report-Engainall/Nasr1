@@ -26,6 +26,10 @@ function parseTaskInstant(value: unknown): number | null {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+function isValidEvaluationTime(value: number): boolean {
+  return Number.isSafeInteger(value) && Number.isFinite(new Date(value).getTime());
+}
+
 function urgencyFor(dueAt: string | null, now: number): { band: number; reason: string; dueTime: number } {
   const dueTime = dueAt ? parseTaskInstant(dueAt) ?? Number.NaN : Number.NaN;
   if (!Number.isFinite(dueTime)) {
@@ -57,7 +61,7 @@ export function prioritizeOperationalTasks(
   now = Date.now(),
   limit = 5,
 ): OperationalTaskAttentionItem[] {
-  if (!Number.isSafeInteger(now)) return [];
+  if (!isValidEvaluationTime(now)) return [];
   const safeNow = now;
   const safeLimit = Number.isInteger(limit) ? Math.min(7, Math.max(3, limit)) : 5;
 
@@ -115,7 +119,7 @@ export function suggestOperationalTaskAssignee(
   eligibleAssignees: readonly OperationalTaskAssignee[],
   now = Date.now(),
 ): OperationalTaskAssigneeSuggestion | null {
-  if (eligibleAssignees.length === 0 || !Number.isSafeInteger(now)) return null;
+  if (eligibleAssignees.length === 0 || !isValidEvaluationTime(now)) return null;
   const safeNow = now;
   const priorityExtra: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
 
