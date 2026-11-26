@@ -271,3 +271,44 @@ describe("liquidity forecast arithmetic safety", () => {
     expect(result.positions[0].forecast.horizons[0].warnings).toContain("FORECAST_ARITHMETIC_OVERFLOW");
   });
 });
+
+
+describe("liquidity forecast source alignment", () => {
+  it("withholds scheduled flows sourced from a different reporting period", () => {
+    const base = position("YER", { available: 100, collections: 0, obligations: 0 });
+    const flow = forecastFlow("wrong-period-flow", "COLLECTION", "2026-11-27", 10);
+    const oldPeriod = { from: "2026-10-01", to: "2026-10-31" };
+    flow.amount = { ...flow.amount, period: oldPeriod };
+    const coverageEvidence = evidence("forecast-period-coverage", "YER");
+    const result = buildLiquiditySnapshot({
+      id: "liquidity-period-mismatch",
+      generatedAt: asOf,
+      asOf,
+      period,
+      evidenceRecords: [
+        ...base.metrics.map(source => evidence(source.id, "YER")),
+        coverageEvidence,
+        { ...evidence(flow.amount.id, "YER"), period: oldPeriod },
+      ],
+      currencies: [{
+        ...base.input,
+        forecast: {
+          coverage: {
+            status: "VERIFIED",
+            completeness: "COMPLETE",
+            quality: "ACCEPTABLE",
+            expectedFlowCount: 1,
+            returnedFlowCount: 1,
+            truncated: false,
+            evidenceIds: [coverageEvidence.id],
+          },
+          flows: [flow],
+        },
+      }],
+    });
+    expect(result.positions[0].forecast.horizons.every(item =>
+      item.status === "NEEDS_REVIEW" && item.projectedBalance === null,
+    )).toBe(true);
+    expect(result.positions[0].forecast.horizons[0].warnings).toContain("FORECAST_AMOUNT_PERIOD_MISMATCH");
+  });
+});
