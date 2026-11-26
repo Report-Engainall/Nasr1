@@ -3,6 +3,7 @@ import { BrainCircuit, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchCashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
 import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
+import { CustomerRetentionActionQueuePanel } from "@/components/intelligence/CustomerRetentionActionQueuePanel";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
 import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/replenishment-decisions";
@@ -1791,6 +1792,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                   ))}
                 </div>
                 <p className="report-note">الفترة الحالية: {customerRetention.period.from} — {customerRetention.period.to} · السابقة: {customerRetention.previousPeriod.from} — {customerRetention.previousPeriod.to} · اللقطة: {customerRetention.asOf}. لم يرسل مصدر الاحتفاظ مبيعات أو أرصدة أو أسعاراً؛ لذلك يظل تركيز المبيعات حسب العميل خارج الحساب.</p>
+                <CustomerRetentionActionQueuePanel
+                  queue={retentionResult?.ok ? retentionResult.actionQueue : null}
+                  loading={retentionLoading}
+                />
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </>
             ) : null}
