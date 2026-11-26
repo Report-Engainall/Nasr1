@@ -56,6 +56,10 @@ function metricValue(metric:MetricSnapshot|null|undefined,index:Map<string,Metri
  const verified=index.get(metric.id);
  if(!verified)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["METRIC_ID_AMBIGUOUS_OR_MISSING"]};
  if(verified.status!=="VERIFIED")return {value:null,minorUnits:null,status:verified.status,warnings:[...verified.warnings,"METRIC_NOT_VERIFIED"]};
+ const expectedAsOf=forecastTimestamp(asOf),metricAsOf=forecastTimestamp(verified.asOf);
+ const calculatedAt=forecastTimestamp(verified.lineage.calculatedAt);
+ if(expectedAsOf===null||metricAsOf===null||calculatedAt===null||calculatedAt>expectedAsOf)
+  return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["METRIC_TIMESTAMP_INVALID_OR_AFTER_AS_OF"]};
  if(verified.unit!=="CURRENCY"||verified.currency!==currency)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["CURRENCY_OR_UNIT_MISMATCH"]};
  if(verified.asOf!==asOf)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["AS_OF_MISMATCH"]};
  if(!verified.period||verified.period.from!==period.from||verified.period.to!==period.to)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["PERIOD_MISMATCH"]};
@@ -112,6 +116,19 @@ function forecastTimestamp(value:string):number|null {
  if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.]\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
  if(utcDay(value.slice(0,10))===null)return null;
  const parsed=Date.parse(value);return Number.isFinite(parsed)?parsed:null;
+}
+function sanitizeLiquidityEvidence(records:EvidenceRecord[]):EvidenceRecord[] {
+ return records.map(record=>{
+  const warnings=[...record.warnings];
+  const invalidTimestamp=forecastTimestamp(record.sourceTimestamp)===null||forecastTimestamp(record.asOf)===null;
+  const invalidPeriod=record.period!==null&&
+   (utcDay(record.period.from)===null||utcDay(record.period.to)===null||record.period.from>record.period.to);
+  if(invalidTimestamp||invalidPeriod){
+   warnings.push(...(invalidTimestamp?["INVALID_EVIDENCE_TIMESTAMP"]:[]),...(invalidPeriod?["INVALID_EVIDENCE_PERIOD"]:[]));
+   return {...record,status:"NEEDS_REVIEW" as const,warnings:[...new Set(warnings)]};
+  }
+  return record;
+ });
 }
 function forecastStatus(statuses:EvidenceStatus[]):EvidenceStatus {
  if(statuses.includes("UNVERIFIED"))return "UNVERIFIED";
@@ -226,9 +243,13 @@ function buildCurrencyForecast(args:{
 
 /** Computes reconciled liquidity independently by currency; this engine contains no FX conversion. */
 export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnapshot {
- if(!Number.isFinite(Date.parse(input.generatedAt))||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
+ const generatedAtTime=forecastTimestamp(input.generatedAt),asOfTime=forecastTimestamp(input.asOf);
+ if(generatedAtTime===null||asOfTime===null||generatedAtTime<asOfTime||
+   utcDay(input.period.from)===null||utcDay(input.period.to)===null||input.period.from>input.period.to)
+  throw new Error("generatedAt, asOf and period must be valid ordered ISO values");
  const all=input.currencies.flatMap(allMetricInputs);
- const passport=buildEvidencePassport({id:"liquidity:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:all});
+ const passport=buildEvidencePassport({id:"liquidity:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,
+  evidenceRecords:sanitizeLiquidityEvidence(input.evidenceRecords),metrics:all});
  const idCounts=new Map<string,number>();for(const m of passport.metrics)idCounts.set(m.id,(idCounts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(idCounts.get(m.id)===1)index.set(m.id,m);
  const evidenceCounts=new Map<string,number>();for(const record of input.evidenceRecords)evidenceCounts.set(record.id,(evidenceCounts.get(record.id)??0)+1);
