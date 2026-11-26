@@ -17,7 +17,12 @@ function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
  if(numerator<=0n)return 0n;
  return (numerator+denominator-1n)/denominator;
 }
-function isoDay(value:string):number|null {function isoTimestamp(value:unknown):number|null {
+function isoDay(value:string):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+ const time=Date.parse(value+"T00:00:00Z");
+ return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
+}
+function isoTimestamp(value:unknown):number|null {
  if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.]\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
  if(isoDay(value.slice(0,10))===null)return null;
  const parsed=Date.parse(value);return Number.isFinite(parsed)?parsed:null;
@@ -34,11 +39,6 @@ function sanitizeEvidence(records:EvidenceRecord[]):EvidenceRecord[] {
   }
   return record;
  });
-}
-
- if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
- const time=Date.parse(value+"T00:00:00Z");
- return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
 }
 function dayCount(period:EvidencePeriod):number {
  const from=isoDay(period.from),to=isoDay(period.to);
