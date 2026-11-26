@@ -1,6 +1,6 @@
 import type { OnyxSnapshotRow } from "./api";
 
-export type OnyxSnapshotPreviewKind = "products" | "customers";
+export type OnyxSnapshotPreviewKind = "products" | "customers" | "product_units";
 export type OnyxSnapshotPreviewStatus = "valid" | "warning" | "rejected" | "unknown";
 export type OnyxSnapshotPreviewFact = { label: string; value: string };
 export type OnyxSnapshotPreviewRow = {
@@ -56,14 +56,18 @@ export function projectOnyxSnapshotPreviewRow(
 ): OnyxSnapshotPreviewRow {
   const data = row.data;
   const matchingCode = displayValue(row.canonical_key) ??
-    (kind === "products" ? firstValue(data, "item_code") : firstValue(data, "customer_code")) ??
+    (kind === "products" || kind === "product_units" ? firstValue(data, "item_code") : firstValue(data, "customer_code")) ??
     "غير متاح";
   const title = kind === "products"
     ? firstValue(data, "product_name", "name") ?? "اسم الصنف غير متاح"
-    : firstValue(data, "business_name", "customer_name") ?? "اسم العميل غير متاح";
+    : kind === "product_units"
+      ? firstValue(data, "unit_name") ?? "اسم الوحدة غير متاح"
+      : firstValue(data, "business_name", "customer_name") ?? "اسم العميل غير متاح";
   const subtitle = kind === "products"
     ? firstValue(data, "category_name", "category", "barcode")
-    : firstValue(data, "contact_name", "phone");
+    : kind === "product_units"
+      ? firstValue(data, "unit_code")
+      : firstValue(data, "contact_name", "phone");
 
   const fields: Array<[string, string | null]> = kind === "products"
     ? [
@@ -76,12 +80,19 @@ export function projectOnyxSnapshotPreviewRow(
         ["المخزن المصدر", firstValue(data, "warehouse_name", "warehouse_code")],
         ["رصيد المصدر — غير معتمد", firstValue(data, "quantity", "available_quantity")],
       ]
-    : [
-        ["المسؤول", firstValue(data, "contact_name")],
-        ["الهاتف", firstValue(data, "phone")],
-        ["البريد الإلكتروني", firstValue(data, "email")],
-        ["العنوان", firstValue(data, "address")],
-      ];
+    : kind === "product_units"
+      ? [
+          ["كود الصنف", firstValue(data, "item_code")],
+          ["كود الوحدة", firstValue(data, "unit_code")],
+          ["معامل التحويل", firstValue(data, "conversion_factor")],
+          ["وحدة أساسية", firstValue(data, "is_base_unit")],
+        ]
+      : [
+          ["المسؤول", firstValue(data, "contact_name")],
+          ["الهاتف", firstValue(data, "phone")],
+          ["البريد الإلكتروني", firstValue(data, "email")],
+          ["العنوان", firstValue(data, "address")],
+        ];
 
   const status: OnyxSnapshotPreviewStatus =
     row.status === "valid" || row.status === "warning" || row.status === "rejected"
