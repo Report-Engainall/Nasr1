@@ -151,12 +151,12 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       <section className="panel" style={{ display: "grid", gap: 10 }}>
         <div className="panel-head"><div><h2>المسارات التشغيلية الموجودة</h2><p>تُستخدم المحركات الموجودة ولا تنشأ مسارات بيانات موازية.</p></div><PackageCheck size={22} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
-          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد المرحلي متاح مع مراجعة اللقطة والاعتماد بصلاحيات الخادم؛ تصدير كامل السجلات بهذين النوعين غير مربوط بعد بهذه الشاشة.</p></div>
-          <div><strong>المخزون</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>توجد لقطات المصدر ومصالحة الأرصدة والجرد، لكن ملف الرصيد لا يُرحّل مباشرة ولا يوجد تصدير شامل للأرصدة من هذه الشاشة.</p></div>
-          <div><strong>الطلبات والتسعيرات</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تصدير الطلبات الحالي متاح من مركز التصدير وتصدير الطلب المفرد؛ استيراد الطلبات وتبادل سجلات قوائم الأسعار الفعلية غير مربوطين بعد.</p></div>
+          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تُقرأ ورقتا Products وCustomers من المصنف نفسه كدفعتين مستقلتين، مع فحص التكرار والمراجعة قبل اعتماد السجلات.</p></div>
+          <div><strong>الوحدات والمخزون</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تُرحّل ProductUnits إلى أمر تحويل وحدات ذري بعد اعتماد الأصناف، وتُرحّل StockBalances إلى لقطة مستقلة ثم مصالحة محددة لكل مخزن. الرفع وحده لا يغيّر الأرصدة.</p></div>
+          <div><strong>الطلبات وقوائم الأسعار</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>قوالب Orders وOrderLines وPriceLists وPriceListLines مُعرّفة، لكن استيرادها التشغيلي وتصدير السجلات الحية لهذه المجموعات ما زال غير موصول؛ لا تُمرّر إلى جداول غير مطابقة.</p></div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {canManageImports && <button type="button" className="btn primary" onClick={onOpenImport}><RefreshCw size={15} /> فتح استيراد الأصناف والعملاء</button>}
+          {canManageImports && <button type="button" className="btn primary" onClick={onOpenImport}><RefreshCw size={15} /> استيراد مصنف أونكس متعدد الأوراق</button>}
           <button type="button" className="btn secondary" onClick={onOpenSnapshots}><PackageCheck size={15} /> فتح لقطات أونكس ومصالحة المخزون</button>
           <a className="btn secondary" href="/admin/exports"><Download size={15} /> تصدير الطلبات الحالي</a>
         </div>
