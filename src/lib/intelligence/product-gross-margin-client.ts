@@ -78,6 +78,9 @@ const SOURCE_TABLES = [
   "customer_invoice_items",
   "customer_return_credit_memos",
   "customer_return_credit_memo_items",
+  "customer_return_request_items",
+  "customer_return_receipt_items",
+  "customer_return_receipts",
   "orders",
   "order_items",
   "inventory_movements",
@@ -323,7 +326,7 @@ export function parseProductGrossMarginSnapshot(
         raw.verifiedProductCount !== verifiedCount || products.length === 0) {
       return null;
     }
-  } else if (raw.completePopulation || verifiedCount > raw.verifiedProductCount) {
+  } else if (raw.completePopulation || verifiedCount !== raw.verifiedProductCount) {
     return null;
   }
 
