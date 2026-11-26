@@ -90,6 +90,15 @@ describe("ProductGrossMarginCard", () => {
     expect(within(region).getAllByText(/محجوب/).length).toBeGreaterThan(0);
   });
 
+  it("labels a verified mixed-unit product as multiple units instead of displaying a false single UOM", () => {
+    const mixedUnit: ProductGrossMarginSnapshot = {
+      ...snapshot,
+      products: [{ ...snapshot.products[0], unitOfMeasure: null, unitVariantCount: 2 }],
+    };
+    render(<ProductGrossMarginCard result={{ ok: true, snapshot: mixedUnit }} state="ready" />);
+    expect(screen.getByText("وحدات متعددة")).toBeInTheDocument();
+  });
+
   it("shows a denied finance source without manufacturing financial figures", () => {
     render(
       <ProductGrossMarginCard
