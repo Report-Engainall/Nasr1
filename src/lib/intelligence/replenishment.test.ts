@@ -211,3 +211,83 @@ describe("replenishment recommendation engine", () => {
     })).toThrow("invalid period");
   });
 });
+
+
+describe("replenishment strict source clocks", () => {
+  it("rejects an impossible as-of calendar timestamp", () => {
+    const item = product("clock-as-of");
+    const metrics = [
+      item.availableToPromise,
+      item.reorderPoint,
+      item.soldQuantityWindow,
+      item.supplierLeadTimeDays,
+      item.incomingPurchaseQuantity,
+    ];
+    expect(() => buildReplenishmentRecommendations({
+      id: "invalid-as-of",
+      asOf: "2026-02-31T00:00:00.000Z",
+      period,
+      evidenceRecords: metrics.map(evidenceFor),
+      products: [item],
+    })).toThrow("asOf must be a valid ISO timestamp");
+  });
+
+  it("withholds replenishment when a source evidence timestamp has an impossible day", () => {
+    const item = product("clock-evidence");
+    const metrics = [
+      item.availableToPromise,
+      item.reorderPoint,
+      item.soldQuantityWindow,
+      item.supplierLeadTimeDays,
+      item.incomingPurchaseQuantity,
+    ];
+    const invalidEvidenceId = item.availableToPromise.lineage.evidenceIds[0];
+    const evidenceRecords = metrics.map(evidenceFor).map(record =>
+      record.id === invalidEvidenceId
+        ? { ...record, sourceTimestamp: "2026-02-31T00:00:00.000Z" }
+        : record,
+    );
+    const result = buildReplenishmentRecommendations({
+      id: "invalid-source-clock",
+      asOf,
+      period,
+      evidenceRecords,
+      products: [item],
+    });
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
+  });
+
+  it("withholds replenishment when a source metric was calculated after its as-of snapshot", () => {
+    const item = product("future-calculation");
+    item.availableToPromise = {
+      ...item.availableToPromise,
+      lineage: {
+        ...item.availableToPromise.lineage,
+        calculatedAt: "2026-11-26T00:00:01.000Z",
+      },
+    };
+    const metrics = [
+      item.availableToPromise,
+      item.reorderPoint,
+      item.soldQuantityWindow,
+      item.supplierLeadTimeDays,
+      item.incomingPurchaseQuantity,
+    ];
+    const result = buildReplenishmentRecommendations({
+      id: "future-calculation",
+      asOf,
+      period,
+      evidenceRecords: metrics.map(evidenceFor),
+      products: [item],
+    });
+    expect(result.recommendations[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      action: "WITHHELD",
+      recommendedQuantity: null,
+    });
+  });
+});
