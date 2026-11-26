@@ -376,6 +376,8 @@ on:
       - "src/lib/intelligence/daily-decisions.test.ts"
       - "src/lib/intelligence/liquidity.ts"
       - "src/lib/intelligence/liquidity.test.ts"
+      - "src/lib/intelligence/replenishment.ts"
+      - "src/lib/intelligence/replenishment.test.ts"
   pull_request:
     branches:
       - main
@@ -656,6 +658,8 @@ on:
       - "src/lib/intelligence/daily-decisions.test.ts"
       - "src/lib/intelligence/liquidity.ts"
       - "src/lib/intelligence/liquidity.test.ts"
+      - "src/lib/intelligence/replenishment.ts"
+      - "src/lib/intelligence/replenishment.test.ts"
 
       - "src/lib/unified-import-quality.test.ts"
       - "src/components/AdminOrderCreationDialog.tsx"
