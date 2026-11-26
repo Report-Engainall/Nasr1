@@ -147,6 +147,8 @@ BEGIN
         AND il.resolved_order_item_id IS NOT NULL
         AND il.resolved_order_id=il.order_id
         AND il.order_product_id=il.product_id
+        AND NULLIF(pg_catalog.btrim(il.unit_of_measure),'') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(il.order_unit),'') IS NOT NULL
         AND il.order_unit IS NOT DISTINCT FROM il.unit_of_measure
         AND il.order_quantity IS NOT DISTINCT FROM il.quantity
         AND il.order_line_total IS NOT DISTINCT FROM il.line_total
