@@ -213,7 +213,7 @@ describe("replenishment recommendation engine", () => {
 
   it("rejects a reporting window that has not completed by the snapshot time", () => {
     expect(() => build([product("p-11")], {
-      period: { from: "2026-11-20", to: "2026-11-26" },
+      period: { from: "2026-11-20", to: "2026-11-27" },
     })).toThrow("invalid or incomplete period");
   });
 
