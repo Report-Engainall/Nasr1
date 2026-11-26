@@ -42,3 +42,5 @@ export * from "./unavailable-product-search-demand-client";
 export * from "./task-intelligence-insights";
 
 export * from "./task-quality-insights";
+
+export * from "./anomaly-detection";
