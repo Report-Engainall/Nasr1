@@ -14,6 +14,7 @@ export type { DeadStockCardProps } from "./DeadStockCard";
 export { ReplenishmentCard } from "./ReplenishmentCard";
 export type { ReplenishmentCardProps } from "./ReplenishmentCard";
 export { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
+export { DemandForecastCard } from "./DemandForecastCard";
 export { ProductGrossMarginCard } from "./ProductGrossMarginCard";
 export type { GrowthOpportunityRadarProps } from "./GrowthOpportunityRadar";
 export { BusinessHealthMap } from "./BusinessHealthMap";
