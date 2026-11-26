@@ -181,7 +181,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
           <div className="panel-head">
             <div>
               <h2>تصدير سجلات النظام الحية</h2>
-              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء الفعلية في قاعدة بيانات المؤسسة.</p>
+              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء الفعلية في قاعدة بيانات المؤسسة، باستخدام أعمدة التصدير المسموحة فقط وبعيداً عن قالب الاستيراد الكامل.</p>
             </div>
             <FileSpreadsheet size={23} />
           </div>
