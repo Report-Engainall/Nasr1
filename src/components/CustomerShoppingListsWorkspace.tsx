@@ -29,6 +29,7 @@ import {
 import { parseCustomerShoppingListXlsx } from "@/lib/customer-shopping-lists-xlsx";
 import { validateQuickOrderLines } from "@/lib/commerce-utils";
 import { formatNumber } from "@/lib/format";
+import { CUSTOMER_SHOPPING_LIST_SERVER_PAGE_SIZE, CUSTOMER_SHOPPING_LIST_VISIBLE_PAGE_SIZE, filterCustomerShoppingListCatalog, mergeCustomerShoppingListCatalogProducts, projectCustomerShoppingListCatalogPage, projectCustomerShoppingListServerPage } from "@/lib/customer-shopping-list-catalog";
 import type { ProductWithInventory } from "@/lib/types";
 
 type CatalogProduct = {
@@ -125,6 +126,10 @@ export function CustomerShoppingListsWorkspace() {
   const navigate = useNavigate();
   const [lists, setLists] = useState<CustomerShoppingList[]>([]);
   const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [catalogOrganizationId, setCatalogOrganizationId] = useState<string | null>(null);
+  const [catalogCursor, setCatalogCursor] = useState<string | null>(null);
+  const [hasMoreCatalogProducts, setHasMoreCatalogProducts] = useState(false);
+  const [loadingMoreCatalogProducts, setLoadingMoreCatalogProducts] = useState(false);
   const [cartQuantities, setCartQuantities] = useState<Record<string, number>>({});
   const [cartReady, setCartReady] = useState(false);
   const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
@@ -134,6 +139,7 @@ export function CustomerShoppingListsWorkspace() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [visibleProductCount, setVisibleProductCount] = useState(CUSTOMER_SHOPPING_LIST_VISIBLE_PAGE_SIZE);
   const [name, setName] = useState("قائمة مشتريات جديدة");
   const [category, setCategory] = useState<ShoppingListCategory>("custom");
   const [recurrence, setRecurrence] = useState<ShoppingListRecurrence>("none");
@@ -162,6 +168,10 @@ export function CustomerShoppingListsWorkspace() {
     setLoading(true);
     setError("");
     setNotice("");
+    setCatalogOrganizationId(null);
+    setCatalogCursor(null);
+    setHasMoreCatalogProducts(false);
+    setLoadingMoreCatalogProducts(false);
     const tenant = await getCurrentTenantScope().catch((cause) => {
       if (revision === loadRevision.current) setError(cause instanceof Error ? cause.message : "تعذر تحديد حساب الشركة الحالي.");
       return null;
@@ -171,20 +181,23 @@ export function CustomerShoppingListsWorkspace() {
       return;
     }
     try {
+      setCatalogOrganizationId(tenant.organizationId);
       const [savedLists, productsResult, cartResult, membersResult] = await Promise.all([
         fetchCustomerShoppingLists(),
         supabase.from("products")
           .select("id,name,item_code,sku,barcode,unit,status,min_order_quantity,order_quantity_multiple")
           .eq("organization_id", tenant.organizationId)
           .eq("status", "active")
-          .order("name")
-          .limit(5000),
+          .order("id", { ascending: true })
+          .range(0, CUSTOMER_SHOPPING_LIST_SERVER_PAGE_SIZE),
         fetchCustomerCart().catch(() => null),
         fetchCompanyMembershipWorkspace().catch(() => null),
       ]);
       if (revision !== loadRevision.current) return;
       if (productsResult.error) throw new Error("تعذر تحميل كتالوج المؤسسة الحالي. تحقق من صلاحية قراءة المنتجات.");
-      const parsedProducts = (productsResult.data ?? []) as CatalogProduct[];
+      const fetchedProducts = (productsResult.data ?? []) as CatalogProduct[];
+      const initialCatalogPage = projectCustomerShoppingListServerPage(fetchedProducts);
+      const parsedProducts = initialCatalogPage.items as CatalogProduct[];
       for (const product of parsedProducts) {
         if (!product.id || !product.name || !product.item_code || !product.unit ||
             !Number.isSafeInteger(product.min_order_quantity) || product.min_order_quantity < 1 ||
@@ -193,7 +206,9 @@ export function CustomerShoppingListsWorkspace() {
         }
       }
       setLists(savedLists);
-      setProducts(parsedProducts);
+      setProducts(mergeCustomerShoppingListCatalogProducts([], parsedProducts));
+      setCatalogCursor(initialCatalogPage.cursor);
+      setHasMoreCatalogProducts(initialCatalogPage.hasMore);
       setCartReady(cartResult !== null);
       setCartQuantities(Object.fromEntries((cartResult?.items ?? []).map((line) => [line.product_id, line.quantity])));
       setIsCompanyOwner(membersResult !== null);
@@ -206,6 +221,43 @@ export function CustomerShoppingListsWorkspace() {
       if (revision === loadRevision.current) setLoading(false);
     }
   }, []);
+
+  const loadMoreCatalogProducts = useCallback(async () => {
+    if (!catalogOrganizationId || !catalogCursor || !hasMoreCatalogProducts || loadingMoreCatalogProducts) return;
+    const actionProfileId = user?.profileId;
+    setLoadingMoreCatalogProducts(true);
+    setError("");
+    try {
+      const result = await supabase.from("products")
+        .select("id,name,item_code,sku,barcode,unit,status,min_order_quantity,order_quantity_multiple")
+        .eq("organization_id", catalogOrganizationId)
+        .eq("status", "active")
+        .gt("id", catalogCursor)
+        .order("id", { ascending: true })
+        .range(0, CUSTOMER_SHOPPING_LIST_SERVER_PAGE_SIZE);
+      if (result.error) throw result.error;
+      const fetched = (result.data ?? []) as CatalogProduct[];
+      const page = projectCustomerShoppingListServerPage(fetched);
+      for (const product of page.items) {
+        if (!product.id || !product.name || !product.item_code || !product.unit ||
+            !Number.isSafeInteger(product.min_order_quantity) || product.min_order_quantity < 1 ||
+            !Number.isSafeInteger(product.order_quantity_multiple) || product.order_quantity_multiple < 1 ||
+            product.status !== "active") {
+          throw new Error("أعاد الكتالوج سياسة كمية أو هوية صنف غير صالحة؛ لم تُعرض بيانات غير موثوقة.");
+        }
+      }
+      if (activeProfile.current !== actionProfileId) return;
+      setProducts((current) => mergeCustomerShoppingListCatalogProducts(current, page.items));
+      setCatalogCursor(page.cursor ?? catalogCursor);
+      setHasMoreCatalogProducts(page.hasMore);
+    } catch (cause) {
+      if (activeProfile.current === actionProfileId) {
+        setError(cause instanceof Error ? cause.message : "تعذر تحميل دفعة أخرى من كتالوج المؤسسة.");
+      }
+    } finally {
+      if (activeProfile.current === actionProfileId) setLoadingMoreCatalogProducts(false);
+    }
+  }, [catalogCursor, catalogOrganizationId, hasMoreCatalogProducts, loadingMoreCatalogProducts, user?.profileId]);
 
   useEffect(() => {
     if (!ready || !user?.profileId) {
@@ -222,14 +274,9 @@ export function CustomerShoppingListsWorkspace() {
     return () => { loadRevision.current += 1; };
   }, [ready, user?.profileId, load]);
 
-  const visibleProducts = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase("ar");
-    const filtered = q ? products.filter((product) =>
-      [product.name, product.item_code, product.sku ?? "", product.barcode ?? ""]
-        .some((value) => value.toLocaleLowerCase("ar").includes(q)),
-    ) : products;
-    return filtered.slice(0, 80);
-  }, [products, search]);
+  const filteredProducts = useMemo(() => filterCustomerShoppingListCatalog(products, search), [products, search]);
+  const visibleProductPage = useMemo(() => projectCustomerShoppingListCatalogPage(filteredProducts, visibleProductCount), [filteredProducts, visibleProductCount]);
+  const visibleProducts = visibleProductPage.items;
 
   async function ensureUnitOptions(product: CatalogProduct) {
     if (unitOptions[product.id] || loadingUnits[product.id]) return;
@@ -299,7 +346,40 @@ export function CustomerShoppingListsWorkspace() {
     }
   }
 
-  function editList(list: CustomerShoppingList, duplicate: boolean) {
+  async function editList(list: CustomerShoppingList, duplicate: boolean) {
+    if (busy) return;
+    const missingIds = list.items.map((item) => item.product_id).filter((id) => !products.some((product) => product.id === id));
+    const actionProfileId = user?.profileId;
+    if (missingIds.length) {
+      if (!catalogOrganizationId) {
+        setError("تعذر تحديد مؤسسة العميل لتحميل أصناف القائمة المحفوظة.");
+        return;
+      }
+      setBusy(true);
+      setError("");
+      try {
+        const result = await supabase.from("products")
+          .select("id,name,item_code,sku,barcode,unit,status,min_order_quantity,order_quantity_multiple")
+          .eq("organization_id", catalogOrganizationId)
+          .in("id", missingIds);
+        if (result.error) throw result.error;
+        const found = (result.data ?? []) as CatalogProduct[];
+        const foundIds = new Set(found.map((product) => product.id));
+        if (missingIds.some((id) => !foundIds.has(id)) || found.some((product) => product.status !== "active")) {
+          throw new Error("بعض أصناف القائمة لم تعد متاحة في كتالوج المؤسسة الحالي؛ لم يُفتح محرر ناقص.");
+        }
+        if (activeProfile.current !== actionProfileId) return;
+        setProducts((current) => mergeCustomerShoppingListCatalogProducts(current, found));
+      } catch (cause) {
+        if (activeProfile.current === actionProfileId) {
+          setError(cause instanceof Error ? cause.message : "تعذر تحميل أصناف القائمة المحفوظة.");
+        }
+        return;
+      } finally {
+        if (activeProfile.current === actionProfileId) setBusy(false);
+      }
+    }
+    if (activeProfile.current !== actionProfileId) return;
     setEditingListId(duplicate ? null : list.id);
     setName(duplicate ? list.name + " - نسخة" : list.name);
     setCategory(list.category);
@@ -311,6 +391,7 @@ export function CustomerShoppingListsWorkspace() {
       unit_name: item.unit_name, base_units_per_unit: item.base_units_per_unit,
     }])));
     setSearch("");
+    setVisibleProductCount(CUSTOMER_SHOPPING_LIST_VISIBLE_PAGE_SIZE);
     setNotice(duplicate ? "تم نسخ بنود القائمة إلى المحرر؛ احفظها لإنشاء قائمة مستقلة." : "تم تحميل القائمة إلى المحرر؛ التعديلات لا تُحفظ حتى تضغط حفظ.");
     setError("");
     setLoadedResult(null);
@@ -546,7 +627,7 @@ export function CustomerShoppingListsWorkspace() {
 
           <label style={{ position: "relative", display: "block" }}>
             <Search size={16} style={{ position: "absolute", right: 11, top: 12, color: "#688184" }} />
-            <input style={{ ...field, paddingRight: 36 }} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو رمز الصنف أو SKU أو الباركود" />
+            <input style={{ ...field, paddingRight: 36 }} value={search} onChange={(event) => { setSearch(event.target.value); setVisibleProductCount(CUSTOMER_SHOPPING_LIST_VISIBLE_PAGE_SIZE); }} placeholder="ابحث بالاسم أو رمز الصنف أو SKU أو الباركود" />
           </label>
           <div style={{ overflowX: "auto", border: "1px solid #e5eeee", borderRadius: 10 }}>
             <table style={{ width: "100%", minWidth: 780, borderCollapse: "collapse", fontSize: 13 }}>
@@ -612,8 +693,10 @@ export function CustomerShoppingListsWorkspace() {
               </tbody>
             </table>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <span style={smallText}>يعرض الجدول أول 80 نتيجة مطابقة؛ الكمية المخزنة في السلة بالوحدة الأساسية للصنف.</span>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 10 }}>
+            <span role="status" style={smallText}>عرض {formatNumber(visibleProducts.length)} من {formatNumber(visibleProductPage.total)} نتيجة مطابقة ضمن الكتالوج المحمّل؛ الكمية في السلة بالوحدة الأساسية.</span>
+            {visibleProductPage.hasMore ? <button type="button" style={altButton} disabled={busy} onClick={() => setVisibleProductCount(visibleProductPage.nextVisibleCount)}>عرض 80 نتيجة إضافية</button> : null}
+            {hasMoreCatalogProducts ? <button type="button" style={altButton} disabled={busy || loadingMoreCatalogProducts} onClick={() => void loadMoreCatalogProducts()}>{loadingMoreCatalogProducts ? "جار تحميل أصناف إضافية..." : "تحميل 200 صنف إضافي من الكتالوج"}</button> : null}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {editingListId && <button type="button" style={altButton} onClick={() => { setEditingListId(null); setName("قائمة مشتريات جديدة"); setQuantities({}); setSelectedUnits({}); }}>إلغاء التحرير</button>}
               <button type="submit" style={mainButton} disabled={busy || loading || !products.length}>
@@ -665,11 +748,11 @@ export function CustomerShoppingListsWorkspace() {
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                  {list.can_edit && <button type="button" style={altButton} onClick={() => editList(list,false)}>تحرير البنود</button>}
+                  {list.can_edit && <button type="button" style={altButton} onClick={() => void editList(list,false)}>تحرير البنود</button>}
                   <button type="button" style={mainButton} disabled={busy || !list.can_edit} onClick={() => void startReview(list)}>
                     <ShoppingCart size={15} /> مراجعة وتحميل إلى السلة
                   </button>
-                  {list.can_edit && <button type="button" style={altButton} onClick={() => editList(list,true)}>إعادة استخدام / نسخ</button>}
+                  {list.can_edit && <button type="button" style={altButton} onClick={() => void editList(list,true)}>إعادة استخدام / نسخ</button>}
                   {isCompanyOwner && <button type="button" style={altButton} onClick={() => { setActiveShareList(activeShareList === list.id ? null : list.id); setShareMemberId(""); }}>
                     <Share2 size={15} /> مشاركة
                   </button>}
