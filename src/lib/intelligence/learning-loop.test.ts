@@ -58,8 +58,10 @@ function evaluate(
     id: "learning-fixture",
     measuredAt,
     evidenceRecords: [
-      ...new Map(
-        [evidence(expected), evidence(actual), ...extraEvidence].map((record) => [record.id, record]),
+      ...new Map<string, EvidenceRecord>(
+        [evidence(expected), evidence(actual), ...extraEvidence].map(
+          (record): [string, EvidenceRecord] => [record.id, record],
+        ),
       ).values(),
     ],
     expected,
