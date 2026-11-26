@@ -327,7 +327,7 @@ async function fetchCustomersForExport(): Promise<OnyxProLiveRecord[]> {
   return rows;
 }
 
-/** Tenant- and role-scoped live export for the two Onyx datasets with complete source readers. */
+/** Tenant- and role-scoped live export for supported Onyx datasets with complete source readers. */
 export type OnyxProLiveExportOptions = {
   /** Empty means all active warehouses; a supplied ID is revalidated against the active tenant list. */
   stockWarehouseId?: string | null;
@@ -352,6 +352,10 @@ export async function fetchOnyxProLiveExportRecords(
     throw new Error("تصدير سجلات Onyx الحية متاح للمدير ومدير النظام فقط.");
   }
 
+  if (options.stockWarehouseId && !datasetIds.includes("stock_balances")) {
+    throw new Error("لا يمكن تحديد مستودع دون اختيار تصدير أرصدة المخزون.");
+  }
+
   const tasks: Array<Promise<void>> = [];
   const result: OnyxProLiveRows = {};
 
@@ -363,8 +367,6 @@ export async function fetchOnyxProLiveExportRecords(
   }
   if (datasetIds.includes("stock_balances")) {
     tasks.push(fetchStockBalancesForExport(options.stockWarehouseId).then((rows) => { result.stock_balances = rows; }));
-  } else if (options.stockWarehouseId) {
-    throw new Error("لا يمكن تحديد مستودع دون اختيار تصدير أرصدة المخزون.");
   }
 
   await Promise.all(tasks);

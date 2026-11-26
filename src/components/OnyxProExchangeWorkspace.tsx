@@ -168,7 +168,10 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       const counts = liveSelectedIds.map((id) =>
         LIVE_DATASET_LABELS[id] + ": " + (records[id]?.length ?? 0),
       ).join("، ");
-      setLiveExportNotice("تم تنزيل ملف السجلات الحية — " + counts + ". شملت أرصدة المخزون كميات الموجود والمحجوز والمتاح فقط، دون قيم مالية أو تكاليف.");
+      const stockSummary = liveSelectedIds.includes("stock_balances")
+        ? " شملت أرصدة المخزون كميات الموجود والمحجوز والمتاح فقط، دون قيم مالية أو تكاليف."
+        : " لم تتضمن الورقة أرصدة المخزون لأنها لم تكن ضمن المجموعات المحددة.";
+      setLiveExportNotice("تم تنزيل ملف السجلات الحية — " + counts + "." + stockSummary);
     } catch (cause) {
       setLiveExportNotice(cause instanceof Error ? cause.message : "تعذر إنشاء ملف السجلات الحية.");
     } finally {
