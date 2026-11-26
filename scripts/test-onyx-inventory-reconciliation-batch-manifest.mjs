@@ -245,6 +245,10 @@ async function createSnapshot(product, manager, targetQuantity, suffix) {
     uploaded_by: manager.id,
     created_at: new Date().toISOString(),
   };
+  // Seed snapshot evidence as the trusted test-database owner: ordinary authenticated
+  // managers intentionally have no INSERT policy on protected Onyx snapshot tables.
+  // Re-enter the manager JWT role before calling any product RPC under test.
+  await db.unsafe("reset role");
   await insertFromRecord("onyx_snapshots", snapshotRecord);
 
   const rowRecord = {
@@ -259,6 +263,7 @@ async function createSnapshot(product, manager, targetQuantity, suffix) {
     created_at: new Date().toISOString(),
   };
   await insertFromRecord("onyx_snapshot_rows", rowRecord, { hashJsonColumn: "data" });
+  await as(manager);
   return snapshotId;
 }
 
