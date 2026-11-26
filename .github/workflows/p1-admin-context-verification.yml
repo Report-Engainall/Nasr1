@@ -374,7 +374,8 @@ on:
       - "src/test/admin-products-page-status-migration.test.ts"
       - "scripts/test-decision-policy-learning-candidate.mjs"
       - "src/lib/intelligence/daily-decisions.ts"
-      - "src/lib/intelligence/daily-decisions.test.ts"      - "e2e/finance-task-print.spec.ts"
+      - "src/lib/intelligence/daily-decisions.test.ts"
+      - "e2e/finance-task-print.spec.ts"
 
   pull_request:
     branches:
@@ -651,7 +652,8 @@ on:
       - "src/components/CustomerServiceSlaPolicyPanel.test.tsx"
       - "src/lib/customer-service-cases.ts"
       - "src/components/CustomerServiceDeskPrintSheet.test.tsx"
-      - "src/routes/help.tsx"      - "e2e/finance-task-print.spec.ts"
+      - "src/routes/help.tsx"
+      - "e2e/finance-task-print.spec.ts"
 
 
       - "src/lib/unified-import-quality.test.ts"
