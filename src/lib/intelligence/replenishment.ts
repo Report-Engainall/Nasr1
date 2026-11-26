@@ -66,6 +66,16 @@ function readReplenishmentMetric(args: {
       metric: source,
     };
   }
+  const snapshotTime = isoInstant(asOf);
+  const calculatedAtTime = isoInstant(source.lineage.calculatedAt);
+  if (snapshotTime === null || calculatedAtTime === null) {
+    warnings.push("METRIC_CALCULATION_TIMESTAMP_INVALID");
+    return { value: null, minorUnits: null, status: "NEEDS_REVIEW", metric: source };
+  }
+  if (calculatedAtTime > snapshotTime) {
+    warnings.push("METRIC_CALCULATED_AFTER_SNAPSHOT");
+    return { value: null, minorUnits: null, status: "NEEDS_REVIEW", metric: source };
+  }
   if (unit === "QUANTITY") {
     if (!expectedQuantityUnit || !source.unitOfMeasure?.trim()) {
       warnings.push("QUANTITY_UOM_MISSING");
