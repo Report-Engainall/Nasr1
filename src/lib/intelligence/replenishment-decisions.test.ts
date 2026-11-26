@@ -65,7 +65,7 @@ describe("replenishment decision integration", () => {
       recommendations: [recommendation({ coveredAfterIncoming: 12, leadTimeDemand: 10 })],
     });
     expect(candidates[0]?.priority).toBe("P2");
-    expect(candidates[0]?.soWhat).toContain("ولا تمثل هذه الإشارة ضماناً بحدوث نفاد"); // Conditional risk language stays explicit.
+    expect(candidates[0]?.soWhat).toContain("دون ادعاء نفاد وشيك"); // Conditional risk language stays explicit.
   });
 
   it("withholds recommendations without verified, complete and time-valid source metrics", () => {
