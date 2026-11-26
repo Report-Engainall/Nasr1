@@ -317,3 +317,77 @@ describe("liquidity forecast source alignment", () => {
     expect(result.positions[0].forecast.horizons[0].warnings).toContain("FORECAST_AMOUNT_PERIOD_MISMATCH");
   });
 });
+
+
+describe("liquidity strict source clocks", () => {
+  it("rejects impossible as-of dates and reversed generation clocks", () => {
+    const fixture = position("YER", { available: 100, collections: 10, obligations: 5 });
+    expect(() => buildLiquiditySnapshot({
+      id: "invalid-liquidity-as-of",
+      generatedAt: asOf,
+      asOf: "2026-02-31T00:00:00.000Z",
+      period,
+      evidenceRecords: fixture.metrics.map(source => evidence(source.id, "YER")),
+      currencies: [fixture.input],
+    })).toThrow("generatedAt, asOf and period must be valid ordered ISO values");
+    expect(() => buildLiquiditySnapshot({
+      id: "inverted-liquidity-clock",
+      generatedAt: "2026-11-25T23:00:00.000Z",
+      asOf,
+      period,
+      evidenceRecords: fixture.metrics.map(source => evidence(source.id, "YER")),
+      currencies: [fixture.input],
+    })).toThrow("generatedAt, asOf and period must be valid ordered ISO values");
+  });
+
+  it("withholds current liquidity when an opening-balance source timestamp is impossible", () => {
+    const fixture = position("YER", { available: 100, collections: 10, obligations: 5 });
+    const invalidEvidenceId = fixture.input.availableBalance!.lineage.evidenceIds[0];
+    const evidenceRecords = fixture.metrics.map(source => evidence(source.id, "YER")).map(record =>
+      record.id === invalidEvidenceId
+        ? { ...record, sourceTimestamp: "2026-02-31T00:00:00.000Z" }
+        : record,
+    );
+    const result = buildLiquiditySnapshot({
+      id: "invalid-opening-source-clock",
+      generatedAt: asOf,
+      asOf,
+      period,
+      evidenceRecords,
+      currencies: [fixture.input],
+    });
+    expect(result.positions[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      availableBalance: null,
+      availableBalanceStatus: "NEEDS_REVIEW",
+      netAvailableLiquidity: null,
+    });
+  });
+
+  it("withholds current liquidity when a source metric was calculated after its as-of snapshot", () => {
+    const fixture = position("YER", { available: 100, collections: 10, obligations: 5 });
+    const futureMetric = {
+      ...fixture.input.availableBalance!,
+      lineage: {
+        ...fixture.input.availableBalance!.lineage,
+        calculatedAt: "2026-11-26T00:00:01.000Z",
+      },
+    };
+    const input = { ...fixture.input, availableBalance: futureMetric };
+    const metrics = [futureMetric, fixture.input.expectedCollections!, fixture.input.dueObligations!];
+    const result = buildLiquiditySnapshot({
+      id: "future-opening-calculation",
+      generatedAt: asOf,
+      asOf,
+      period,
+      evidenceRecords: metrics.map(source => evidence(source.id, "YER")),
+      currencies: [input],
+    });
+    expect(result.positions[0]).toMatchObject({
+      status: "NEEDS_REVIEW",
+      availableBalance: null,
+      netAvailableLiquidity: null,
+    });
+    expect(result.positions[0].warnings).toContain("METRIC_TIMESTAMP_INVALID_OR_AFTER_AS_OF");
+  });
+});
