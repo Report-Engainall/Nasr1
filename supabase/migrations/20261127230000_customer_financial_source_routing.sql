@@ -394,18 +394,23 @@ BEGIN
            OR CASE
                 WHEN jsonb_typeof(balance.totals->'current_source_balance')='string'
                  AND jsonb_typeof(balance.totals->'target_source_balance')='string'
-                 AND balance.totals->>'current_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})(\.[0-9]{1,4})?$'
-                 AND balance.totals->>'target_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})(\.[0-9]{1,4})?$'
-                THEN p_reconciliation_result='matched'
-                 AND (balance.totals->>'current_source_balance')::numeric
-                     <> (balance.totals->>'target_source_balance')::numeric
+                 AND balance.totals->>'current_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+                 AND balance.totals->>'target_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+                THEN false
                 ELSE true
               END
      )
-     OR (p_source_reference IS NOT NULL AND (length(btrim(p_source_reference)) NOT BETWEEN 1 AND 200
-         OR p_source_reference ~ '://' OR position('@' in p_source_reference)>0))
-     OR EXISTS(SELECT 1 FROM jsonb_each_text(p_record_counts) e WHERE e.value !~ '^[0-9]{1,9}$') THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid provider reconciliation evidence metadata is required';
+     OR (p_source_reference IS NOT NULL AND
+         (length(btrim(p_source_reference)) NOT BETWEEN 1 AND 200
+          OR p_source_reference ~ '://' OR position('@' in p_source_reference)>0))
+     OR EXISTS(
+       SELECT 1
+         FROM jsonb_each_text(
+           CASE WHEN jsonb_typeof(p_record_counts)='object' THEN p_record_counts ELSE '{}'::jsonb END
+         ) e
+        WHERE e.value !~ '^[0-9]{1,9}$'
+     ) THEN
+RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid provider reconciliation evidence metadata is required';
   END IF;
   SELECT r.* INTO v_request
     FROM public.customer_financial_source_change_requests r
