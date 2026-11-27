@@ -117,6 +117,11 @@ async function main(){
   error => String(error?.code)==="55000" && String(error?.message).includes("expired reserved batch"),
   "shipment must be rejected while its active reservation points to an expired batch",
  );
+
+ const replacementDate=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+1,'YYYY-MM-DD') d",
+ ))[0].d;
+ const replacement=await receipt(manager,"FEFO-REPLACEMENT-"+suffix,replacementDate);
  const stillProcessing=(await db.unsafe("select status from public.orders where id=$1::uuid",[order3]))[0];
  assert.equal(stillProcessing.status,"processing","failed shipment must leave order status unchanged");
 
@@ -142,10 +147,7 @@ async function main(){
   "expired FEFO work queue must reject invalid pagination limits",
  );
 
- const replacementDate=(await db.unsafe(
-  "select to_char((pg_catalog.now() at time zone 'UTC')::date+1,'YYYY-MM-DD') d",
- ))[0].d;
- const replacement=await receipt(manager,"FEFO-REPLACEMENT-"+suffix,replacementDate);
+
  await as(manager);
  const reallocationKey="fefo-reallocate-"+randomUUID().replaceAll("-","");
  const reallocationReason="Replace a reserved lot that expired before shipment";
