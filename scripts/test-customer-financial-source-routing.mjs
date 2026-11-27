@@ -171,6 +171,16 @@ async function main() {
   assert.equal(directPrivileges[0].evidence_execute, false, "authenticated roles cannot call provider evidence writer");
   assert.equal(directPrivileges[0].service_sync_execute, true, "service role can use the scoped sync RPC");
 
+  const invoiceSourcePolicies = await db.unsafe(
+    "select p.polname,p.polpermissive,pg_catalog.pg_get_expr(p.polqual,p.polrelid) as predicate " +
+      "from pg_catalog.pg_policy p join pg_catalog.pg_class c on c.oid=p.polrelid " +
+      "join pg_catalog.pg_namespace n on n.oid=c.relnamespace " +
+      "where n.nspname='public' and p.polname in ('customer_invoice_financial_source_read_guard','customer_invoice_item_financial_source_read_guard')",
+  );
+  assert.equal(invoiceSourcePolicies.length, 2, "both direct invoice and line reads require source guards");
+  assert.ok(invoiceSourcePolicies.every(policy => policy.polpermissive === false), "invoice source guards must be RESTRICTIVE");
+  assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("customer_financial_source_bindings")), "invoice source policies must consult the server-owned financial binding");
+
   const idempotencyKey = randomUUID() + randomUUID();
   const requestArgs = [customerId, "ONYX", "ONYX-CUST-0001", "Verified migration to Onyx customer ledger", idempotencyKey, 1];
   const concurrentRequests = await Promise.all([
@@ -250,6 +260,18 @@ async function main() {
     rpc(customerDb, "select public.get_customer_account_statement() as result"),
     "55000",
     "app ledger fallback is prohibited",
+  );
+
+  const externalInvoiceRows = await customerDb.unsafe(
+    "select id from public.customer_invoices where organization_id=$1::uuid and customer_id=$2::uuid order by issued_at desc limit 5",
+    [orgId, customerId],
+  );
+  assert.equal(externalInvoiceRows.length, 0, "direct PostgREST invoice metadata reads are denied for external-source customers");
+  await expectFailure(
+    "external customer cannot read an APP_ONLY invoice PDF",
+    rpc(customerDb, "select public.get_customer_invoice_pdf($1::uuid) as result", [randomUUID()]),
+    "55000",
+    "APP_ONLY invoice PDF",
   );
 
   const deniedHash = hash("auth-denied");
