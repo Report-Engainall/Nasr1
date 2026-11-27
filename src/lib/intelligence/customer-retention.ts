@@ -1,6 +1,6 @@
 import {buildEvidencePassport} from "./evidence-passport";
 import {decimalToMinorUnits,minorUnitsToNumber,roundedPercentageHundredths} from "./financial-precision";
-import type {EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
+import type {DecisionCandidate,EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
 export interface CustomerRetentionRecord {
  customerRef:string;ordersCurrentPeriod:MetricSnapshot;ordersPreviousPeriod:MetricSnapshot;lastOrderAt:string|null;
@@ -17,7 +17,7 @@ export interface CustomerRetentionReport {
  retentionRate:number|null;repeatPurchaseRate:number|null;averageOrdersPerActiveCustomer:number|null;
  activity:{active30Days:number|null;cooling31To60Days:number|null;atRisk61To90Days:number|null;inactiveOver90Days:number|null;noOrderDate:number|null};
  focusByCurrency:Array<{currency:string;totalSales:number|null;top5SalesConcentration:number|null;customerCount:number;status:EvidenceStatus}>;
- customers:Array<{customerRef:string;orderCountCurrent:number|null;orderCountPrevious:number|null;lastOrderAt:string|null;daysSinceLastOrder:number|null;activity:"ACTIVE"|"COOLING"|"AT_RISK"|"INACTIVE"|"NO_ORDER_DATE"|"UNKNOWN";repeatCustomer:boolean|null;status:EvidenceStatus;evidenceIds:string[]}>;
+ customers:Array<{customerRef:string;orderCountCurrent:number|null;orderCountPrevious:number|null;lastOrderAt:string|null;daysSinceLastOrder:number|null;activity:"ACTIVE"|"COOLING"|"AT_RISK"|"INACTIVE"|"NO_ORDER_DATE"|"UNKNOWN";repeatCustomer:boolean|null;status:EvidenceStatus;evidenceIds:string[];metricIds:string[];metricKeys:string[];formulaVersions:string[]}>;
  warnings:string[];
 }
 function day(value:string):number|null {
@@ -90,12 +90,17 @@ export function buildCustomerRetentionReport(input:{
   let activity:CustomerRetentionReport["customers"][number]["activity"]="UNKNOWN";
   if(age!==null&&age>=0)activity=age<=30?"ACTIVE":age<=60?"COOLING":age<=90?"AT_RISK":"INACTIVE";
   else if(customer.lastOrderAt===null&&current===0&&previous===0)activity="NO_ORDER_DATE";
+  const verifiedMetrics = [
+   ...(current!==null&&index.get(customer.ordersCurrentPeriod.id)?[index.get(customer.ordersCurrentPeriod.id) as MetricSnapshot]:[]),
+   ...(previous!==null&&index.get(customer.ordersPreviousPeriod.id)?[index.get(customer.ordersPreviousPeriod.id) as MetricSnapshot]:[]),
+  ];
   const evidenceIds=[...new Set([customer.ordersCurrentPeriod,customer.ordersPreviousPeriod]
    .flatMap(metric=>index.get(metric.id)?.lineage.evidenceIds??[]))];
   return {customerRef:customer.customerRef,orderCountCurrent:current,orderCountPrevious:previous,lastOrderAt:customer.lastOrderAt,
    daysSinceLastOrder:age,activity,repeatCustomer:current===null?null:current>=2,
-   status:current!==null&&previous!==null&&activity!=="UNKNOWN"&&evidenceIds.length>0?"VERIFIED" as const:"NEEDS_REVIEW" as const,
-   evidenceIds};
+   status:current!==null&&previous!==null&&activity!=="UNKNOWN"&&evidenceIds.length>0&&verifiedMetrics.length===2?"VERIFIED" as const:"NEEDS_REVIEW" as const,
+   evidenceIds,metricIds:verifiedMetrics.map(metric=>metric.id),metricKeys:verifiedMetrics.map(metric=>metric.key),
+   formulaVersions:verifiedMetrics.map(metric=>metric.lineage.formulaId+"@"+metric.lineage.formulaVersion)};
  });
  const saleRows=input.salesByCurrency.map(sale=>{
   const numericValue=read(sale.sales,"CURRENCY",input.period,sale.currency);
@@ -166,6 +171,9 @@ export interface CustomerRetentionAction {
   orderCountPrevious: number;
   reason: string;
   evidenceIds: string[];
+  metricIds: string[];
+  metricKeys: string[];
+  formulaVersions: string[];
 }
 
 export interface CustomerRetentionActionQueue {
@@ -224,6 +232,9 @@ export function buildCustomerRetentionActionQueue(
       orderCountCurrent: customer.orderCountCurrent,
       orderCountPrevious: customer.orderCountPrevious,
       evidenceIds: customer.evidenceIds,
+      metricIds: customer.metricIds,
+      metricKeys: customer.metricKeys,
+      formulaVersions: customer.formulaVersions,
     };
 
     switch (customer.activity) {
@@ -286,4 +297,81 @@ export function buildCustomerRetentionActionQueue(
     withheldCustomerCount,
     warnings: withheldCustomerCount > 0 ? ["CUSTOMER_ACTION_ROWS_WITHHELD"] : [],
   };
+}
+
+
+/**
+ * Promotes only the fully verified follow-up queue into the shared decision
+ * lifecycle. No customer value or recovery revenue is inferred from order counts.
+ */
+export function buildCustomerRetentionDecisionCandidates(input: {
+  asOf: string;
+  queue: CustomerRetentionActionQueue;
+}): DecisionCandidate[] {
+  if (timestamp(input.asOf) === null || input.queue.status !== "VERIFIED" ||
+      input.queue.withheldCustomerCount !== 0 || !Array.isArray(input.queue.actions)) return [];
+
+  const candidates: DecisionCandidate[] = [];
+  const seen = new Set<string>();
+  for (const action of input.queue.actions) {
+    const customerRef = typeof action.customerRef === "string" ? action.customerRef.trim() : "";
+    const evidenceIds = Array.isArray(action.evidenceIds) ? [...new Set(action.evidenceIds)] : [];
+    const metricIds = Array.isArray(action.metricIds) ? [...new Set(action.metricIds)] : [];
+    const metricKeys = Array.isArray(action.metricKeys) ? [...new Set(action.metricKeys)] : [];
+    // Two metric rows may share one registered formula identity; keep both row versions.
+    const formulaVersions = Array.isArray(action.formulaVersions) ? [...action.formulaVersions] : [];
+    if (!customerRef || evidenceIds.length === 0 || metricIds.length !== 2 ||
+        metricKeys.length === 0 || formulaVersions.length !== 2 ||
+        formulaVersions.some(value => typeof value !== "string" || !value.trim()) ||
+        evidenceIds.length !== action.evidenceIds.length ||
+        metricIds.length !== action.metricIds.length ||
+        metricKeys.length !== action.metricKeys.length) continue;
+
+    const id = "customer.retention:" + customerRef + ":" + input.asOf.slice(0, 10);
+    if (id.length > 150 || seen.has(id)) continue;
+    seen.add(id);
+
+    const priority = action.priority === "HIGH" ? "P1" as const
+      : action.priority === "MEDIUM" ? "P2" as const : "P3" as const;
+    const priorityScore = priority === "P1" ? 300 : priority === "P2" ? 200 : 100;
+    const customerLabel = customerRef.length > 14
+      ? customerRef.slice(0, 7) + "…" + customerRef.slice(-4)
+      : customerRef;
+    const actionText = action.action === "REACTIVATE" ? "إعادة تنشيط العميل"
+      : action.action === "PREVENT_CHURN" ? "منع فقدان العميل"
+      : action.action === "REENGAGE" ? "إعادة التفاعل مع العميل"
+      : "التحقق من سجل طلبات العميل";
+
+    candidates.push({
+      id,
+      ruleId: "customers.retention.follow-up",
+      ruleVersion: "1.0.0",
+      priority,
+      priorityScore,
+      what: actionText + " · " + customerLabel,
+      why: action.reason + " طلبات الفترة الحالية: " + action.orderCountCurrent +
+        "؛ السابقة: " + action.orderCountPrevious + ".",
+      soWhat: action.action === "REACTIVATE"
+        ? "استمرار الانقطاع قد يقلل فرص عودة العميل؛ لا تتوفر قيمة مالية موثقة للتعافي."
+        : action.action === "PREVENT_CHURN"
+          ? "تراجع حداثة الطلب يستدعي تدخلاً مبكراً؛ لا يُفترض فقدان الإيراد أو قيمة العميل."
+          : action.action === "REENGAGE"
+            ? "إعادة التفاعل مبكراً قد تمنع انتقال العميل إلى شريحة الخطر؛ لا تُقدّر مبيعات غير مثبتة."
+            : "غياب تاريخ الطلب يمنع تصنيف النشاط؛ يجب التحقق قبل معاملة العميل كخامل.",
+      impact: null,
+      impactStatus: "WITHHELD",
+      impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+      whatNext: action.action === "VERIFY_ORDER_HISTORY"
+        ? "راجع تاريخ الطلبات ومزامنة السجلات، ثم حدّث بيانات العميل قبل اتخاذ إجراء تجاري."
+        : "راجع آخر تعاملات العميل، واختر تواصلاً مناسباً ووثّق رد العميل والنتيجة؛ لا ترسل رسالة أو خصماً تلقائياً.",
+      proof: { evidenceIds, metricKeys, asOf: input.asOf, formulaVersions },
+      owner: "مسؤول علاقات العملاء",
+      expectedOutcome: "توثيق نتيجة متابعة العميل وتحديث حالة العلاقة من سجل فعلي دون احتساب إيراد مسترد قبل إثباته.",
+      createdAt: input.asOf,
+      expiresAt: null,
+    });
+  }
+
+  // The source action queue already ranks priority and recency; preserve that order.
+  return candidates;
 }

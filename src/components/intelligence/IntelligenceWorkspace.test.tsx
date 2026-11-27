@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   fetchShiftWorkspace: vi.fn(),
   fetchProcessBottlenecks: vi.fn(),
   fetchProductGrossMargin: vi.fn(),
+  fetchCustomerRetention: vi.fn(),
   startShift: vi.fn(),
   recordShiftCash: vi.fn(),
   recordShiftHandover: vi.fn(),
@@ -42,6 +43,9 @@ vi.mock("@/lib/intelligence/cashflow-schedule-client", () => ({
     asOf: "2026-10-31T09:00:00.000Z",
   })),
   fetchCashflowSchedule: mocks.fetchCashflow,
+}));
+vi.mock("@/lib/intelligence/customer-retention-client", () => ({
+  fetchCustomerRetentionWorkspaceAggregate: mocks.fetchCustomerRetention,
 }));
 vi.mock("@/lib/intelligence/executive-liquidity-client", () => ({
   fetchExecutiveLiquidityWorkspace: mocks.fetchExecutiveLiquidity,
@@ -283,6 +287,7 @@ function inventoryFixture(): InventoryIntelligenceData {
 describe("production intelligence workspace inventory screens", () => {
   beforeEach(() => {
     mocks.user = { profileId: "admin-profile", name: "مدير المالية", roles: ["admin"] };
+    mocks.fetchCustomerRetention.mockReset().mockResolvedValue({ ok: false, status: "UNAVAILABLE", message: "customer retention fixture unavailable" });
     mocks.fetchCashflow.mockReset().mockResolvedValue({
       ok: false, status: "UNAVAILABLE", message: "cashflow fixture deliberately unavailable",
     });
@@ -410,6 +415,98 @@ describe("production intelligence workspace inventory screens", () => {
     })));
   });
 
+  it("promotes verified customer retention follow-ups into the daily decision lifecycle", async () => {
+    mocks.fetchCustomerRetention.mockReset().mockResolvedValue({
+      retentionResult: {
+      ok: true,
+      data: {
+        id: "retention-board-fixture",
+        asOf,
+        period: { from: "2026-10-01", to: "2026-10-29" },
+        previousPeriod: { from: "2026-09-01", to: "2026-09-30" },
+        status: "VERIFIED",
+        population: { total: 1, activeCurrentPeriod: 0, priorPeriodCohort: 1, retainedCustomers: 0, repeatPurchaseCustomers: 0 },
+        retentionRate: 0,
+        repeatPurchaseRate: null,
+        averageOrdersPerActiveCustomer: null,
+        activity: { active30Days: 0, cooling31To60Days: 0, atRisk61To90Days: 0, inactiveOver90Days: 1, noOrderDate: 0 },
+        focusByCurrency: [],
+        customers: [],
+        warnings: [],
+      },
+      actionQueue: {
+        status: "VERIFIED",
+        actions: [{
+          customerRef: "customer-retention-1",
+          priority: "HIGH",
+          action: "REACTIVATE",
+          activity: "INACTIVE",
+          daysSinceLastOrder: 100,
+          lastOrderAt: "2026-07-23T09:00:00.000Z",
+          orderCountCurrent: 0,
+          orderCountPrevious: 1,
+          reason: "لم يظهر طلب منذ أكثر من 90 يوماً؛ راجع سبب الانقطاع قبل تقديم عرض استعادة.",
+          evidenceIds: ["evidence:retention:current", "evidence:retention:previous"],
+          metricIds: ["metric:retention:current", "metric:retention:previous"],
+          metricKeys: ["customer.orders.current", "customer.orders.previous"],
+          formulaVersions: ["customer-order-count@1.0.0", "customer-order-count@1.0.0"],
+        }],
+        totalActionable: 1,
+        omittedCount: 0,
+        withheldCustomerCount: 0,
+        warnings: [],
+      },
+      growthInputs: {
+        evidenceRecords: [
+          evidence("evidence:retention:current", "retention.source", asOf, period),
+          evidence("evidence:retention:previous", "retention.source", asOf, { from: "2026-09-01", to: "2026-09-30" }),
+        ],
+        metrics: [
+          metric("metric:retention:current", "customer.orders.current", 0, "COUNT", ["evidence:retention:current"], period),
+          metric("metric:retention:previous", "customer.orders.previous", 1, "COUNT", ["evidence:retention:previous"], { from: "2026-09-01", to: "2026-09-30" }),
+        ],
+        signals: [],
+        sourceSnapshotVerified: true,
+      },
+      },
+      growthRadar: null,
+      demandForecast: null,
+      productCoverage: null,
+      unavailableDemandCoverage: null,
+    });
+    mocks.fetchCashflow.mockResolvedValue(cashflowFixture());
+    render(<IntelligenceWorkspace />);
+
+    const actionText = await screen.findByRole("heading", { name: /إعادة تنشيط العميل · custome…on-1/ });
+    const card = actionText.closest("article");
+    expect(card).not.toBeNull();
+    expect(card).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
+    expect(card).toHaveTextContent("evidence:retention:current");
+    expect(card).toHaveTextContent("customer.orders.current");
+    const claims = screen.getByRole("region", { name: "جوازات أدلة الادعاءات" });
+    expect(await within(claims).findByText(/إعادة تنشيط العميل/)).toBeInTheDocument();
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
+
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      candidateId: "customer.retention:customer-retention-1:2026-10-31",
+      ruleId: "customers.retention.follow-up",
+      ruleVersion: "1.0.0",
+      expectedOutcome: expect.stringContaining("دون احتساب إيراد مسترد"),
+      candidateSnapshot: expect.objectContaining({
+        priority: "P1",
+        priorityScore: 300,
+        impact: null,
+        impactStatus: "WITHHELD",
+        impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+        proof: expect.objectContaining({
+          evidenceIds: ["evidence:retention:current", "evidence:retention:previous"],
+          metricKeys: ["customer.orders.current", "customer.orders.previous"],
+          formulaVersions: ["customer-order-count@1.0.0", "customer-order-count@1.0.0"],
+        }),
+      }),
+    })));
+  });
+
   it("renders movement classification and a verified replenishment quantity from server evidence", async () => {
     render(<IntelligenceWorkspace />);
 
@@ -460,6 +557,14 @@ describe("production intelligence workspace inventory screens", () => {
     expect(forecast).toHaveTextContent("الرصيد المتوقع");
     expect(forecast).toHaveTextContent("غير متاح");
     expect(forecast).toHaveTextContent("غير متاح"); // No verified opening balance: projection remains withheld.
+
+    const actionSummary = await screen.findByText((_, element) =>
+      element?.tagName === "P" &&
+      element.getAttribute("role") === "status" &&
+      Boolean(element.textContent?.includes("يعرض المركز ")),
+    );
+    expect(actionSummary.textContent).toMatch(/يعرض المركز \\d+ من \\d+ إجراءً مرتباً حسب الأولوية/);
+    expect(actionSummary).toHaveTextContent("جميع الإجراءات المستحقة ظاهرة.");
 
     const scheduledHeading = await screen.findByRole("heading", { name: "متابعة التحصيلات المجدولة" });
     const scheduledCard = scheduledHeading.closest("article");

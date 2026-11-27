@@ -4,13 +4,14 @@ import { useAuth } from "@/lib/auth";
 import { fetchCashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
 import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
 import { CustomerRetentionActionQueuePanel } from "@/components/intelligence/CustomerRetentionActionQueuePanel";
+import { buildCustomerRetentionDecisionCandidates } from "@/lib/intelligence/customer-retention";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
 import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/replenishment-decisions";
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
-import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
+import { buildDailyDecisions, selectTopDailyDecisionActions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildClaimEvidencePassports } from "@/lib/intelligence/claim-evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
@@ -1015,23 +1016,30 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   }, [data, cashflowMetrics, cashOpeningForSnapshot]);
   const claimEvidenceSourcePassport = useMemo<EvidencePassportData | null>(() => {
     if (!evidencePassport) return null;
-    if (!inventoryData) return evidencePassport;
+    if (!inventoryData && !retentionResult?.ok) return evidencePassport;
     const candidateMetrics: MetricSnapshot[] = [
-      ...inventoryData.deadStockProducts.flatMap((product) => [
-        product.availableQuantity,
-        product.unitCost,
-        product.soldQuantityWindow,
-        product.averageInventoryWindow,
-      ].filter((metric): metric is MetricSnapshot => metric !== null)),
-      ...inventoryData.replenishmentProducts.flatMap((product) => [
-        product.availableToPromise,
-        product.reorderPoint,
-        product.soldQuantityWindow,
-        product.supplierLeadTimeDays,
-        product.incomingPurchaseQuantity,
-        product.minimumOrderQuantity ?? null,
-        product.orderMultiple ?? null,
-      ].filter((metric): metric is MetricSnapshot => metric !== null)),
+      ...(inventoryData ? [
+        ...inventoryData.deadStockProducts.flatMap((product) => [
+          product.availableQuantity,
+          product.unitCost,
+          product.soldQuantityWindow,
+          product.averageInventoryWindow,
+        ].filter((metric): metric is MetricSnapshot => metric !== null)),
+        ...inventoryData.replenishmentProducts.flatMap((product) => [
+          product.availableToPromise,
+          product.reorderPoint,
+          product.soldQuantityWindow,
+          product.supplierLeadTimeDays,
+          product.incomingPurchaseQuantity,
+          product.minimumOrderQuantity ?? null,
+          product.orderMultiple ?? null,
+        ].filter((metric): metric is MetricSnapshot => metric !== null)),
+      ] : []),
+      ...(retentionResult?.ok &&
+          retentionResult.data.asOf === evidencePassport.asOf &&
+          retentionResult.growthInputs.sourceSnapshotVerified
+        ? retentionResult.growthInputs.metrics
+        : []),
     ];
     const metricsById = new Map<string, MetricSnapshot>();
     const conflictingMetrics: MetricSnapshot[] = [];
@@ -1040,14 +1048,23 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       if (!previous) metricsById.set(metric.id, metric);
       else if (JSON.stringify(previous) !== JSON.stringify(metric)) conflictingMetrics.push(metric);
     }
+    const retentionEvidence = retentionResult?.ok &&
+        retentionResult.data.asOf === evidencePassport.asOf &&
+        retentionResult.growthInputs.sourceSnapshotVerified
+      ? retentionResult.growthInputs.evidenceRecords
+      : [];
     return buildEvidencePassport({
       id: "intelligence-claim-evidence:" + evidencePassport.asOf,
       generatedAt: evidencePassport.generatedAt,
       asOf: evidencePassport.asOf,
-      evidenceRecords: [...evidencePassport.evidenceRecords, ...inventoryData.evidenceRecords],
+      evidenceRecords: [
+        ...evidencePassport.evidenceRecords,
+        ...(inventoryData?.evidenceRecords ?? []),
+        ...retentionEvidence,
+      ],
       metrics: [...evidencePassport.metrics, ...metricsById.values(), ...conflictingMetrics],
     });
-  }, [evidencePassport, inventoryData]);
+  }, [evidencePassport, inventoryData, retentionResult]);
 
   const cashflowForecast = useMemo(() => {
     if (!data) return null;
@@ -1224,6 +1241,30 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     });
   }, [inventoryData, replenishmentReport]);
 
+  const customerRetentionDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
+    // Never mix an older customer cohort with the current finance/inventory decision snapshot.
+    if (!retentionResult?.ok || !evidencePassport ||
+        retentionResult.data.asOf !== evidencePassport.asOf ||
+        !retentionResult.growthInputs.sourceSnapshotVerified) return [];
+    const candidates = buildCustomerRetentionDecisionCandidates({
+      asOf: evidencePassport.asOf,
+      queue: retentionResult.actionQueue,
+    });
+    return candidates.map(decision => {
+      const sourceAction = retentionResult.actionQueue.actions.find(action =>
+        action.evidenceIds.length === decision.proof.evidenceIds.length &&
+        action.evidenceIds.every(id => decision.proof.evidenceIds.includes(id)) &&
+        action.metricKeys.every(key => decision.proof.metricKeys.includes(key))
+      );
+      return {
+        decision,
+        proof: null,
+        candidateId: decision.id,
+        metricIds: sourceAction?.metricIds ?? [],
+      };
+    });
+  }, [retentionResult, evidencePassport]);
+
   const claimEvidencePassports = useMemo(() => {
     if (!claimEvidenceSourcePassport) return [];
     const observations = claimEvidenceSourcePassport.metrics.map((metric) => ({
@@ -1235,7 +1276,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       metricIds: [metric.id],
       boundaries: metric.warnings,
     }));
-    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions];
+    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions];
     const drivers = actions.flatMap(({ decision, metricIds }) => {
       const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
       return linkedMetricIds.length ? [{
@@ -1260,16 +1301,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
     }] : [];
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
-  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
 
-  const dailyDecisionActions = useMemo(() =>
-    [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions]
-      .sort((left,right) => right.decision.priorityScore-left.decision.priorityScore ||
-        (left.decision.impact && right.decision.impact &&
-         left.decision.impact.currency===right.decision.impact.currency
-          ? Math.abs(right.decision.impact.value)-Math.abs(left.decision.impact.value) : 0) ||
-        left.candidateId.localeCompare(right.candidateId)).slice(0,10),
-  [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
+  const dailyDecisionActionSelection = useMemo(() =>
+    selectTopDailyDecisionActions(
+      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
+        .map(action => ({ decision: action.decision, payload: action })),
+      10,
+    ),
+  [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
+  const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -1986,6 +2027,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
               <div className="space-y-3">
+                {dailyDecisionActionSelection.totalCandidates > 0 ? (
+                  <p role="status" aria-live="polite" className="report-note">
+                    يعرض المركز {dailyDecisionActions.length} من {dailyDecisionActionSelection.totalCandidates} إجراءً مرتباً حسب الأولوية.
+                    {dailyDecisionActionSelection.omittedCount > 0
+                      ? " تم إرجاء " + dailyDecisionActionSelection.omittedCount + " إجراءً خارج القائمة المختصرة."
+                      : " جميع الإجراءات المستحقة ظاهرة."}
+                  </p>
+                ) : null}
                 {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
                   <ActionCard
                     key={candidateId}

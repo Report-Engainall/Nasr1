@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCustomerRetentionActionQueue, buildCustomerRetentionReport, type CustomerRetentionRecord, type CustomerRetentionSaleRecord } from "./customer-retention";
+import { buildCustomerRetentionActionQueue, buildCustomerRetentionDecisionCandidates, buildCustomerRetentionReport, type CustomerRetentionRecord, type CustomerRetentionSaleRecord } from "./customer-retention";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 
 const asOf = "2026-11-26T00:00:00.000Z";
@@ -308,5 +308,54 @@ describe("customer retention follow-up queue", () => {
     expect(queue.omittedCount).toBe(2);
     expect(() => buildCustomerRetentionActionQueue(build(customers, []), 0)).toThrow(RangeError);
     expect(() => buildCustomerRetentionActionQueue(build(customers, []), 201)).toThrow(RangeError);
+  });
+});
+
+
+describe("customer retention daily decision integration", () => {
+  it("promotes verified follow-up rows with original metric IDs, keys and evidence", () => {
+    const report = build([
+      customer("inactive-customer", 0, 1, "2026-07-01T12:00:00.000Z"),
+      customer("at-risk-customer", 0, 2, "2026-09-05T12:00:00.000Z"),
+    ], []);
+    const queue = buildCustomerRetentionActionQueue(report);
+    const decisions = buildCustomerRetentionDecisionCandidates({ asOf, queue });
+
+    expect(queue.status).toBe("VERIFIED");
+    expect(decisions.map(item => [item.priority, item.ruleId])).toEqual([
+      ["P1", "customers.retention.follow-up"],
+      ["P1", "customers.retention.follow-up"],
+    ]);
+    expect(decisions[0]).toMatchObject({
+      impact: null,
+      impactStatus: "WITHHELD",
+      impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+      owner: "مسؤول علاقات العملاء",
+      proof: {
+        evidenceIds: ["evidence:inactive-customer:current", "evidence:inactive-customer:previous"],
+        metricKeys: ["customer.retention.inactive-customer:current", "customer.retention.inactive-customer:previous"],
+        formulaVersions: ["fixture.customer-retention@1.0.0", "fixture.customer-retention@1.0.0"],
+      },
+    });
+    expect(queue.actions[0].metricIds).toEqual(["inactive-customer:current", "inactive-customer:previous"]);
+  });
+
+  it("does not promote any customer decisions from partial coverage or withheld rows", () => {
+    const partial = buildCustomerRetentionActionQueue(build(
+      [customer("partial-customer", 0, 2, "2026-07-01T12:00:00.000Z")],
+      [],
+      { truncated: true },
+    ));
+    expect(buildCustomerRetentionDecisionCandidates({ asOf, queue: partial })).toEqual([]);
+  });
+
+  it("does not invent a monetary impact for customer follow-up decisions", () => {
+    const queue = buildCustomerRetentionActionQueue(build([
+      customer("cooling-customer", 0, 1, "2026-10-10T12:00:00.000Z"),
+    ], []));
+    const [decision] = buildCustomerRetentionDecisionCandidates({ asOf, queue });
+    expect(decision.impact).toBeNull();
+    expect(decision.impactStatus).toBe("WITHHELD");
+    expect(decision.impactReason).toBe("CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE");
   });
 });
