@@ -56,3 +56,18 @@ Shipment settlement now validates exact net reserved quantity against the comple
 ## Additional P2 hardening on PR #701
 
 The warehouse worklist now checks the combined active-order reservation movement ledger per batch. The reallocation transaction independently guards both batch and aggregate reserved counters before changing stock. The exact-head PostgreSQL 17 test now includes two live orders sharing one lot and a controlled disposable-database ledger shortfall; the expected result is a false worklist parity indicator plus a no-write SQLSTATE `40001` rejection. This fixture is not production data.
+
+## Additional P2 delivery — incomplete order reservation recovery
+
+- Added manager/admin-only paginated RPC `list_orders_with_incomplete_inventory_reservations(limit,offset)`. It finds confirmed/processing orders whose net lot-backed reservation quantity is below the persisted order-line quantity, and returns safe per-product ordered/reserved/missing amounts, valid FEFO availability, and whether expired-lot reallocation is a prerequisite.
+- Added manager/admin-only `reconcile_incomplete_order_reservations(order_id,idempotency_key,reason)`. It fills only the true missing quantity, by FEFO across active same-tenant warehouses; it does not accept an organization ID from the caller.
+- The reconciliation action rejects orders with an outstanding expired-batch reservation until the expired FEFO workflow runs. It also fails closed on batch or warehouse active-order ledger under-reporting, over-reservation, batchless history, insufficient replacement stock, and orders with an existing sale movement.
+- The action locks the order, the shared product reservation mutex, balances and batches; it appends real `reserve` movements, updates both lot and aggregate balances atomically, records an audit event, and uses a separate server-only idempotency ledger. Exact replay is safe; changed-payload reuse is rejected.
+- The reconciliation ledger is inaccessible through direct table reads to authenticated and service_role. Only authenticated may execute the RPC entrypoint; its body restricts execution to same-tenant admin/manager operators.
+
+### New acceptance coverage
+- Two-unit order deliberately reduced to one net reserved unit: manager worklist reports the exact one-unit shortage and valid replacement availability.
+- Expired outstanding reservation blocks the repair RPC until the FEFO reallocation path is completed.
+- Manager repairs the shortfall with one appended reserve movement, exact replay does not duplicate it, changed reason with the same key is denied, and a second invocation returns a truthful `already_complete` zero-work result.
+- The repaired order leaves the incomplete-reservation worklist and then ships with a complete `-2` sale movement total.
+- Customer is denied both worklist and reconciliation; function ACL and direct reconciliation-ledger read restrictions are asserted.
