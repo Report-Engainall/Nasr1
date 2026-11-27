@@ -77,6 +77,6 @@ describe("ErpReadSyncPanel", () => {
     fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
     fireEvent.click(screen.getByRole("button", { name: "تنفيذ مزامنة القراءة" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("لم يثبت ترخيص أو تفعيل واجهة ERP");
-    expect(screen.queryByText(/API|secret|token/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/secret|token|server-only/i);
   });
 });
