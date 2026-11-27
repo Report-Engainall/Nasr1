@@ -120,3 +120,11 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Required re-run: existing financial-source PostgreSQL 17 acceptance on the new exact branch head. No PASS is claimed until the resulting workflow is terminal-success on that SHA.
 
 - Phantom-allocation hardening: the print RPC now locks the receipt header with `FOR UPDATE`, not only `FOR SHARE`. PostgreSQL foreign-key validation uses a KEY SHARE lock on the referenced receipt; the stronger header lock makes a concurrent allocation insert/re-reference wait or fail under NOWAIT. PG17 acceptance now asserts a `FOR KEY SHARE NOWAIT` attempt is rejected while printing holds the receipt lock.
+
+
+## 2026-11-28 follow-up — staff receipt print snapshot parity
+
+- Hardened `get_staff_customer_payment_receipt_print_data(uuid)` to use the same lock order as the customer printer: APP_ONLY source binding `FOR SHARE`, receipt header `FOR UPDATE`, then existing allocation rows `FOR SHARE`. The staff RPC re-reads and locks the receipt only after obtaining the source binding lock, avoiding reverse-order source/receipt locking.
+- Staff receipt allocation count, distinct-invoice count, customer/tenant/currency checks, total reconciliation, and printable DTO now come from one `MATERIALIZED` SQL snapshot. Rows outside the active tenant/customer are counted as invalid rather than silently filtered away.
+- PG17 acceptance now checks staff DTO allocation totals and proves a concurrent receipt FK `FOR KEY SHARE NOWAIT` reference plus allocation mutation are rejected while the staff print transaction holds locks.
+- No payment/receipt/allocation/balance/journal writes were added. Staff and customer printing remain APP_ONLY-only and no fallback to ONYX/MUTAKAMEL was introduced.
