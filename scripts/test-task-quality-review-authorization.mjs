@@ -94,9 +94,10 @@ async function callReview(client, profile, task, review, eventId, idempotencyKey
     let rows;
     if (expectedTimestamp === null) {
       // Keep the current task version typed as timestamptz inside PostgreSQL.
-      // This avoids a JS text round-trip that can lose timestamp precision.
+      // The RPC itself acquires the row lock; the test must not pre-lock it or
+      // require UPDATE privilege merely to capture the caller's visible version.
       const snapshot = await tx.unsafe(
-        "select updated_at from public.ai_tasks where id=$1::uuid for update",
+        "select updated_at from public.ai_tasks where id=$1::uuid",
         [task.id],
       );
       assert.equal(snapshot.length, 1, "task snapshot must still exist before review");
