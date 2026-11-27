@@ -269,79 +269,82 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect(page.locator("tbody tr")).toHaveCount(25);
     await expect(resultCount).toContainText("إجمالي النتائج");
     await expect(page.getByRole("status", { name: "صفحة الطلبات الحالية" })).toContainText("صفحة 1 من 2");
-    await expect.poll(() => fixture.requests.at(-1)?.range).toBe("0-24");
-    await expect(fixture.requests[0]?.prefer ?? "").toContain("count=exact");
+    await expect.poll(() => fixture.requests.some((request) =>
+      request.range === "0-24" && (request.prefer ?? "").includes("count=exact"),
+    )).toBe(true);
 
     // Move to page two, then apply a one-record search. Old page-two rows must disappear.
+    const beforeNextPage = fixture.requests.length;
     await page.getByRole("button", { name: "صفحة الطلبات التالية" }).click();
     await expect(page.locator("tbody tr")).toHaveCount(5);
     await expect(page.getByText("SO-2026-0005", { exact: true })).toBeVisible();
     await expect(page.getByRole("status", { name: "صفحة الطلبات الحالية" })).toContainText("صفحة 2 من 2");
+    await expect.poll(() => fixture.requests.slice(beforeNextPage).some((request) => request.range === "25-49")).toBe(true);
 
-    async function submitSearch(value: string): Promise<void> {
+    async function submitSearch(value: string): Promise<number> {
       const previousRequests = fixture.requests.length;
       await input.fill(value);
       await searchForm.getByRole("button", { name: "بحث", exact: true }).click();
       await expect.poll(() => fixture.requests.length).toBeGreaterThan(previousRequests);
+      return previousRequests;
     }
 
-    await submitSearch("٠٠٢٨");
+    const arabicSearchStart = await submitSearch("٠٠٢٨");
     await expect(page.locator("tbody tr")).toHaveCount(1);
     await expect(page.getByText("SO-2026-0028", { exact: true })).toBeVisible();
     await expect(page.getByText("SO-2026-0005", { exact: true })).toHaveCount(0);
-    await expect.poll(() => fixture.requests.at(-1)?.orderNumberFilter).toBe("ilike.*0028*");
-    await expect.poll(() => fixture.requests.at(-1)?.range).toBe("0-24");
-    expect(fixture.requests.at(-1)?.statusFilter).toBeNull();
+    await expect.poll(() => fixture.requests.slice(arabicSearchStart).some((request) =>
+      request.orderNumberFilter === "ilike.*0028*" && request.range === "0-24" && request.statusFilter === null,
+    )).toBe(true);
 
     // Persian and ASCII digits must yield the same server-side numeric token.
-    await submitSearch("۰۰۲۹");
+    const persianSearchStart = await submitSearch("۰۰۲۹");
     await expect(page.getByText("SO-2026-0029", { exact: true })).toBeVisible();
-    await expect.poll(() => fixture.requests.at(-1)?.orderNumberFilter).toBe("ilike.*0029*");
+    await expect.poll(() => fixture.requests.slice(persianSearchStart).some((request) => request.orderNumberFilter === "ilike.*0029*")).toBe(true);
 
-    await submitSearch("0030");
+    const asciiSearchStart = await submitSearch("0030");
     await expect(page.getByText("SO-2026-0030", { exact: true })).toBeVisible();
-    await expect.poll(() => fixture.requests.at(-1)?.orderNumberFilter).toBe("ilike.*0030*");
+    await expect.poll(() => fixture.requests.slice(asciiSearchStart).some((request) => request.orderNumberFilter === "ilike.*0030*")).toBe(true);
 
     // LIKE metacharacters are removed before the query reaches PostgREST.
-    await submitSearch("%_2026-0028%");
+    const metacharacterSearchStart = await submitSearch("%_2026-0028%");
     await expect(page.getByText("SO-2026-0028", { exact: true })).toBeVisible();
-    await expect.poll(() => fixture.requests.at(-1)?.orderNumberFilter).toBe("ilike.*2026-0028*");
+    await expect.poll(() => fixture.requests.slice(metacharacterSearchStart).some((request) => request.orderNumberFilter === "ilike.*2026-0028*")).toBe(true);
 
     // Partial match, status and exact count are applied to one server query.
-    await submitSearch("2026-00");
+    const partialSearchStart = await submitSearch("2026-00");
     await expect(page.locator("tbody tr")).toHaveCount(25);
     await expect(resultCount).toContainText("٣٠");
     const beforeStatus = fixture.requests.length;
     await status.selectOption("pending");
-    await expect.poll(() => fixture.requests.length).toBeGreaterThan(beforeStatus);
+    await expect.poll(() => fixture.requests.slice(beforeStatus).some((request) =>
+      request.orderNumberFilter === "ilike.*2026-00*" && request.statusFilter === "eq.pending" && request.range === "0-24",
+    )).toBe(true);
     await expect(page.locator("tbody tr")).toHaveCount(15);
     await expect(resultCount).toContainText("١٥");
-    expect(fixture.requests.at(-1)).toMatchObject({
-      orderNumberFilter: "ilike.*2026-00*",
-      statusFilter: "eq.pending",
-      range: "0-24",
-    });
 
     // Clearing from page two resets pagination and removes both filters without stale rows.
     await status.selectOption("all");
     await expect(page.locator("tbody tr")).toHaveCount(25);
+    const beforeSecondPage = fixture.requests.length;
     await page.getByRole("button", { name: "صفحة الطلبات التالية" }).click();
     await expect(page.locator("tbody tr")).toHaveCount(5);
     await expect(page.getByText("SO-2026-0005", { exact: true })).toBeVisible();
+    await expect.poll(() => fixture.requests.slice(beforeSecondPage).some((request) => request.range === "25-49")).toBe(true);
     const beforeClear = fixture.requests.length;
     await searchForm.getByRole("button", { name: "مسح", exact: true }).click();
-    await expect.poll(() => fixture.requests.length).toBeGreaterThan(beforeClear);
+    await expect.poll(() => fixture.requests.slice(beforeClear).some((request) =>
+      request.orderNumberFilter === null && request.statusFilter === null && request.range === "0-24",
+    )).toBe(true);
     await expect(page.locator("tbody tr")).toHaveCount(25);
     await expect(page.getByText("SO-2026-0030", { exact: true })).toBeVisible();
     await expect(page.getByText("SO-2026-0005", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("status", { name: "صفحة الطلبات الحالية" })).toContainText("صفحة 1 من 2");
-    expect(fixture.requests.at(-1)).toMatchObject({
-      orderNumberFilter: null,
-      statusFilter: null,
-      range: "0-24",
-    });
 
-    await submitSearch("NO-MATCH");
+    const noMatchStart = await submitSearch("NO-MATCH");
+    await expect.poll(() => fixture.requests.slice(noMatchStart).some((request) =>
+      request.orderNumberFilter === "ilike.*NO-MATCH*" && request.range === "0-24",
+    )).toBe(true);
     await expect(page.getByText("لا توجد طلبات تطابق رقم البحث.", { exact: true })).toBeVisible();
     await expect(resultCount).toContainText("٠");
     await expect(page.locator("tbody tr")).toHaveCount(0);
