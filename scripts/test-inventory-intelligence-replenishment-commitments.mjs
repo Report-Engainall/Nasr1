@@ -14,6 +14,17 @@ function expectSqlState(label, error, expected) {
   assert.equal(String(error.code), expected, label + " SQLSTATE");
 }
 
+function assertSameInstant(label, actual, expected) {
+  const zonedTimestamp = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$/;
+  assert.equal(typeof actual, "string", label + " actual timestamp must be a string");
+  assert.equal(typeof expected, "string", label + " expected timestamp must be a string");
+  assert.match(actual, zonedTimestamp, label + " actual timestamp must include an explicit timezone");
+  assert.match(expected, zonedTimestamp, label + " expected timestamp must include an explicit timezone");
+  assert.ok(Number.isFinite(Date.parse(actual)), label + " actual timestamp must be valid");
+  assert.ok(Number.isFinite(Date.parse(expected)), label + " expected timestamp must be valid");
+  assert.equal(Date.parse(actual), Date.parse(expected), label + " must represent the same instant");
+}
+
 const databaseUrl = requiredEnv("TEST_DATABASE_URL");
 const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
 validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
@@ -274,8 +285,8 @@ async function main() {
   const salesWindow = committedProduct.soldQuantityWindow;
   assert.equal(salesWindow.period?.from, periodFrom, "sales metric evidence must retain the exact requested start date");
   assert.equal(salesWindow.period?.to, periodTo, "sales metric evidence must retain the exact requested end date");
-  assert.equal(salesWindow.asOf, asOf, "sales metric must share the aggregate snapshot clock");
-  assert.equal(salesWindow.lineage.calculatedAt, asOf, "sales metric lineage must use the aggregate calculation clock");
+  assertSameInstant("sales metric aggregate snapshot clock", salesWindow.asOf, asOf);
+  assertSameInstant("sales metric lineage calculation clock", salesWindow.lineage.calculatedAt, asOf);
 
   const mismatchProduct = aggregate.replenishmentProducts.find(
     row => row.productRef === "P2-REP-UOM-" + suffix,
