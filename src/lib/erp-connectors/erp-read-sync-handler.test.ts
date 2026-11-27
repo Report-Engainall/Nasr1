@@ -111,6 +111,7 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
         externalId: "ERP-PRODUCT-001",
         sourceUpdatedAt: "2026-11-28T00:30:00Z",
         fields: { item_code: "000125", name: "منتج تجريبي" },
+        lastDisposition: "created",
       }],
       total: 1,
       limit: 20,
