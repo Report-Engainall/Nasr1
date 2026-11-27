@@ -95,3 +95,12 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 - Scope remains exactly the three files listed above; no UI, dependency, workflow, production or environment configuration changes.
 - Exact-parent CI at record time: P2 Playwright run `46082509814` QUEUED; PostgreSQL 17 run `46082509815` QUEUED; P1 Admin Context run `46082509843` QUEUED. Combined status set empty; no PASS claimed.
 - P1 handoff updated in PR #701 with both-sided exception queue and manager-only actions, including mixed per-product repair order and reverse-FEFO excess release.
+
+## 2026-11-28 — Aggregate availability guard follow-up
+
+- Static review found a cross-warehouse FEFO reallocation gap: replacement lot selection checked the lot's free quantity, but the subsequent aggregate warehouse-balance UPDATE did not re-check aggregate available quantity.
+- Fixed `reallocate_expired_order_reservations`: aggregate reservation increments now require `inventory_balances.quantity_available >= v_take` in the UPDATE predicate; a mismatch raises SQLSTATE `40001` and rolls back the source release, target reservation, movement rows, audit, and idempotency write.
+- Extended `scripts/test-inventory-batch-fefo.mjs` with a separate-active-warehouse fixture: a valid replacement lot remains available at batch level while its aggregate balance is deliberately reduced to zero. The test expects the RPC to fail closed, verifies no reserve/release movement or reservation-counter change survives, restores the aggregate fixture, then retries with the same idempotency key and expects normal reallocation.
+- Receipt helper accepts an optional target warehouse for this controlled fixture; direct fixture writes run as the local DB owner only. No production database writes, deployments, ERP calls, or financial postings.
+- Implementation commit: `c3dbc177ce988aeee575d2df9a52499dfb0d9f22`. This is an additional exact-head test requirement; GitHub Actions acceptance for the resulting checkpoint head must run before any PASS claim. Local PostgreSQL 17 execution was not available from this session.
+- Next: run and inspect PostgreSQL 17 acceptance plus P1/Playwright checks on the final checkpoint SHA; fix only exact-head failures. PR #701 remains Draft and requires P1 review/P3 merge.
