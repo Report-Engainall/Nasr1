@@ -154,7 +154,7 @@ describe("ErpReadSyncPanel", () => {
     });
     expect(screen.getByRole("status")).toHaveTextContent("125");
     expect(screen.getByRole("status")).toHaveTextContent("جديدة: 10");
-    expect(screen.getByRole("group", { name: "صفحات سجل إيصالات ERP" })).toHaveTextContent("الإيصالات 11–11 من 3");
+    expect(screen.getByRole("group", { name: "صفحات سجل إيصالات ERP" })).toHaveTextContent("الإيصالات 11–11 من 13");
   });
 
   it("pages through staged records with preview-only reads and preserves original sync counters", async () => {
