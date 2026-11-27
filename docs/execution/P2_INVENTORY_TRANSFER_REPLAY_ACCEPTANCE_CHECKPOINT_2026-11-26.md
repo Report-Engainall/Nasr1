@@ -5,6 +5,16 @@ Role: P2 — inventory transaction integrity, PostgreSQL 17 acceptance, idempote
 PR: #602 — https://github.com/Report-Engainall/Nasr1/pull/602
 Branch: `p2/inventory-transfer-replay-endpoint-pg17-20261126`
 
+## Latest synchronization and exact-head PostgreSQL 17 result — 2026-11-27
+- Synchronized non-force onto current `main` `348da8e756201fc103089cf4a5a690a4132528b7`; current code head: `7b875f32e2b21d4bf16a935163862c095c3fa6a0`.
+- Compare is **25 commits ahead / 0 behind** with exactly three changed paths: this P2 checkpoint, `.github/workflows/inventory-balance-adjustment-pg17.yml`, and `supabase/tests/inventory_transfer_replay_endpoint_guard.sql`. The production endpoint guard migration is unchanged and byte-identical to `main` (blob `b857ea233e3fe8fe955a9f66b92b96b8694f4a01`).
+- Dedicated Inventory PostgreSQL 17 workflow [run 46063531483](https://github.com/Report-Engainall/Nasr1/actions/runs/46063531483): **SUCCESS** on exact head `7b875f32e2b21d4bf16a935163862c095c3fa6a0`; job [140723252341](https://github.com/Report-Engainall/Nasr1/actions/runs/46063531483/job/140723252341) completed successfully and emitted `inventory transfer endpoint replay guard PostgreSQL 17 acceptance: PASS`.
+- The acceptance applies the existing migration in disposable PG17 and proves single/batch idempotent replay, revalidation of both active same-tenant warehouse endpoints before replay, denial after deactivation/cross-tenant reassignment, unchanged before/after inventory/batch/transfer/movement/audit snapshots, FEFO batch lineage, and reserved-stock preservation.
+- P1 [run 46063531491](https://github.com/Report-Engainall/Nasr1/actions/runs/46063531491) and P2 critical-path [run 46063531561](https://github.com/Report-Engainall/Nasr1/actions/runs/46063531561) were **IN_PROGRESS** at checkpoint update. The P2 public smoke was running; the dependent customer/order/tenant browser job was **SKIPPED** pending that P1-owned smoke. Do not count either as PASS.
+- Hosted customer/order/tenant E2E remains **SKIPPED**, not PASS. This work did not modify production migrations/RPCs, hosted Supabase, external ERP, secrets or live inventory.
+- P1 owns browser repair, exact-head broad rerun and merge. P2 owns the dedicated PG17 test and this checkpoint; P2 does not merge to `main`.
+
+
 ## Existing production contract under test
 - Migration: `supabase/migrations/20261126110000_inventory_transfer_replay_endpoint_guard.sql` (already present on `main`; this PR does not modify the migration).
 - Both `transfer_inventory` and `transfer_inventory_batch` lock and validate exactly two active warehouses in the actor's organization before acquiring the idempotency lock and looking up a previous result.
