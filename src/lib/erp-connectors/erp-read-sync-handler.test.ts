@@ -248,7 +248,7 @@ describe("ERP read-only Edge Function handler", () => {
     const response = await createErpReadSyncHandler(context.dependencies)(
       request({ ...scopeInput, company_external_id: "company-of-another-tenant" }),
     );
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(403);
     expect(await response.json()).toEqual({
       error: "ERP_PROVIDER_SCOPE_NOT_ALLOWED",
       retryable: false,
