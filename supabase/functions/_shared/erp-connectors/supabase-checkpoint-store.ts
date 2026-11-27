@@ -8,6 +8,7 @@ import {
   type ErpStagedPreview,
   type ErpStagedPreviewRecord,
   type ErpStagedRecordDisposition,
+  type ErpStagedRecordDispositionReason,
   type ErpStagedRecordReader,
   type ErpPersistResult,
   type ErpSourceReceipt,
@@ -185,10 +186,16 @@ function parseStagedPreview(
         disposition !== "conflicted") {
       throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "حالة سجل ERP المرحلي غير معتمدة.");
     }
+    const reason = raw.last_disposition_reason;
+    if (reason !== null && reason !== "source_timestamp_older" &&
+        reason !== "same_timestamp_payload_mismatch") {
+      throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "سبب رفض أو تعارض سجل ERP غير معتمد.");
+    }
     return {
       externalId,
       sourceUpdatedAt: raw.source_updated_at,
       lastDisposition: disposition as ErpStagedRecordDisposition | null,
+      lastDispositionReason: reason as ErpStagedRecordDispositionReason | null,
       fields: fields as ErpStagedPreviewRecord["fields"],
     };
   });
