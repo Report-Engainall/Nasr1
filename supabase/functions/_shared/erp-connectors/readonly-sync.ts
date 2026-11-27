@@ -206,6 +206,7 @@ export type ErpStagedPreview = {
   limit: number;
   offset: number;
   checkpointVersion: number;
+  hasCursor: boolean;
   pendingWatermark: string | null;
   completedWatermark: string | null;
 };

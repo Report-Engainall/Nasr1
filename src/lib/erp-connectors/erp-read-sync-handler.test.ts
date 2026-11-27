@@ -106,19 +106,19 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
       pendingWatermark: null,
       completedWatermark: null,
     })),
-    listStagedRecords: vi.fn(async () => ({
+    listStagedRecords: vi.fn(async (input) => ({
       records: [{
         externalId: "ERP-PRODUCT-001",
         sourceUpdatedAt: "2026-11-28T00:30:00Z",
         fields: { item_code: "000125", name: "منتج تجريبي" },
         lastDisposition: "created",
         lastDispositionReason: null,
-        lastDispositionReason: null,
       }],
       total: 1,
-      limit: 20,
-      offset: 0,
+      limit: input.limit ?? 20,
+      offset: input.offset ?? 0,
       checkpointVersion: 1,
+      hasCursor: true,
       pendingWatermark: null,
       completedWatermark: "2026-11-28T00:30:00Z",
     })),
@@ -173,7 +173,8 @@ describe("ERP read-only Edge Function handler", () => {
 
     expect(response.status).toBe(200);
     expect(payload.status).toBe("complete");
-    expect(payload.preview).toMatchObject({ total: 1, limit: 20, records: [{ externalId: "ERP-PRODUCT-001", fields: { item_code: "000125" } }] });
+    expect(payload.preview).toMatchObject({ total: 1, limit: 20, hasCursor: true, records: [{ externalId: "ERP-PRODUCT-001", fields: { item_code: "000125" } }] });
+    expect(payload.checkpoint).toMatchObject({ has_cursor: true });
     expect(payload.preview_error).toBeNull();
     expect(payload.counts).toEqual({
       created: 0,
@@ -330,6 +331,49 @@ describe("ERP read-only Edge Function handler", () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "origin_not_allowed" });
     expect(context.dependencies.createAuthClient).not.toHaveBeenCalled();
+  });
+
+
+  it("serves bounded staged preview without provider credentials, live requests or checkpoint writes", async () => {
+    const context = buildDependencies();
+    context.env.ONYX_PRO_LICENSE_CONFIRMED = "false";
+    context.env.ONYX_PRO_API_TOKEN = "";
+    context.env.ONYX_PRO_API_BASE_URL = "";
+    const response = await createErpReadSyncHandler(context.dependencies)(request({
+      ...scopeInput,
+      preview_only: true,
+      preview_offset: 20,
+      preview_limit: 10,
+    }));
+    const payload = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      status: "complete",
+      pages_committed: 0,
+      records_read: 0,
+      preview: { total: 1, limit: 10, offset: 20, hasCursor: true },
+      checkpoint: { version: 1, has_cursor: true },
+    });
+    expect(context.createConnector).not.toHaveBeenCalled();
+    expect(context.store.loadCheckpoint).not.toHaveBeenCalled();
+    expect(context.store.persistPageAtomically).not.toHaveBeenCalled();
+    expect(context.store.resetExpiredCursor).not.toHaveBeenCalled();
+    expect(context.store.listStagedRecords).toHaveBeenCalledWith(expect.objectContaining({
+      limit: 10,
+      offset: 20,
+      scope: expect.objectContaining({ organizationId, companyExternalId: "company-01", branchExternalId: "branch-01" }),
+    }));
+  });
+
+  it("rejects malformed preview pagination before authentication or storage access", async () => {
+    const context = buildDependencies();
+    const response = await createErpReadSyncHandler(context.dependencies)(request({
+      ...scopeInput, preview_only: true, preview_offset: 5001,
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "INVALID_ERP_PREVIEW_LIMIT" });
+    expect(context.store.listStagedRecords).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported page and record limits before any provider request", async () => {

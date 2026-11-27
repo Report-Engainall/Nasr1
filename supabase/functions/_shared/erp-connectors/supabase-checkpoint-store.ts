@@ -158,7 +158,8 @@ function parseStagedPreview(
   const checkpointVersion = value.checkpoint_version;
   if (!Number.isSafeInteger(total) || Number(total) < 0 ||
       limit !== requestedLimit || offset !== requestedOffset ||
-      !Number.isSafeInteger(checkpointVersion) || Number(checkpointVersion) < 0) {
+      !Number.isSafeInteger(checkpointVersion) || Number(checkpointVersion) < 0 ||
+      typeof value.has_cursor !== "boolean") {
     throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "بيانات صفحات معاينة ERP أو إصدار نقطة الاستئناف غير صالحة.");
   }
   const allowed = new Set(ERP_SAFE_FIELDS[objectType]);
@@ -208,6 +209,7 @@ function parseStagedPreview(
     limit: requestedLimit,
     offset: requestedOffset,
     checkpointVersion: Number(checkpointVersion),
+    hasCursor: value.has_cursor,
     pendingWatermark: timestampOrNull(value.pending_watermark, "pending_watermark"),
     completedWatermark: timestampOrNull(value.completed_watermark, "completed_watermark"),
   };

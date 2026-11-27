@@ -766,7 +766,8 @@ BEGIN
      LIMIT p_limit OFFSET p_offset
   ) page;
  RETURN pg_catalog.jsonb_build_object('records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
-   'checkpoint_version',v_checkpoint.version,'pending_watermark',v_checkpoint.pending_watermark,
+   'checkpoint_version',v_checkpoint.version,'has_cursor',v_checkpoint.cursor_ciphertext IS NOT NULL,
+   'pending_watermark',v_checkpoint.pending_watermark,
    'completed_watermark',v_checkpoint.completed_watermark);
 END
 $function$;

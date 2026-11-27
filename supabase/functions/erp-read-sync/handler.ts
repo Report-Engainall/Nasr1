@@ -47,6 +47,9 @@ type RequestInput = {
   currencyCode: string | null;
   maxPages: number;
   maxRecords: number;
+  previewOnly: boolean;
+  previewOffset: number;
+  previewLimit: number;
 };
 
 type ProviderConfig = {
@@ -76,6 +79,9 @@ const REQUEST_KEYS = new Set([
   "currency_code",
   "max_pages",
   "max_records",
+  "preview_only",
+  "preview_offset",
+  "preview_limit",
 ]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -138,6 +144,14 @@ function parseRequest(value: unknown): RequestInput {
       !Number.isInteger(maxRecords) || Number(maxRecords) < 1 || Number(maxRecords) > 1000) {
     throw new ErpConnectorError("INVALID_ERP_SYNC_LIMIT", "حدود المزامنة يجب ألا تتجاوز 5 صفحات و1000 سجل لكل تشغيل.");
   }
+  const previewOnly = value.preview_only === undefined ? false : value.preview_only;
+  const previewOffset = value.preview_offset === undefined ? 0 : value.preview_offset;
+  const previewLimit = value.preview_limit === undefined ? 20 : value.preview_limit;
+  if (typeof previewOnly !== "boolean" ||
+      !Number.isInteger(previewOffset) || Number(previewOffset) < 0 || Number(previewOffset) > 5000 ||
+      !Number.isInteger(previewLimit) || Number(previewLimit) < 1 || Number(previewLimit) > 50) {
+    throw new ErpConnectorError("INVALID_ERP_PREVIEW_LIMIT", "حدود معاينة ERP يجب أن تكون بين 1 و50 سجلًا وبداية لا تتجاوز 5000.");
+  }
 
   const currencyCode = value.currency_code === undefined || value.currency_code === null
     ? null
@@ -157,7 +171,44 @@ function parseRequest(value: unknown): RequestInput {
     currencyCode,
     maxPages: Number(maxPages),
     maxRecords: Number(maxRecords),
+    previewOnly,
+    previewOffset: Number(previewOffset),
+    previewLimit: Number(previewLimit),
   };
+}
+
+type ProviderAllowedScope = {
+  company_external_id: string;
+  branch_external_ids: string[];
+  warehouse_external_ids?: string[];
+  currency_codes?: string[];
+};
+
+function readAllowedScopes(
+  provider: ErpProviderId,
+  organizationId: string,
+  getEnv: ErpReadSyncHandlerDependencies["getEnv"],
+): ProviderAllowedScope[] {
+  const prefix = provider === "onyx_pro" ? "ONYX_PRO" : "AL_MUTAKAMEL";
+  const tenantOrganizationId = getEnv(prefix + "_ORGANIZATION_ID")?.trim() ?? "";
+  if (tenantOrganizationId.toLowerCase() !== organizationId.toLowerCase() ||
+      !UUID_PATTERN.test(tenantOrganizationId)) {
+    throw new ErpConnectorError("ERP_PROVIDER_TENANT_SCOPE_MISMATCH", "إعداد ERP غير مربوط بمؤسسة المستخدم الحالية.");
+  }
+  let parsed: unknown;
+  try {
+    const raw = getEnv(prefix + "_ALLOWED_SCOPES_JSON")?.trim() ?? "";
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new ErpConnectorError("ERP_PROVIDER_CONTRACT_INVALID", "تعريف نطاقات مزود ERP على الخادم غير صالح.");
+  }
+  return Array.isArray(parsed) ? parsed.filter((entry) =>
+    isRecord(entry) &&
+    typeof entry.company_external_id === "string" && entry.company_external_id.trim().length > 0 &&
+    Array.isArray(entry.branch_external_ids) && entry.branch_external_ids.every((item) => typeof item === "string" && item.trim().length > 0) &&
+    (entry.warehouse_external_ids === undefined || (Array.isArray(entry.warehouse_external_ids) && entry.warehouse_external_ids.every((item) => typeof item === "string" && item.trim().length > 0))) &&
+    (entry.currency_codes === undefined || (Array.isArray(entry.currency_codes) && entry.currency_codes.every((item) => typeof item === "string" && /^[A-Z]{3}$/.test(item))))
+  ) as ProviderAllowedScope[] : [];
 }
 
 function readProviderConfig(
@@ -168,12 +219,11 @@ function readProviderConfig(
 ): ProviderConfig {
   const prefix = provider === "onyx_pro" ? "ONYX_PRO" : "AL_MUTAKAMEL";
   const read = (suffix: string) => getEnv(prefix + "_" + suffix)?.trim() ?? "";
-  const tenantOrganizationId = read("ORGANIZATION_ID");
   const baseUrl = read("API_BASE_URL");
   const accessToken = read("API_TOKEN");
   const allowedHosts = read("API_ALLOWED_HOSTS").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
   const contractsJson = read("READ_CONTRACTS_JSON");
-  const allowedScopesJson = read("ALLOWED_SCOPES_JSON");
+  const allowedScopes = readAllowedScopes(provider, organizationId, getEnv);
   const licenseSetting = read("LICENSE_CONFIRMED");
   const endpointSetting = read("ENDPOINT_CONFIRMED");
   const licensed = licenseSetting === "true" ? true : licenseSetting === "false" ? false : null;
@@ -181,12 +231,10 @@ function readProviderConfig(
   const sandboxAvailable = read("SANDBOX_AVAILABLE") === "true";
 
   let contractValue: unknown;
-  let allowedScopesValue: unknown;
   try {
     contractValue = contractsJson ? JSON.parse(contractsJson) : null;
-    allowedScopesValue = allowedScopesJson ? JSON.parse(allowedScopesJson) : null;
   } catch {
-    throw new ErpConnectorError("ERP_PROVIDER_CONTRACT_INVALID", "تعريف عقد أو نطاقات مزود ERP على الخادم غير صالح.");
+    throw new ErpConnectorError("ERP_PROVIDER_CONTRACT_INVALID", "تعريف عقد مزود ERP على الخادم غير صالح.");
   }
   const contract = isRecord(contractValue) ? contractValue[objectType] : null;
   const contractPresent = isRecord(contract) &&
@@ -194,14 +242,6 @@ function readProviderConfig(
     contract.objectType === objectType &&
     typeof contract.apiVersion === "string" && Boolean(contract.apiVersion.trim()) &&
     typeof contract.officialDocumentationUrl === "string" && Boolean(contract.officialDocumentationUrl.trim());
-  const allowedScopes = Array.isArray(allowedScopesValue) ? allowedScopesValue.filter((entry) =>
-    isRecord(entry) &&
-    typeof entry.company_external_id === "string" && entry.company_external_id.trim().length > 0 &&
-    Array.isArray(entry.branch_external_ids) && entry.branch_external_ids.every((item) => typeof item === "string" && item.trim().length > 0) &&
-    (entry.warehouse_external_ids === undefined || (Array.isArray(entry.warehouse_external_ids) && entry.warehouse_external_ids.every((item) => typeof item === "string" && item.trim().length > 0))) &&
-    (entry.currency_codes === undefined || (Array.isArray(entry.currency_codes) && entry.currency_codes.every((item) => typeof item === "string" && /^[A-Z]{3}$/.test(item))))
-  ) as Array<{ company_external_id: string; branch_external_ids: string[]; warehouse_external_ids?: string[]; currency_codes?: string[] }> : [];
-
   const capability = evaluateErpReadCapability({
     officialContractPresent: contractPresent,
     licensed,
@@ -217,11 +257,6 @@ function readProviderConfig(
       "مزامنة " + prefix + " غير مفعلة: يلزم إثبات الترخيص والعقد الرسمي وبيئة Sandbox وبيانات الاتصال على الخادم.",
     );
   }
-  if (tenantOrganizationId.toLowerCase() !== organizationId.toLowerCase() ||
-      !UUID_PATTERN.test(tenantOrganizationId)) {
-    throw new ErpConnectorError("ERP_PROVIDER_TENANT_SCOPE_MISMATCH", "إعداد ERP غير مربوط بمؤسسة المستخدم الحالية.");
-  }
-
   const connection: ErpConnection = {
     provider,
     baseUrl,
@@ -327,8 +362,12 @@ export function createErpReadSyncHandler(
         return json({ error: "manager_or_admin_required" }, 403, origin);
       }
 
-      const provider = readProviderConfig(input.provider, input.objectType, profile.organization_id, dependencies.getEnv);
-      const requestedScope = provider.allowedScopes.find((allowed) =>
+      const providerConfig = input.previewOnly
+        ? null
+        : readProviderConfig(input.provider, input.objectType, profile.organization_id, dependencies.getEnv);
+      const allowedScopes = providerConfig?.allowedScopes ??
+        readAllowedScopes(input.provider, profile.organization_id, dependencies.getEnv);
+      const requestedScope = allowedScopes.find((allowed) =>
         allowed.company_external_id === input.companyExternalId &&
         allowed.branch_external_ids.includes(input.branchExternalId) &&
         (allowed.warehouse_external_ids === undefined ||
@@ -344,7 +383,6 @@ export function createErpReadSyncHandler(
         serviceRoleKey,
         cursorEncryptionKey,
       });
-      const connector = dependencies.createConnector(provider.connection, provider.contract);
       const syncScope = {
         organizationId: profile.organization_id,
         provider: input.provider,
@@ -354,6 +392,33 @@ export function createErpReadSyncHandler(
         warehouseExternalId: input.warehouseExternalId,
         currencyCode: input.currencyCode,
       } satisfies ErpSyncScope;
+
+      if (input.previewOnly) {
+        const preview = await store.listStagedRecords({
+          scope: syncScope,
+          limit: input.previewLimit,
+          offset: input.previewOffset,
+        });
+        return json({
+          status: "complete",
+          pages_committed: 0,
+          records_read: 0,
+          counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+          preview,
+          preview_error: null,
+          checkpoint: {
+            version: preview.checkpointVersion,
+            has_cursor: preview.hasCursor,
+            pending_watermark: preview.pendingWatermark,
+            completed_watermark: preview.completedWatermark,
+          },
+        }, 200, origin);
+      }
+
+      if (!providerConfig) {
+        throw new ErpConnectorError("ERP_PROVIDER_NOT_CONFIGURED", "تعذر تحميل عقد مزود ERP المعتمد.");
+      }
+      const connector = dependencies.createConnector(providerConfig.connection, providerConfig.contract);
       const result = await runIncrementalReadOnlySync({
         connector,
         store,
@@ -366,7 +431,11 @@ export function createErpReadSyncHandler(
       let preview: ErpStagedPreview | null = null;
       let previewError: string | null = null;
       try {
-        preview = await store.listStagedRecords({ scope: syncScope, limit: 20, offset: 0 });
+        preview = await store.listStagedRecords({
+          scope: syncScope,
+          limit: input.previewLimit,
+          offset: input.previewOffset,
+        });
       } catch (previewFailure) {
         previewError = previewFailure instanceof ErpConnectorError
           ? previewFailure.code
