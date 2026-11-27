@@ -63,6 +63,25 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
     vi.restoreAllMocks();
   });
 
+  it("states both ERP transports accurately without claiming a live connection", () => {
+    render(
+      <OnyxProExchangeWorkspace
+        onBack={vi.fn()}
+        onOpenImport={vi.fn()}
+        canManageImports
+        onOpenSnapshots={vi.fn()}
+      />,
+    );
+
+    const readiness = screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" });
+    expect(readiness).toHaveTextContent("Onyx Pro");
+    expect(readiness).toHaveTextContent("المتكامل المحاسبي");
+    expect(readiness).toHaveTextContent("لا يرسلها تلقائيًا إلى خادم Onyx");
+    expect(readiness).toHaveTextContent("لا تُرسل الفواتير أو سندات القبض أو القيود");
+
+    expect(screen.getByRole("region", { name: "تصدير بيانات الأغبري الحالية إلى Onyx" })).toBeInTheDocument();
+  });
+
   it("loads active tenant warehouses and exposes all-warehouse export by default", async () => {
     render(
       <OnyxProExchangeWorkspace
@@ -120,7 +139,7 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
     expect(mocks.fetchOnyxProLiveExportRecords).not.toHaveBeenCalled();
   });
 
-  it("does not load inventory scope or show live export controls to users without import access", () => {
+  it("shows ERP connector readiness without exposing exports to users without import access", () => {
     render(
       <OnyxProExchangeWorkspace
         onBack={vi.fn()}
@@ -130,7 +149,9 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
       />,
     );
 
-    expect(screen.queryByRole("region", { name: "تصدير سجلات أونكس الحية" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" })).toHaveTextContent("المزامنة المباشرة غير متاحة");
+    expect(screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" })).toHaveTextContent("لا يوجد موصل خادمي مفعّل");
+    expect(screen.queryByRole("region", { name: "تصدير بيانات الأغبري الحالية إلى Onyx" })).not.toBeInTheDocument();
     expect(mocks.fetchActiveInventoryWarehouses).not.toHaveBeenCalled();
   });
 });
