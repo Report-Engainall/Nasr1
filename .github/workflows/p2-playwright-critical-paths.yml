@@ -416,7 +416,6 @@ jobs:
 
   browser-local-tenant-paths:
     name: Playwright local Supabase order persistence and tenant isolation
-    needs: [public-ui-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
