@@ -87,15 +87,16 @@ function makeEvidence(id: string, at: string, currency = "YER", status: Evidence
 
 function makeMetric(
   id: string,
-  value: number,
+  value: number | string,
   at: string,
   currency = "YER",
+  unit: MetricSnapshot["unit"] = "CURRENCY",
 ): MetricSnapshot {
   return {
     id: "metric-" + id,
     key: "cashflow.expected_collections",
     value,
-    unit: "CURRENCY",
+    unit,
     currency,
     status: "VERIFIED",
     completeness: "COMPLETE",
@@ -111,6 +112,33 @@ function makeMetric(
     },
     warnings: [],
   };
+}
+
+function measuredBookWithExpectedMetric(expectedMetric: MetricSnapshot) {
+  const id = "decision-measured-metric-guard";
+  const expectedAt = "2026-10-02T00:00:00.000Z";
+  const actualAt = "2026-10-04T00:00:00.000Z";
+  return buildDecisionMemoryBook({
+    generatedAt,
+    outcomes: [
+      makeOutcome(id, {
+        state: "MEASURED",
+        measuredOutcome: { value: 80, currency: "YER", asOf: actualAt },
+      }),
+    ],
+    snapshots: [
+      makeSnapshot(id, {
+        lessonsReviewed: true,
+        lessons: ["تمت مراجعة النتيجة"],
+        expectedMetric,
+        actualMetric: makeMetric("actual-metric-guard", 80, actualAt),
+        evidenceRecords: [
+          makeEvidence("expected-metric-guard", expectedAt),
+          makeEvidence("actual-metric-guard", actualAt),
+        ],
+      }),
+    ],
+  });
 }
 
 function measuredBook(currencyMismatch = false) {
@@ -152,6 +180,95 @@ describe("decision memory evidence engine", () => {
     expect(empty.loadedCount).toBe(0);
     expect(unavailable.status).toBe("UNAVAILABLE");
     expect(unavailable.totalCount).toBe(4);
+  });
+
+  it("orders outcomes by absolute timestamp and keeps invalid clocks last", () => {
+    const result = buildDecisionMemoryBook({
+      generatedAt,
+      outcomes: [
+        makeOutcome("earlier-offset", { createdAt: "2026-10-01T08:00:00+03:00" }),
+        makeOutcome("later-utc", { createdAt: "2026-10-01T06:00:00.000Z" }),
+        makeOutcome("invalid-clock", { createdAt: "2026-10-01T12:00:00" }),
+      ],
+      snapshots: [],
+    });
+    expect(result.records.map(record => record.decisionId)).toEqual([
+      "later-utc", "earlier-offset", "invalid-clock",
+    ]);
+  });
+
+  it("rejects generated timestamps without a timezone or with an impossible calendar date", () => {
+    for (const invalidGeneratedAt of ["2026-10-06T00:00:00", "2026-02-31T00:00:00.000Z"]) {
+      expect(() => buildDecisionMemoryBook({
+        generatedAt: invalidGeneratedAt,
+        outcomes: [],
+        snapshots: [],
+      })).toThrow("decision_memory_input_invalid");
+    }
+  });
+
+  it.each([
+    ["timezone-less capture time", "2026-10-05T00:00:00"],
+    ["impossible capture date", "2026-02-31T00:00:00.000Z"],
+    ["timezone-less outcome time", "2026-10-01T00:00:00"],
+  ])("withholds a decision snapshot with %s", (_label, invalidTime) => {
+    const result = buildDecisionMemoryBook({
+      generatedAt,
+      outcomes: [makeOutcome("decision-invalid-time", { createdAt: _label === "timezone-less outcome time" ? invalidTime : "2026-10-01T00:00:00.000Z" })],
+      snapshots: [makeSnapshot("decision-invalid-time", {
+        capturedAt: _label === "timezone-less outcome time" ? "2026-10-05T00:00:00.000Z" : invalidTime,
+      })],
+    });
+    expect(result.records[0].problem).toBeNull();
+    expect(result.records[0].memoryStatus).toBe("PARTIAL");
+    expect(result.records[0].warnings).toContain("DECISION_MEMORY_SNAPSHOT_SCOPE_INVALID");
+  });
+
+  it("withholds metric evidence whose source timestamp is timezone-less", () => {
+    const id = "decision-timezone-less-evidence";
+    const expectedAt = "2026-10-02T00:00:00.000Z";
+    const actualAt = "2026-10-04T00:00:00.000Z";
+    const result = buildDecisionMemoryBook({
+      generatedAt,
+      outcomes: [makeOutcome(id, {
+        state: "MEASURED",
+        measuredOutcome: { value: 80, currency: "YER", asOf: actualAt },
+      })],
+      snapshots: [makeSnapshot(id, {
+        lessonsReviewed: true,
+        lessons: ["تمت مراجعة النتيجة"],
+        expectedMetric: makeMetric("expected-timezone", 100, expectedAt),
+        actualMetric: makeMetric("actual-timezone", 80, actualAt),
+        evidenceRecords: [
+          { ...makeEvidence("expected-timezone", expectedAt), sourceTimestamp: "2026-10-02T00:00:00" },
+          makeEvidence("actual-timezone", actualAt),
+        ],
+      })],
+    });
+    expect(result.records[0].metricComparison.status).toBe("WITHHELD");
+    expect(result.records[0].warnings).toContain("EXPECTED_METRIC_WITHHELD:EVIDENCE_NOT_VERIFIED");
+  });
+
+  it("does not search similar decisions using a timezone-less created-at timestamp", () => {
+    const result = buildDecisionMemoryBook({
+      generatedAt,
+      outcomes: [
+        makeOutcome("older-valid-decision", { createdAt: "2026-10-01T00:00:00.000Z" }),
+        makeOutcome("target-invalid-time", { createdAt: "2026-10-03T00:00:00" }),
+      ],
+      snapshots: [],
+    });
+    expect(searchSimilarDecisionMemory({
+      records: result.records,
+      decisionId: "target-invalid-time",
+      query: "تحصيل متأخر",
+    })).toEqual([]);
+  });
+
+  it("does not create policy-review suggestions for measured decisions with invalid created-at timestamps", () => {
+    const result = measuredBook();
+    result.records[0].createdAt = "2026-10-01T00:00:00";
+    expect(buildDecisionPolicyReviewSuggestions(result.records)).toEqual([]);
   });
 
   it("does not call missing persistent snapshots verified decision memory", () => {
@@ -246,6 +363,26 @@ describe("decision memory evidence engine", () => {
     expect(suggestions[0].status).toBe("DRAFT_REQUIRES_HUMAN_REVIEW");
     expect(suggestions[0].observations[0].evidenceIds).toEqual(["expected-ledger", "actual-ledger"]);
     expect(suggestions[0].calibration.meanSignedDifference).toBe(-20);
+  });
+
+  it("withholds numeric-looking TEXT metrics from decision measurement", () => {
+    const expectedAt = "2026-10-02T00:00:00.000Z";
+    const result = measuredBookWithExpectedMetric(
+      makeMetric("expected-metric-guard", "100.00", expectedAt, "YER", "TEXT"),
+    );
+    expect(result.records[0].metricComparison.status).toBe("WITHHELD");
+    expect(result.records[0].warnings).toContain("EXPECTED_METRIC_WITHHELD:METRIC_UNIT_NOT_NUMERIC");
+    expect(buildDecisionPolicyReviewSuggestions(result.records)).toHaveLength(0);
+  });
+
+  it("rejects scientific-notation numeric strings in decision measurement metrics", () => {
+    const expectedAt = "2026-10-02T00:00:00.000Z";
+    const result = measuredBookWithExpectedMetric(
+      makeMetric("expected-metric-guard", "1e3", expectedAt),
+    );
+    expect(result.records[0].metricComparison.status).toBe("WITHHELD");
+    expect(result.records[0].warnings).toContain("EXPECTED_METRIC_WITHHELD:METRIC_VALUE_OR_EVIDENCE_INVALID");
+    expect(buildDecisionPolicyReviewSuggestions(result.records)).toHaveLength(0);
   });
 
   it("withholds cross-currency comparisons and does not create policy-review suggestions", () => {
