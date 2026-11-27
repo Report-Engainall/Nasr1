@@ -25,6 +25,7 @@ const warehouseId = requiredEnv("E2E_PURCHASE_WAREHOUSE_ID");
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
 const committedProductId = randomUUID();
 const mismatchProductId = randomUUID();
+const convertedProductId = randomUUID();
 const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
 
 async function setIdentity(profile) {
@@ -149,6 +150,7 @@ async function tableCounts() {
     "(select count(*)::bigint from public.purchase_receipt_items where organization_id=$1::uuid) as receipt_items," +
     "(select count(*)::bigint from public.inventory_balances ib join public.warehouses w on w.id=ib.warehouse_id where w.organization_id=$1::uuid) as balances," +
     "(select count(*)::bigint from public.inventory_movements im join public.warehouses w on w.id=im.warehouse_id where w.organization_id=$1::uuid) as movements," +
+    "( select count(*)::bigint from public.product_unit_conversions where organization_id=$1::uuid) as unit_conversions," +
     "(select count(*)::bigint from public.audit_logs where organization_id=$1::uuid) as audit_rows",
     [organizationId],
   );
@@ -174,6 +176,7 @@ async function main() {
 
   await createProduct(committedProductId, "P2-REP-COMMIT-" + suffix, "P2 replenishment committed quantity " + suffix);
   await createProduct(mismatchProductId, "P2-REP-UOM-" + suffix, "P2 replenishment UOM mismatch " + suffix);
+  await createProduct(convertedProductId, "P2-REP-CONV-" + suffix, "P2 replenishment converted UOM " + suffix);
 
   // Confirmed but not yet physically received: 100 units remain.
   const submitted = await createOrder(manager, committedProductId, 100, "submitted");
@@ -197,14 +200,27 @@ async function main() {
   const afterSnapshot = await createOrder(manager, committedProductId, 200, "after-snapshot");
   await submitOrder(manager, afterSnapshot);
 
-  // A real submitted PO is retained in the source, but a changed product UOM invalidates
-  // its old unit snapshot; the aggregate must withhold, not convert or sum unlike units.
+  // A changed product base unit with no saved factor must withhold the open PO commitment.
   const mismatch = await createOrder(manager, mismatchProductId, 9, "uom-mismatch");
   await submitOrder(manager, mismatch);
   await db.unsafe("reset role");
   await db.unsafe("update public.products set unit='piece' where id=$1::uuid and organization_id=$2::uuid", [
     mismatchProductId, organizationId,
   ]);
+
+  // A second source order proves the current v2 contract converts the saved purchase-unit
+  // remainder to base units using the tenant/product-scoped integer multiplier.
+  const converted = await createOrder(manager, convertedProductId, 9, "uom-conversion");
+  await submitOrder(manager, converted);
+  await db.unsafe("reset role");
+  await db.unsafe("update public.products set unit='piece' where id=$1::uuid and organization_id=$2::uuid", [
+    convertedProductId, organizationId,
+  ]);
+  await db.unsafe(
+    "insert into public.product_unit_conversions(organization_id,product_id,unit_name,base_units_per_unit) " +
+    "values($1::uuid,$2::uuid,'carton',12)",
+    [organizationId, convertedProductId],
+  );
 
   const asOf = new Date(Date.now() + 20000).toISOString();
   const periodTo = asOf.slice(0, 10);
@@ -245,7 +261,8 @@ async function main() {
   assert.equal(incoming.quality, "ACCEPTABLE");
   assert.equal(Number(incoming.value), 125, "expected 100 submitted + (40 ordered - 15 received), excluding all non-open states");
   assert.equal(incoming.lineage.formulaId, "inventory.open-purchase-order-commitments");
-  assert.equal(incoming.lineage.formulaVersion, "1");
+  assert.equal(incoming.lineage.formulaVersion, "2");
+  assert.equal(incoming.lineage.transformations[0].includes("convert the remainder to product base units"), true);
   const incomingEvidenceId = "purchase-order-commitments:" + committedProductId;
   assert.deepEqual(incoming.lineage.evidenceIds, [incomingEvidenceId]);
   const incomingEvidence = aggregate.evidenceRecords.find(item => item.id === incomingEvidenceId);
@@ -268,11 +285,30 @@ async function main() {
   assert.equal(mismatchMetric.status, "NEEDS_REVIEW");
   assert.equal(mismatchMetric.completeness, "PARTIAL");
   assert.equal(mismatchMetric.quality, "WARNINGS");
-  assert.ok(mismatchMetric.warnings.includes("OPEN_PURCHASE_ORDER_UNIT_MISMATCH"));
+  assert.ok(mismatchMetric.warnings.includes("OPEN_PURCHASE_ORDER_UNIT_CONVERSION_UNRESOLVED"));
   const mismatchEvidenceId = "purchase-order-commitments:" + mismatchProductId;
   const mismatchEvidence = aggregate.evidenceRecords.find(item => item.id === mismatchEvidenceId);
   assert.ok(mismatchEvidence);
   assert.equal(mismatchEvidence.status, "NEEDS_REVIEW");
+
+  const convertedProduct = aggregate.replenishmentProducts.find(
+    row => row.productRef === "P2-REP-CONV-" + suffix,
+  );
+  assert.ok(convertedProduct, "converted-UOM product must be in the aggregate");
+  const convertedMetric = convertedProduct.incomingPurchaseQuantity;
+  assert.equal(convertedMetric.unitOfMeasure, "piece");
+  assert.equal(convertedMetric.value, 108, "9 cartons must normalize to 108 base pieces using the saved factor 12");
+  assert.equal(convertedMetric.status, "VERIFIED");
+  assert.equal(convertedMetric.completeness, "COMPLETE");
+  assert.equal(convertedMetric.quality, "ACCEPTABLE");
+  assert.equal(convertedMetric.lineage.formulaId, "inventory.open-purchase-order-commitments");
+  assert.equal(convertedMetric.lineage.formulaVersion, "2");
+  const convertedEvidence = aggregate.evidenceRecords.find(
+    item => item.id === "purchase-order-commitments:" + convertedProductId,
+  );
+  assert.ok(convertedEvidence, "converted incoming metric must resolve its evidence");
+  assert.equal(convertedEvidence.status, "VERIFIED");
+  assert.equal(convertedEvidence.source.version, "v2");
 
   await expectSqlStateInSavepoint(
     "ordinary customer inventory intelligence read",
@@ -296,7 +332,7 @@ async function main() {
 
   process.stdout.write(
     "PASS PostgreSQL 17 replenishment commitments: submitted remaining quantities, partial receipt netting, " +
-    "draft/cancelled/fully-received and post-snapshot exclusions, exact period/as-of lineage, UOM fail-closed, " +
+    "draft/cancelled/fully-received and post-snapshot exclusions, exact period/as-of lineage, UOM conversion and fail-closed, " +
     "manager authorization, customer denial, invalid-period denial and read-only behavior.\n",
   );
 }
