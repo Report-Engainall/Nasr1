@@ -3,7 +3,7 @@
 > Sole live execution pointer. Read this block first on the next session. Historical checkpoints after the separator are evidence only; do not resume from them unless the live actions below direct you there.
 
 - Repository: `Report-Engainall/Nasr1`; sole source of truth: `main`.
-- Latest observed `main` before this P3 slice: `d7da98a0a11872c8c263c4dbf26dba258637d95e` (2026-11-27).
+- Latest observed `main` at this cursor refresh: `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361` (2026-11-27).
 - Active P3 delivery: [PR #643 — reject text metrics from numeric anomaly comparisons](https://github.com/Report-Engainall/Nasr1/pull/643).
   - Branch: `p3/anomaly-reject-text-metric-20261127`.
   - Latest code head at cursor update: `c727aaa77df2dd8e940d8eea2f2095896fd64e16`.
@@ -14,7 +14,8 @@
   - P1 workflow path filters already include both source and test files; no CI workflow edit or dependency addition was needed.
   - Exact-head GitHub Actions workflow runs and combined statuses were empty at the last check. **Acceptance is pending, not PASS.** Do not transfer test results from another SHA.
 - P3 delivery discipline: P1 owns product/UI and final merge authority; P2 owns database/RPC/RLS/transactions/finance/storage; P3 owns deterministic intelligence and AI engines. Do not merge PR #643 directly.
-- Parallel work already visible on GitHub (do not duplicate): #641 supplier-invoice PostgreSQL acceptance (P2), #642 inventory-transfer history UI (P1), #631 incomplete-currency cashflow visibility, #634 dead-stock calculation clock, #636 replenishment source reconciliation, #637 daily decision/customer-retention integration, and #639 supplier delivery measurement reconciliation. Recheck each exact head and CI before acting. PR #620 is already fully behind `main`; #622 is heavily diverged and not a safe merge candidate.
+- P1 PR #642 was merged into `main` at `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`: inventory-transfer history is now searchable, filterable and paginated with complete filtered export/print.
+- Parallel work still open (do not duplicate): #641 supplier-invoice PostgreSQL acceptance (P2), #631 incomplete-currency cashflow visibility, #634 dead-stock calculation clock, #636 replenishment source reconciliation, #637 daily decision/customer-retention integration, and #639 supplier delivery measurement reconciliation. Recheck each exact head and CI before acting. PR #620 is already fully behind `main`; #622 is heavily diverged and not a safe merge candidate.
 - Release boundary remains **NO-GO** until the required hosted authenticated customer/order/tenant proof and deployed runtime/database identity are actually established. Local CI or public read-only browser smoke is not hosted production acceptance. Never infer hosted PASS from SKIPPED.
 
 ## Open-source reuse register — checked 2026-11-27
