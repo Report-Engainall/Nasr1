@@ -29,6 +29,7 @@ function metric(input: {
   period?: EvidencePeriod;
   evidenceId: string;
   formulaId?: string;
+  currency?: string;
 }): MetricSnapshot {
   const unit = input.unit ?? "COUNT";
   return {
@@ -36,6 +37,7 @@ function metric(input: {
     key: input.key,
     value: input.value,
     unit,
+    ...(input.currency ? { currency: input.currency } : {}),
     ...(unitOfMeasureValue(unit, input.unitOfMeasure) ? { unitOfMeasure: input.unitOfMeasure } : {}),
     status: "VERIFIED",
     completeness: "COMPLETE",
@@ -188,6 +190,81 @@ describe("multi-source growth opportunity radar", () => {
     });
     expect(result.opportunities).toHaveLength(1);
     expect(result.opportunities[0]).toMatchObject({ direction: "INCREASING", changePercent: 20, unitOfMeasure: "EA" });
+  });
+
+  it("calculates currency product trends from exact minor units without floating-point drift", () => {
+    const result = build({
+      evidenceRecords: [evidence("current", currentPeriod), evidence("baseline", baselinePeriod)],
+      metrics: [
+        metric({ id: "current-revenue", key: "product.net_sales", value: "120.01", unit: "CURRENCY", currency: "YER", evidenceId: "current", formulaId: "product.net-sales.v1" }),
+        metric({ id: "current-orders", key: "product.orders.sample_count", value: 5, evidenceId: "current", formulaId: "orders.v1" }),
+        metric({ id: "baseline-revenue", key: "product.net_sales", value: "100.00", unit: "CURRENCY", currency: "YER", period: baselinePeriod, evidenceId: "baseline", formulaId: "product.net-sales.v1" }),
+        metric({ id: "baseline-orders", key: "product.orders.sample_count", value: 5, period: baselinePeriod, evidenceId: "baseline", formulaId: "orders.v1" }),
+      ],
+      signals: [{
+        id: "product-performance:revenue:YER",
+        kind: "PRODUCT_PERFORMANCE_CHANGE",
+        subjectRef: "product-rice",
+        observedMetricId: "current-revenue",
+        sampleMetricId: "current-orders",
+        baselineMetricId: "baseline-revenue",
+        baselineSampleMetricId: "baseline-orders",
+      }],
+    });
+    expect(result.opportunities).toHaveLength(1);
+    expect(result.opportunities[0]).toMatchObject({
+      direction: "INCREASING",
+      observedValue: 120.01,
+      baselineValue: 100,
+      changePercent: 20.01,
+      currency: "YER",
+    });
+  });
+
+  it("withholds currency trends when the source value has sub-cent precision", () => {
+    const result = build({
+      evidenceRecords: [evidence("current", currentPeriod), evidence("baseline", baselinePeriod)],
+      metrics: [
+        metric({ id: "current-revenue", key: "product.net_sales", value: "120.001", unit: "CURRENCY", currency: "YER", evidenceId: "current", formulaId: "product.net-sales.v1" }),
+        metric({ id: "current-orders", key: "product.orders.sample_count", value: 5, evidenceId: "current", formulaId: "orders.v1" }),
+        metric({ id: "baseline-revenue", key: "product.net_sales", value: "100.00", unit: "CURRENCY", currency: "YER", period: baselinePeriod, evidenceId: "baseline", formulaId: "product.net-sales.v1" }),
+        metric({ id: "baseline-orders", key: "product.orders.sample_count", value: 5, period: baselinePeriod, evidenceId: "baseline", formulaId: "orders.v1" }),
+      ],
+      signals: [{
+        id: "product-performance:revenue:YER",
+        kind: "PRODUCT_PERFORMANCE_CHANGE",
+        subjectRef: "product-rice",
+        observedMetricId: "current-revenue",
+        sampleMetricId: "current-orders",
+        baselineMetricId: "baseline-revenue",
+        baselineSampleMetricId: "baseline-orders",
+      }],
+    });
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.withheld).toMatchObject([{ reason: "METRIC_NOT_VERIFIED" }]);
+  });
+
+  it("requires a canonical currency identity for monetary growth evidence", () => {
+    const result = build({
+      evidenceRecords: [evidence("current", currentPeriod), evidence("baseline", baselinePeriod)],
+      metrics: [
+        metric({ id: "current-revenue", key: "product.net_sales", value: "120.00", unit: "CURRENCY", currency: "yer", evidenceId: "current", formulaId: "product.net-sales.v1" }),
+        metric({ id: "current-orders", key: "product.orders.sample_count", value: 5, evidenceId: "current", formulaId: "orders.v1" }),
+        metric({ id: "baseline-revenue", key: "product.net_sales", value: "100.00", unit: "CURRENCY", currency: "YER", period: baselinePeriod, evidenceId: "baseline", formulaId: "product.net-sales.v1" }),
+        metric({ id: "baseline-orders", key: "product.orders.sample_count", value: 5, period: baselinePeriod, evidenceId: "baseline", formulaId: "orders.v1" }),
+      ],
+      signals: [{
+        id: "product-performance:revenue:YER",
+        kind: "PRODUCT_PERFORMANCE_CHANGE",
+        subjectRef: "product-rice",
+        observedMetricId: "current-revenue",
+        sampleMetricId: "current-orders",
+        baselineMetricId: "baseline-revenue",
+        baselineSampleMetricId: "baseline-orders",
+      }],
+    });
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.withheld).toMatchObject([{ reason: "METRIC_SCOPE_MISMATCH" }]);
   });
 
   it("withholds product trends when units differ even when the numeric periods appear comparable", () => {
