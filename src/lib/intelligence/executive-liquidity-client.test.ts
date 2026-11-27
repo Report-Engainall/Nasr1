@@ -142,6 +142,23 @@ describe("executive liquidity response evidence contract", () => {
     expect(parsed).toMatchObject({ ok: true, data: { asOf: microsecondAsOf } });
   });
 
+  it("rejects source and calculation evidence one microsecond after the liquidity snapshot", () => {
+    expect(parseExecutiveLiquidityResponse(response({
+      cashMovementCoverage: {
+        ...response().cashMovementCoverage,
+        calculatedAt: "2026-11-27T12:30:00.000001Z",
+      },
+    }))).toMatchObject({ ok: false, status: "ERROR" });
+
+    expect(parseExecutiveLiquidityResponse(response({
+      cashMovements: [movement({ last_movement_at: "2026-11-27T12:30:00.000001Z" })],
+    }))).toMatchObject({ ok: false, status: "ERROR" });
+
+    expect(parseExecutiveLiquidityResponse(response({
+      cashMovements: [movement({ calculated_at: "2026-11-27T12:30:00.000001Z" })],
+    }))).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects a movement net that differs from inflows less outflows by one cent", () => {
     expect(parseExecutiveLiquidityResponse(response({
       cashMovements: [movement({ net_movement: "89.99" })],
