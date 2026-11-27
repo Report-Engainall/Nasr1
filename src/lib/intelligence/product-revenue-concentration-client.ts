@@ -56,7 +56,15 @@ function validDay(value: unknown): value is string {
   return Number.isFinite(millis) && new Date(millis).toISOString().slice(0,10) === value;
 }
 function validTimestamp(value: unknown): value is string {
-  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
+    return false;
+  }
+  const day = value.slice(0, 10);
+  const dayMillis = Date.parse(day + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dayMillis) &&
+    new Date(dayMillis).toISOString().slice(0, 10) === day;
 }
 function integer(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
