@@ -1,4 +1,6 @@
+import { REPLENISHMENT_FORMULA_ID, REPLENISHMENT_FORMULA_VERSION } from "./replenishment";
 import type { ReplenishmentProductInput, ReplenishmentRecommendation } from "./replenishment";
+import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
 import type { DecisionCandidate } from "./types";
 
 function strictInstant(value: unknown): number | null {
@@ -26,6 +28,104 @@ function sourceMetrics(product: ReplenishmentProductInput) {
   ];
 }
 
+function minor(value: unknown): bigint | null {
+  return decimalToMinorUnits(value, 6);
+}
+
+function matchesMinor(value: unknown, expected: bigint): boolean {
+  const actual = minor(value);
+  return actual !== null && actual === expected;
+}
+
+function validDay(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(value + "T00:00:00.000Z");
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+
+function periodLength(from: string, to: string): number | null {
+  if (!validDay(from) || !validDay(to) || to < from) return null;
+  const length = Math.floor((Date.parse(to + "T00:00:00.000Z") - Date.parse(from + "T00:00:00.000Z")) / 86_400_000) + 1;
+  return Number.isSafeInteger(length) && length > 0 ? length : null;
+}
+
+function ceilDivNonNegative(numerator: bigint, denominator: bigint): bigint {
+  if (numerator <= 0n) return 0n;
+  return (numerator + denominator - 1n) / denominator;
+}
+
+/**
+ * Reconcile every decision-bearing number against the exact verified metric
+ * snapshots. A typed recommendation object is not itself source evidence.
+ */
+function recommendationMatchesSources(
+  product: ReplenishmentProductInput,
+  recommendation: ReplenishmentRecommendation,
+  asOf: string,
+): boolean {
+  const quantityUnit = product.quantityUnit.trim();
+  if (!quantityUnit) return false;
+
+  const quantityMetrics = [
+    product.availableToPromise,
+    product.reorderPoint,
+    product.soldQuantityWindow,
+    product.incomingPurchaseQuantity,
+    ...(product.minimumOrderQuantity ? [product.minimumOrderQuantity] : []),
+    ...(product.orderMultiple ? [product.orderMultiple] : []),
+  ];
+  if (quantityMetrics.some(metric =>
+    metric.unit !== "QUANTITY" || metric.unitOfMeasure?.trim() !== quantityUnit
+  )) return false;
+  if (product.supplierLeadTimeDays.unit !== "DAYS" || product.supplierLeadTimeDays.period !== null) return false;
+
+  const period = product.soldQuantityWindow.period;
+  if (!period) return false;
+  const days = periodLength(period.from, period.to);
+  if (days === null || period.to > asOf.slice(0, 10)) return false;
+
+  const available = minor(product.availableToPromise.value);
+  const reorderPoint = minor(product.reorderPoint.value);
+  const sold = minor(product.soldQuantityWindow.value);
+  const leadDays = minor(product.supplierLeadTimeDays.value);
+  const incoming = minor(product.incomingPurchaseQuantity.value);
+  const minimum = product.minimumOrderQuantity ? minor(product.minimumOrderQuantity.value) : 0n;
+  const multiple = product.orderMultiple ? minor(product.orderMultiple.value) : null;
+  if ([available, reorderPoint, sold, leadDays, incoming, minimum].some(value => value === null) ||
+      (product.orderMultiple && multiple === null) ||
+      [available, reorderPoint, sold, leadDays, incoming, minimum, multiple].some(value => value !== null && value < 0n)) return false;
+  if ((product.minimumOrderQuantity && minimum === 0n) || (product.orderMultiple && multiple === 0n)) return false;
+
+  const availableValue = available as bigint;
+  const reorderValue = reorderPoint as bigint;
+  const soldValue = sold as bigint;
+  const leadValue = leadDays as bigint;
+  const incomingValue = incoming as bigint;
+  const leadDemand = ceilDivNonNegative(soldValue * leadValue, BigInt(days) * 1_000_000n);
+  const covered = availableValue + incomingValue;
+  const target = reorderValue > leadDemand ? reorderValue : leadDemand;
+  let recommended = target > covered ? target - covered : 0n;
+  if (minimum !== null && minimum > 0n && recommended > 0n && recommended < minimum) recommended = minimum;
+  if (multiple !== null && multiple > 0n && recommended > 0n) {
+    recommended = ceilDivNonNegative(recommended, multiple) * multiple;
+  }
+
+  const soldNumber = minorUnitsToNumber(soldValue, 6);
+  const expectedDailyDemand = soldNumber === null ? null : soldNumber / days;
+  const actualDailyDemand = recommendation.dailyDemand;
+  if (expectedDailyDemand === null || typeof actualDailyDemand !== "number" ||
+      !Number.isFinite(actualDailyDemand) || Math.abs(actualDailyDemand - expectedDailyDemand) > 0.000001) return false;
+
+  return matchesMinor(recommendation.availableToPromise, availableValue) &&
+    matchesMinor(recommendation.incomingPurchaseQuantity, incomingValue) &&
+    matchesMinor(recommendation.coveredAfterIncoming, covered) &&
+    matchesMinor(recommendation.reorderPoint, reorderValue) &&
+    matchesMinor(recommendation.leadTimeDemand, leadDemand) &&
+    matchesMinor(recommendation.targetStock, target) &&
+    matchesMinor(recommendation.recommendedQuantity, recommended) &&
+    recommended > 0n;
+}
+
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(value => typeof value === "string" && value.trim().length > 0))];
 }
@@ -51,6 +151,12 @@ export function buildReplenishmentDecisionCandidates(input: {
     products.set(ref, product);
   }
 
+  const recommendationCounts = new Map<string, number>();
+  for (const recommendation of input.recommendations) {
+    const ref = typeof recommendation?.productRef === "string" ? recommendation.productRef.trim() : "";
+    if (ref) recommendationCounts.set(ref, (recommendationCounts.get(ref) ?? 0) + 1);
+  }
+
   const RULE_VERSION = "1.0.0";
   const candidates: DecisionCandidate[] = [];
   for (const recommendation of input.recommendations) {
@@ -58,6 +164,9 @@ export function buildReplenishmentDecisionCandidates(input: {
     if (
       !productRef ||
       (productCounts.get(productRef) ?? 0) !== 1 ||
+      (recommendationCounts.get(productRef) ?? 0) !== 1 ||
+      recommendation.formulaId !== REPLENISHMENT_FORMULA_ID ||
+      recommendation.formulaVersion !== REPLENISHMENT_FORMULA_VERSION ||
       recommendation.status !== "VERIFIED" ||
       recommendation.action !== "RECOMMEND" ||
       recommendation.automaticPurchase !== false ||
@@ -86,6 +195,8 @@ export function buildReplenishmentDecisionCandidates(input: {
     });
     if (!evidenceReady) continue;
 
+    if (!recommendationMatchesSources(product, recommendation, input.asOf)) continue;
+
     const available = recommendation.availableToPromise;
     const incoming = recommendation.incomingPurchaseQuantity;
     const covered = recommendation.coveredAfterIncoming;
@@ -101,7 +212,8 @@ export function buildReplenishmentDecisionCandidates(input: {
     const priorityScore = urgent ? 300 : 200;
     const evidenceIds = unique(recommendation.evidenceIds);
     const sourceEvidenceIds = new Set(unique(metrics.flatMap(metric => metric.lineage.evidenceIds)));
-    if (!evidenceIds.length || evidenceIds.some(id => !sourceEvidenceIds.has(id))) continue;
+    if (!evidenceIds.length || evidenceIds.length !== sourceEvidenceIds.size ||
+        evidenceIds.some(id => !sourceEvidenceIds.has(id))) continue;
 
     const id = ("inventory.replenishment:" + productRef.slice(0, 90) + ":" + input.asOf.slice(0, 10)).slice(0, 150);
     const formulaVersions = unique([
