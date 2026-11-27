@@ -406,6 +406,78 @@ async function main(){
  assert.deepEqual(aggregateAfterShortShipment,aggregateBeforeShortShipment,
   "rejected partial shipment must preserve aggregate stock counters");
 
+ await as(manager);
+ const incompleteWorklist=await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result");
+ const incompleteOrder=incompleteWorklist.orders.find(row=>row.order_id===shortShipmentOrder);
+ assert.ok(incompleteOrder,"short-reserved order must appear in manager reconciliation worklist");
+ assert.equal(incompleteOrder.status,"processing");
+ assert.equal(Number(incompleteOrder.ordered_quantity),2);
+ assert.equal(Number(incompleteOrder.reserved_quantity),1);
+ assert.equal(Number(incompleteOrder.missing_quantity),1);
+ assert.equal(incompleteOrder.requires_expired_reallocation,false);
+ assert.equal(incompleteOrder.lines.length,1);
+ assert.equal(Number(incompleteOrder.lines[0].missing_quantity),1);
+ assert.ok(Number(incompleteOrder.lines[0].replacement_available_quantity)>=1,
+  "worklist must expose enough in-date FEFO stock before repair");
+ await assert.rejects(
+  () => rpc("select public.list_orders_with_incomplete_inventory_reservations(101,0) result"),
+  error => String(error?.code)==="22023",
+  "incomplete reservation worklist must reject invalid pagination",
+ );
+
+ const reconciliationKey="fefo-complete-short-"+randomUUID().replaceAll("-","");
+ const reconciliationReason="Restore the missing reservation before shipment";
+ const reconciled=await rpc(
+  "select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+  [shortShipmentOrder,reconciliationKey,reconciliationReason],
+ );
+ assert.equal(reconciled.reconciliation_status,"reconciled");
+ assert.equal(Number(reconciled.reconciled_quantity),1);
+ assert.ok(reconciled.allocation_lot_count>=1);
+ assert.ok(reconciled.allocations.length>=1);
+ const reconciliationReplay=await rpc(
+  "select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+  [shortShipmentOrder,reconciliationKey,reconciliationReason],
+ );
+ assert.equal(reconciliationReplay.idempotent_replay,true);
+ assert.equal(reconciliationReplay.reconciliation_id,reconciled.reconciliation_id);
+ assert.deepEqual(reconciliationReplay.allocations,reconciled.allocations);
+ await assert.rejects(
+  () => rpc("select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+   [shortShipmentOrder,reconciliationKey,"Changed reason must not reuse the key"]),
+  error => String(error?.code)==="22023" && String(error?.message).includes("idempotency payload conflict"),
+  "changed idempotency payload must be rejected",
+ );
+ const completeNoop=await rpc(
+  "select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+  [shortShipmentOrder,"fefo-complete-noop-"+randomUUID().replaceAll("-",""),"Verify reservation is complete"],
+ );
+ assert.equal(completeNoop.reconciliation_status,"already_complete");
+ assert.equal(Number(completeNoop.reconciled_quantity),0);
+ const incompleteAfter=await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result");
+ assert.equal(incompleteAfter.orders.some(row=>row.order_id===shortShipmentOrder),false,
+  "fully reserved order must leave incomplete worklist");
+ const completeNet=(await db.unsafe(
+  "select pg_catalog.sum(case when movement_type='reserve' then quantity else -quantity end)::text quantity " +
+  "from public.inventory_movements where reference_type='order' and reference_id=$1::uuid " +
+  "and movement_type in ('reserve','release_reservation')",[shortShipmentOrder],
+ ))[0];
+ assert.equal(Number(completeNet.quantity),2);
+ const repairMovements=await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid " +
+  "and movement_type='reserve' and created_at>=(select created_at from public.inventory_order_reservation_reconciliations where id=$2::uuid)",
+  [shortShipmentOrder,reconciled.reconciliation_id],
+ );
+ assert.ok(repairMovements[0].count>=1,"repair must append real reserve source movements");
+ await status(manager,shortShipmentOrder,"shipped");
+ const completedSales=await db.unsafe(
+  "select pg_catalog.sum(quantity)::text quantity,count(*)::integer count from public.inventory_movements " +
+  "where reference_type='order' and reference_id=$1::uuid and movement_type='sale'",[shortShipmentOrder],
+ );
+ assert.equal(Number(completedSales[0].quantity),-2,
+  "shipment after repair must settle the complete two-unit commercial order");
+ assert.ok(completedSales[0].count>=1);
+
  const finalParity=(await db.unsafe(
   "select ib.quantity_on_hand::text h,ib.quantity_reserved::text r,"+
   "coalesce(pg_catalog.sum(b.quantity_on_hand),0)::text bh,"+
@@ -609,6 +681,17 @@ async function main(){
   error => String(error?.code)==="42501",
   "customer must not read the manager-only expired reservation work queue",
  );
+ await assert.rejects(
+  () => rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result"),
+  error => String(error?.code)==="42501",
+  "customer must not read the manager-only incomplete reservation worklist",
+ );
+ await assert.rejects(
+  () => rpc("select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+   [shortShipmentOrder,"customer-reconcile-"+randomUUID().replaceAll("-",""),"Customer cannot reconcile stock"]),
+  error => String(error?.code)==="42501",
+  "customer must not reconcile order reservations",
+ );
 
  const reallocationPrivileges=await db.unsafe(
   "select " +
@@ -632,6 +715,27 @@ async function main(){
  assert.equal(reallocationPrivileges[0].authenticated_table_read,false);
  assert.equal(reallocationPrivileges[0].service_table_read,false,
   "the server-only idempotency ledger is not directly readable");
+
+ const reconciliationPrivileges=await db.unsafe(
+  "select "+
+   "has_function_privilege('anon','public.reconcile_incomplete_order_reservations(uuid,text,text)','EXECUTE') anon_execute,"+
+   "has_function_privilege('authenticated','public.reconcile_incomplete_order_reservations(uuid,text,text)','EXECUTE') authenticated_execute,"+
+   "has_function_privilege('service_role','public.reconcile_incomplete_order_reservations(uuid,text,text)','EXECUTE') service_execute,"+
+   "has_function_privilege('anon','public.list_orders_with_incomplete_inventory_reservations(integer,integer)','EXECUTE') anon_worklist_execute,"+
+   "has_function_privilege('authenticated','public.list_orders_with_incomplete_inventory_reservations(integer,integer)','EXECUTE') authenticated_worklist_execute,"+
+   "has_function_privilege('service_role','public.list_orders_with_incomplete_inventory_reservations(integer,integer)','EXECUTE') service_worklist_execute,"+
+   "has_table_privilege('authenticated','public.inventory_order_reservation_reconciliations','SELECT') authenticated_table_read,"+
+   "has_table_privilege('service_role','public.inventory_order_reservation_reconciliations','SELECT') service_table_read"
+ );
+ assert.equal(reconciliationPrivileges[0].anon_execute,false);
+ assert.equal(reconciliationPrivileges[0].authenticated_execute,true);
+ assert.equal(reconciliationPrivileges[0].service_execute,false);
+ assert.equal(reconciliationPrivileges[0].anon_worklist_execute,false);
+ assert.equal(reconciliationPrivileges[0].authenticated_worklist_execute,true);
+ assert.equal(reconciliationPrivileges[0].service_worklist_execute,false);
+ assert.equal(reconciliationPrivileges[0].authenticated_table_read,false);
+ assert.equal(reconciliationPrivileges[0].service_table_read,false,
+  "the reconciliation idempotency ledger must remain server-only");
 
  // Compare the previous-day test lot with today, not with its own expiry date.
  const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<(pg_catalog.now() at time zone 'UTC')::date expired from public.inventory_batches where id=$1::uuid",[expiredBatchId]))[0];
