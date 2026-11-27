@@ -167,6 +167,34 @@ describe("parseCustomerPaymentHistoryPayload", () => {
     }
   });
 
+  it("rejects impossible calendar dates and timezone offsets beyond ISO ±14:00", () => {
+    for (const paidAt of [
+      "2026-02-30T12:00:00.000Z",
+      "2025-02-29T12:00:00.000Z",
+      "2026-11-01T24:00:00.000Z",
+      "2026-11-01T12:00:00+14:01",
+      "2026-11-01T12:00:00-14:01",
+      "2026-11-01T12:00:00+23:59",
+    ]) {
+      const payload = validPayload();
+      payload.payments[0].paid_at = paidAt;
+      expect(() => parseCustomerPaymentHistoryPayload(payload), paidAt).toThrow("حركة الدفع");
+    }
+  });
+
+  it("accepts a real leap day, historical four-digit year and the inclusive ISO ±14:00 boundary", () => {
+    for (const paidAt of [
+      "2024-02-29T23:59:59.123Z",
+      "0999-12-31T23:59:59Z",
+      "2026-11-01T12:00:00+14:00",
+      "2026-11-01T12:00:00-14:00",
+    ]) {
+      const payload = validPayload();
+      payload.payments[0].paid_at = paidAt;
+      expect(parseCustomerPaymentHistoryPayload(payload).payments[0]?.paid_at).toBe(paidAt);
+    }
+  });
+
   it("accepts a null or omitted paid_at, but rejects invalid non-null timestamps", () => {
     const omitted = validPayload();
     delete (omitted.payments[0] as Partial<typeof omitted.payments[0]>).paid_at;
