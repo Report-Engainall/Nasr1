@@ -617,7 +617,14 @@ export function buildDecisionMemoryBook(input: {
     outcomeIds.add(outcome.id);
   }
   const records: DecisionMemoryRecord[] = input.outcomes.slice()
-    .sort((a,b)=>b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id))
+    .sort((a,b)=>{
+      const aTime=validTime(a.createdAt)?Date.parse(a.createdAt):null;
+      const bTime=validTime(b.createdAt)?Date.parse(b.createdAt):null;
+      if(aTime===null&&bTime!==null)return 1;
+      if(bTime===null&&aTime!==null)return -1;
+      if(aTime===null||bTime===null)return a.id.localeCompare(b.id);
+      return bTime-aTime||a.id.localeCompare(b.id);
+    })
     .map(outcome => {
       const candidates = snapshotsByDecision.get(outcome.id) ?? [];
       const snapshot = candidates.length === 1 ? candidates[0] : null;
