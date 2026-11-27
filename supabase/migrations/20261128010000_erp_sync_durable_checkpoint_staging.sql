@@ -232,6 +232,7 @@ BEGIN
           OR p_external_request_id ~ '[[:cntrl:]]'
           OR p_external_request_id<>btrim(p_external_request_id)
         ))
+     OR p_completed IS NULL
      OR (p_completed IS TRUE AND (p_next_cursor_ciphertext IS NOT NULL OR p_pending_watermark IS NOT NULL))
      OR (p_completed IS FALSE AND p_next_cursor_ciphertext IS NULL)
   THEN
