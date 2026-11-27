@@ -64,6 +64,20 @@ describe("ErpReadSyncPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("2026");
   });
 
+  it("supports staging customer invoices, payment receipts and statement entries without posting them", async () => {
+    render(<ErpReadSyncPanel canManage />);
+    fireEvent.change(screen.getByLabelText("نوع البيانات"), { target: { value: "customer_statement_entries" } });
+    fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
+    fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "تنفيذ مزامنة القراءة" }));
+    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledWith(expect.objectContaining({
+      object_type: "customer_statement_entries",
+      company_external_id: "COMPANY-01",
+      branch_external_id: "BRANCH-01",
+    })));
+    expect(screen.getByText(/لا تُرحّل إلى دفتر الحساب أو المخزون تلقائيًا/)).toBeInTheDocument();
+  });
+
   it("refuses to run with missing mandatory company and branch identifiers", () => {
     render(<ErpReadSyncPanel canManage />);
     expect(screen.getByRole("button", { name: "تنفيذ مزامنة القراءة" })).toBeDisabled();
