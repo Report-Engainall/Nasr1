@@ -1777,7 +1777,7 @@ BEGIN
    WHERE r.id=p_receipt_id
      AND r.organization_id=v_org
      AND r.customer_id=v_customer
-   FOR SHARE;
+   FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='P0002',
       MESSAGE='customer payment receipt was not found for this account';
