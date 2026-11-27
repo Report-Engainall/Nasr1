@@ -141,8 +141,10 @@ export type ErpPersistResult = {
 /**
  * P2 implements this boundary with the canonical tenant-scoped staging RPC/table.
  * persistPageAtomically MUST atomically: deduplicate pageFingerprint and records,
- * validate expectedVersion, persist permitted source projections/receipts, and
- * advance cursor + pending/completed watermark in one DB transaction. It must
+ * deduplicate pageFingerprint before checking expectedVersion (lost-response replay),
+ * persist permitted source projections/receipts, and advance cursor + pending/completed
+ * watermark in one DB transaction. Treat cursors as sensitive: protect at rest and never
+ * render or log them. It must
  * never post stock, invoices, receipts, or ledger entries.
  */
 export interface ErpSyncCheckpointStore {
@@ -764,19 +766,27 @@ export async function runIncrementalReadOnlySync(input: {
   const maxPages = input.maxPages ?? 10;
   const maxRecords = input.maxRecords ?? 2000;
   if (!UUID_PATTERN.test(input.scope.organizationId) ||
-      !["onyx_pro", "al_mutakamel"].includes(input.scope.provider) ||
+      !["onyx_pro", "al_mutakamel"].includes(scope.provider) ||
       !Object.prototype.hasOwnProperty.call(SAFE_FIELDS, input.scope.objectType) ||
-      !cleanIdentity(input.scope.companyExternalId, "company_external_id") ||
-      !cleanIdentity(input.scope.branchExternalId, "branch_external_id") ||
-      (input.scope.warehouseExternalId != null && !cleanIdentity(input.scope.warehouseExternalId, "warehouse_external_id")) ||
-      (input.scope.currencyCode != null && !cleanIdentity(input.scope.currencyCode, "currency_code", 12)) ||
       !Number.isSafeInteger(overlapMs) || overlapMs < 0 || overlapMs > 24 * 60 * 60 * 1000 ||
       !Number.isInteger(maxPages) || maxPages < 1 || maxPages > MAX_SYNC_PAGES ||
       !Number.isInteger(maxRecords) || maxRecords < 1 || maxRecords > MAX_SYNC_RECORDS) {
     throw new ErpConnectorError("INVALID_SYNC_SCOPE_OR_LIMIT", "نطاق المؤسسة أو حدود تشغيل مزامنة ERP غير صالحة.");
   }
+  const scope: ErpSyncScope = {
+    ...input.scope,
+    organizationId: input.scope.organizationId.toLocaleLowerCase("en"),
+    companyExternalId: cleanIdentity(input.scope.companyExternalId, "company_external_id"),
+    branchExternalId: cleanIdentity(input.scope.branchExternalId, "branch_external_id"),
+    warehouseExternalId: input.scope.warehouseExternalId == null
+      ? null
+      : cleanIdentity(input.scope.warehouseExternalId, "warehouse_external_id"),
+    currencyCode: input.scope.currencyCode == null
+      ? null
+      : cleanIdentity(input.scope.currencyCode, "currency_code", 12).toLocaleUpperCase("en"),
+  };
 
-  let checkpoint = validateCheckpoint(await input.store.loadCheckpoint(input.scope));
+  let checkpoint = validateCheckpoint(await input.store.loadCheckpoint(scope));
   let pagesCommitted = 0;
   let recordsRead = 0;
   let cursorRecoveryUsed = false;
@@ -800,7 +810,7 @@ export async function runIncrementalReadOnlySync(input: {
         !cursorRecoveryUsed
       ) {
         checkpoint = validateCheckpoint(await input.store.resetExpiredCursor({
-          scope: input.scope,
+          scope: scope,
           expectedVersion: checkpoint.version,
         }));
         cursorRecoveryUsed = true;
@@ -821,17 +831,17 @@ export async function runIncrementalReadOnlySync(input: {
     if (page.nextCursor) seenCursors.add(page.nextCursor);
 
     const records = await Promise.all(page.records.map(async (sourceRecord) => {
-      const record = validateCanonicalCandidate(sourceRecord, input.scope);
+      const record = validateCanonicalCandidate(sourceRecord, scope);
       const scopedRecord = {
         ...record,
-        companyExternalId: input.scope.companyExternalId,
-        branchExternalId: input.scope.branchExternalId,
-        warehouseExternalId: input.scope.warehouseExternalId ?? null,
-        currencyCode: input.scope.currencyCode ?? null,
+        companyExternalId: scope.companyExternalId,
+        branchExternalId: scope.branchExternalId,
+        warehouseExternalId: scope.warehouseExternalId ?? null,
+        currencyCode: scope.currencyCode ?? null,
       };
       const idempotencyKey = await sha256Hex(stableJson({
         provider: scopedRecord.provider,
-        organizationId: input.scope.organizationId,
+        organizationId: scope.organizationId,
         companyExternalId: scopedRecord.companyExternalId,
         branchExternalId: scopedRecord.branchExternalId,
         warehouseExternalId: scopedRecord.warehouseExternalId,
@@ -854,11 +864,11 @@ export async function runIncrementalReadOnlySync(input: {
     const pendingWatermark = completed ? null : pageWatermark;
 
     const pageFingerprint = await sha256Hex(stableJson({
-      provider: input.scope.provider,
-      organizationId: input.scope.organizationId,
-      companyExternalId: input.scope.companyExternalId,
-      branchExternalId: input.scope.branchExternalId,
-      objectType: input.scope.objectType,
+      provider: scope.provider,
+      organizationId: scope.organizationId,
+      companyExternalId: scope.companyExternalId,
+      branchExternalId: scope.branchExternalId,
+      objectType: scope.objectType,
       requestCursor: checkpoint.cursor,
       completedWatermark: checkpoint.completedWatermark,
       nextCursor: page.nextCursor,
@@ -867,7 +877,7 @@ export async function runIncrementalReadOnlySync(input: {
     }));
 
     const persisted = await input.store.persistPageAtomically({
-      scope: input.scope,
+      scope: scope,
       expectedVersion: checkpoint.version,
       pageFingerprint,
       records,
