@@ -66,7 +66,7 @@ const TREND_THRESHOLD_HUNDREDTHS = 2_000;
 
 function validInstant(value: string): boolean {
   if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) return false;
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)) return false;
   const day = value.slice(0, 10);
   const millis = Date.parse(day + "T00:00:00.000Z");
   return Number.isFinite(Date.parse(value)) && Number.isFinite(millis) &&
