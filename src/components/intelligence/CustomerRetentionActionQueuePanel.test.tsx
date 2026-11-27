@@ -90,6 +90,29 @@ describe("CustomerRetentionActionQueuePanel", () => {
     expect(screen.getByText(/لا ترسل رسائل للعملاء/)).toBeInTheDocument();
   });
 
+  it("wires the visible search and action controls to the loaded queue", () => {
+    const extra = {
+      ...verifiedQueue.actions[0],
+      customerRef: "customer-2222222222",
+      priority: "MEDIUM" as const,
+      action: "PREVENT_CHURN" as const,
+      daysSinceLastOrder: 45,
+      reason: "راجع تأخر الطلب قبل فقدان العميل.",
+    };
+    render(<CustomerRetentionActionQueuePanel
+      queue={{ ...verifiedQueue, actions: [...verifiedQueue.actions, extra], totalActionable: 2 }}
+      loading={false}
+    />);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "البحث في إجراءات متابعة العملاء" }), {
+      target: { value: "تأخر الطلب" },
+    });
+
+    expect(screen.getByText("منع فقدان العميل")).toBeInTheDocument();
+    expect(screen.queryByText("إعادة تنشيط العميل")).not.toBeInTheDocument();
+    expect(screen.getByText(/يعرض 1 من 2 إجراء محمّل/)).toBeInTheDocument();
+  });
+
   it("withholds all customer actions when the source population is not verified", () => {
     const withheld: CustomerRetentionActionQueue = {
       ...verifiedQueue,
