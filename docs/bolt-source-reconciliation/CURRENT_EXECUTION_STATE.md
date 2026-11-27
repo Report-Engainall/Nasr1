@@ -1,24 +1,64 @@
-# LIVE EXECUTION RESUME — 2026-11-27 (FOUR-WORKSTREAM DIRECTIVE)
+# LIVE EXECUTION RESUME — 2026-11-28 (RESULT-FIRST FOUR-WORKSTREAM COMMAND)
 
-> Sole execution pointer. This top block supersedes older three-programmer wording below. Re-fetch the live `main` head at each launch; the SHA below is the observed documentation baseline, not a permanent ref. Do not repeat accepted work or treat historical test results as current-SHA proof.
+> **The only live execution cursor.** Read this top section and execute it. The long content below the history boundary is retained evidence, not a checklist to repeat. Fetch live `main` once at the next launch.
 
-## Current repository observation
+## Verified repository state
 
-- Repository: `Report-Engainall/Nasr1`; branch: `main`; sole source of truth.
-- **Latest observed main HEAD before this pointer refresh:** `1cbbc345d800311d698481ec971673ae8cfd80e1` (documentation-only); **latest code-bearing main SHA:** `9c51f65f16aad1be300444cc37f5a0457b3dccb1` (finance payment chronology and immutable receipt reprint fix; parent `202bb107545fd70db454d5cd6f6923cc76e9f0b4`). Re-fetch live `main` at the next launch; documentation-only pointer commits may advance the ref without changing this code SHA.
-- Exact-head main checks on `9c51f65f16aad1be300444cc37f5a0457b3dccb1`: **P1 Vitest/strict TypeScript SUCCESS** (run `46069932445`); **P2 Playwright Critical Paths SUCCESS** (run `46069932464`), including local Supabase/PostgreSQL 17 migrations, authenticated order persistence/tenant denial, Chromium and finance/task print. Hosted customer/order/tenant E2E is **SKIPPED**, not PASS.
-- No production Supabase writes, remote migrations, Edge deployment, secrets changes, external ERP mutations, Vercel deployment/quota use, Bolt or Lovable actions were performed. Release remains **NO-GO**.
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Latest observed `main` HEAD before this cursor rewrite: `0ebc613b190367cbeb14548e94231893fe925aa9` (documentation-only exact-head status refresh).
+- Latest code-bearing main commit: `9c51f65f16aad1be300444cc37f5a0457b3dccb1` — PR #679 merge. This execution directive does not change product code.
+- PR #679 is **MERGED** at `9c51f65f16aad1be300444cc37f5a0457b3dccb1`: payment chronology and immutable receipt reprint. This is accepted work; do not rebuild it.
+- Baseline P1 Vitest/strict TypeScript and P2 critical-path Playwright were SUCCESS on the code-bearing SHA above. They are historical baseline evidence, not acceptance for later PR heads. Hosted customer/order/tenant E2E remained SKIPPED.
+- **PR #697 has a confirmed exact-head PostgreSQL 17 migration syntax failure** in `record_customer_financial_source_reconciliation_evidence`, SQLSTATE `42601`, at migration statement 30. This is a code defect to fix, not a reason to run repeated scans. Exact PR head: `e378f4d3e3a08db8d57669f029a037040c5a1494`.
+- Release remains **NO-GO**. This directive does not authorize production Supabase writes, remote migrations, ERP writes, deployment, paid AI, Vercel quota use, Bolt New or Lovable.
 
-## Live reconciliation — 2026-11-28 00:34 +03
+## Live open-PR queue — GitHub snapshot 2026-11-28
 
-This section supersedes older PR/run states below wherever the same item is listed. Re-fetch live refs and exact-head checks before any merge.
+`mergeable` is GitHub mergeability metadata, not a CI result. Only exact-head workflow results count for acceptance.
 
-- **Latest observed main before this pointer refresh:** documentation-only HEAD `9d32b275475200e919b3d3e9c6d08a8a5823068b`; latest code-bearing SHA `9c51f65f16aad1be300444cc37f5a0457b3dccb1`. Exact-code-head P1 run `46069932445` SUCCESS and P2 run `46069932464` SUCCESS. This is baseline code acceptance only; hosted customer/order/tenant E2E remains SKIPPED.
-- **PR #697 — P2 customer financial-source routing:** latest head `e378f4d3e3a08db8d57669f029a037040c5a1494`, Draft. Exact-head P1 `46072628870` SUCCESS; P2 `46072628860` was QUEUED at last observation. Dedicated isolated PG17 run `46072628890`, job `140752923065`, FAILED at migration statement 30 in `record_customer_financial_source_reconciliation_evidence` with SQLSTATE `42601` (`syntax error at end of input`). Log proves image/runtime startup completed and migration replay began; this is a reproducible SQL syntax failure, not Docker/registry. Static scan found balanced parentheses and IF/END IF, so parser pinpoint/restructure the long validation IF is still required. PR comment `7228958014` records exact-head failure. No migration PASS claimed.
-- **PR #699 — P1 customer financial-source UI guard:** head `8447a3848bd51506233af8b949f093ba092810af`. P1 `46069854767` SUCCESS. P2 `46069854671` FAILURE on exact head: public smoke succeeded; hosted tenant job SKIPPED; local PG17 + Chromium job `140746993447` failed at `e2e/finance-task-print.spec.ts:898`. Four finance/print tests passed; multi-invoice receipt allocation/reprint timed out at 6 minutes on initial attempt and retry. Cleanup error at line 1041 is secondary. Comment `7228868358` records the failure and demands trace-level root cause/fix; do not merely increase timeout. #699 waits on #697.
-- **PR #700 — P3 evidence-integrity consolidation:** latest head `3d10287a5b829d66b2a1972f66b82671a6439bac`. Exact-head P1 `46073495230` IN_PROGRESS (Vitest/strict TS/build job); P2 `46073495262` QUEUED. Supplemental Customer Shopping Lists PG17 `46073495225` SUCCESS is separate scope, not P1/P2 acceptance. No merge until exact-head P1/P2 and full suite/build pass.
-- **PR #686 — P4 read-only incremental ERP connector:** latest head `3cbea0faa71981b616a0752ddd0766a2fe07d9a2`, base `b0e3241c36899e6ecfc42954898b0d459dfca17d`, Draft. Exact-head P1 `46073758029` and P2 `46073758127` QUEUED. Timestamp test fix remains in history; no new-head PASS. P2-owned atomic checkpoint/staging persistence remains open. Provider edition/licence/API contract/credentials/sandbox UNKNOWN; live transport disabled.
-- **Merge discipline:** #699 waits for #697's server enforcement and local PG17 proof; #697 waits for exact-head migration/source-routing acceptance; #700 waits for P3 regression repair and exact-head P1/P2; #686 waits for exact-head P1/P2 and the P2 persistence contract. Never merge from queued, in-progress, skipped or failed evidence.
+| Owner | Existing work | Current head | State | Required business outcome |
+|---|---|---|---|---|
+| P1 | #699 — customer financial-source UI | `8447a3848bd51506233af8b949f093ba092810af` | Open, non-draft, mergeable; 6 files | Complete the customer financial workspace using the server-selected source; show only the customer's own invoices, statements, receipts and confirmed payments; connect real print/reprint flow. Fix a reproduced exact-head failure at root. |
+| P2 | #697 — financial-source routing | `e378f4d3e3a08db8d57669f029a037040c5a1494` | Open, draft, mergeable; 12 files | Fix the confirmed migration syntax error by restructuring the long validation into clear, parser-safe statements; prove APP_ONLY/ONYX/MUTAKAMEL source isolation and atomic/idempotent reads on isolated PG17. Supply P4's canonical staging/checkpoint contract. |
+| P3 | #700 — intelligence evidence integrity | `3d10287a5b829d66b2a1972f66b82671a6439bac` | Open, non-draft, mergeable; 47 files | Finish one integrated source-backed intelligence delivery on existing engines and command-center surfaces; preserve timestamp, currency and provenance evidence. Exact-head P1 was IN_PROGRESS and P2 QUEUED at the last recorded workflow refresh. |
+| P4 | #686 — read-only incremental ERP connector | `3cbea0faa71981b616a0752ddd0766a2fe07d9a2` | Open, draft, mergeable; 4 files | Complete local adapter, read-transport boundary, safe incremental cursor, durable checkpoint/staging handoff with P2, replay protection, retries, receipts and truthful connector health. Exact-head P1/P2 were QUEUED at the last recorded workflow refresh. |
+
+### Other open requests — preserve unique work, do not create a review loop
+
+- #602 and #605 are inventory/Onyx PostgreSQL acceptance guards; GitHub reports both non-mergeable. Preserve their unique data-integrity assertions, synchronize once to current `main`, then run them on the resulting exact SHA. They do not replace product implementation.
+- #680 and #698 are P3 currency/evidence fixes; GitHub reports both non-mergeable. Compare their changed paths with #700 once and consolidate only unique, needed behavior. Do not keep competing fixes to the same engine or contract.
+- #679 is merged and excluded from the backlog.
+- No new PR for a capability already covered by #686/#697/#699/#700 or existing customer finance, Onyx import/export, Integration Hub, DLV-009, returns, liquidity, replenishment and analytics modules.
+
+## Immediate execution — all four owners in parallel
+
+1. **P2:** fix the confirmed #697 SQL syntax failure in source, not by retrying unchanged migration text. Complete source isolation, idempotency and the PG17 acceptance for the changed head.
+2. **P4 + P2:** use the P2 canonical contract to finish durable staging/checkpoint persistence and incremental connector behavior in #686. Vendor transport remains disabled until actual version, licence, official interface contract, credentials and sandbox are verified; local code must still be completed.
+3. **P1 + P2:** finish #699 end-to-end against the server-selected financial-source contract. Do not wait idle for P2: complete the UI, data states, print behavior and typed integration against the agreed contract, then connect the accepted server implementation.
+4. **P3:** complete #700 as one real intelligence outcome, mount it in the existing command center, and fold #680/#698 only when the diff proves they are unique dependencies or duplicate fragments.
+5. **P1:** integrate and merge each accepted slice immediately; do not wait for a different owner's independent outcome.
+
+## Hard rules for every new launch
+
+- Every unblocked owner must deliver working code and one usable business/operational result. Plans, scans, test runs, comments, branches and reports alone are not delivery.
+- Work from the existing PR and existing implementation first. No re-journaling, full repository scans, architecture inventories or rebuilding accepted features.
+- One large coherent vertical slice per owner; no chain of micro-PRs for a single feature and no duplicate screen/service/engine/route.
+- Implement first. Run focused tests for changed behavior plus required security/finance/inventory invariants. Fix failures at the root in the same workstream. Do not rerun unchanged code or successful unaffected suites.
+- External ERP access blockers do not stop local adapter, mapping, incremental cursor, staging, retry, receipts, reconciliation or UI work.
+- Do not invent live sync, API availability, balances, stock, payment or AI success. Keep unverified external capabilities disabled and label the precise missing prerequisite.
+- Merge immediately when the relevant exact-SHA checks pass and the diff is conflict-free. No force-push, lost unique work or bypassed safety gates.
+- Keep production, secrets, remote database, hosting quotas and paid providers untouched without explicit authorization.
+
+## Four-line handoff — no activity reports
+
+`OUTCOME:` what is now usable.
+`CODE:` PR/commit and exact SHA.
+`ACCEPTANCE:` focused commands/checks actually run and result.
+`NEXT:` the next implementation change.
+
+A blocker must identify one precise missing prerequisite and the local work already completed. No owner ends a launch with a report alone while executable work remains.
+
+---
 
 ## Merged during this execution
 
