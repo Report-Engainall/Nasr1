@@ -254,12 +254,15 @@ export function buildProductDemandForecast(input: {
 
     const currentOrders = currentSample.minorUnits / SCALE;
     const baselineOrders = baselineSample.minorUnits / SCALE;
+    if (currentOrders > BigInt(Number.MAX_SAFE_INTEGER) ||
+        baselineOrders > BigInt(Number.MAX_SAFE_INTEGER)) {
+      withheld.push({ signalId: signal.id, productRef: signal.subjectRef, reason: "UNSUPPORTED_PRECISION" });
+      continue;
+    }
     if ((current.minorUnits === 0n) !== (currentOrders === 0n) ||
         (baseline.minorUnits === 0n) !== (baselineOrders === 0n) ||
         (currentOrders > 0n && currentOrders < BigInt(MIN_SAMPLE)) ||
-        (baselineOrders > 0n && baselineOrders < BigInt(MIN_SAMPLE)) ||
-        currentOrders > BigInt(Number.MAX_SAFE_INTEGER) ||
-        baselineOrders > BigInt(Number.MAX_SAFE_INTEGER)) {
+        (baselineOrders > 0n && baselineOrders < BigInt(MIN_SAMPLE))) {
       withheld.push({ signalId: signal.id, productRef: signal.subjectRef, reason: "SAMPLE_INSUFFICIENT" });
       continue;
     }
