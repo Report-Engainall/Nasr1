@@ -155,13 +155,13 @@ describe("daily decision work queue selectors", () => {
     const unsafe = decision("csv-1", "PROPOSED", {
       proposedResult: '=HYPERLINK("https://example.invalid","open")',
       owner: "\t@SUM(A1:A2)",
-      decisionReason: 'contains "quotes", commas, and a newline\\nsecond line',
+      decisionReason: 'contains "quotes", commas, and a newline\nsecond line',
     });
     const csv = buildDailyDecisionCsv([unsafe]);
 
-    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain('"\'=HYPERLINK(""https://example.invalid"",""open"")"');
-    expect(csv).toContain('"\'\\t@SUM(A1:A2)"');
+    expect(csv).toContain('"\'\t@SUM(A1:A2)"');
     expect(csv).toContain('"contains ""quotes"", commas, and a newline');
     expect(buildDailyDecisionCsv([])).toContain("مرجع القرار");
   });
