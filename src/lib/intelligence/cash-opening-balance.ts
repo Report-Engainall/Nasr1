@@ -64,7 +64,7 @@ export function buildApprovedCashOpeningBalances(
   const requestedTime = strictTimestamp(requestedAsOf);
   const workspaceTime = strictTimestamp(workspace.asOf);
 
-  if (!Number.isFinite(requestedTime) || !Number.isFinite(workspaceTime) ||
+  if (requestedTime === null || workspaceTime === null ||
       new Date(requestedTime).toISOString() !== new Date(workspaceTime).toISOString()) {
     return {
       metrics: [],
