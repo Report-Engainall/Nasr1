@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCustomerRetentionActionQueue, buildCustomerRetentionReport, type CustomerRetentionRecord, type CustomerRetentionSaleRecord } from "./customer-retention";
+import { buildCustomerRetentionActionQueue, buildCustomerRetentionDecisionCandidates, buildCustomerRetentionReport, type CustomerRetentionRecord, type CustomerRetentionSaleRecord } from "./customer-retention";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 
 const asOf = "2026-11-26T00:00:00.000Z";
@@ -308,5 +308,88 @@ describe("customer retention follow-up queue", () => {
     expect(queue.omittedCount).toBe(2);
     expect(() => buildCustomerRetentionActionQueue(build(customers, []), 0)).toThrow(RangeError);
     expect(() => buildCustomerRetentionActionQueue(build(customers, []), 201)).toThrow(RangeError);
+  });
+});
+
+
+describe("customer retention report clock integrity", () => {
+  it.each([
+    "2026-11-26T00:00:00", "2026-02-31T00:00:00.000Z", "2026-11-26T25:00:00.000Z",
+    "2026-11-26T00:00:00.000+14:01", "2026-11-26T00:00:00.000+23:59",
+  ])("rejects an invalid report asOf timestamp: %s", invalidAsOf => {
+    expect(() => buildCustomerRetentionReport({
+      id: "invalid-retention-clock", asOf: invalidAsOf, period: currentPeriod, previousPeriod,
+      evidenceRecords: [],
+      coverage: {
+        status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE",
+        expectedCustomerCount: 0, returnedCustomerCount: 0, expectedSalesRecordCount: 0,
+        returnedSalesRecordCount: 0, truncated: false, evidenceIds: ["coverage:customers"],
+      },
+      customers: [], salesByCurrency: [],
+    })).toThrow("asOf must be a valid timezone-qualified timestamp");
+  });
+  it("withholds full-population conclusions when coverage evidence has an invalid source clock", () => {
+    const { customers, sales } = baseline();
+    const metrics = [...customers.flatMap(item => [item.ordersCurrentPeriod, item.ordersPreviousPeriod]), ...sales.map(item => item.sales)];
+    const invalidCoverage: EvidenceRecord = {
+      id: "coverage:customers", source: { kind: "RPC", name: "test.customer_retention.coverage", version: "1.0.0" },
+      sourceTimestamp: "2026-11-25T23:50:00.000+23:59", asOf, period: currentPeriod,
+      status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [],
+    };
+    const result = build(customers, sales, { evidenceRecords: [invalidCoverage, ...metrics.map(evidence)] });
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.population.total).toBeNull();
+    expect(result.warnings).toContain("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
+  });
+  it("requires coverage evidence to describe the exact requested period", () => {
+    const { customers, sales } = baseline();
+    const metrics = [...customers.flatMap(item => [item.ordersCurrentPeriod, item.ordersPreviousPeriod]), ...sales.map(item => item.sales)];
+    const mismatchedCoverage: EvidenceRecord = {
+      id: "coverage:customers", source: { kind: "RPC", name: "test.customer_retention.coverage", version: "1.0.0" },
+      sourceTimestamp: "2026-11-25T23:50:00.000Z", asOf, period: previousPeriod,
+      status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [],
+    };
+    const result = build(customers, sales, { evidenceRecords: [mismatchedCoverage, ...metrics.map(evidence)] });
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.population.total).toBeNull();
+    expect(result.warnings).toContain("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
+  });
+});
+describe("customer retention daily decision integration", () => {
+  it("promotes verified follow-ups with the original metric IDs, keys and evidence", () => {
+    const report = build([
+      customer("inactive-customer", 0, 1, "2026-07-01T12:00:00.000Z"),
+      customer("at-risk-customer", 0, 2, "2026-09-05T12:00:00.000Z"),
+    ], []);
+    const queue = buildCustomerRetentionActionQueue(report);
+    const decisions = buildCustomerRetentionDecisionCandidates({ asOf, queue });
+    expect(queue.status).toBe("VERIFIED");
+    expect(decisions.map(item => [item.priority, item.ruleId])).toEqual([
+      ["P1", "customers.retention.follow-up"], ["P1", "customers.retention.follow-up"],
+    ]);
+    expect(decisions[0]).toMatchObject({
+      impact: null, impactStatus: "WITHHELD", impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+      owner: "مسؤول علاقات العملاء",
+      proof: {
+        evidenceIds: ["evidence:inactive-customer:current", "evidence:inactive-customer:previous"],
+        metricKeys: ["customer.retention.inactive-customer:current", "customer.retention.inactive-customer:previous"],
+        formulaVersions: ["fixture.customer-retention@1.0.0", "fixture.customer-retention@1.0.0"],
+      },
+    });
+    expect(queue.actions[0].metricIds).toEqual(["inactive-customer:current", "inactive-customer:previous"]);
+  });
+  it("does not promote actions from incomplete population coverage", () => {
+    const partial = buildCustomerRetentionActionQueue(build([
+      customer("partial-customer", 0, 2, "2026-07-01T12:00:00.000Z"),
+    ], [], { truncated: true }));
+    expect(buildCustomerRetentionDecisionCandidates({ asOf, queue: partial })).toEqual([]);
+  });
+  it("never invents monetary impact for customer follow-up decisions", () => {
+    const queue = buildCustomerRetentionActionQueue(build([
+      customer("cooling-customer", 0, 1, "2026-10-10T12:00:00.000Z"),
+    ], []));
+    expect(buildCustomerRetentionDecisionCandidates({ asOf, queue })[0]).toMatchObject({
+      impact: null, impactStatus: "WITHHELD", impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+    });
   });
 });

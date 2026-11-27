@@ -192,3 +192,68 @@ describe("dead stock ISO timestamp offset contract", () => {
     })).toThrow("asOf must be a valid timestamp");
   });
 });
+
+
+describe("dead-stock source timestamp boundaries", () => {
+  const buildWithClocks = (lastMovementAt: string, sourceTimestamp: string) => {
+    const item = {
+      productRef: "P-STRICT-CLOCK",
+      lastMovementAt,
+      movementCoverage: {
+        status: "VERIFIED" as const,
+        period,
+        completeness: "COMPLETE" as const,
+        quality: "ACCEPTABLE" as const,
+        evidenceIds: ["mv-strict-clock"],
+      },
+      availableQuantity: metric("qty-strict-clock", "QUANTITY", 2),
+      quantityUnit: "EA",
+      unitCost: null,
+      soldQuantityWindow: null,
+      averageInventoryWindow: null,
+    };
+    return buildDeadStockReport({
+      id: "dead-stock-strict-clock",
+      asOf,
+      period,
+      evidenceRecords: [
+        { ...evidence("mv-strict-clock"), sourceTimestamp },
+        evidence("qty-strict-clock"),
+      ],
+      products: [item],
+      rule,
+    });
+  };
+
+  it.each([
+    "2026-06-01T00:00:00.000",
+    "2026-06-01T00:00:00.000+14:01",
+    "2026-06-01T00:00:00.000-14:01",
+    "2026-06-01T00:00:00.000+23:59",
+    "2026-02-30T00:00:00.000Z",
+  ])("withholds movement classification for a non-strict last-movement clock: %s", invalidMovementAt => {
+    const result = buildWithClocks(invalidMovementAt, asOf);
+    expect(result.items[0]).toMatchObject({ classification: "UNKNOWN", movementStatus: "UNVERIFIED" });
+    expect(result.items[0].warnings).toContain("LAST_MOVEMENT_TIMESTAMP_INVALID");
+  });
+
+  it.each([
+    "2026-10-30T06:00:00.000",
+    "2026-10-30T06:00:00.000+14:01",
+    "2026-10-30T06:00:00.000-14:01",
+    "2026-10-30T06:00:00.000+23:59",
+    "2026-02-30T06:00:00.000Z",
+  ])("rejects movement coverage whose source clock is not a strict instant: %s", invalidSourceAt => {
+    const result = buildWithClocks("2026-06-01T00:00:00.000Z", invalidSourceAt);
+    expect(result.items[0]).toMatchObject({ classification: "UNKNOWN", movementStatus: "NEEDS_REVIEW" });
+    expect(result.items[0].warnings).toContain("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
+  });
+
+  it.each([
+    ["+14:00", "2026-06-01T00:00:00.000+14:00", "2026-10-30T20:00:00.000+14:00"],
+    ["-14:00", "2026-06-01T00:00:00.000-14:00", "2026-10-29T17:00:00.000-14:00"],
+  ])("accepts a valid movement and source clock at the ISO offset boundary %s", (_label, movementAt, sourceAt) => {
+    const result = buildWithClocks(movementAt, sourceAt);
+    expect(result.items[0]).toMatchObject({ classification: "STAGNANT", movementStatus: "VERIFIED" });
+  });
+});
