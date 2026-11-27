@@ -197,6 +197,20 @@ describe("supplier performance evidence contract", () => {
     expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
   });
 
+  it("rejects a recent order whose reported lead time does not reconcile to its timestamps", () => {
+    const input = snapshot();
+    input.suppliers[0].recentOrders[2].actualLeadDays = 3;
+
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
+  it("rejects an on-time flag that contradicts the awarded delivery interval", () => {
+    const input = snapshot();
+    input.suppliers[0].recentOrders[3].onTime = false;
+
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
   it("rejects a latest-submission timestamp that contradicts the included recent orders", () => {
     const input = snapshot();
     input.suppliers[0].latestSubmittedAt = "2026-11-11T09:00:00.000Z";
