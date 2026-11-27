@@ -281,7 +281,7 @@ const REQUIRED_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
+const ISO_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):(\d{2}))$/;
 const HEADER_NAME_PATTERN = /^(?:authorization|x-[a-z0-9-]{1,60})$/i;
 const SAFE_REQUEST_ID_HEADER_PATTERN = /^(?:x-(?:request|correlation|trace|transaction)-id|request-id|correlation-id|trace-id)$/i;
 const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._~-]+$/;
@@ -327,11 +327,40 @@ function cleanIdentity(value: unknown, label: string, max = 256): string {
 }
 
 function validateTimestamp(value: unknown): string {
-  if (typeof value !== "string" || !ISO_TIMESTAMP_PATTERN.test(value)) {
+  const match = typeof value === "string" ? ISO_TIMESTAMP_PATTERN.exec(value) : null;
+  if (!match) {
     throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "تاريخ تحديث سجل ERP يجب أن يتضمن منطقة زمنية بصيغة ISO-8601.");
   }
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime()) || date.toISOString() === "Invalid Date") {
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = [
+    31,
+    year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28,
+    31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+  ][month - 1];
+  if (
+    year < 1 || month < 1 || month > 12 || !daysInMonth ||
+    day < 1 || day > daysInMonth ||
+    hour > 23 || minute > 59 || second > 59
+  ) {
+    throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "تاريخ تحديث سجل ERP غير صالح تقويميًا.");
+  }
+
+  if (match[8] !== "Z") {
+    const offsetHours = Number(match[10]);
+    const offsetMinutes = Number(match[11]);
+    if (offsetHours > 14 || offsetMinutes > 59 || (offsetHours === 14 && offsetMinutes !== 0)) {
+      throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "إزاحة المنطقة الزمنية في تاريخ ERP تتجاوز حد ISO-8601.");
+    }
+  }
+
+  const date = new Date(value as string);
+  if (!Number.isFinite(date.getTime())) {
     throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "تاريخ تحديث سجل ERP غير صالح.");
   }
   return date.toISOString();
