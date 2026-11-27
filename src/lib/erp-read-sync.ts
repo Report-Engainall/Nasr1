@@ -74,7 +74,19 @@ function timestamp(value: unknown, label: string): string | null {
   }
   return value;
 }
-function parsePreview(value: unknown): ErpReadSyncPreview | null {
+const CLIENT_PREVIEW_FIELDS: Record<ErpReadSyncObject, readonly string[]> = {
+  products: ["item_code", "sku", "barcode", "name", "name_en", "description", "category_code", "category_name", "brand_name", "unit_code", "unit_name", "is_active"],
+  customers: ["customer_code", "business_name", "phone", "email", "customer_status"],
+  warehouses: ["warehouse_code", "warehouse_name", "is_active"],
+  stock_balances: ["item_code", "warehouse_code", "quantity_on_hand", "quantity_reserved", "quantity_available"],
+  product_units: ["item_code", "unit_code", "base_unit_code", "conversion_factor", "is_base_unit", "is_active"],
+  product_prices: ["item_code", "price_list_code", "customer_tier", "currency_code", "unit_code", "unit_price", "minimum_quantity", "discount_percent", "is_active"],
+  customer_financial_documents: ["external_customer_id", "document_number", "document_type", "document_status", "issue_date", "due_date", "currency_code", "total_amount", "paid_amount", "outstanding_amount", "reference"],
+  customer_payment_receipts: ["external_customer_id", "receipt_number", "receipt_date", "currency_code", "amount", "payment_status", "payment_method", "applied_document_number", "reference"],
+  customer_statement_entries: ["external_customer_id", "entry_reference", "entry_date", "due_date", "currency_code", "entry_type", "debit_amount", "credit_amount", "source_document_number", "description"],
+};
+
+function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyncPreview | null {
   if (value === null) return null;
   if (!isRecord(value) || !Array.isArray(value.records)) {
     throw new Error("معاينة سجلات ERP لا تطابق العقد المرحلي.");
@@ -86,6 +98,7 @@ function parsePreview(value: unknown): ErpReadSyncPreview | null {
   if (limit < 1 || limit > 50 || offset > 5000 || value.records.length > limit || value.records.length > total) {
     throw new Error("حدود معاينة سجلات ERP غير صالحة.");
   }
+  const allowedFields = new Set(CLIENT_PREVIEW_FIELDS[objectType]);
   const records = value.records.map((item): ErpReadSyncPreviewRecord => {
     if (!isRecord(item) || typeof item.externalId !== "string" || !item.externalId.trim() ||
         typeof item.sourceUpdatedAt !== "string" || !Number.isFinite(Date.parse(item.sourceUpdatedAt)) ||
@@ -94,7 +107,7 @@ function parsePreview(value: unknown): ErpReadSyncPreview | null {
     }
     const fields: Record<string, string | number | boolean | null> = {};
     for (const [key, fieldValue] of Object.entries(item.fields)) {
-      if (!/^[a-z][a-z0-9_]{0,63}$/.test(key) ||
+      if (!allowedFields.has(key) ||
           !(fieldValue === null || typeof fieldValue === "string" || typeof fieldValue === "boolean" ||
             (typeof fieldValue === "number" && Number.isFinite(fieldValue)))) {
         throw new Error("معاينة ERP تحتوي حقلًا خارج الإسقاط الآمن.");
@@ -114,7 +127,7 @@ function parsePreview(value: unknown): ErpReadSyncPreview | null {
   };
 }
 
-export function parseErpReadSyncResult(value: unknown): ErpReadSyncResult {
+export function parseErpReadSyncResult(value: unknown, objectType: ErpReadSyncObject): ErpReadSyncResult {
   if (!isRecord(value) || (value.status !== "complete" && value.status !== "continuation_required") ||
       !isRecord(value.counts) || !isRecord(value.checkpoint)) {
     throw new Error("استجابة مزامنة ERP لا تطابق عقد القبول.");
@@ -133,7 +146,7 @@ export function parseErpReadSyncResult(value: unknown): ErpReadSyncResult {
       rejected: count(value.counts.rejected, "rejected"),
       conflicted: count(value.counts.conflicted, "conflicted"),
     },
-    preview: value.preview === undefined ? null : parsePreview(value.preview),
+    preview: value.preview === undefined ? null : parsePreview(value.preview, objectType),
     preview_error: value.preview_error === undefined || value.preview_error === null ? null :
       typeof value.preview_error === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value.preview_error)
         ? value.preview_error
@@ -178,5 +191,5 @@ async function safeErrorCode(error: unknown): Promise<string | null> {
 export async function runErpReadSync(input: ErpReadSyncRequest): Promise<ErpReadSyncResult> {
   const { data, error } = await supabase.functions.invoke("erp-read-sync", { body: input });
   if (error) throw new Error(mapErpReadSyncError(await safeErrorCode(error)));
-  return parseErpReadSyncResult(data);
+  return parseErpReadSyncResult(data, input.object_type);
 }
