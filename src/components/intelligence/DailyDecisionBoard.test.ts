@@ -173,6 +173,41 @@ describe("daily decision work queue selectors", () => {
       .toEqual(records.map(item => item.decisionId));
   });
 
+  it("filters by assigned owner and saved priority without reclassifying historical records", () => {
+    const salesP1 = decision("sales-p1", "IN_REVIEW", {
+      owner: "فريق المبيعات",
+      candidateSnapshot: { priority: "P1" } as NonNullable<DecisionMemoryRecord["candidateSnapshot"]>,
+    });
+    const salesP2 = decision("sales-p2", "APPROVED", {
+      owner: "فريق المبيعات",
+      candidateSnapshot: { priority: "P2" } as NonNullable<DecisionMemoryRecord["candidateSnapshot"]>,
+    });
+    const legacy = decision("legacy", "PROPOSED", {
+      owner: "فريق المبيعات",
+      candidateSnapshot: null,
+    });
+    const procurement = decision("procurement", "PROPOSED", {
+      owner: "فريق المشتريات",
+      candidateSnapshot: { priority: "P1" } as NonNullable<DecisionMemoryRecord["candidateSnapshot"]>,
+    });
+
+    expect(filterDailyDecisionRecords(
+      [salesP1, salesP2, legacy, procurement],
+      "ALL",
+      "",
+      NOW,
+      { owner: "فريق المبيعات", priority: "P1" },
+    ).map(item => item.decisionId)).toEqual(["sales-p1"]);
+
+    expect(filterDailyDecisionRecords(
+      [salesP1, salesP2, legacy, procurement],
+      "ALL",
+      "",
+      NOW,
+      { owner: "فريق المبيعات", priority: "UNRANKED" },
+    ).map(item => item.decisionId)).toEqual(["legacy"]);
+  });
+
   it("reports counts from the loaded records without implying full-history coverage", () => {
     const records = [
       decision("late", "ASSIGNED", {
