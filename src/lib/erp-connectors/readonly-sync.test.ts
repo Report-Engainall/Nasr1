@@ -863,7 +863,7 @@ describe("ERP customer financial projections", () => {
   });
 
   it("rejects numeric floating point money before it reaches the checkpoint store", async () => {
-    const { result, store } = await readFinancialProjection("customer_financial_documents", {
+    await expect(readFinancialProjection("customer_financial_documents", {
       external_customer_id: "ONYX-CUSTOMER-001",
       document_number: "INV-FLOAT",
       document_type: "invoice",
@@ -871,9 +871,19 @@ describe("ERP customer financial projections", () => {
       issue_date: "2026-11-27",
       currency_code: "YER",
       total_amount: 1250.75,
-    }).then(() => ({ result: null, store: null })).catch((error: unknown) => ({ result: error, store: null }));
-    expect(result).toMatchObject({ code: "INVALID_ERP_FINANCIAL_AMOUNT" });
-    expect(store).toBeNull();
+    })).rejects.toMatchObject({ code: "INVALID_ERP_FINANCIAL_AMOUNT" });
+  });
+
+  it("rejects an impossible calendar date in customer invoice projections", async () => {
+    await expect(readFinancialProjection("customer_financial_documents", {
+      external_customer_id: "ONYX-CUSTOMER-001",
+      document_number: "INV-INVALID-DATE",
+      document_type: "invoice",
+      document_status: "posted",
+      issue_date: "2026-02-31",
+      currency_code: "YER",
+      total_amount: "100.00",
+    })).rejects.toMatchObject({ code: "INVALID_ERP_FINANCIAL_DATE" });
   });
 
   it("accepts confirmed customer receipts as independent currency-scoped records", async () => {
