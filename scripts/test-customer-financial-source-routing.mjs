@@ -327,7 +327,7 @@ async function main() {
   await expectFailure(
     "same reconciliation hash cannot be replayed with changed currency balances",
     recordReconciliation(requestId, "matched", matchedTime[0].as_of, matchedHash, "ONYX-REF-001", {
-      YER: { current_source_balance: "100.00", target_source_balance: "100.01" },
+      YER: { current_source_balance: "100.01", target_source_balance: "100.01" },
       USD: matchingCurrencyBalances.USD,
     }),
     "22023",
