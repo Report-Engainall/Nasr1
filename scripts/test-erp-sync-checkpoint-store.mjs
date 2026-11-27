@@ -228,6 +228,7 @@ async function main() {
 
   const replay = await persistPage({
     ...first,
+    externalRequestId: "local-erp-retry-with-new-request-id",
     nextCursor: cursorCiphertext("initial-page-reencrypted-with-fresh-aes-gcm-iv"),
   });
   assert.equal(replay.duplicate_page, true, "the same page must replay despite fresh randomized cursor ciphertext");
