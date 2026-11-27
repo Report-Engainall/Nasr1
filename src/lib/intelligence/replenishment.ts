@@ -61,6 +61,9 @@ function readReplenishmentMetric(args: {
     source.unit !== unit ||
     !source.lineage.evidenceIds.length
   ) {
+    warnings.push(...(source.warnings ?? []).filter(
+      warning => warning === "METRIC_CALCULATION_TIMESTAMP_INVALID",
+    ));
     return {
       value: null,
       minorUnits: null,
