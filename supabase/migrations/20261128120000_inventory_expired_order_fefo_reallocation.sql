@@ -47,6 +47,10 @@ DECLARE
   v_take numeric(15,3);
   v_remaining numeric(15,3);
   v_after numeric(15,3);
+  v_batch_reserved numeric(15,3);
+  v_active_batch_reserved numeric(15,3);
+  v_balance_reserved numeric(15,3);
+  v_active_balance_reserved numeric(15,3);
   v_today date:=(pg_catalog.now() AT TIME ZONE 'UTC')::date;
   v_reallocation_id uuid;
   v_reallocated_quantity numeric(15,3):=0;
@@ -189,6 +193,91 @@ BEGIN
      AND b.expiry_date<v_today
    ORDER BY b.product_id,b.warehouse_id,b.id
   LOOP
+    -- Fail closed if the lot or aggregate reservation ledger is already below
+    -- the sum of every still-active order's immutable reserve/release movements.
+    -- A per-order comparison is insufficient when several orders share one lot.
+    SELECT b.quantity_reserved INTO v_batch_reserved
+      FROM public.inventory_batches b
+     WHERE b.id=v_expired.inventory_batch_id
+       AND b.organization_id=v_org;
+
+    SELECT coalesce(pg_catalog.sum(active_batch_reservations.reserved_quantity),0)::numeric(15,3)
+      INTO v_active_batch_reserved
+      FROM (
+        SELECT pg_catalog.sum(
+          CASE WHEN im.movement_type='reserve' THEN im.quantity
+               WHEN im.movement_type='release_reservation' THEN -im.quantity
+               ELSE 0 END
+        )::numeric(15,3) AS reserved_quantity
+        FROM public.inventory_movements im
+        JOIN public.orders active_order
+          ON active_order.id=im.reference_id
+         AND active_order.organization_id=v_org
+        WHERE im.reference_type='order'
+          AND im.inventory_batch_id=v_expired.inventory_batch_id
+          AND im.movement_type IN ('reserve','release_reservation')
+          AND active_order.status IN ('confirmed','processing')
+          AND NOT EXISTS (
+            SELECT 1 FROM public.inventory_movements sale
+             WHERE sale.reference_type='order'
+               AND sale.reference_id=active_order.id
+               AND sale.movement_type='sale'
+          )
+        GROUP BY im.reference_id
+        HAVING pg_catalog.sum(
+          CASE WHEN im.movement_type='reserve' THEN im.quantity
+               WHEN im.movement_type='release_reservation' THEN -im.quantity
+               ELSE 0 END
+        )>0
+      ) active_batch_reservations;
+
+    IF v_batch_reserved IS NULL OR v_batch_reserved<v_active_batch_reserved THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='batch reserved quantity is below its active order reservation movement ledger; reallocation refused';
+    END IF;
+
+    SELECT ib.quantity_reserved INTO v_balance_reserved
+      FROM public.inventory_balances ib
+     WHERE ib.product_id=v_expired.product_id
+       AND ib.warehouse_id=v_expired.warehouse_id;
+
+    SELECT coalesce(pg_catalog.sum(active_balance_reservations.reserved_quantity),0)::numeric(15,3)
+      INTO v_active_balance_reserved
+      FROM (
+        SELECT pg_catalog.sum(
+          CASE WHEN im.movement_type='reserve' THEN im.quantity
+               WHEN im.movement_type='release_reservation' THEN -im.quantity
+               ELSE 0 END
+        )::numeric(15,3) AS reserved_quantity
+        FROM public.inventory_movements im
+        JOIN public.orders active_order
+          ON active_order.id=im.reference_id
+         AND active_order.organization_id=v_org
+        WHERE im.reference_type='order'
+          AND im.product_id=v_expired.product_id
+          AND im.warehouse_id=v_expired.warehouse_id
+          AND im.inventory_batch_id IS NOT NULL
+          AND im.movement_type IN ('reserve','release_reservation')
+          AND active_order.status IN ('confirmed','processing')
+          AND NOT EXISTS (
+            SELECT 1 FROM public.inventory_movements sale
+             WHERE sale.reference_type='order'
+               AND sale.reference_id=active_order.id
+               AND sale.movement_type='sale'
+          )
+        GROUP BY im.reference_id
+        HAVING pg_catalog.sum(
+          CASE WHEN im.movement_type='reserve' THEN im.quantity
+               WHEN im.movement_type='release_reservation' THEN -im.quantity
+               ELSE 0 END
+        )>0
+      ) active_balance_reservations;
+
+    IF v_balance_reserved IS NULL OR v_balance_reserved<v_active_balance_reserved THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='aggregate reserved quantity is below its active order reservation movement ledger; reallocation refused';
+    END IF;
+
     UPDATE public.inventory_batches b
        SET quantity_reserved=b.quantity_reserved-v_expired.reserved_quantity
      WHERE b.id=v_expired.inventory_batch_id
@@ -434,7 +523,36 @@ BEGIN
           'expiry_date',l.expiry_date,
           'reserved_quantity',l.reserved_quantity::text,
           'batch_reserved_quantity',l.batch_reserved_quantity::text,
-          'reservation_matches_batch',l.batch_reserved_quantity>=l.reserved_quantity,
+          'reservation_matches_batch',l.batch_reserved_quantity>=(
+            SELECT coalesce(pg_catalog.sum(active_batch_reservations.reserved_quantity),0)::numeric(15,3)
+              FROM (
+                SELECT pg_catalog.sum(
+                  CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
+                       WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
+                       ELSE 0 END
+                )::numeric(15,3) AS reserved_quantity
+                  FROM public.inventory_movements reservation_movement
+                  JOIN public.orders active_order
+                    ON active_order.id=reservation_movement.reference_id
+                   AND active_order.organization_id=v_org
+                 WHERE reservation_movement.reference_type='order'
+                   AND reservation_movement.inventory_batch_id=l.batch_id
+                   AND reservation_movement.movement_type IN ('reserve','release_reservation')
+                   AND active_order.status IN ('confirmed','processing')
+                   AND NOT EXISTS (
+                     SELECT 1 FROM public.inventory_movements sale
+                      WHERE sale.reference_type='order'
+                        AND sale.reference_id=active_order.id
+                        AND sale.movement_type='sale'
+                   )
+                 GROUP BY reservation_movement.reference_id
+                HAVING pg_catalog.sum(
+                  CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
+                       WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
+                       ELSE 0 END
+                )>0
+              ) active_batch_reservations
+          ),
           'product_id',p.id,
           'item_code',p.item_code,
           'product_name',p.name,
