@@ -328,7 +328,7 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.reallocate_expired_order_reservations(uuid,text,text)
-  FROM PUBLIC,anon;
+  FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.reallocate_expired_order_reservations(uuid,text,text)
   TO authenticated;
 
