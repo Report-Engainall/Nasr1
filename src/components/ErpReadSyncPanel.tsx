@@ -25,6 +25,57 @@ function formatDate(value: string | null): string {
   return Number.isFinite(date.getTime()) ? date.toLocaleString("ar") : "غير متوفر";
 }
 
+const PREVIEW_FIELD_LABELS: Record<string, string> = {
+  item_code: "رقم الصنف",
+  sku: "SKU",
+  barcode: "الباركود",
+  name: "اسم الصنف",
+  name_en: "الاسم الإنجليزي",
+  category_code: "رمز التصنيف",
+  category_name: "التصنيف",
+  brand_name: "العلامة التجارية",
+  unit_code: "رمز الوحدة",
+  unit_name: "الوحدة",
+  customer_code: "رقم العميل",
+  business_name: "اسم العميل",
+  phone: "الهاتف",
+  email: "البريد الإلكتروني",
+  warehouse_code: "رمز المستودع",
+  warehouse_name: "المستودع",
+  quantity_on_hand: "الرصيد الفعلي",
+  quantity_reserved: "المحجوز",
+  quantity_available: "المتاح",
+  conversion_factor: "معامل التحويل",
+  price_list_code: "قائمة الأسعار",
+  customer_tier: "شريحة العميل",
+  currency_code: "العملة",
+  unit_price: "سعر الوحدة",
+  external_customer_id: "معرف حساب العميل في ERP",
+  document_number: "رقم المستند",
+  document_type: "نوع المستند",
+  document_status: "حالة المستند",
+  issue_date: "تاريخ الإصدار",
+  due_date: "تاريخ الاستحقاق",
+  total_amount: "الإجمالي",
+  paid_amount: "المدفوع",
+  outstanding_amount: "المتبقي",
+  receipt_number: "رقم سند القبض",
+  receipt_date: "تاريخ القبض",
+  amount: "المبلغ",
+  payment_status: "حالة القبض",
+  payment_method: "طريقة القبض",
+  applied_document_number: "المستند المرتبط",
+  entry_reference: "مرجع الحركة",
+  entry_date: "تاريخ الحركة",
+  entry_type: "نوع الحركة",
+  debit_amount: "مدين",
+  credit_amount: "دائن",
+  source_document_number: "مرجع المستند",
+  reference: "مرجع إضافي",
+  description: "الوصف",
+};
+
+
 export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
   const [provider, setProvider] = useState<ErpReadSyncProvider>("onyx_pro");
   const [objectType, setObjectType] = useState<ErpReadSyncObject>("products");
@@ -139,6 +190,35 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
           <p className="report-note" style={{ margin: 0 }}>
             آخر علامة إكمال: {formatDate(result.checkpoint.completed_watermark)} · علامة التشغيل الجاري: {formatDate(result.checkpoint.pending_watermark)}
           </p>
+          {result.preview_error && <p className="report-note" role="status">تعذر تحميل معاينة السجلات المرحلية ({result.preview_error})؛ بقيت نتيجة المزامنة محفوظة.</p>}
+          {result.preview && (
+            <section style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <strong>معاينة البيانات المرحلية</strong>
+                <span className="report-note">المعروض {result.preview.records.length} من {result.preview.total} · إصدار {result.preview.checkpointVersion}</span>
+              </div>
+              {result.preview.records.length === 0
+                ? <p className="report-note">لا توجد سجلات مرحلية لهذا النطاق حتى الآن.</p>
+                : result.preview.records.map((record) => (
+                  <article key={record.externalId} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, display: "grid", gap: 7 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                      <strong>{record.externalId}</strong>
+                      <span className="report-note">{formatDate(record.sourceUpdatedAt)}</span>
+                    </div>
+                    <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 7 }}>
+                      {Object.entries(record.fields).map(([key, value]) => (
+                        <div key={key} style={{ minWidth: 0 }}>
+                          <dt className="report-note">{PREVIEW_FIELD_LABELS[key] ?? key}</dt>
+                          <dd style={{ margin: 0, overflowWrap: "anywhere", fontWeight: 600 }}>
+                            {value === null ? "—" : String(value)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </article>
+                ))}
+            </section>
+          )}
         </div>
       )}
     </section>
