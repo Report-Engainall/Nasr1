@@ -73,3 +73,7 @@ The warehouse worklist now checks the combined active-order reservation movement
 - Customer is denied both worklist and reconciliation; function ACL and direct reconciliation-ledger read restrictions are asserted.
 
 The reconciliation mutation rechecks both the selected batch's on-hand/reserved capacity and the aggregate balance's available quantity in the actual UPDATE predicates after acquiring the row locks. A changed or inconsistent availability fails with SQLSTATE `40001`; it cannot increment the lot counter and aggregate counter independently.
+
+## Additional acceptance hardening — missing-reservation shortage rollback
+
+The PostgreSQL 17 script now creates a separate two-unit processing order, reduces its net reservation to one using a matching release movement, then simulates the loss of its final free unit while keeping the batch and aggregate physical counters aligned. The incomplete-reservation worklist must report a one-unit deficit and zero valid replacement quantity. The manager repair RPC must return SQLSTATE `P0001`; the original lot/aggregate counters, reserve movement count and idempotency ledger must remain unchanged. The deliberately corrupted shared-lot fixture is restored after its independent mismatch assertion so this shortage scenario starts from reconciled source ledgers.
