@@ -73,7 +73,7 @@ describe('InventoryStockCountPage operational list', () => {
   it('normalizes Arabic digits in search and shows an explicit empty state', async () => {
     render(<InventoryStockCountPage />);
     const table = await screen.findByRole('table', { name: 'جدول أصناف الجرد' });
-    await screen.findByText('SKU-010');
+    await within(table).findByText('SKU-010');
     fireEvent.change(screen.getByLabelText('بحث في أصناف الجرد'), { target: { value: 'SKU-٠١٢' } });
     expect(table.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(within(table).getByText('SKU-012')).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe('InventoryStockCountPage operational list', () => {
   it('filters counted, uncounted and variance rows while export retains every session line', async () => {
     render(<InventoryStockCountPage />);
     const table = await screen.findByRole('table', { name: 'جدول أصناف الجرد' });
-    await screen.findByText('SKU-010');
+    await within(table).findByText('SKU-010');
     fireEvent.change(screen.getByLabelText('تصفية حالة العد'), { target: { value: 'counted' } });
     expect(table.querySelectorAll('tbody tr')).toHaveLength(6);
     fireEvent.change(screen.getByLabelText('تصفية حالة العد'), { target: { value: 'uncounted' } });
