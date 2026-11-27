@@ -88,6 +88,31 @@ describe("product performance growth evidence client", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["+14:00", "2026-11-26T16:45:47.000+14:00"],
+    ["-14:00", "2026-11-25T12:45:47.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", async (_label, offsetAsOf) => {
+    mocks.rpc.mockResolvedValue({ data: response(), error: null });
+    await expect(fetchProductPerformanceGrowthContext(30, offsetAsOf))
+      .resolves.toMatchObject({ ok: true });
+    expect(mocks.rpc).toHaveBeenCalledWith("fetch_product_performance_growth_aggregate", {
+      p_period_days: 30,
+      p_as_of: offsetAsOf,
+    });
+  });
+
+  it("rejects offsets beyond the ISO maximum before querying the database", async () => {
+    for (const invalidAsOf of [
+      "2026-11-27T16:45:47.000+14:01",
+      "2026-11-25T12:45:47.000-14:01",
+      "2026-11-26T23:59:47.000+23:59",
+    ]) {
+      await expect(fetchProductPerformanceGrowthContext(30, invalidAsOf))
+        .resolves.toMatchObject({ ok: false, status: "ERROR" });
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("accepts an explicit offset and compares the aggregate period to the UTC snapshot day", async () => {
     const offsetAsOf = "2026-11-27T02:45:47.000+03:00";
     mocks.rpc.mockResolvedValue({
