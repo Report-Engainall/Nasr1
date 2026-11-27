@@ -292,6 +292,20 @@ describe("approved opening balance timestamp contract", () => {
     expect(buildApprovedCashOpeningBalances(source, AS_OF).metrics).toEqual([]);
   });
 
+  it("rejects requested, workspace and approval clocks finer than PostgreSQL microseconds", () => {
+    expect(buildApprovedCashOpeningBalances(workspace(), "2026-11-13T09:00:00.1234567Z").metrics).toEqual([]);
+    const invalidWorkspace = workspace({ asOf: "2026-11-13T09:00:00.1234567Z" });
+    expect(buildApprovedCashOpeningBalances(invalidWorkspace, AS_OF).metrics).toEqual([]);
+
+    const invalidApproval = workspace({
+      proposals: workspace().proposals.map(proposal => ({
+        ...proposal,
+        reviewedAt: "2026-11-13T09:00:00.1234567Z",
+      })),
+    });
+    expect(buildApprovedCashOpeningBalances(invalidApproval, AS_OF).metrics).toEqual([]);
+  });
+
   it("rejects an invalid reconciliation workspace as-of timestamp", () => {
     const source = workspace({ asOf: "2026-11-13T09:00:00.000+14:01" });
     expect(buildApprovedCashOpeningBalances(source, AS_OF).metrics).toEqual([]);
