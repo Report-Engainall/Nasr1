@@ -125,16 +125,18 @@ describe("ErpReadSyncPanel", () => {
         ...result.receipts,
         records: [{
           ...result.receipts.records[0],
-          pageNumber: 1,
+          pageNumber: 11,
           committedVersion: 8,
           counts: { created: 0, updated: 0, unchanged: 2, rejected: 0, conflicted: 0 },
         }],
+        total: 13,
         offset: 10,
       },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "التالي" }).filter ? screen.getByRole("button", { name: "التالي" }).filter : screen.getByRole("group", { name: "صفحات سجل إيصالات ERP" }).querySelector("button:last-of-type") as unknown as HTMLElement);
-    await screen.findByText("صفحة 1 · مكتملة");
+    const nextButtons = screen.getAllByRole("button", { name: "التالي" });
+    fireEvent.click(nextButtons[0]);
+    await screen.findByText("صفحة 11 · مكتملة");
     expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(2, {
       provider: "onyx_pro",
       object_type: "products",
