@@ -481,14 +481,41 @@ describe("server-side ERP read connector contract", () => {
   });
 
   it("rejects malformed source timestamps and invalid stock balance equations", async () => {
-    const badTimestamp = new OfficialJsonErpReadConnector(connection, productContract, {
-      fetcher: vi.fn(async () => jsonResponse({
-        data: { items: [{ ...sourceProduct("2"), updated_at: "2026-11-27T10:00:00" }] },
-        meta: { next_cursor: null },
-      })),
-    });
-    await expect(badTimestamp.readPage({ cursor: null, modifiedSince: null }))
-      .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP" });
+    const readTimestamp = (timestamp: string) => {
+      const connector = new OfficialJsonErpReadConnector(connection, productContract, {
+        fetcher: vi.fn(async () => jsonResponse({
+          data: { items: [sourceProduct("2", timestamp)] },
+          meta: { next_cursor: null },
+        })),
+      });
+      return connector.readPage({ cursor: null, modifiedSince: null });
+    };
+
+    for (const timestamp of [
+      "2026-11-27T10:00:00",
+      "2026-02-30T12:00:00Z",
+      "2025-02-29T12:00:00Z",
+      "2026-11-27T24:00:00Z",
+      "2026-11-27T23:60:00Z",
+      "2026-11-27T23:59:60Z",
+      "2026-11-27T10:00:00+00:60",
+      "2026-11-27T10:00:00+14:01",
+      "2026-11-27T10:00:00-14:01",
+      "2026-11-27T10:00:00+14:59",
+      "0000-01-01T00:00:00Z",
+    ]) {
+      await expect(readTimestamp(timestamp))
+        .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP" });
+    }
+
+    for (const timestamp of [
+      "2024-02-29T10:00:00Z",
+      "2024-02-29T10:00:00+14:00",
+      "2024-02-29T10:00:00-14:00",
+    ]) {
+      const page = await readTimestamp(timestamp);
+      expect(page.records[0]?.sourceUpdatedAt).toBe(new Date(timestamp).toISOString());
+    }
 
     const stockContract: ErpReadContract = {
       ...productContract,
