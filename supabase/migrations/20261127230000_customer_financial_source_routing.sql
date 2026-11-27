@@ -776,7 +776,8 @@ BEGIN
   END IF;
   SELECT b.* INTO v_binding
     FROM public.customer_financial_source_bindings b
-   WHERE b.organization_id=v_org AND b.customer_id=v_customer;
+   WHERE b.organization_id=v_org AND b.customer_id=v_customer
+   FOR SHARE;
   IF NOT FOUND OR v_binding.source_status<>'active' THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='customer financial source is not active; statement access is blocked';
   END IF;
