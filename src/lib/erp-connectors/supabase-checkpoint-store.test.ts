@@ -306,6 +306,80 @@ describe("SupabaseErpSyncCheckpointStore", () => {
     expect(caught instanceof Error ? caught.message : String(caught)).not.toContain("secret-bearing");
   });
 
+  it("loads a bounded tenant-scoped preview using only approved canonical fields", async () => {
+    let requestUrl = "";
+    let requestBody: Record<string, unknown> = {};
+    const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      requestUrl = String(input);
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return response({
+        records: [{
+          external_id: "ERP-PRODUCT-001",
+          source_updated_at: "2026-11-28T00:30:00Z",
+          fields: { item_code: "000125", name: "منتج مرحلي", barcode: null },
+        }],
+        total: 25,
+        limit: 10,
+        offset: 5,
+        checkpoint_version: 3,
+        pending_watermark: null,
+        completed_watermark: "2026-11-28T00:30:00Z",
+      });
+    });
+
+    const result = await store(fetcher).listStagedRecords({ scope, limit: 10, offset: 5 });
+    expect(new URL(requestUrl).pathname).toBe("/rest/v1/rpc/list_erp_sync_staged_records");
+    expect(requestBody).toMatchObject({
+      p_organization_id: scope.organizationId,
+      p_provider: "onyx_pro",
+      p_object_type: "products",
+      p_limit: 10,
+      p_offset: 5,
+    });
+    expect(result).toEqual({
+      records: [{
+        externalId: "ERP-PRODUCT-001",
+        sourceUpdatedAt: "2026-11-28T00:30:00Z",
+        fields: { item_code: "000125", name: "منتج مرحلي", barcode: null },
+      }],
+      total: 25,
+      limit: 10,
+      offset: 5,
+      checkpointVersion: 3,
+      pendingWatermark: null,
+      completedWatermark: "2026-11-28T00:30:00Z",
+    });
+    expect(JSON.stringify(result)).not.toContain("idempotency_key");
+    expect(JSON.stringify(result)).not.toContain("cursor_ciphertext");
+  });
+
+  it("rejects unsafe or nested fields in a staged preview even if the database response is malformed", async () => {
+    const fetcher = vi.fn(async () => response({
+      records: [{
+        external_id: "ERP-PRODUCT-002",
+        source_updated_at: "2026-11-28T00:30:00Z",
+        fields: { item_code: "000126", supplier_cost: "10.00" },
+      }],
+      total: 1,
+      limit: 20,
+      offset: 0,
+      checkpoint_version: 1,
+      pending_watermark: null,
+      completed_watermark: null,
+    }));
+    await expect(store(fetcher).listStagedRecords({ scope }))
+      .rejects.toMatchObject({ code: "ERP_STAGING_PREVIEW_UNSAFE_FIELD" });
+  });
+
+  it("rejects unbounded staged preview pagination before making an RPC call", async () => {
+    const fetcher = vi.fn(async () => response({}));
+    await expect(store(fetcher).listStagedRecords({ scope, limit: 51 }))
+      .rejects.toMatchObject({ code: "INVALID_ERP_PREVIEW_LIMIT" });
+    await expect(store(fetcher).listStagedRecords({ scope, limit: 10, offset: 5001 }))
+      .rejects.toMatchObject({ code: "INVALID_ERP_PREVIEW_LIMIT" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("rejects a valid ciphertext transplanted from a different tenant scope", async () => {
     let ciphertext: string | null = null;
     const sourceStore = store(vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
