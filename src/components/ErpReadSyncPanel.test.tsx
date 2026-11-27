@@ -48,7 +48,7 @@ const result = {
       pendingWatermark: null,
       completedWatermark: "2026-11-28T00:30:00Z",
     }],
-    total: 3,
+    total: 13,
     limit: 10,
     offset: 0,
     checkpointVersion: 9,
