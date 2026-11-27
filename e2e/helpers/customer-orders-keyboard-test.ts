@@ -241,7 +241,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect(secondLink).toBeFocused();
 
     expect(pageErrors, "Customer orders must not throw uncaught browser errors.").toEqual([]);
-
+  });
 
   test("customer order-number search normalizes Arabic/Persian digits, composes status, exact count and pagination", async ({ page }) => {
     const pageErrors: string[] = [];
@@ -356,7 +356,5 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await page.goto("/orders");
     await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "رقم الطلب للبحث" })).toHaveCount(0);
-  });
-
   });
 }
