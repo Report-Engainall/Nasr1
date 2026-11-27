@@ -747,6 +747,17 @@ async function main(){
  assert.equal(sharedLotReservations.length,2);
  assert.ok(sharedLotReservations.every(row=>row.batch_id===ledgerBatchId),
   "both active orders must reserve the same dedicated acceptance lot");
+ const ledgerOrderAItem=(await db.unsafe(
+  "select id::text from public.order_items where order_id=$1::uuid and product_id=$2::uuid",
+  [ledgerOrderA,product],
+ ))[0];
+ assert.ok(ledgerOrderAItem,"shared-lot ledger test order must have one persisted commercial line");
+ // Keep one real quantity deficit visible so the incomplete-reservation worklist
+ // exposes its per-product batch and warehouse parity preflight fields.
+ await db.unsafe(
+  "update public.order_items set quantity=2 where id=$1::uuid",
+  [ledgerOrderAItem.id],
+ );
  await db.unsafe(
   "update public.inventory_batches set expiry_date=$2::date,quantity_reserved=quantity_reserved-1 where id=$1::uuid",
   [ledgerBatchId,expiredDate],
@@ -772,12 +783,11 @@ async function main(){
  const sharedIncomplete=await rpc(
   "select public.list_orders_with_incomplete_inventory_reservations(50,0) result",
  );
- for(const ledgerOrderId of [ledgerOrderA,ledgerOrderB]){
-  const entry=sharedIncomplete.orders.find(value=>value.order_id===ledgerOrderId);
-  assert.ok(entry,"both shared-lot orders must remain visible in the incomplete-reservation queue");
-  assert.equal(entry.lines[0].reservation_batch_ledger_matches,false);
-  assert.equal(entry.lines[0].reservation_balance_ledger_matches,false);
- }
+ const sharedIncompleteEntry=sharedIncomplete.orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(sharedIncompleteEntry,"the deliberately short order must be visible in the incomplete-reservation queue");
+ assert.equal(sharedIncompleteEntry.lines[0].reservation_status,"short");
+ assert.equal(sharedIncompleteEntry.lines[0].reservation_batch_ledger_matches,false);
+ assert.equal(sharedIncompleteEntry.lines[0].reservation_balance_ledger_matches,false);
  const batchReservedBeforeLedgerGuard=(await db.unsafe(
   "select quantity_reserved::text from public.inventory_batches where id=$1::uuid",
   [ledgerBatchId],
@@ -886,6 +896,10 @@ async function main(){
   "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
   "where product_id=$1::uuid and warehouse_id=$2::uuid",
   [product,warehouse],
+ );
+ await db.unsafe(
+  "update public.order_items set quantity=1 where id=$1::uuid",
+  [ledgerOrderAItem.id],
  );
  assert.ok(Number(batchParityAfterRestore.reserved)>=2,
   "fixture must retain the expected shared-lot reservations after aggregate recovery");
