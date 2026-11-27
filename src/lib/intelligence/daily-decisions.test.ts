@@ -323,3 +323,41 @@ describe("daily decision generation-clock boundary", () => {
   expect(result.withheld).toEqual([]);
  });
 });
+
+
+describe("daily decision action shortlist adapter", () => {
+  it("reuses evidence-aware ranking and never compares unlike impact units", () => {
+    const yerSmall = decisionCandidate({
+      id: "yer-small", ruleId: "yer-small",
+      impact: currencyImpact(1, "YER"), impactStatus: "CALCULATED",
+    });
+    const countLarge = decisionCandidate({
+      id: "count-large", ruleId: "count-large",
+      impact: { value: 999999, unit: "COUNT", formulaId: "count", formulaVersion: "1", sourceMetricIds: ["count-source"] },
+      impactStatus: "CALCULATED",
+    });
+    const yerLarge = decisionCandidate({
+      id: "yer-large", ruleId: "yer-large",
+      impact: currencyImpact(10, "YER"), impactStatus: "CALCULATED",
+    });
+    const selected = selectTopDailyDecisionActions([
+      { decision: yerSmall, payload: "small" },
+      { decision: countLarge, payload: "count" },
+      { decision: yerLarge, payload: "large" },
+    ], 10);
+    expect(selected.actions.map(item => item.decision.id)).toEqual(["yer-large", "yer-small", "count-large"]);
+    expect(selected.actions.map(item => item.payload)).toEqual(["large", "small", "count"]);
+  });
+
+  it("deduplicates repeated decision identities while retaining the first source action", () => {
+    const decision = decisionCandidate({ id: "same-decision", ruleId: "same-rule" });
+    const selected = selectTopDailyDecisionActions([
+      { decision, payload: "original" },
+      { decision: { ...decision, what: "duplicate projection" }, payload: "duplicate" },
+    ], 10);
+    expect(selected.actions).toHaveLength(1);
+    expect(selected.actions[0].payload).toBe("original");
+    expect(selected.totalCandidates).toBe(1);
+    expect(selected.omittedCount).toBe(0);
+  });
+});
