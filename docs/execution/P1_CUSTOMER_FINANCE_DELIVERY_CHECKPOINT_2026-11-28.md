@@ -30,6 +30,9 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 ## Branch and ownership
 - Implementation commit: `71a7653ca4581b5325852cb2d245ca28acc5d4d5` (first parent `02a0144b06953618b81575dbb212e833ef1faf5d`).
 - Receipt source revalidation batch is based on P1 branch head `757177e28672d2d070bfed69fb3e71fcc2181092`; it preserves the concurrent P4 staged-preview commit already on the branch.
+- Receipt implementation commit: `b3c27ccd2d268ac13cf266b24789dca64e8d03ff` (first parent `757177e28672d2d070bfed69fb3e71fcc2181092`).
+- Nullability and asynchronous-test refinement: `feeddb085ee543c3235a87829fc3ca39380b5ce4` (first parent `b3c27ccd2d268ac13cf266b24789dca64e8d03ff`).
+
 - Checkpoint trace commit: `d8e8c3d408ac612663df2806dfb3f4855c8f3744`.
 - Invoice detail route regression commit: `4e631a06569948ceb3bbf73d0c8bc9dd71c55d5d` (adds both source-cutover and resolver-failure test cases).
 - All updates use non-forced, expected-SHA branch leases; no force push.
