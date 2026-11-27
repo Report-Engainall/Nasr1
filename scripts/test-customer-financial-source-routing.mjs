@@ -297,6 +297,7 @@ async function main() {
     "select " +
       "pg_catalog.pg_get_functiondef('public.get_my_customer_payment_receipt_print_data(uuid)'::regprocedure) as customer_print," +
       "pg_catalog.pg_get_functiondef('public.get_staff_customer_payment_receipt_print_data(uuid)'::regprocedure) as staff_print",
+      "pg_catalog.pg_get_functiondef('public.get_customer_payment_receipt_print_options(integer,integer)'::regprocedure) as staff_options",
   );
   const customerPrintDefinition = receiptPrintFunctionDefinitions[0].customer_print.toLowerCase();
   const staffPrintDefinition = receiptPrintFunctionDefinitions[0].staff_print.toLowerCase();
@@ -308,6 +309,11 @@ async function main() {
     "staff receipt print must take the parent receipt row lock");
   assert.ok(staffPrintDefinition.includes("staff_receipt_allocations as materialized"),
     "staff print must validate and render one materialized allocation snapshot");
+  const staffOptionsDefinition = receiptPrintFunctionDefinitions[0].staff_options.toLowerCase();
+  assert.ok(staffOptionsDefinition.includes("scoped_receipts as materialized"),
+    "staff receipt pagination must compute total and rows from one materialized snapshot");
+  assert.ok(staffOptionsDefinition.includes("page_receipts as materialized"),
+    "staff receipt pagination must materialize a stable ordered page from the scoped snapshot");
 
   await expectFailure(
     "customer receipt history rejects an out-of-range page limit",
