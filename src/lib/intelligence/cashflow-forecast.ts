@@ -56,8 +56,9 @@ function resolveCashflowPointStatus(
 
 /** Forecasts scheduled movements only; no probability, sales extrapolation or assumed collection rate. */
 export function buildCashflowForecast(input:BuildCashflowForecastInput):CashflowForecast {
- const generatedAtMs=Date.parse(input.generatedAt),asOfMs=Date.parse(input.asOf);
- if(!Number.isFinite(generatedAtMs)||!Number.isFinite(asOfMs))throw new Error("generatedAt and asOf must be valid timestamps");
+ const generatedAtMs=strictTimestamp(input.generatedAt),asOfMs=strictTimestamp(input.asOf);
+ if(generatedAtMs===null||asOfMs===null||asOfMs>generatedAtMs)
+  throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps and asOf cannot be after generatedAt");
  const day=new Date(asOfMs).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
  const metrics=[...input.openingBalances,...input.entries.map(e=>e.amount)];
  const passport=buildEvidencePassport({id:"cashflow:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
