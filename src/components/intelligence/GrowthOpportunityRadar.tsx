@@ -120,6 +120,7 @@ const growthKindLabels: Record<GrowthOpportunity["kind"], string> = {
 };
 
 function growthCsvCell(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return '"' + String(value) + '"';
   let text = value === null || value === undefined ? "" : String(value);
   // A leading apostrophe keeps spreadsheet software from executing text as a formula.
   if (/^[\s\u0000-\u001F]*[=+\-@]/.test(text)) text = "'" + text;
@@ -173,7 +174,7 @@ export function downloadGrowthOpportunityCsv(opportunities: GrowthOpportunity[])
     link.click();
   } finally {
     link.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }
 
