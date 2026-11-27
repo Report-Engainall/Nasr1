@@ -279,7 +279,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     return Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
   }
 
-  private async encryptCursor(cursor: string | null): Promise<{ ciphertext: string | null; sha256: string | null }> {
+  private async encryptCursor(cursor: string | null, scopeKey: string): Promise<{ ciphertext: string | null; sha256: string | null }> {
     if (cursor === null) return { ciphertext: null, sha256: null };
     const plaintext = new TextEncoder().encode(cursor);
     if (plaintext.byteLength < 1 || plaintext.byteLength > MAX_CURSOR_BYTES) {
@@ -287,7 +287,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     }
     const iv = globalThis.crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
     const key = await this.encryptionKey;
-    const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext));
+    const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(scopeKey) }, key, plaintext));
     const combined = new Uint8Array(iv.byteLength + encrypted.byteLength);
     combined.set(iv, 0);
     combined.set(encrypted, iv.byteLength);
@@ -295,7 +295,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     return { ciphertext, sha256: await sha256Hex(ciphertext) };
   }
 
-  private async decryptCursor(ciphertext: string | null): Promise<string | null> {
+  private async decryptCursor(ciphertext: string | null, scopeKey: string): Promise<string | null> {
     if (ciphertext === null) return null;
     if (!ciphertext.startsWith("v1:") || ciphertext.length > 8192) {
       throw new ErpConnectorError("ERP_CURSOR_CIPHERTEXT_INVALID", "صيغة مؤشر ERP المشفر غير مدعومة.");
@@ -308,7 +308,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     const encrypted = combined.slice(AES_GCM_IV_BYTES);
     try {
       const key = await this.encryptionKey;
-      const plaintext = await globalThis.crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+      const plaintext = await globalThis.crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(scopeKey) }, key, encrypted);
       const decoded = new TextDecoder("utf-8", { fatal: true }).decode(plaintext);
       if (!decoded || new TextEncoder().encode(decoded).byteLength > MAX_CURSOR_BYTES) {
         throw new Error("invalid cursor length");
@@ -319,15 +319,15 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     }
   }
 
-  private async decodeCheckpoint(value: unknown): Promise<ErpCheckpoint> {
+  private async decodeCheckpoint(value: unknown, scopeKey: string): Promise<ErpCheckpoint> {
     const checkpoint = parseCheckpoint(value);
-    return toPublicCheckpoint(checkpoint, await this.decryptCursor(checkpoint.cursor_ciphertext));
+    return toPublicCheckpoint(checkpoint, await this.decryptCursor(checkpoint.cursor_ciphertext, scopeKey));
   }
 
   async loadCheckpoint(scope: ErpSyncScope): Promise<ErpCheckpoint> {
     const args = await this.scopeArguments(scope);
     const result = await this.rpc("load_erp_sync_checkpoint", args);
-    return this.decodeCheckpoint(result);
+    return this.decodeCheckpoint(result, args.p_scope_key);
   }
 
   async persistPageAtomically(input: {
@@ -349,7 +349,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
       throw new ErpConnectorError("INVALID_ERP_PERSIST_INPUT", "بيانات حفظ صفحة ERP أو بصمتها غير صالحة.");
     }
     const args = await this.scopeArguments(input.scope);
-    const encrypted = await this.encryptCursor(input.nextCursor);
+    const encrypted = await this.encryptCursor(input.nextCursor, args.p_scope_key);
     const records = input.records.map((record) => ({
       external_id: record.externalId,
       source_updated_at: record.sourceUpdatedAt,
@@ -373,7 +373,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     if (!isRecord(result) || typeof result.duplicate_page !== "boolean") {
       throw new ErpConnectorError("ERP_PERSIST_RESPONSE_INVALID", "استجابة حفظ صفحة ERP غير مكتملة.");
     }
-    const checkpoint = await this.decodeCheckpoint(result.checkpoint);
+    const checkpoint = await this.decodeCheckpoint(result.checkpoint, args.p_scope_key);
     return {
       checkpoint,
       counts: parseCounts(result.counts),
@@ -394,6 +394,6 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
       p_scope_key: args.p_scope_key,
       p_expected_version: input.expectedVersion,
     });
-    return this.decodeCheckpoint(result);
+    return this.decodeCheckpoint(result, args.p_scope_key);
   }
 }
