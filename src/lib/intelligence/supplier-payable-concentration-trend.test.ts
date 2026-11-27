@@ -68,6 +68,18 @@ describe("supplier payable concentration trend", () => {
     });
   });
 
+  it.each([
+    ["timezone-less timestamp", "2026-11-17T12:00:00"],
+    ["impossible calendar date", "2026-02-31T12:00:00.000Z"],
+    ["date-only value", "2026-11-17"],
+  ])("rejects a %s before comparing financial periods", (_label, invalidAsOf) => {
+    const current = { ...snapshot(currentPeriod), asOf: invalidAsOf };
+    const result = buildSupplierPayableConcentrationTrend(current, snapshot(baselinePeriod));
+    expect(result.status).toBe("NOT_COMPARABLE");
+    expect(result.comparisons).toEqual([]);
+    expect(result.warnings).toContain("SUPPLIER_TREND_AS_OF_MISMATCH");
+  });
+
   it("keeps currencies separate and withholds a currency absent from one period", () => {
     const current = snapshot(currentPeriod, [row("YER"), row("USD", { supplierCount: 7, sourceEntryCount: 9 })]);
     const baseline = snapshot(baselinePeriod, [row("YER")]);
