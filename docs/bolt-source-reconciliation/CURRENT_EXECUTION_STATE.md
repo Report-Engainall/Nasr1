@@ -5,7 +5,7 @@
 ## Current repository observation
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`; sole source of truth.
-- **Latest main HEAD and latest code-bearing main SHA:** `9c51f65f16aad1be300444cc37f5a0457b3dccb1` (finance payment chronology and immutable receipt reprint fix; parent `202bb107545fd70db454d5cd6f6923cc76e9f0b4`).
+- **Latest main HEAD:** `7286fc6624dbe8c785a71eec5814d7ad59b5f78b` (this documentation-only execution-pointer refresh); **latest code-bearing main SHA:** `9c51f65f16aad1be300444cc37f5a0457b3dccb1` (finance payment chronology and immutable receipt reprint fix; parent `202bb107545fd70db454d5cd6f6923cc76e9f0b4`).
 - Exact-head main checks on `9c51f65f16aad1be300444cc37f5a0457b3dccb1`: **P1 Vitest/strict TypeScript SUCCESS** (run `46069932445`); **P2 Playwright Critical Paths SUCCESS** (run `46069932464`), including local Supabase/PostgreSQL 17 migrations, authenticated order persistence/tenant denial, Chromium and finance/task print. Hosted customer/order/tenant E2E is **SKIPPED**, not PASS.
 - No production Supabase writes, remote migrations, Edge deployment, secrets changes, external ERP mutations, Vercel deployment/quota use, Bolt or Lovable actions were performed. Release remains **NO-GO**.
 
@@ -13,7 +13,7 @@
 
 This section supersedes older PR/run states below wherever the same item is listed. Re-fetch live refs and exact-head checks before any merge.
 
-- **Current main:** `9c51f65f16aad1be300444cc37f5a0457b3dccb1`; exact-head P1 run `46069932445` SUCCESS and P2 run `46069932464` SUCCESS. P2 local PostgreSQL 17/Supabase and Chromium acceptance completed. Hosted customer/order/tenant E2E remains SKIPPED.
+- **Current main HEAD:** `7286fc6624dbe8c785a71eec5814d7ad59b5f78b` (documentation-only); latest code-bearing SHA `9c51f65f16aad1be300444cc37f5a0457b3dccb1`; exact-code-head P1 run `46069932445` SUCCESS and P2 run `46069932464` SUCCESS. P2 local PostgreSQL 17/Supabase and Chromium acceptance completed. Hosted customer/order/tenant E2E remains SKIPPED.
 - **PR #699 — P1 customer financial-source UI guard:** P1 run `46069854767` SUCCESS. P2 run `46069854671` remains IN_PROGRESS; authenticated infrastructure and public Chromium passed, hosted tenant job SKIPPED, and the local Supabase job reached finance document/task print acceptance (step 52) at last observation. Do not merge before local P2 terminates successfully and P2 source-routing contract #697 is accepted.
 - **PR #697 — P2 customer financial-source routing:** draft, 1,042-line additive migration plus isolated PostgreSQL 17 acceptance script. P1 run `46071284790` and P2 run `46071284778` were queued at last observation; dedicated PostgreSQL 17 run `46071284803` was also queued. No SQL acceptance is claimed. Keep external sources fail-closed and APP_ONLY/ONYX/MUTAKAMEL separate.
 - **PR #700 — P3 evidence-integrity consolidation:** P2 run `46069665081` SUCCESS, but P1 run `46069664984` FAILED: 2,104/2,105 tests passed; the rejected RPC transport mock in `product-revenue-concentration-client.test.ts` escapes the expected UNAVAILABLE result. A P1 coordination comment records the exact failing test/job. Do not merge until P3 repairs and exact-head P1 passes.
