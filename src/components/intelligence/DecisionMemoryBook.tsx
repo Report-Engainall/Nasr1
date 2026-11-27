@@ -314,6 +314,8 @@ function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetr
   </article>;
 }
 const DECISION_MEMORY_DISPLAY_PAGE_SIZE = 25;
+const LEARNING_CANDIDATE_PAGE_SIZE = 50;
+const LEARNING_CANDIDATE_MAX_OFFSET = 5000;
 const learningStateLabels = {
   DRAFT: "مسودة محفوظة",
   IN_REVIEW: "قيد المراجعة المستقلة",
@@ -341,10 +343,13 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   useEffect(()=>{
     let active=true;
     setLearningLoading(true);
-    void fetchDecisionPolicyLearningCandidates(50,learningOffset).then(response=>{
+    void fetchDecisionPolicyLearningCandidates(LEARNING_CANDIDATE_PAGE_SIZE,learningOffset).then(response=>{
       if(!active)return;
       if(response.ok){
-        const lastPageOffset=Math.max(0,Math.floor(Math.max(response.total-1,0)/50)*50);
+        const lastPageOffset=Math.min(
+          LEARNING_CANDIDATE_MAX_OFFSET,
+          Math.max(0,Math.floor(Math.max(response.total-1,0)/LEARNING_CANDIDATE_PAGE_SIZE)*LEARNING_CANDIDATE_PAGE_SIZE),
+        );
         if(learningOffset>lastPageOffset){
           setLearningOffset(lastPageOffset);
           setLearningCandidates([]);
@@ -535,23 +540,28 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         {learningTotal>50?(
           <nav className="flex flex-wrap items-center justify-between gap-2 text-xs" aria-label="صفحات مرشحات التعلم">
             <span role="status" aria-live="polite">
-              عرض {learningTotal===0?0:learningOffset+1}–{Math.min(learningOffset+learningCandidates.length,learningTotal)} من {learningTotal} مرشحاً · الصفحة {Math.floor(learningOffset/50)+1} من {Math.max(1,Math.ceil(learningTotal/50))}
+              عرض {learningTotal===0?0:learningOffset+1}–{Math.min(learningOffset+learningCandidates.length,learningTotal)} من {learningTotal} مرشحاً · الصفحة {Math.floor(learningOffset/LEARNING_CANDIDATE_PAGE_SIZE)+1} من {Math.max(1,Math.ceil(learningTotal/LEARNING_CANDIDATE_PAGE_SIZE))}
             </span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 className="rounded-lg border px-3 py-1.5"
                 disabled={learningLoading||learningBusy!==""||learningOffset===0}
-                onClick={()=>setLearningOffset(value=>Math.max(0,value-50))}
+                onClick={()=>setLearningOffset(value=>Math.max(0,value-LEARNING_CANDIDATE_PAGE_SIZE))}
               >السابق</button>
               <button
                 type="button"
                 className="rounded-lg border px-3 py-1.5"
-                disabled={learningLoading||learningBusy!==""||learningOffset+50>=learningTotal}
-                onClick={()=>setLearningOffset(value=>Math.min(5000,value+50))}
+                disabled={learningLoading||learningBusy!==""||learningOffset+LEARNING_CANDIDATE_PAGE_SIZE>=learningTotal||learningOffset>=LEARNING_CANDIDATE_MAX_OFFSET}
+                onClick={()=>setLearningOffset(value=>Math.min(LEARNING_CANDIDATE_MAX_OFFSET,value+LEARNING_CANDIDATE_PAGE_SIZE))}
               >التالي</button>
             </div>
           </nav>
+        ):null}
+        {learningTotal>LEARNING_CANDIDATE_MAX_OFFSET+LEARNING_CANDIDATE_PAGE_SIZE?(
+          <p className="text-xs text-amber-700" role="status">
+            تعرض الخدمة حتى 5,050 مرشحاً في نطاق ترقيم الصفحات الحالي؛ يوجد {learningTotal-(LEARNING_CANDIDATE_MAX_OFFSET+LEARNING_CANDIDATE_PAGE_SIZE)} مرشحاً إضافياً خارج حد الاستعلام، ولم تُخفَ هذه الحدود.
+          </p>
         ):null}
         {learningCandidates.map(candidate=>{
           const snapshot=candidate.candidateSnapshot;
