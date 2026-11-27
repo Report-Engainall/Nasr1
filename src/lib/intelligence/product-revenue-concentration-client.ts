@@ -57,7 +57,7 @@ function validDay(value: unknown): value is string {
 }
 function timestampMicroseconds(value: unknown): bigint | null {
   if (typeof value !== "string") return null;
-  const match = /^(\\d{4}-\\d{2}-\\d{2})T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.(\\d{1,6}))?(Z|([+-])((?:0\\d|1[0-3]|14)):([0-5]\\d))$/.exec(value);
+  const match = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.(\d{1,6}))?(Z|([+-])((?:0\d|1[0-3]|14)):([0-5]\d))$/.exec(value);
   if (!match || !validDay(match[1])) return null;
 
   if (match[3] !== "Z") {
