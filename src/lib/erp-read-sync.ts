@@ -7,7 +7,10 @@ export type ErpReadSyncObject =
   | "warehouses"
   | "stock_balances"
   | "product_units"
-  | "product_prices";
+  | "product_prices"
+  | "customer_financial_documents"
+  | "customer_payment_receipts"
+  | "customer_statement_entries";
 
 export type ErpReadSyncRequest = {
   provider: ErpReadSyncProvider;
