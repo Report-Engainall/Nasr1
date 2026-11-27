@@ -461,6 +461,10 @@ describe("production intelligence workspace inventory screens", () => {
     expect(forecast).toHaveTextContent("غير متاح");
     expect(forecast).toHaveTextContent("غير متاح"); // No verified opening balance: projection remains withheld.
 
+    const actionSummary = await screen.findByRole("status", { name: /يعرض المركز/ });
+    expect(actionSummary).toHaveTextContent("يعرض المركز 1 من 1 إجراءً مرتباً حسب الأولوية");
+    expect(actionSummary).toHaveTextContent("جميع الإجراءات المستحقة ظاهرة.");
+
     const scheduledHeading = await screen.findByRole("heading", { name: "متابعة التحصيلات المجدولة" });
     const scheduledCard = scheduledHeading.closest("article");
     expect(scheduledCard).not.toBeNull();
