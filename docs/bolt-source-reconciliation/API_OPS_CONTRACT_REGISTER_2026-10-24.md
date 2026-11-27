@@ -106,3 +106,8 @@ numeric precision and equality before a maker can approve the source transition.
 ## Next action
 
 Regenerate a current callable RPC/Edge inventory from active main and the approved Supabase project. Compare signature, grant, SECURITY DEFINER/search_path, source migration, caller and named tests. Start with uncovered high-risk finance/inventory/auth mutations. Do not replay historical migrations, restore the archive test tree wholesale, or declare semantic closure from source matching alone.
+
+
+### P2 customer receipt print snapshot guarantee (2026-11-28)
+
+`get_my_customer_payment_receipt_print_data(uuid)` returns an APP_ONLY customer-only DTO after a single materialized allocation snapshot passes amount/count/currency reconciliation. It holds shared locks on the receipt header and all existing allocation rows until the caller transaction ends. It performs no write.
