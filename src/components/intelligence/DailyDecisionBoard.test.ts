@@ -3,6 +3,8 @@ import type { DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
 import {
   filterDailyDecisionRecords,
   isDailyDecisionOverdue,
+  normalizeDailyDecisionSearch,
+  paginateDailyDecisionRecords,
   summarizeDailyDecisionBoard,
 } from "./DailyDecisionBoard";
 
@@ -142,6 +144,33 @@ describe("daily decision work queue selectors", () => {
       .map(item => item.decisionId)).toEqual(["supplier"]);
     expect(filterDailyDecisionRecords([supplier, collections], "ALL", "rami", NOW)
       .map(item => item.decisionId)).toEqual(["supplier"]);
+  });
+
+  it("normalizes Arabic hamza forms, diacritics and tatweel for search", () => {
+    expect(normalizeDailyDecisionSearch("إِجْرَاء مُؤَجَّل"))
+      .toBe(normalizeDailyDecisionSearch("اجراء مؤجل"));
+    expect(normalizeDailyDecisionSearch("المـُورِّد"))
+      .toBe(normalizeDailyDecisionSearch("المورد"));
+  });
+
+  it("paginates the full filtered result set without dropping records", () => {
+    const records = Array.from({ length: 23 }, (_, index) =>
+      decision("page-" + String(index + 1).padStart(2, "0"), "PROPOSED"),
+    );
+
+    const first = paginateDailyDecisionRecords(records, 0);
+    const second = paginateDailyDecisionRecords(records, 1);
+    const third = paginateDailyDecisionRecords(records, 2);
+    const beyond = paginateDailyDecisionRecords(records, 99);
+
+    expect(first.items).toHaveLength(10);
+    expect(second.items).toHaveLength(10);
+    expect(third.items).toHaveLength(3);
+    expect(third.firstItem).toBe(21);
+    expect(third.lastItem).toBe(23);
+    expect(beyond.pageIndex).toBe(2);
+    expect([...first.items, ...second.items, ...third.items].map(item => item.decisionId))
+      .toEqual(records.map(item => item.decisionId));
   });
 
   it("reports counts from the loaded records without implying full-history coverage", () => {
