@@ -60,7 +60,7 @@ describe('purchase orders page',()=>{
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     expect(mocks.fetchSuppliers).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button',{name:/PO-20261019-000001/}));
-    expect(await screen.findByText('مورد موثوق')).toBeInTheDocument();
+    expect(await screen.findByText(/المورد: مورد موثوق/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/اعتماد أمر الشراء للتوريد/}));
     expect(await screen.findByText(/تم اعتماد أمر الشراء داخل النظام/)).toBeInTheDocument();
     expect(mocks.submitPurchaseOrder).toHaveBeenCalledWith('po-1');
