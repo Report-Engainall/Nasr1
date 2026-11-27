@@ -108,7 +108,7 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
         !isRecord(item.fields)) {
       throw new Error("أحد سجلات معاينة ERP غير صالح.");
     }
-    const disposition = item.last_disposition;
+    const disposition = item.lastDisposition;
     if (disposition !== null && disposition !== undefined &&
         disposition !== "created" && disposition !== "updated" &&
         disposition !== "unchanged" && disposition !== "rejected" && disposition !== "conflicted") {
