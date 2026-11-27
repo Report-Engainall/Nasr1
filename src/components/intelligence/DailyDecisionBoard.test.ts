@@ -163,6 +163,7 @@ describe("daily decision work queue selectors", () => {
     const csv = buildDailyDecisionCsv([unsafe]);
 
     expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toContain("تنبيه التغطية");
     expect(csv).toContain('"\'=HYPERLINK(""https://example.invalid"",""open"")"');
     expect(csv).toContain('"\'\t@SUM(A1:A2)"');
     expect(csv).toContain('"contains ""quotes"", commas, and a newline');
