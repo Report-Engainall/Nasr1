@@ -34,6 +34,8 @@ const mocks = vi.hoisted(() => ({
   createProposal: vi.fn(),
   deferDecision: vi.fn(),
   resumeDecision: vi.fn(),
+  fetchDecisionAssignees: vi.fn(),
+  commandOutcome: vi.fn(),
   asOf: "2026-10-31T09:00:00.000Z",
   period: { from: "2026-08-01", to: "2026-10-31" },
 }));
@@ -64,7 +66,8 @@ vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   createDecisionOutcomeProposal: mocks.createProposal,
   deferDecisionOutcome: mocks.deferDecision,
   resumeDeferredDecisionOutcome: mocks.resumeDecision,
-  commandDecisionOutcome: vi.fn(),
+  fetchDecisionOutcomeAssignees: mocks.fetchDecisionAssignees,
+  commandDecisionOutcome: mocks.commandOutcome,
 }));
 vi.mock("@/lib/intelligence/shift-operations-client", () => ({
   fetchOperationalShiftWorkspace: mocks.fetchShiftWorkspace,
@@ -376,6 +379,8 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.createProposal.mockReset().mockResolvedValue({ ok: true, duplicate: false });
     mocks.deferDecision.mockReset();
     mocks.resumeDecision.mockReset();
+    mocks.fetchDecisionAssignees.mockReset().mockResolvedValue({ ok: true, items: [] });
+    mocks.commandOutcome.mockReset();
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
     mocks.fetchShiftWorkspace.mockReset().mockResolvedValue({
       ok: false, status: "NOT_FOUND", message: "no shift for this date",
@@ -548,6 +553,67 @@ describe("production intelligence workspace inventory screens", () => {
     expect(status).toHaveTextContent("تم إرسال التوصية للمراجعة");
     expect(screen.queryByRole("button", { name: "حفظ الإجراء في دورة القرارات" })).not.toBeInTheDocument();
     expect(mocks.createProposal).not.toHaveBeenCalled();
+  });
+
+  it("assigns an approved decision to an active same-organization team member selected from the server directory", async () => {
+    const approved = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000099", "تسوية التزام مورد"),
+      state: "APPROVED" as const,
+      version: 3,
+      approvedAt: asOf,
+      ownerProfileId: null,
+      ownerLabel: "غير معيّن",
+      eventCount: 3,
+      history: [
+        decisionOutcomeFixture("00000000-0000-4000-8000-000000000099", "تسوية التزام مورد").history[0],
+        { id: "submit-99", type: "SUBMIT_FOR_REVIEW", version: 2, at: asOf, actorRole: "manager", reason: null },
+        { id: "approve-99", type: "APPROVE", version: 3, at: asOf, actorRole: "admin", reason: "تمت مراجعة مستندات المورد" },
+      ],
+    };
+    const staffId = "33333333-3333-4333-8333-333333333333";
+    const assigned = {
+      ...approved,
+      state: "ASSIGNED" as const,
+      version: 4,
+      ownerProfileId: staffId,
+      ownerLabel: "مسؤول المخزون",
+      assignedAt: asOf,
+      eventCount: 4,
+      history: [...approved.history, {
+        id: "assign-99", type: "ASSIGN", version: 4, at: asOf, actorRole: "admin", reason: null,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [approved], total: 1 })
+      .mockResolvedValue({ ok: true, items: [assigned], total: 1 });
+    mocks.fetchMemoryCollection.mockReset().mockResolvedValue({
+      ok: true,
+      collection: { items: [approved], total: 1, loaded: 1, pageCount: 1, complete: true, reason: "COMPLETE" },
+    });
+    mocks.fetchDecisionAssignees.mockResolvedValue({
+      ok: true,
+      items: [
+        { profileId: "22222222-2222-4222-8222-222222222222", fullName: "مدير المالية", email: "finance@example.test", roles: ["admin"] },
+        { profileId: staffId, fullName: "مسؤول المخزون", email: "stock@example.test", roles: ["staff", "warehouse"] },
+      ],
+    });
+    mocks.commandOutcome.mockResolvedValue({ ok: true, duplicate: false, outcome: assigned });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "تسوية التزام مورد" })).closest("article");
+    expect(card).not.toBeNull();
+    const select = await within(card as HTMLElement).findByRole("combobox", { name: "تعيين القرار إلى عضو من المؤسسة" });
+    fireEvent.change(select, { target: { value: staffId } });
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "تثبيت المسؤول" }));
+
+    await waitFor(() => expect(mocks.commandOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      outcomeId: approved.id,
+      expectedVersion: 3,
+      eventType: "ASSIGN",
+      ownerProfileId: staffId,
+    })));
+    await waitFor(() => expect(within(register).getByText("مسؤول المخزون")).toBeInTheDocument());
   });
 
   it("keeps saved concentration decisions scoped as ratios and never offers cash measurement", async () => {

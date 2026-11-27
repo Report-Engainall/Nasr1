@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomeCollection, fetchDecisionOutcomes, resumeDeferredDecisionOutcome } from "./decision-outcome-client";
+import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomeAssignees, fetchDecisionOutcomeCollection, fetchDecisionOutcomes, resumeDeferredDecisionOutcome } from "./decision-outcome-client";
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
@@ -535,5 +535,47 @@ describe("decision outcome strict evidence clock and lifecycle chronology", () =
         expiresAt: "2026-10-31T09:59:59.999Z",
       },
     });
+  });
+});
+
+
+describe("decision outcome assignable staff directory", () => {
+  beforeEach(() => rpc.mockReset());
+
+  it("loads only active assignable roles from the existing tenant-scoped RPC", async () => {
+    rpc.mockResolvedValue({
+      data: [
+        { profile_id: "33333333-3333-4333-8333-333333333333", full_name: "مسؤول المخزون", email: "stock@example.test", roles: ["warehouse", "staff"] },
+        { profile_id: "44444444-4444-4444-8444-444444444444", full_name: "عميل", email: "customer@example.test", roles: ["customer"] },
+      ],
+      error: null,
+    });
+    const result = await fetchDecisionOutcomeAssignees();
+    expect(rpc).toHaveBeenCalledWith("list_operational_task_assignees");
+    expect(result).toEqual({
+      ok: true,
+      items: [{
+        profileId: "33333333-3333-4333-8333-333333333333",
+        fullName: "مسؤول المخزون",
+        email: "stock@example.test",
+        roles: ["staff", "warehouse"],
+      }],
+    });
+  });
+
+  it("withholds the full list when any returned member is malformed or duplicated", async () => {
+    rpc.mockResolvedValue({
+      data: [
+        { profile_id: "33333333-3333-4333-8333-333333333333", full_name: "موظف", email: null, roles: ["staff"] },
+        { profile_id: "33333333-3333-4333-8333-333333333333", full_name: "مكرر", email: null, roles: ["manager"] },
+      ],
+      error: null,
+    });
+    await expect(fetchDecisionOutcomeAssignees()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("maps the manager-gated directory denial to a non-success result", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "internal detail" } });
+    await expect(fetchDecisionOutcomeAssignees()).resolves.toMatchObject({ ok: false, status: "DENIED" });
   });
 });

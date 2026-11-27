@@ -70,11 +70,25 @@ export type DecisionOutcomeListResult =
   | { ok: true; items: DecisionOutcomeView[]; total: number }
   | { ok: false; status: DecisionOutcomeFailureStatus; message: string };
 
+export interface DecisionOutcomeAssignee {
+  profileId: string;
+  fullName: string | null;
+  email: string | null;
+  roles: string[];
+}
+export type DecisionOutcomeAssigneeListResult =
+  | { ok: true; items: DecisionOutcomeAssignee[] }
+  | { ok: false; status: DecisionOutcomeFailureStatus; message: string };
+
 type UnknownRecord = Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states = new Set<DecisionOutcomeState>([
   "PROPOSED","IN_REVIEW","APPROVED","REJECTED","DEFERRED","ASSIGNED","EXECUTING","EXECUTED","MEASURED",
 ]);
+const assignableRoleKeys = new Set([
+  "admin", "manager", "staff", "accountant", "warehouse", "purchasing", "sales",
+]);
+
 function record(value: unknown): UnknownRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as UnknownRecord : null;
@@ -358,6 +372,50 @@ function validateProposal(input: {
     return "تعذر حفظ القرار: لقطة الأولوية والأثر والأدلة مطلوبة ويجب أن تطابق هوية المقترح.";
   }
   return null;
+}
+
+/**
+ * Lists active same-organization staff through the existing manager-gated task-assignee RPC.
+ * Only roles accepted by command_decision_outcome(ASSIGN) are exposed as choices.
+ */
+export async function fetchDecisionOutcomeAssignees(): Promise<DecisionOutcomeAssigneeListResult> {
+  try {
+    const { data, error } = await supabase.rpc("list_operational_task_assignees");
+    if (error) return { ok: false, ...safeFailure(error) };
+    if (!Array.isArray(data) || data.length > 2000) {
+      return { ok: false, status: "ERROR", message: "استجابة أعضاء المؤسسة غير صالحة؛ أُوقف الإسناد." };
+    }
+    const seen = new Set<string>();
+    const items: DecisionOutcomeAssignee[] = [];
+    for (const value of data) {
+      const row = record(value);
+      if (
+        !row ||
+        typeof row.profile_id !== "string" ||
+        !UUID.test(row.profile_id) ||
+        !(row.full_name === null || str(row.full_name, 200)) ||
+        !(row.email === null || str(row.email, 320)) ||
+        !Array.isArray(row.roles) ||
+        row.roles.length > 30 ||
+        row.roles.some(role => !str(role, 80)) ||
+        seen.has(row.profile_id.toLowerCase())
+      ) {
+        return { ok: false, status: "ERROR", message: "تتضمن قائمة أعضاء المؤسسة سجلاً غير صالح؛ أُوقف الإسناد." };
+      }
+      seen.add(row.profile_id.toLowerCase());
+      const roles = [...new Set((row.roles as string[]).filter(role => assignableRoleKeys.has(role)))].sort();
+      if (!roles.length) continue;
+      items.push({
+        profileId: row.profile_id.toLowerCase(),
+        fullName: typeof row.full_name === "string" ? row.full_name.trim() : null,
+        email: typeof row.email === "string" ? row.email.trim() : null,
+        roles,
+      });
+    }
+    return { ok: true, items };
+  } catch {
+    return { ok: false, status: "UNAVAILABLE", message: "تعذر تحميل أعضاء المؤسسة؛ لم يُرسل أمر إسناد." };
+  }
 }
 
 export async function fetchDecisionOutcomes(limit = 50, offset = 0): Promise<DecisionOutcomeListResult> {

@@ -47,7 +47,10 @@ import {
   commandDecisionOutcome,
   createDecisionOutcomeProposal,
   deferDecisionOutcome,
+  fetchDecisionOutcomeAssignees,
   resumeDeferredDecisionOutcome,
+  type DecisionOutcomeAssignee,
+  type DecisionOutcomeAssigneeListResult,
   fetchDecisionOutcomes,
   fetchDecisionOutcomeCollection,
   type DecisionCandidateSnapshot,
@@ -94,6 +97,10 @@ const formatMoney = (value: number, currency: string) => new Intl.NumberFormat("
 const stateLabels: Record<DecisionOutcomeView["state"], string> = {
   PROPOSED: "مقترح", IN_REVIEW: "قيد المراجعة", APPROVED: "معتمد", REJECTED: "مرفوض",
   DEFERRED: "مؤجل", ASSIGNED: "مُعيّن", EXECUTING: "قيد التنفيذ", EXECUTED: "بانتظار القياس", MEASURED: "مقاس",
+};
+const decisionAssigneeRoleLabels: Record<string, string> = {
+  admin: "مدير", manager: "مدير المؤسسة", staff: "موظف",
+  accountant: "محاسب", warehouse: "المخزون", purchasing: "المشتريات", sales: "المبيعات",
 };
 function candidateIdFor(currency: string, period: { from: string; to: string }): string {
   return "cashflow.expected_collections:" + currency + ":" + period.from + ":" + period.to;
@@ -208,6 +215,10 @@ function DecisionOutcomeCard({
   busy,
   anyBusy,
   profileId,
+  assignableAssignees,
+  assigneesLoading,
+  assigneesError,
+  onRetryAssignees,
   onReasonChange,
   onTransition,
 }: {
@@ -217,6 +228,10 @@ function DecisionOutcomeCard({
   busy: boolean;
   anyBusy: boolean;
   profileId: string | undefined;
+  assignableAssignees: DecisionOutcomeAssignee[];
+  assigneesLoading: boolean;
+  assigneesError: string | null;
+  onRetryAssignees: () => void;
   onReasonChange: (id: string, value: string) => void;
   onTransition: DecisionTransitionHandler;
 }) {
@@ -276,6 +291,10 @@ function DecisionOutcomeCard({
         busy={busy}
         anyBusy={anyBusy}
         profileId={profileId}
+        assignableAssignees={assignableAssignees}
+        assigneesLoading={assigneesLoading}
+        assigneesError={assigneesError}
+        onRetryAssignees={onRetryAssignees}
         actionReason={actionReason}
         onTransition={onTransition}
       />
@@ -301,6 +320,10 @@ function DecisionOutcomeActions({
   busy,
   anyBusy,
   profileId,
+  assignableAssignees,
+  assigneesLoading,
+  assigneesError,
+  onRetryAssignees,
   actionReason,
   onTransition,
 }: {
@@ -311,10 +334,15 @@ function DecisionOutcomeActions({
   busy: boolean;
   anyBusy: boolean;
   profileId: string | undefined;
+  assignableAssignees: DecisionOutcomeAssignee[];
+  assigneesLoading: boolean;
+  assigneesError: string | null;
+  onRetryAssignees: () => void;
   actionReason: string;
   onTransition: DecisionTransitionHandler;
 }) {
   const disabled = busy || anyBusy;
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState("");
   if (outcome.state === "PROPOSED") {
     return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
   }
@@ -330,7 +358,57 @@ function DecisionOutcomeActions({
     );
   }
   if (outcome.state === "APPROVED") {
-    return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled || !profileId} onClick={() => profileId && onTransition(outcome, "ASSIGN", { ownerProfileId: profileId })}>تعيين لنفسي</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+    const selectedAssignee =
+      assignableAssignees.find(item => item.profileId === selectedAssigneeId) ??
+      assignableAssignees.find(item => item.profileId === profileId) ??
+      assignableAssignees[0] ?? null;
+    return (
+      <div className="mt-3 space-y-2">
+        {assigneesLoading ? <p role="status" className="text-xs text-muted-foreground">جارٍ تحميل أعضاء المؤسسة المسموح إسناد القرار إليهم…</p> : null}
+        {assigneesError ? (
+          <div className="rounded-lg border p-2 text-xs" role="alert">
+            <p>{assigneesError}</p>
+            <button className="btn secondary mt-2" type="button" disabled={disabled || assigneesLoading} onClick={onRetryAssignees}>إعادة تحميل أعضاء المؤسسة</button>
+          </div>
+        ) : null}
+        {!assigneesLoading && !assigneesError && assignableAssignees.length === 0 ? (
+          <p role="status" className="text-xs text-muted-foreground">لا يوجد عضو نشط بدور قابل للإسناد في المؤسسة؛ لم يُنفذ أي إسناد.</p>
+        ) : null}
+        {assignableAssignees.length ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="grid min-w-52 flex-1 gap-1 text-sm">
+              إسناد القرار إلى عضو من المؤسسة
+              <select
+                className="rounded-lg border bg-background p-2"
+                aria-label="تعيين القرار إلى عضو من المؤسسة"
+                value={selectedAssignee?.profileId ?? ""}
+                onChange={event => setSelectedAssigneeId(event.target.value)}
+                disabled={disabled || assigneesLoading}
+              >
+                {assignableAssignees.map(assignee => (
+                  <option key={assignee.profileId} value={assignee.profileId}>
+                    {(assignee.fullName || assignee.email || "عضو المؤسسة") + " · " + assignee.roles.map(role => decisionAssigneeRoleLabels[role] ?? role).join("، ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={disabled || !selectedAssignee}
+              onClick={() => selectedAssignee && onTransition(outcome, "ASSIGN", { ownerProfileId: selectedAssignee.profileId })}
+            >تثبيت المسؤول</button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={disabled || assigneesLoading}
+              onClick={onRetryAssignees}
+            >تحديث الفريق</button>
+          </div>
+        ) : null}
+        {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الإسناد...</span> : null}
+      </div>
+    );
   }
   if (outcome.state === "ASSIGNED") {
     return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "START_EXECUTION")}>بدء التنفيذ</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
@@ -379,6 +457,10 @@ function DecisionCyclePanel({
   outcomeBusyId,
   measurementMetrics,
   profileId,
+  assignableAssignees,
+  assigneesLoading,
+  assigneesError,
+  onRetryAssignees,
   onReasonChange,
   onTransition,
 }: {
@@ -391,6 +473,10 @@ function DecisionCyclePanel({
   outcomeBusyId: string | null;
   measurementMetrics: CashflowMeasurementProof[];
   profileId: string | undefined;
+  assignableAssignees: DecisionOutcomeAssignee[];
+  assigneesLoading: boolean;
+  assigneesError: string | null;
+  onRetryAssignees: () => void;
   onReasonChange: (id: string, value: string) => void;
   onTransition: DecisionTransitionHandler;
 }) {
@@ -427,6 +513,10 @@ function DecisionCyclePanel({
               busy={outcomeBusyId === outcome.id}
               anyBusy={outcomeBusyId !== null}
               profileId={profileId}
+              assignableAssignees={assignableAssignees}
+              assigneesLoading={assigneesLoading}
+              assigneesError={assigneesError}
+              onRetryAssignees={onRetryAssignees}
               onReasonChange={onReasonChange}
               onTransition={onTransition}
             />
@@ -478,6 +568,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [outcomeBusyId, setOutcomeBusyId] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
   const [outcomeReasons, setOutcomeReasons] = useState<Record<string, string>>({});
+  const [decisionAssigneesResult, setDecisionAssigneesResult] = useState<DecisionOutcomeAssigneeListResult | null>(null);
+  const [decisionAssigneesLoading, setDecisionAssigneesLoading] = useState(false);
+  const [decisionAssigneesRefreshKey, setDecisionAssigneesRefreshKey] = useState(0);
   const [proposalCurrency, setProposalCurrency] = useState("");
   const [proposalExpected, setProposalExpected] = useState("متابعة التحصيل وفق الفواتير المثبتة في الفترة المحددة");
   const [proposalReason, setProposalReason] = useState("");
@@ -545,6 +638,30 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       decisionMemoryRequestGeneration.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!canManage) {
+      setDecisionAssigneesResult({ ok: false, status: "DENIED", message: "تتطلب قائمة أعضاء المؤسسة صلاحية المدير." });
+      setDecisionAssigneesLoading(false);
+      return () => { active = false; };
+    }
+    setDecisionAssigneesLoading(true);
+    void fetchDecisionOutcomeAssignees().then(response => {
+      if (!active) return;
+      setDecisionAssigneesResult(response);
+      setDecisionAssigneesLoading(false);
+    }).catch(() => {
+      if (!active) return;
+      setDecisionAssigneesResult({
+        ok: false,
+        status: "UNAVAILABLE",
+        message: "تعذر تحميل أعضاء المؤسسة؛ لم يُرسل أمر إسناد.",
+      });
+      setDecisionAssigneesLoading(false);
+    });
+    return () => { active = false; };
+  }, [canManage, decisionAssigneesRefreshKey]);
 
   const loadCashflow = useCallback(async (active: () => boolean) => {
     if (!canManage) {
@@ -2178,6 +2295,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             outcomeBusyId={outcomeBusyId}
             measurementMetrics={data?.measurementMetrics ?? []}
             profileId={user?.profileId}
+            assignableAssignees={decisionAssigneesResult?.ok ? decisionAssigneesResult.items : []}
+            assigneesLoading={decisionAssigneesLoading}
+            assigneesError={decisionAssigneesResult && !decisionAssigneesResult.ok ? decisionAssigneesResult.message : null}
+            onRetryAssignees={() => setDecisionAssigneesRefreshKey(value => value + 1)}
             onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
             onTransition={runTransition}
           />
