@@ -60,6 +60,7 @@ function parseItem(value: unknown, asOf: string): CustomerReceivableAgingItem | 
       (value.oldestAgeDays !== null && (!Number.isSafeInteger(value.oldestAgeDays) || (value.oldestAgeDays as number) < 0)) ||
       !statuses.has(String(value.status)) || value.asOf !== asOf ||
       !text(value.formulaId,150) || !text(value.formulaVersion,80) || !time(value.calculatedAt) ||
+      timestampMicroseconds(value.calculatedAt)! > timestampMicroseconds(asOf)! ||
       !Array.isArray(value.agingBuckets) || value.agingBuckets.length > 6 || !warnings) return null;
   const parsedBuckets: CustomerReceivableAgingBucket[] = [];
   const seen = new Set<string>();
