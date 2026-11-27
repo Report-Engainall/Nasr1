@@ -89,6 +89,25 @@ function resolveProductCode(
   return { matches: [], matchedCode: itemCode };
 }
 
+function productImageFilenameOrder(fileName: string, productItemCode: string): readonly [number, number] {
+  const fileCode = productImageItemCodeFromFilename(fileName);
+  if (!fileCode) return [2, 0];
+
+  const productKey = normalizeProductImageItemCode(productItemCode);
+  if (normalizeProductImageItemCode(fileCode) === productKey) return [0, 0];
+
+  const numberedSuffix = fileCode.match(/(?:__|\\s*\\()\\s*([2-9]\\d*)\\)?$/u);
+  if (numberedSuffix?.index !== undefined) {
+    const baseCode = fileCode.slice(0, numberedSuffix.index).trim();
+    if (normalizeProductImageItemCode(baseCode) === productKey) {
+      const number = Number(numberedSuffix[1]);
+      return [1, Number.isSafeInteger(number) ? number : Number.MAX_SAFE_INTEGER];
+    }
+  }
+
+  return [2, 0];
+}
+
 /**
  * Plans a safe, deterministic batch:
  * - exact SKU/item-code match wins over numbered image suffixes;
@@ -165,10 +184,16 @@ export function matchProductImagesByCode<TFile extends ProductImageBatchFile>(
     const product = group[0].product;
     if (!product) continue;
 
-    // Stable ordering makes the chosen primary image predictable across runs.
-    group.sort((left, right) =>
-      left.file.name.localeCompare(right.file.name, "en", { numeric: true, sensitivity: "base" }),
-    );
+    // The exact SKU filename (SKU.png) is the primary candidate. Numbered
+    // aliases (SKU__2.png, SKU (3).webp) are gallery candidates and sort by
+    // their numeric suffix, regardless of the order files were selected.
+    group.sort((left, right) => {
+      const [leftRank, leftNumber] = productImageFilenameOrder(left.file.name, product.item_code);
+      const [rightRank, rightNumber] = productImageFilenameOrder(right.file.name, product.item_code);
+      if (leftRank !== rightRank) return leftRank - rightRank;
+      if (leftNumber !== rightNumber) return leftNumber - rightNumber;
+      return left.file.name.localeCompare(right.file.name, "en", { numeric: true, sensitivity: "base" });
+    });
 
     let primaryAssigned = hasSafePrimaryProductImageUrl(product.image_url);
     let galleryCount = product.image_gallery_urls?.length ?? 0;
