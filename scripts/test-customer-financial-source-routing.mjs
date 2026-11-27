@@ -153,7 +153,7 @@ async function main() {
       "has_table_privilege('authenticated','public.customer_financial_source_change_requests','SELECT') as request_read," +
       "has_table_privilege('authenticated','public.customer_financial_source_sync_evidence','SELECT') as sync_read," +
       "has_function_privilege('authenticated','public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text)','EXECUTE') as sync_execute," +
-      "has_function_privilege('authenticated','public.record_customer_financial_source_reconciliation_evidence(uuid,uuid,timestamp with time zone,text,text,text[],jsonb,text)','EXECUTE') as evidence_execute",
+      "has_function_privilege('authenticated','public.record_customer_financial_source_reconciliation_evidence(uuid,timestamp with time zone,text,text,text[],jsonb,text)','EXECUTE') as evidence_execute",
   );
   assert.equal(directPrivileges[0].binding_read, false, "authenticated roles cannot read source bindings directly");
   assert.equal(directPrivileges[0].request_read, false, "authenticated roles cannot read source requests directly");
