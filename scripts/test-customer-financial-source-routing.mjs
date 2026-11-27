@@ -331,6 +331,9 @@ async function main() {
       "55P03",
       "could not obtain lock on row",
     );
+    // A new customer_payments row must validate its receipt foreign key using KEY SHARE.
+    // The print transaction's FOR UPDATE receipt lock must reject that reference,
+    // or a phantom allocation could appear after the reconciled DTO was assembled.
     await expectFailure(
       "customer receipt print rejects a concurrent FK KEY SHARE reference that could append a phantom allocation",
       serviceDb.unsafe(
