@@ -27,7 +27,7 @@ function item(customerId: string, totalOutstanding: number) {
       invoiceCount: 1,
       partiallyPaidCount: 0,
       oldestAgeDays: 10,
-      evidenceIds: [],
+      evidenceIds: [] as string[],
     }],
     asOf,
     formulaId: "receivables.customer-invoice-aging",
