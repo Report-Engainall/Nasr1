@@ -44,7 +44,9 @@ function priorityRank(record: DecisionMemoryRecord): number {
   return priority === "P0" ? 0 : priority === "P1" ? 1 : priority === "P2" ? 2 : priority === "P3" ? 3 : 4;
 }
 
-export type DailyDecisionBoardFilter = "ALL" | "OPEN" | "OVERDUE" | "AWAITING_MEASUREMENT" | "CLOSED";
+export type DailyDecisionBoardFilter =
+  | "ALL" | "OPEN" | "OVERDUE" | "DUE_24H" | "DUE_7_DAYS"
+  | "UNSCHEDULED" | "AWAITING_MEASUREMENT" | "CLOSED";
 export type DailyDecisionBoardCounts = Record<DailyDecisionBoardFilter, number>;
 export type DailyDecisionPriorityFilter = "ALL" | "P0" | "P1" | "P2" | "P3" | "UNRANKED";
 
@@ -61,6 +63,21 @@ export function isDailyDecisionOverdue(record: DecisionMemoryRecord, now: number
   if (isTerminalDecision(record) || record.reviewDisposition !== "SCHEDULED" || !record.reviewAt) return false;
   const dueAt = Date.parse(record.reviewAt);
   return Number.isFinite(dueAt) && dueAt <= now;
+}
+
+export function isDailyDecisionDueWithin(
+  record: DecisionMemoryRecord,
+  now: number,
+  horizonMs: number,
+): boolean {
+  if (isTerminalDecision(record) || record.reviewDisposition !== "SCHEDULED" || !record.reviewAt ||
+      !Number.isFinite(horizonMs) || horizonMs <= 0) return false;
+  const dueAt = Date.parse(record.reviewAt);
+  return Number.isFinite(dueAt) && dueAt > now && dueAt <= now + horizonMs;
+}
+
+export function isDailyDecisionUnscheduled(record: DecisionMemoryRecord): boolean {
+  return !isTerminalDecision(record) && record.reviewDisposition === "NOT_SCHEDULED";
 }
 
 export function normalizeDailyDecisionSearch(value: string): string {
@@ -104,6 +121,9 @@ function matchesDailyDecisionFilter(
     case "ALL": return true;
     case "OPEN": return !isTerminalDecision(record);
     case "OVERDUE": return isDailyDecisionOverdue(record, now);
+    case "DUE_24H": return isDailyDecisionDueWithin(record, now, 24 * 60 * 60 * 1000);
+    case "DUE_7_DAYS": return isDailyDecisionDueWithin(record, now, 7 * 24 * 60 * 60 * 1000);
+    case "UNSCHEDULED": return isDailyDecisionUnscheduled(record);
     case "AWAITING_MEASUREMENT": return record.state === "EXECUTED";
     case "CLOSED": return isTerminalDecision(record);
   }
@@ -117,6 +137,9 @@ export function summarizeDailyDecisionBoard(
     ALL: records.length,
     OPEN: records.filter(record => matchesDailyDecisionFilter(record, "OPEN", now)).length,
     OVERDUE: records.filter(record => matchesDailyDecisionFilter(record, "OVERDUE", now)).length,
+    DUE_24H: records.filter(record => matchesDailyDecisionFilter(record, "DUE_24H", now)).length,
+    DUE_7_DAYS: records.filter(record => matchesDailyDecisionFilter(record, "DUE_7_DAYS", now)).length,
+    UNSCHEDULED: records.filter(record => matchesDailyDecisionFilter(record, "UNSCHEDULED", now)).length,
     AWAITING_MEASUREMENT: records.filter(record => matchesDailyDecisionFilter(record, "AWAITING_MEASUREMENT", now)).length,
     CLOSED: records.filter(record => matchesDailyDecisionFilter(record, "CLOSED", now)).length,
   };
@@ -171,6 +194,65 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
   if (byCreation !== 0) return byCreation;
   // Use the immutable decision ID as a deterministic final tie-breaker.
   return left.decisionId < right.decisionId ? -1 : left.decisionId > right.decisionId ? 1 : 0;
+}
+
+function csvCell(value: unknown): string {
+  let text = value === null || value === undefined ? "" : String(value);
+  // Prevent spreadsheet formula execution from user-controlled text fields.
+  if (/^[\\s\\u0000-\\u001F]*[=+\\-@]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export function buildDailyDecisionCsv(records: DecisionMemoryRecord[]): string {
+  const headers = [
+    "مرجع القرار", "القرار", "الحالة", "الأولوية المحفوظة", "المسؤول",
+    "تصنيف المراجعة", "موعد المراجعة", "الإجراء المسجل", "النتيجة المتوقعة",
+    "سبب القرار", "المشكلة", "مراجع الأدلة",
+  ];
+  const rows = records.map(record => {
+    const candidate = record.candidateSnapshot;
+    const reviewLabel = record.reviewDisposition === "SCHEDULED" ? "مجدولة"
+      : record.reviewDisposition === "NOT_SCHEDULED" ? "غير مجدولة"
+        : record.reviewDisposition === "NOT_REQUIRED" ? "غير مطلوبة" : "غير محددة";
+    const evidenceIds = [
+      ...(candidate?.proof.evidenceIds ?? []),
+      ...(record.snapshot?.evidenceRecords ?? []).map(item => item.id),
+    ];
+    return [
+      record.decisionId,
+      record.proposedResult,
+      stateLabels[record.state],
+      candidate ? candidate.priority + " · " + candidate.priorityScore : "غير محفوظة",
+      record.owner || "غير معيّن",
+      reviewLabel,
+      record.reviewAt ?? "",
+      record.actionTaken ?? "",
+      candidate?.expectedOutcome ?? "",
+      record.decisionReason ?? "",
+      record.problem ?? "",
+      [...new Set(evidenceIds)].join(" | "),
+    ];
+  });
+  return [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
+}
+
+export function downloadDailyDecisionCsv(records: DecisionMemoryRecord[]): void {
+  if (records.length === 0) return;
+  const blob = new Blob(["\\uFEFF", buildDailyDecisionCsv(records)], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "nasr1-daily-decisions-" + new Date().toISOString().slice(0, 10) + ".csv";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 }
 
 function decisionDue(record: DecisionMemoryRecord, now: number): string {
@@ -431,6 +513,9 @@ const boardFilters: Array<{ value: DailyDecisionBoardFilter; label: string }> = 
   { value: "ALL", label: "الكل" },
   { value: "OPEN", label: "تحتاج إجراء" },
   { value: "OVERDUE", label: "متأخرة" },
+  { value: "DUE_24H", label: "تستحق خلال 24 ساعة" },
+  { value: "DUE_7_DAYS", label: "تستحق خلال 7 أيام" },
+  { value: "UNSCHEDULED", label: "بلا موعد مراجعة" },
   { value: "AWAITING_MEASUREMENT", label: "بانتظار القياس" },
   { value: "CLOSED", label: "مغلقة" },
 ];
@@ -584,9 +669,19 @@ export function DailyDecisionBoard({
             </label>
           </div>
 
-          <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
-            {firstVisible}–{lastVisible} من {filteredRecords.length} نتيجة مطابقة، ضمن {result.loadedCount} سجلاً محملاً من أصل {result.totalCount} قراراً محفوظاً.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+              {firstVisible}–{lastVisible} من {filteredRecords.length} نتيجة مطابقة، ضمن {result.loadedCount} سجلاً محملاً من أصل {result.totalCount} قراراً محفوظاً.
+            </p>
+            <button
+              type="button"
+              className="rounded-lg border px-3 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={filteredRecords.length === 0}
+              onClick={() => downloadDailyDecisionCsv(filteredRecords)}
+            >
+              تصدير النتائج المصفّاة CSV
+            </button>
+          </div>
 
           {result.records.length === 0 ? (
             <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات محمّلة من المصدر لعرضها.</p>
