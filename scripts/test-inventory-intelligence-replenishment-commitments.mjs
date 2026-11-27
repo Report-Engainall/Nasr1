@@ -311,6 +311,7 @@ async function main() {
   assert.equal(convertedEvidence.status, "VERIFIED");
   assert.equal(convertedEvidence.source.version, "v2");
 
+  await setIdentity(customer);
   await expectSqlStateInSavepoint(
     "ordinary customer inventory intelligence read",
     "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz)",
