@@ -1,59 +1,52 @@
-# LIVE EXECUTION RESUME — 2026-11-20
+# LIVE EXECUTION RESUME — 2026-11-27
 
-> Sole live pointer. Continue from the current P2 transaction/security gate. Historical sections after the marker remain unchanged reference evidence.
+> Sole live execution pointer. Continue from the first next action below. Historical checkpoints after the marker are preserved verbatim for evidence only; do not resume from them.
 
 - Repository: `Report-Engainall/Nasr1`; only truth branch: `main`.
-- Latest application/feature merge on main: `0213eec123f818ecc1abafd3e3229472e3f26457`. Main tip immediately before this pointer refresh: `f2ab79e9f4581cfe2094f647515588453bb1bf66` (checkpoint/matrix documentation descendants only; no application source changed after the #572 merge).
-- Latest accepted feature merge: PR #572, merged as `0213eec123f818ecc1abafd3e3229472e3f26457`.
-- Owners: P1 product/integration and sole merger; P2 PostgreSQL/RPC/migrations/transactions/inventory/finance/Onyx; P3 deterministic intelligence/BI/forecast.
-- No production/hosted Supabase mutation, deployment, Vercel action, Bolt/Lovable action or paid AI usage was performed.
+- Current `main` SHA: `90597e5ba0071bc82cdde14174035b49f3399b51`.
+- Latest accepted feature integrations:
+  - P3 PR #624 merged as `68148f4ded83ed16bdf7a42dda5fad619c7e76b5` — seven Onyx test callbacks corrected to satisfy the reader's void callback contract. Test-only; no workbook or accounting behavior was changed.
+  - P1 PR #625 merged squash as `90597e5ba0071bc82cdde14174035b49f3399b51` — task-quality review centre now recovers from unexpected metric-read exceptions, retains last known good metrics, exposes retry, and ignores stale responses. Focused loading/error/retry/concurrency tests added; P1 verification path filters updated.
+- Ownership: P1 product/UI and sole merger; P2 database/RPC/RLS/transactions/inventory/finance/storage contracts; P3 deterministic intelligence and AI engines.
+- No hosted/production Supabase mutation, production Storage write, deployment, Bolt/Lovable/Vercel action, or paid AI call was performed.
 
-## Latest accepted P3 integration — PR #572
+## Accepted execution — PR #624
 
-- PR #572 — deterministic intelligence and financial precision integration; exact PR head `f5bebb5a3f0fe34ee4bdbc073a050f36e41439d7`; merged squash SHA `0213eec123f818ecc1abafd3e3229472e3f26457`.
-- Integrated unique work from #568, #569 and #571 without duplicate workflow paths:
-  - Process bottleneck engine rejects completion evidence after snapshot `asOf`, and avoids a misleading empty-comparison caveat; 13 deterministic regressions.
-  - Cashflow forecast restores 12 exact-cent/currency/as-of/completeness regressions; partial source evidence and missing opening balance never fabricate a closing projection.
-  - Shift cash restores 5 integer-cent engine regressions and 3 client RPC boundary regressions, including pre-RPC sub-cent/unsafe-value rejection and one-cent variance classification.
-  - The P1 workflow now covers these source/test files under both push and pull-request filters.
-- Exact PR-head P1 run 44652294633: SUCCESS — Vitest, P1 strict TypeScript, P4 strict TypeScript and production build.
-- Exact PR-head P2 run 44652294661: public read-only Storefront browser smoke SUCCESS; authenticated infrastructure gate SUCCESS; hosted customer/order/tenant job 136009929336 SKIPPED. This P3 change contains no SQL/RPC/RLS/role/data writes; no authenticated DB runtime acceptance is claimed.
-- Source PRs #568, #569 and #571 are closed as superseded after all unique work was moved into #572; their branches were not deleted.
+- P3 Onyx test callback repair accepted on `main` at `68148f4ded83ed16bdf7a42dda5fad619c7e76b5`.
+- Exact-head P1 checks passed; full P2 local acceptance run `45912063978` completed successfully.
+- The local suite used disposable Supabase/PostgreSQL 17 and verified migrations, tenant/role boundaries, idempotent decisions, inventory/FEFO, finance and supplier operations, storefront reviews/questions, Storage constraints, and Chromium order/return/export/print paths.
+- No hosted Supabase or production data acceptance is inferred from the local suite.
 
-## Current blocking P2 integration — PR #565
+## Accepted execution — PR #625
 
-- PR #565 — Authorization V2, stock-count warehouse scope/Maker–Checker, decision snapshot read-after-write and downstream finance acceptance.
-- Current exact PR head: `11c353455e7d67c36f07ae0b15dc3e906d320fef`; base is prior main `139a753e38e1186b62f8f0afd9f22a57c4c876e0`. Main has since advanced by the independent #572 merge; check mergeability again before merge and do not overwrite the owner's active branch.
-- Exact-head P1 run 44652517766: SUCCESS — full Vitest, P1/P4 strict TypeScript and production build.
-- Exact-head PostgreSQL 17 run 44652517888, job 136010629595: full migration replay SUCCESS; Authorization V2 capability parity and customer/staff scope isolation SUCCESS; inventory adjustment plus exact warehouse-scope write denial is IN_PROGRESS at last observation.
-- Exact-head P2 run 44652517864: authenticated-infrastructure gate SUCCESS; public read-only UI smoke SUCCESS; hosted customer/order/tenant job 136011967708 SKIPPED; local Supabase order/tenant job 136013402915 QUEUED at last observation. QUEUED/SKIPPED are not PASS.
-- Prior exact head `80c4798e32b3bafb0e69250afabf822b3271771a` P2 local acceptance failed at `test-decision-policy-learning-candidate.mjs`: the measured invoice payload was VERIFIED/COMPLETE/ACCEPTABLE and source evidence resolution returned one invoice, the memory snapshot row count was 1, but `_decision_memory_snapshot(...)` returned NULL. This is not an accepted outcome and no evidence gate was weakened.
-- The current head adds diagnostics for the snapshot/outcome JOIN count and keys, function owner, SECURITY DEFINER, owner BYPASSRLS, table RLS/FORCE RLS flags, current/session user, and direct read using persisted keys. Inspect the exact current-head result before changing SQL. The aim is to find the real visibility/join/owner defect; do not replace it with an unconditional NULL or broad `WHEN OTHERS` fallback.
-- Required before merge: complete PG17 A/B denial and maker-checker finalization; decision CREATE/snapshot/idempotency/legacy RPC denial; outcome learning measured-source read-after-write; finance source posting and audit; and the full local P2 order/tenant/browser path on one exact head. SKIPPED hosted tests remain SKIPPED, never PASS.
-- Release remains NO-GO until those source-backed security and transaction checks pass.
+- PR #625: https://github.com/Report-Engainall/Nasr1/pull/625
+- Exact tested PR head: `99748365c261e6d6490dfbe8a535101a9df43e9d`; merged squash SHA: `90597e5ba0071bc82cdde14174035b49f3399b51`.
+- Final application diff contained exactly three files: `TaskQualityReviewCenter.tsx`, its focused test, and the existing P1 workflow path filters.
+- Exact-head P1 run `45913116165`: SUCCESS — Vitest, P1 strict TypeScript, P4 strict TypeScript and production build.
+- Exact-head P2 run `45913116054`: SUCCESS — 67/67 steps completed; zero failures. Local PostgreSQL 17 migration replay, product-image Storage handler against real local Supabase Storage, built app, authenticated Chromium order/tenant denial, checkout replay, return/credit memo, XLSX/Onyx exports, finance/task printing, customer-manager financial privacy/audit, device-session revocation, product price reload, admin access matrix, category/privacy lifecycle and AI prompt governance all passed.
+- P2 public read-only browser smoke and authenticated infrastructure gate: SUCCESS. Hosted authenticated customer/order/tenant job: SKIPPED because external test credentials/backend were not configured. Chromium install was skipped because the pinned browser was already cached; failure diagnostics were skipped because no failure occurred.
+- The P2 local runner stopped the local Supabase/application stack and uploaded its E2E traces/report/server log. The suite wrote only to disposable local fixtures, never the hosted project.
 
-## Finance follow-on preservation
+## Remaining release blockers and boundaries
 
-- #566 reload-safe atomic bank-reconciliation retry has a focused finance PG17 proof on its earlier exact head, but its general P2 and full migration acceptance are not complete. Rebase/retest only after #565 fixes and accepts the migration chain.
-- #507 is not presumed duplicate of #566: compare and preserve its unique migration/test work before closing or superseding it.
-- Do not merge #507/#566 or older overlapping PRs wholesale while the full P2 migration/security gate is unresolved.
+- Release status remains **NO-GO**: the authenticated hosted-backend acceptance was skipped, no actual hosted application database has been identified/verified in this execution, and no deployment/runtime proof was performed.
+- DLV-003 remains open only for the authenticated browser journey through the existing product image UI: primary vs gallery placement, gallery limit, failed-file retry, manager/admin authorization and tenant isolation, with a saved receipt from disposable local Storage. The uploader, exact item-code matching, gallery, lifecycle guards and Storage Edge handler already exist; do not rebuild them. The handler-to-local-Storage acceptance has passed, but it is not proof of the user-facing UI journey or hosted Storage.
+- Task-quality reviews: P1 centre recovery is merged and tested. Migration prerequisites `20261106060000`, `20261106070000`, `20261106080000`, `20261106081000` and `20261106090000_operational_task_quality_reviews.sql` remain unapplied to an approved non-production/hosted target. Manager/admin authorization, cross-tenant denial and raw append-only table restrictions still require database runtime acceptance. Do not expose raw review-event rows.
 
 ## First next actions
 
-1. Continue PG17 run 44652517888 (job 136010629595) through the inventory A/B step, then the decision and finance steps. Start/complete local P2 job 136013402915 and inspect its exact outcome-learning readback diagnostic.
-2. If the JOIN keys exist but the helper remains NULL, correct the actual function owner/RLS/query contract while preserving immutable snapshot, source evidence, as-of/period, idempotency, audit and Maker–Checker invariants; rerun full PG17 and P2 on the new exact SHA.
-3. Once #565 is fully accepted, incorporate the current main application merge `0213eec123f818ecc1abafd3e3229472e3f26457` and its documentation-only descendants without Force Push; rerun P1, full PG17 and P2 against one exact head; P1 merges only after review and acceptance.
-4. Re-run any P3 local authenticated coverage that was blocked by the earlier Authorization V2 migration sequence against the accepted new main. Keep prior source-only/client-only proofs distinct from database runtime acceptance.
-5. Verify the new main SHA and exact post-merge checks; update only this pointer and affected acceptance-matrix rows.
+1. Add a focused authenticated Chromium acceptance for the existing `BulkProductImageUploader` on the active `/admin/products` workspace. Use the P2 job's disposable local Supabase users/product and actual local Storage API; verify primary/gallery roles, the eight-image gallery limit, retry-only-failed behavior, persisted product reload and no cross-tenant access. Preserve the current uploader/gallery/service; add no parallel storage implementation.
+2. Wire that browser proof into the existing P2 local acceptance workflow without weakening its external-infrastructure gate. Capture exact-SHA evidence and clean up every local object/fixture.
+3. Keep task-quality migration/auth acceptance separate and pending until P2 approves a non-production target and validates the listed migrations/RPC/RLS behavior.
+4. Only after the hosted target is explicitly identified and dedicated test credentials are configured may authenticated hosted acceptance run. Until then, keep hosted E2E SKIPPED and release NO-GO.
 
 ## Delivery discipline
 
-- `main` is the only truth branch. P1 alone merges.
-- PostgreSQL 17 acceptance uses disposable isolated databases only; no production/hosted DB writes.
-- No Vercel build/preview/deploy, Bolt, Lovable, paid AI, or external provider calls.
-- IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and infrastructure failures are never PASS.
-- Do not create daily reports, duplicate matrices or new resume files.
-
+- `main` is the only truth branch. P1 alone merges accepted work.
+- Use existing modules and migrations; no parallel accounting, inventory, CRM, storage or AI system.
+- All database acceptance before approved hosted target identity is proven must use disposable local PostgreSQL 17/Supabase.
+- IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
+- Preserve this pointer and the existing acceptance matrix; do not create duplicate status reports or resume files.
 ---
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
