@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
-import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, parseCustomerFinancialSource } from "./customer-financial-source";
+import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource } from "./customer-financial-source";
 const appOnly = { source_mode:"APP_ONLY", source_status:"active", source_as_of:null, last_synced_at:null, verified_at:null, revision:1, is_stale:false, can_read_app_ledger:true };
 describe("customer financial source contract", () => {
   it("allows the app ledger only when the server confirms APP_ONLY and active status", () => {
@@ -103,5 +103,19 @@ describe("staff customer financial source lookup", () => {
   it("fails closed when staff source lookup is unavailable", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "function missing" } });
     await expect(fetchStaffCustomerFinancialSource("11111111-1111-4111-8111-111111111111")).rejects.toThrow();
+  });
+});
+
+
+describe("customer financial source snapshot binding", () => {
+  it("accepts only the same monotonic revision and access semantics", () => {
+    const first = parseCustomerFinancialSource(appOnly);
+    expect(isSameCustomerFinancialSourceVersion(first, parseCustomerFinancialSource({ ...appOnly }))).toBe(true);
+    expect(isSameCustomerFinancialSourceVersion(first, parseCustomerFinancialSource({ ...appOnly, revision: 2 }))).toBe(false);
+    const external = parseCustomerFinancialSource({
+      ...appOnly, source_mode: "ONYX", source_as_of: "2026-11-28T00:00:00Z",
+      can_read_app_ledger: false, revision: 2,
+    });
+    expect(isSameCustomerFinancialSourceVersion(first, external)).toBe(false);
   });
 });
