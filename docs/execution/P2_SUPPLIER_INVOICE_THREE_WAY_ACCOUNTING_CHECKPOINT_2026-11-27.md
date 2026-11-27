@@ -4,6 +4,24 @@ Repository: `Report-Engainall/Nasr1`
 Owner: P2 — PostgreSQL 17, purchasing, supplier finance and ledger integrity
 Base SHA: `d7da98a0a11872c8c263c4dbf26dba258637d95e`
 
+## Latest exact-head acceptance and concurrent race coverage — 2026-11-27
+
+- **Tested PR head:** `416c0d8e64f9eb1f4f95619aea389e3e7f63c3aa`.
+- Added two independent PostgreSQL clients (`db` and `concurrentDb`) to the existing isolated test runner; no production SQL/RPC or dependencies changed.
+- Concurrent exact replay: both sessions record the same invoice payload/key at the same PO/receipt. Exactly one insert (`replayed=false`), one exact replay (`replayed=true`), same invoice ID and one persisted invoice row.
+- Concurrent physical quantity ceiling: two sessions submit different invoice numbers/keys against the same one-unit physical receipt. Exactly one succeeds; the other is rejected with SQLSTATE `22023` and the not-yet-invoiced quantity message. The persisted invoice quantity is exactly `1.000`, equal to the source physical received quantity, with one invoice only.
+- **P1 run [45928108345](https://github.com/Report-Engainall/Nasr1/actions/runs/45928108345): SUCCESS** — Vitest, P1/P4 strict TypeScript and production build all passed on the exact head.
+- **P2 run [45928108287](https://github.com/Report-Engainall/Nasr1/actions/runs/45928108287): FAIL at one unrelated P1 browser assertion**. The local authenticated PostgreSQL 17 job [140275022832](https://github.com/Report-Engainall/Nasr1/actions/runs/45928108287/job/140275022832) completed and cleaned up. Supplier invoice three-way matching step 35: **PASS**; its runner reached the final success output after both new concurrent cases and all existing invoice/variance/Maker-Checker/tenant/audit assertions passed. All other prior DB checks, local build, order/tenant Chromium, stock-count XLSX, purchase-order XLSX, checkout replay, return/credit memo and Onyx export steps passed.
+- The single failure was step 50, `Run finance document and operational-task print acceptance in Chromium`, at `e2e/finance-task-print.spec.ts:486`: the test expected 11 task cards on page 2 but received 10, while the immediately preceding status assertion displayed `عرض 11–20 من 21 مهمة`. Ten cards are correct for the inclusive 11–20 page. This is the P1-owned assertion defect already corrected in PR #633 by using `lastTaskOnSecondPage - 10`; do not weaken the rendered range, tenant, or viewport assertions.
+- P2 public Chromium read-only smoke: **SUCCESS**. Authenticated infrastructure gate: **SUCCESS**. Hosted customer/order/tenant E2E: **SKIPPED**, not PASS.
+- Therefore: **P2 supplier invoice and concurrency acceptance PASS on SHA `416c0d8...`; overall integrated P2 workflow FAIL only because of the independent P1 pagination assertion above.** No supplier invoice database fix is indicated by this run.
+
+## Latest main and integration boundary
+- Latest observed `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e` (execution cursor refresh after product-image acceptance).
+- PR #641 remains open; current compare is **12 commits ahead / 5 behind**, merge base `d7da98a0a11872c8c263c4dbf26dba258637d95e`, with exactly three unique paths: `.github/workflows/p2-playwright-critical-paths.yml`, this P2 checkpoint, and `scripts/test-supplier-invoice-three-way-accounting.mjs`.
+- P1 owns synchronizing with `586db78...`, reviewing those three scoped paths, incorporating its page-2 assertion correction, and rerunning P1/P2 on the exact synchronized head. P2 does not merge to `main`; P3 retains merge authority.
+- Do not carry current-head acceptance to any post-sync SHA without exact-head reruns. Hosted E2E remains SKIPPED and release remains NO-GO until separately authorized hosted target identity and credentials are proven.
+
 ## Synchronization with latest main — 2026-11-27
 - Latest `main` advance incorporated: `d7da98a0a11872c8c263c4dbf26dba258637d95e` (`feat(purchasing): searchable paginated purchase order registry`).
 - No overlap with this PR's P2 supplier invoice test or checkpoint; main's purchase-order search work and its test/path-filter changes are preserved.
@@ -56,7 +74,7 @@ Base SHA: `d7da98a0a11872c8c263c4dbf26dba258637d95e`
 - Re-run state: `PENDING` on the updated branch head; the previous run's test failure remains recorded above and is not accepted.
 - The corrected script requires a fresh exact-head P1/P2 run. The prior overall run remains `FAIL`; it is not retroactively counted as PASS.
 
-## Exact-head acceptance — 2026-11-27
+## Historical exact-head acceptance — prior test-only revision (superseded by latest result above)
 - Tested code/PR head: `3848643d62f7f1f92884edf552a3a46778a3aac0`.
 - P1 Admin Context Verification: `PASS` — [run 45924845926](https://github.com/Report-Engainall/Nasr1/actions/runs/45924845926).
 - P2 public storefront smoke: `PASS` (20 steps); authenticated infrastructure gate: `PASS` (3 steps) — [run 45924845994](https://github.com/Report-Engainall/Nasr1/actions/runs/45924845994).
