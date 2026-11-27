@@ -197,6 +197,31 @@ describe("process bottleneck before/after comparison windows", () => {
     expect(parseProcessBottleneckSnapshot(s)).toBeNull();
   });
 
+  it("rejects non-PostgreSQL timestamp precision in bottleneck evidence", () => {
+    const invalidAsOf = snapshot(equalBaselinePeriod);
+    invalidAsOf.asOf = "2026-11-30T23:59:59.1234567Z";
+    expect(parseProcessBottleneckSnapshot(invalidAsOf)).toBeNull();
+
+    const invalidMetricClock = snapshot(equalBaselinePeriod);
+    invalidMetricClock.metrics = invalidMetricClock.metrics.map(item => ({
+      ...item,
+      firstCompletedAt: "2026-11-25T08:00:00.1234567Z",
+    }));
+    expect(parseProcessBottleneckSnapshot(invalidMetricClock)).toBeNull();
+  });
+
+  it("accepts exact six-digit PostgreSQL microseconds in bottleneck evidence", () => {
+    const valid = snapshot(equalBaselinePeriod);
+    valid.asOf = "2026-11-30T23:59:59.123456Z";
+    valid.metrics = valid.metrics.map(item => ({
+      ...item,
+      firstCompletedAt: "2026-11-25T08:00:00.123456Z",
+      lastCompletedAt: "2026-11-27T18:00:00.123456Z",
+    }));
+    valid.sourceCoverage = valid.sourceCoverage.map(item => ({ ...item, asOf: valid.asOf }));
+    expect(parseProcessBottleneckSnapshot(valid)).not.toBeNull();
+  });
+
   it("withholds unavailable source metrics and does not manufacture findings or comparisons", () => {
     const s = snapshot(equalBaselinePeriod);
     s.sourceCoverage = s.sourceCoverage.map(coverage =>
