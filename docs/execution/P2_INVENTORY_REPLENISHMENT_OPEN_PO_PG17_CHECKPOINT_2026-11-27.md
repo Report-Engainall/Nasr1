@@ -5,7 +5,14 @@ Role: P2 — inventory data lineage, purchase commitments, PostgreSQL 17, tenant
 PR: #681 — https://github.com/Report-Engainall/Nasr1/pull/681
 Branch: `p2/replenishment-open-po-pg17-20261127-v2`
 
-## P1 pagination-fixture dependency consumed unchanged — 2026-11-27
+## Latest synchronization to moving main — 2026-11-27
+- `main` advanced to `f0c911923b785cdaaf6e823b271f538c56fd7cd3` through merge #683. That merge includes P1's accepted PostgREST offset/limit fixture blob `b8505a706773062c49ce0cceef76d76e19166117`, which is byte-identical to the P1 blob already consumed in this PR.
+- P2 branch synchronized by non-force, two-parent merge commit `6765a37583d2a89e7cd6b0ecfdf4f5543860a4a6`, with expected ref protection. Current compare: **15 ahead / 0 behind**, exactly three P2-owned paths: `.github/workflows/p2-playwright-critical-paths.yml`, this checkpoint, and `scripts/test-inventory-intelligence-replenishment-commitments.mjs`. The shared P1 fixture is now inherited unchanged from main; it is not a fourth PR diff path.
+- Exact-current-head P1 [run 46065201375](https://github.com/Report-Engainall/Nasr1/actions/runs/46065201375) and P2 [run 46065201429](https://github.com/Report-Engainall/Nasr1/actions/runs/46065201429) were **QUEUED** after synchronization. Prior replenishment PG17 PASS on `baca...` and the intermediate head `0f51...` is not transferred to `6765...`.
+- PR #681 remains **draft=true**; GitHub reported **mergeable=true** at synchronization. P1 owns final review and merge; P2 does not merge.
+- Next: prove the replenishment commitment/UOM/as-of/tenant-authorization test on the exact synchronized SHA, then complete local authenticated Chromium acceptance. No production schema/RPC change, live ERP request, hosted Supabase write or deployment was made.
+
+## Historical P1 pagination-fixture dependency consumed unchanged — 2026-11-27
 - The P2 browser run on the earlier branch head `929e171387e5878325e9adf73c5f0a969f0ed8ac` failed its public smoke only on the P1-owned test helper expecting HTTP `Range: 0-24`, while the real page uses PostgREST `offset`/`limit`. The local P2 Supabase job independently continued and had reached 52/71 steps without failures.
 - The exact P1-authored helper blob `b8505a706773062c49ce0cceef76d76e19166117`, committed by P1 as `c73c9f7983234d877d1cf96544f4b61c16e36676` and already exercised by the public-smoke **SUCCESS** in #605, was reused byte-for-byte in this P2 branch. No P1 logic was edited or rewritten.
 - New current PR code head: `0f51d6a349cd25d2e8e025b294079940a8de4fee`; compare to `main` `348da8e756201fc103089cf4a5a690a4132528b7`: **13 ahead / 0 behind**, four paths (existing P2 workflow, this checkpoint, the P1 test helper blob, and P2 replenishment acceptance script). No production migration/RPC/source change.
