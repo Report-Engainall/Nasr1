@@ -293,6 +293,22 @@ async function main() {
   assert.equal(customerReceiptRpcPrivileges[0].options_security_definer, true);
   assert.equal(customerReceiptRpcPrivileges[0].print_security_definer, true);
 
+  const receiptPrintFunctionDefinitions = await db.unsafe(
+    "select " +
+      "pg_catalog.pg_get_functiondef('public.get_my_customer_payment_receipt_print_data(uuid)'::regprocedure) as customer_print," +
+      "pg_catalog.pg_get_functiondef('public.get_staff_customer_payment_receipt_print_data(uuid)'::regprocedure) as staff_print",
+  );
+  const customerPrintDefinition = receiptPrintFunctionDefinitions[0].customer_print.toLowerCase();
+  const staffPrintDefinition = receiptPrintFunctionDefinitions[0].staff_print.toLowerCase();
+  assert.ok(customerPrintDefinition.includes("for update"),
+    "customer receipt print must take the parent receipt row lock");
+  assert.ok(customerPrintDefinition.includes("receipt_allocations as materialized"),
+    "customer print must validate and render one materialized allocation snapshot");
+  assert.ok(staffPrintDefinition.includes("for update"),
+    "staff receipt print must take the parent receipt row lock");
+  assert.ok(staffPrintDefinition.includes("staff_receipt_allocations as materialized"),
+    "staff print must validate and render one materialized allocation snapshot");
+
   await expectFailure(
     "customer receipt history rejects an out-of-range page limit",
     rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(101,0) as result"),
