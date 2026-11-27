@@ -1,51 +1,64 @@
 # P2 Checkpoint — Customer Financial Source Routing
-Date: 2026-11-27
+Date: 2026-11-28
 Repository: `Report-Engainall/Nasr1`
 Owner: P2 — PostgreSQL 17, RLS/RBAC, customer financial identity, audit and transaction safety
 Branch: `p2/customer-financial-source-routing-pg17-20261127`
-Base main at implementation start: `f0c911923b785cdaaf6e823b271f538c56fd7cd3`
-Current pre-checkpoint SHA: `b9bbe365f540cbd5acb37e9f91d7e87cb6007c3b`
 
-## Scope
-- Establish exactly one financial source binding per `organization_id + customer_id`: `APP_ONLY`, `ONYX`, or `MUTAKAMEL`.
-- Backfill existing and newly created customers to `APP_ONLY`; no inferred balances or opening financial records are created.
-- Source changes require idempotent request → service-role source reconciliation evidence → distinct finance maker/checker approval → revision increment.
-- P4 owns provider transport and real ERP readers. This P2 migration stores only source identity, reconciliation/sync evidence metadata, currency codes, counts, hashes, as-of timestamps and safe external account references; it does not connect to or write to an ERP.
-- `get_customer_account_statement()` routes APP_ONLY to the existing app ledger, but fails closed for ONYX/MUTAKAMEL and never silently falls back to the app ledger while the external statement adapter is not available.
-- Customer resolver returns mode/status/freshness without exposing external account references; finance staff resolver is capability-gated.
+## Current source pointers
+- Latest synchronized `main` at this checkpoint update: `f71cc0eeed05a966083f4a4e647021af60733468` (documentation-only execution-state refresh).
+- Latest code-bearing `main` SHA recorded in the shared state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
+- P2 branch SHA before this checkpoint edit: `fe894f5354aee1cac2bd8a197d5f0179e0af01dd`; this commit has `main` as first parent and the complete P2 branch as second parent. The branch is not behind `main`.
+- PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
+- No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
 
-## Current implementation (not yet accepted)
-- Migration: `supabase/migrations/20261127230000_customer_financial_source_routing.sql`
-- Acceptance script: `scripts/test-customer-financial-source-routing.mjs`
-- Workflow: `.github/workflows/p2-playwright-critical-paths.yml`; dedicated source-routing test runs after isolated local seeding, and local PG17/authenticated job no longer depends on the separate public UI smoke.
-- The migration file was recreated as a single clean copy after detecting duplicated/overlapping content in the first draft. Current file has 796 lines, four uniquely named source tables, eight P2 functions/triggers, one `COMMIT`, and no CHECK subqueries.
-- Additional review fixes: idempotency-key advisory transaction lock for concurrent exact retries; read-only resolver no longer attempts row locks while marked STABLE; explicit hash/null/currency validation in provider evidence writers; statement wrapper preserves `statement.read` authorization and customer row scope.
+## Implemented P2 contract
+- One source binding per organization/customer: `APP_ONLY`, `ONYX`, or `MUTAKAMEL`. Existing/new customers are assigned APP_ONLY without inventing opening balances.
+- Server-selected source and scope; customers cannot choose or change their financial source. Customer resolver never exposes the ERP external account reference; finance-staff resolver is capability-scoped.
+- Source changes follow idempotent request → service-role evidence → different finance maker/checker → binding revision increment and audit.
+- Reconciliation evidence now includes a `balances_by_currency` object with exactly two canonical decimal strings per declared currency: `current_source_balance` and `target_source_balance`. All and only declared currencies must be present.
+- The database compares each currency pair as PostgreSQL `numeric`. `matched` is rejected if any pair differs; malformed/missing amounts and unlisted/missing currencies are rejected. The evidence hash replay comparison includes the full per-currency balance object, so changed balance metadata under the same hash conflicts.
+- PostgreSQL 17 JSON key counts use `jsonb_object_keys` with scalar count subqueries; the migration does not call `jsonb_object_length`.
+- APP_ONLY statements continue through the existing internal ledger. ONYX/MUTAKAMEL statements fail closed until P4 supplies an authorized provider reader; there is no APP_ONLY fallback, source blending, or fabricated current ERP balance.
+- The APP_ONLY invoice PDF source lock remains in place. Source resolver access is permitted to the customer with `statement.read` or `invoices.read`, without widening invoice data access itself.
 
-## Acceptance requirements
-1. Apply all migrations on disposable local PostgreSQL 17/Supabase only.
-2. Verify legacy customer backfill and customer-create trigger produce exactly one APP_ONLY binding.
-3. Concurrent same-key requests return one request ID and one replay; same key/different payload rejects.
-4. Reject customer-side source changes, foreign-tenant customers, self-approval, mismatched evidence, stale evidence and unauthenticated service writers.
-5. Exercise all transitions: APP_ONLY → ONYX → MUTAKAMEL → APP_ONLY, with P4/service-role evidence and distinct finance checker.
-6. Verify external sources never use app ledger fallback; customer resolver hides external account reference.
-7. Verify sync evidence exact replay, metadata mismatch denial, source key binding, and monotonic as-of watermark.
-8. Verify direct authenticated table access/service-writer function execution is denied, staff scope is tenant-bound, audit events exist, and returning to APP_ONLY leaves the original ledger summary unchanged.
-9. Run the dedicated script and broader local P2 critical path on the exact tested SHA. No SKIPPED/IN_PROGRESS is PASS.
+## Files owned by this P2 slice
+- `supabase/migrations/20261127230000_customer_financial_source_routing.sql`
+- `scripts/test-customer-financial-source-routing.mjs`
+- `.github/workflows/p2-playwright-critical-paths.yml`
+- This checkpoint
+- `docs/canonical/AGHBARI-REQUIREMENT-REGISTRY.md` — stable requirement `AGH-CUSTOMER-FINANCIAL-SOURCE-001`
+- `docs/bolt-source-reconciliation/API_OPS_CONTRACT_REGISTER_2026-10-24.md` — exact RPC caller/input/evidence contract
 
-## Safety
-- No production migration or DB write; no live ERP call; no deployment; no new paid service or external dependency.
-- No secrets, credentials, monetary balances, invoice bodies, or journal entries are stored in source-binding evidence.
-- External modes remain statement-blocked until P4 supplies an authorized reader contract and P1 wires the resolver into the customer account screen.
-- P1 owns merge to `main`; P2 owns this checkpoint and DB acceptance only.
+## Focused acceptance assertions added
+- Every APP_ONLY/ONYX/MUTAKAMEL cutover fixture supplies YER and USD per-currency evidence.
+- Reject matched evidence with no balance object, with an amount mismatch in any currency, or with incomplete currency coverage.
+- Reject reuse of an evidence SHA with changed but internally equal per-currency balances (exercises the hash-replay guard, not the earlier equality guard).
+- Retain source-mode scope, customer/tenant isolation, maker-checker, idempotency, source reference, external statement fail-closed behavior, invoice-source isolation, service-role-only evidence writing, and monotonic sync watermark checks.
+- The dedicated P2 workflow invokes `node scripts/test-customer-financial-source-routing.mjs` after isolated local seeding.
 
-## Next action
-Open a draft PR, run exact-head PostgreSQL 17 migrations and source-routing assertions, fix only evidenced SQL/test failures, then rerun all affected acceptance on the new SHA. Keep source-routing IN_PROGRESS until PG17 and security assertions pass.
+## Exact-SHA status
+- Last reviewed code-bearing head before this checkpoint update: `fe894f5354aee1cac2bd8a197d5f0179e0af01dd`.
+- Static preflight on that head: migration 1,079 lines, one `COMMIT`, one evidence-writer function, two `jsonb_object_keys` usages, exact numeric comparison present, hash comparison includes balances, and no `jsonb_object_length`/stubbed `THEN false`.
+- The test script contains the missing/mismatch/incomplete-currency/hash-replay assertions and calls the updated eight-argument service-role writer.
+- No PostgreSQL 17 result is yet accepted for the synchronized code head. CI results from earlier intermediate/corrupted heads are superseded and must not be reused. The next workflow head is the commit produced by this checkpoint update; treat all triggered checks as QUEUED/IN_PROGRESS until terminal status is fetched.
+- Hosted customer/order/tenant E2E remains outside this local P2 proof; if SKIPPED it is not PASS.
 
-## Failure analysis and hardened retry — 2026-11-27
-- First isolated PostgreSQL 17 application of the new migration failed with SQLSTATE `42601` at the review replay condition that compared `status=CASE WHEN ... END`. The migration was **not accepted** on that attempt. Replaced that expression with explicit boolean branches for approved/rejected replay. Re-run required on the current synchronized head.
-- Added a transaction-scoped advisory lock on `organization_id + idempotency_key` before the source-change request lookup, so concurrent exact retries serialize and return one request ID.
-- Kept `get_my_customer_financial_source()` read-only (it is declared `STABLE`); source row locks belong only to the volatile statement RPC.
-- Added `FOR SHARE` on the customer source binding while the statement is read, preventing a concurrent maker/checker cutover from changing APP_ONLY/ERP routing halfway through a ledger response.
-- Removed direct `service_role` DML grants on the four source tables. Only the narrowly scoped SECURITY DEFINER request/review/reconciliation/sync RPCs can mutate the source state/evidence. Acceptance script now verifies the direct table privilege denial and the service-role sync RPC grant.
-- The review SQL correction, statement lock, service-role ACL hardening and test assertions are in the current branch; the first failed run belonged to an older pre-fix SHA. Do not transfer its failure or any prior PG17 PASS to the current head.
-- Next required evidence: exact-current-head PostgreSQL 17 migration + `Customer financial source routing PostgreSQL 17 acceptance: PASS`, followed by the full P2 local critical-path result. Until then PR #697 stays Draft/IN_PROGRESS.
+## Superseded/failed intermediate attempts — do not reuse
+- The original evidence-only design stored currency codes and record counts but could claim `matched` without proving actual balance equality; that gap is superseded by the current balance-bearing payload.
+- Intermediate file-edit commits `895956b95226510d925821efd485c01107ff6015` and `d87fa005b230547907ce8e0971f6b365274443db` contained malformed/duplicated SQL and are not acceptable or test evidence.
+- Commit `dc57258d0b2b1605ec3784e4ff9c808eaaf14513` used `jsonb_object_keys` but had a temporary `THEN false` placeholder in place of the numeric equality guard; this was corrected before the synchronized head `fe894f5`.
+- The current branch was restored from the known-good migration version at commit `0a7e5da113c477ffe009e2c909a0e8f2cf5f11db`, preserving the concurrent invoice-only resolver permission fix, then the source-balance contract and tests were reapplied and reviewed.
+
+## Safety and ownership boundary
+- P2 owns this checkpoint, migration, RPC and local database acceptance. P4 owns ERP transport/readers and must supply real provider/source receipts; P1 owns UI integration. P1/global execution owner updates the shared state and acceptance matrix.
+- No remote Supabase migration, production data write, Edge deploy, secrets change, ERP mutation, paid service, Vercel quota, Bolt or Lovable action.
+- Do not expose external account references or other customers' statements. Do not present stale provider snapshots as current.
+- Release remains NO-GO until the complete business path, authorized external transport, required security/finance/inventory gates, post-merge checks and runtime verification are proven.
+
+## Immediate next action
+Fetch the workflow run created by this checkpoint commit and require:
+1. isolated PostgreSQL 17 migration + `Customer financial source routing PostgreSQL 17 acceptance: PASS`;
+2. P2 Playwright critical paths PASS on the exact same commit;
+3. public Chromium/infrastructure required jobs PASS;
+4. report hosted tenant/customer E2E as SKIPPED unless it actually executes.
+Fix only failures reproduced on the new exact SHA, then update this P2 checkpoint with the terminal evidence and rerun on the resulting SHA if any source/test file changes.
