@@ -29,6 +29,7 @@ The existing CI-wired `scripts/test-inventory-batch-fefo.mjs` now covers:
 - Manager reallocation into a new, earlier-valid FEFO lot.
 - Exact retry replay, conflicting idempotency payload rejection, and explicit zero-work response when no expired reservation remains.
 - Release/reserve movement lineage for the same order, shipment sale from the replacement batch (never the expired original), customer-role denial, and aggregate balance ↔ batch subledger parity.
+- Insufficient replacement stock: the test expires every remaining positive lot, forces reallocation to fail with SQLSTATE `P0001`, then proves the original batch reservation and aggregate reserve total are unchanged and no release movement survived the rolled-back transaction.
 
 The existing P2 workflow already invokes this FEFO acceptance script on its disposable local Supabase/PostgreSQL 17 stack; no parallel workflow or dependency was added.
 
