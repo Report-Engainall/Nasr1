@@ -640,7 +640,8 @@ export function buildDecisionMemoryBook(input: {
         const evidence=evidenceIndex(snapshot.evidenceRecords??[]);
         const snapshotValid=snapshot.id.trim()!=="" && snapshot.decisionId===outcome.id &&
           Number.isInteger(snapshot.version) && snapshot.version>=1 && validTime(snapshot.capturedAt) &&
-          validTime(snapshot.asOf) && Date.parse(snapshot.capturedAt)<=Date.parse(input.generatedAt) &&
+          validTime(snapshot.asOf) && validTime(outcome.createdAt) &&
+           Date.parse(snapshot.capturedAt)<=Date.parse(input.generatedAt) &&
           Date.parse(snapshot.asOf)<=Date.parse(outcome.createdAt) && Date.parse(snapshot.asOf)<=Date.parse(snapshot.capturedAt) &&
           validPeriod(snapshot.period);
         if(!snapshotValid){
