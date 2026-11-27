@@ -1,6 +1,7 @@
 import {
   ErpConnectorError,
   ERP_SAFE_FIELDS,
+  type ErpCanonicalField,
   type ErpCanonicalRecord,
   type ErpCheckpoint,
   type ErpScalar,
@@ -166,15 +167,15 @@ function parseStagedPreview(
       throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "أحد سجلات معاينة ERP لا يطابق عقد الإسقاط المرحلي.");
     }
     const externalId = cleanScopeText(raw.external_id, "preview_external_id");
-    const fields: Partial<Record<keyof typeof ERP_SAFE_FIELDS[typeof objectType][number], ErpScalar>> = {};
+    const fields: Partial<Record<ErpCanonicalField, ErpScalar>> = {};
     for (const [key, fieldValue] of Object.entries(raw.fields)) {
-      if (!allowed.has(key as typeof ERP_SAFE_FIELDS[typeof objectType][number]) ||
+      if (!allowed.has(key as ErpCanonicalField) ||
           !(fieldValue === null || typeof fieldValue === "string" ||
             typeof fieldValue === "boolean" ||
             (typeof fieldValue === "number" && Number.isFinite(fieldValue)))) {
         throw new ErpConnectorError("ERP_STAGING_PREVIEW_UNSAFE_FIELD", "معاينة ERP تحتوي حقلًا أو قيمة خارج الإسقاط المسموح.");
       }
-      fields[key as keyof typeof ERP_SAFE_FIELDS[typeof objectType][number]] = fieldValue as ErpScalar;
+      fields[key as ErpCanonicalField] = fieldValue as ErpScalar;
     }
     return {
       externalId,
