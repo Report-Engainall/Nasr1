@@ -9,6 +9,10 @@ import {
 } from '@/lib/api';
 import type { PurchaseOrderLineCommand, PurchaseReceiptLineCommand } from '@/lib/api';
 import type { PurchaseOrder } from '@/lib/purchase-orders';
+import {
+  filterPurchaseOrders,
+  type PurchaseOrderFilterCriteria,
+} from '@/lib/purchase-order-filters';
 import type { ProductWithInventory, Supplier } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -39,7 +43,24 @@ const numberText = (value: number): string => new Intl.NumberFormat('ar-YE',{max
 const moneyText = (value: number | null): string => value === null ? 'غير مسجل' : formatCurrency(value);
 
 
-type PurchaseOrderFilter = "all" | PurchaseOrder["status"];
+type PurchaseOrderFilterOption = { id: string; name: string };
+type PurchaseOrderFilterView = PurchaseOrderFilterCriteria & {
+  page: number;
+  pageCount: number;
+  total: number;
+  suppliers: PurchaseOrderFilterOption[];
+  warehouses: PurchaseOrderFilterOption[];
+};
+const PURCHASE_ORDER_PAGE_SIZE = 10;
+const DEFAULT_PURCHASE_ORDER_FILTERS: PurchaseOrderFilterCriteria = {
+  status: 'all',
+  search: '',
+  supplierId: 'all',
+  warehouseId: 'all',
+  dateFrom: '',
+  dateTo: '',
+  sortOrder: 'newest',
+};
 
 function purchaseOrderProductOptions(products: ProductWithInventory[]) {
   return products.map((product) => (
@@ -247,43 +268,164 @@ function PurchaseOrderRecordCard({ order, selected, onSelect }: { order: Purchas
   );
 }
 
-function PurchaseOrderRecordsPanel({ loading, orders, selectedId, selectedOrder, statusFilter, busy, cancelReason, receiveDrafts, batchDrafts, expiryDrafts, receiptNotes, onStatusFilterChange, onSelect, onCancelReasonChange, onSubmit, onCancel, onReceiveQuantityChange, onBatchChange, onExpiryChange, onReceiptNotesChange, onPostReceipt, onPrint }: {
-  loading: boolean; orders: PurchaseOrder[]; selectedId: string | null; selectedOrder: PurchaseOrder | null; statusFilter: PurchaseOrderFilter; busy: boolean;
-  cancelReason: string; receiveDrafts: Record<string, string>;
-  batchDrafts: Record<string, string>; expiryDrafts: Record<string, string>; receiptNotes: string;
-  onStatusFilterChange: (value: PurchaseOrderFilter) => void; onSelect: (order: PurchaseOrder) => void;
-  onCancelReasonChange: (value: string) => void; onSubmit: () => void; onCancel: () => void;
+function PurchaseOrderRecordsPanel({
+  loading,
+  orders,
+  selectedId,
+  selectedOrder,
+  filters,
+  busy,
+  cancelReason,
+  receiveDrafts,
+  batchDrafts,
+  expiryDrafts,
+  receiptNotes,
+  onFiltersChange,
+  onClearFilters,
+  onPageChange,
+  onSelect,
+  onCancelReasonChange,
+  onSubmit,
+  onCancel,
+  onReceiveQuantityChange,
+  onBatchChange,
+  onExpiryChange,
+  onReceiptNotesChange,
+  onPostReceipt,
+  onPrint,
+}: {
+  loading: boolean;
+  orders: PurchaseOrder[];
+  selectedId: string | null;
+  selectedOrder: PurchaseOrder | null;
+  filters: PurchaseOrderFilterView;
+  busy: boolean;
+  cancelReason: string;
+  receiveDrafts: Record<string, string>;
+  batchDrafts: Record<string, string>;
+  expiryDrafts: Record<string, string>;
+  receiptNotes: string;
+  onFiltersChange: (patch: Partial<PurchaseOrderFilterCriteria>) => void;
+  onClearFilters: () => void;
+  onPageChange: (page: number) => void;
+  onSelect: (order: PurchaseOrder) => void;
+  onCancelReasonChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
   onReceiveQuantityChange: (itemId: string, value: string) => void;
-  onBatchChange: (itemId: string, value: string) => void; onExpiryChange: (itemId: string, value: string) => void;
-  onReceiptNotesChange: (value: string) => void; onPostReceipt: () => void; onPrint: () => void;
+  onBatchChange: (itemId: string, value: string) => void;
+  onExpiryChange: (itemId: string, value: string) => void;
+  onReceiptNotesChange: (value: string) => void;
+  onPostReceipt: () => void;
+  onPrint: () => void;
 }) {
-  const filterOptions: Array<{ value: PurchaseOrderFilter; label: string }> = [
-    { value: "all", label: "كل الحالات" }, { value: "draft", label: "مسودة" },
-    { value: "submitted", label: "مرسل للمورد" }, { value: "partially_received", label: "استلام جزئي" },
-    { value: "received", label: "مستلم بالكامل" }, { value: "cancelled", label: "ملغى" },
+  const statusOptions: Array<{ value: PurchaseOrderFilterCriteria['status']; label: string }> = [
+    { value: 'all', label: 'كل الحالات' },
+    { value: 'draft', label: 'مسودة' },
+    { value: 'submitted', label: 'مرسل للمورد' },
+    { value: 'partially_received', label: 'استلام جزئي' },
+    { value: 'received', label: 'مستلم بالكامل' },
+    { value: 'cancelled', label: 'ملغى' },
   ];
+  const firstResult = filters.total === 0 ? 0 : (filters.page - 1) * PURCHASE_ORDER_PAGE_SIZE + 1;
+  const lastResult = Math.min(filters.page * PURCHASE_ORDER_PAGE_SIZE, filters.total);
+
   return (
     <div className="panel">
-      <div className="po-actions po-results-header" style={{ justifyContent: "space-between" }}>
-        <h2>سجل أوامر الشراء</h2>
+      <div className="po-actions po-results-header" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <h2>سجل أوامر الشراء</h2>
+          <p className="po-muted">البحث والتصفية على السجلات التي أعادها الخادم لحسابك؛ التصدير والطباعة يشملان جميع النتائج المطابقة.</p>
+        </div>
         <label className="po-field no-print">الحالة
-          <select value={statusFilter} onChange={(event) => onStatusFilterChange(event.target.value as PurchaseOrderFilter)}>
-            {filterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          <select
+            aria-label="حالة أمر الشراء"
+            value={filters.status}
+            onChange={(event) => onFiltersChange({ status: event.target.value as PurchaseOrderFilterCriteria['status'] })}
+          >
+            {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
       </div>
-      {loading ? <p role="status">جار تحميل سجلات التوريد…</p> : orders.length === 0 ? <p className="po-muted">لا توجد أوامر شراء تطابق الفلتر الحالي.</p> : (
-        <div className="po-layout" style={{ marginTop: 12 }}>
-          <div className="po-results-list" style={{ display: "grid", gap: 10 }}>
-            {orders.map((order) => <PurchaseOrderRecordCard key={order.id} order={order} selected={selectedId === order.id} onSelect={onSelect} />)}
-          </div>
-          <div className="po-selected-order">
-            {selectedOrder
-              ? <PurchaseOrderDetailPanel order={selectedOrder} busy={busy} cancelReason={cancelReason} receiveDrafts={receiveDrafts} batchDrafts={batchDrafts} expiryDrafts={expiryDrafts} receiptNotes={receiptNotes} onCancelReasonChange={onCancelReasonChange} onSubmit={onSubmit} onCancel={onCancel} onReceiveQuantityChange={onReceiveQuantityChange} onBatchChange={onBatchChange} onExpiryChange={onExpiryChange} onReceiptNotesChange={onReceiptNotesChange} onPostReceipt={onPostReceipt} onPrint={onPrint} />
-              : <div className="po-card"><ClipboardList size={28} /><strong>اختر أمر شراء لعرض بنوده وإجراءاته.</strong><span className="po-muted">الإرسال والاستلام يؤثران في المهام وحركات المخزون الحقيقية عبر RPC خادمية.</span></div>}
-          </div>
+
+      <div className="po-filter-grid no-print" role="search" aria-label="فلاتر أوامر الشراء">
+        <label className="po-field">بحث في أوامر الشراء
+          <input
+            type="search"
+            aria-label="بحث في أوامر الشراء"
+            value={filters.search}
+            onChange={(event) => onFiltersChange({ search: event.target.value })}
+            placeholder="رقم الأمر، المورد، المخزن، الصنف أو الرمز"
+            autoComplete="off"
+          />
+        </label>
+        <label className="po-field">المورد
+          <select aria-label="تصفية المورد" value={filters.supplierId} onChange={(event) => onFiltersChange({ supplierId: event.target.value })}>
+            <option value="all">كل الموردين</option>
+            {filters.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+          </select>
+        </label>
+        <label className="po-field">المخزن
+          <select aria-label="تصفية المخزن" value={filters.warehouseId} onChange={(event) => onFiltersChange({ warehouseId: event.target.value })}>
+            <option value="all">كل المخازن</option>
+            {filters.warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+          </select>
+        </label>
+        <label className="po-field">من تاريخ الإنشاء
+          <input aria-label="من تاريخ الإنشاء" type="date" value={filters.dateFrom} onChange={(event) => onFiltersChange({ dateFrom: event.target.value })} />
+        </label>
+        <label className="po-field">إلى تاريخ الإنشاء
+          <input aria-label="إلى تاريخ الإنشاء" type="date" value={filters.dateTo} onChange={(event) => onFiltersChange({ dateTo: event.target.value })} />
+        </label>
+        <label className="po-field">ترتيب النتائج
+          <select aria-label="ترتيب أوامر الشراء" value={filters.sortOrder} onChange={(event) => onFiltersChange({ sortOrder: event.target.value as PurchaseOrderFilterCriteria['sortOrder'] })}>
+            <option value="newest">الأحدث أولاً</option>
+            <option value="oldest">الأقدم أولاً</option>
+          </select>
+        </label>
+        <div className="po-filter-actions">
+          <button type="button" className="btn outline" onClick={onClearFilters} disabled={busy}>مسح الفلاتر</button>
         </div>
-      )}
+      </div>
+
+      <div className="po-results-meta" role="status" aria-live="polite">
+        {loading ? 'جار تحديث سجل أوامر الشراء…' : filters.total === 0
+          ? 'لا توجد أوامر شراء تطابق معايير البحث والتصفية.'
+          : `عرض ${firstResult}–${lastResult} من ${formatNumber(filters.total)} أمر مطابق`}
+      </div>
+
+      {loading ? <p role="status">جار تحميل سجلات التوريد…</p> : orders.length === 0
+        ? <p className="po-muted">لا توجد أوامر شراء في هذه الصفحة.</p>
+        : (
+          <>
+            <div className="po-layout" style={{ marginTop: 12 }}>
+              <div className="po-results-list" style={{ display: 'grid', gap: 10 }}>
+                {orders.map((order) => (
+                  <PurchaseOrderRecordCard
+                    key={order.id}
+                    order={order}
+                    selected={selectedId === order.id}
+                    onSelect={onSelect}
+                  />
+                ))}
+              </div>
+              <div className="po-selected-order">
+                {selectedOrder
+                  ? <PurchaseOrderDetailPanel order={selectedOrder} busy={busy} cancelReason={cancelReason} receiveDrafts={receiveDrafts} batchDrafts={batchDrafts} expiryDrafts={expiryDrafts} receiptNotes={receiptNotes} onCancelReasonChange={onCancelReasonChange} onSubmit={onSubmit} onCancel={onCancel} onReceiveQuantityChange={onReceiveQuantityChange} onBatchChange={onBatchChange} onExpiryChange={onExpiryChange} onReceiptNotesChange={onReceiptNotesChange} onPostReceipt={onPostReceipt} onPrint={onPrint} />
+                  : <div className="po-card"><ClipboardList size={28} /><strong>اختر أمر شراء لعرض بنوده وإجراءاته.</strong><span className="po-muted">الإرسال والاستلام يؤثران في المهام وحركات المخزون الحقيقية عبر RPC خادمية.</span></div>}
+              </div>
+            </div>
+            {filters.total > 0 && (
+              <nav className="po-pagination no-print" aria-label="ترقيم صفحات أوامر الشراء">
+                <span>صفحة {formatNumber(filters.page)} من {formatNumber(filters.pageCount)}</span>
+                <div className="po-actions">
+                  <button type="button" className="btn outline" aria-label="الصفحة السابقة" onClick={() => onPageChange(filters.page - 1)} disabled={filters.page <= 1 || busy}>السابق</button>
+                  <button type="button" className="btn outline" aria-label="الصفحة التالية" onClick={() => onPageChange(filters.page + 1)} disabled={filters.page >= filters.pageCount || busy}>التالي</button>
+                </div>
+              </nav>
+            )}
+          </>
+        )}
     </div>
   );
 }
@@ -350,7 +492,8 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
-  const [statusFilter,setStatusFilter] = useState<'all' | PurchaseOrder['status']>('all');
+  const [filters, setFilters] = useState<PurchaseOrderFilterCriteria>(DEFAULT_PURCHASE_ORDER_FILTERS);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedId,setSelectedId] = useState<string | null>(null);
   const [showCreate,setShowCreate] = useState(false);
   const [supplierId,setSupplierId] = useState('');
@@ -415,7 +558,8 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
     setSelectedId(null);
     setSupplierId('');
     setWarehouseId('');
-    setStatusFilter('all');
+    setFilters(DEFAULT_PURCHASE_ORDER_FILTERS);
+    setCurrentPage(1);
     setShowCreate(false);
     setDraftLines([newLine()]);
     setReceiveDrafts({});
@@ -433,7 +577,8 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
     if (!initialPurchaseOrderId || loading) return;
     const target = orders.find((order) => order.id === initialPurchaseOrderId);
     if (!target) return;
-    setStatusFilter("all");
+    setFilters((current) => ({ ...current, status: "all" }));
+    setCurrentPage(1);
     setSelectedId(target.id);
   }, [initialPurchaseOrderId, loading, orders]);
   useEffect(() => {
@@ -451,7 +596,8 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
         setError("تعذر العثور على أمر الشراء المرتبط بإيصال الاستلام ضمن الأوامر المتاحة لحسابك.");
         return;
       }
-      setStatusFilter("all");
+      setFilters((current) => ({ ...current, status: "all" }));
+      setCurrentPage(1);
       setSelectedId(target.id);
       setNotice("تم فتح أمر الشراء المرتبط بإيصال الاستلام: " + receipt.receipt_number);
     }).catch((cause: unknown) => {
@@ -468,13 +614,40 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
     setReceiptNotes('');
   }, [selectedId]);
 
-  const visibleOrders = useMemo(
-    () => orders.filter((order) => statusFilter === 'all' || order.status === statusFilter),
-    [orders,statusFilter],
+  const filteredOrders = useMemo(
+    () => filterPurchaseOrders(orders, filters),
+    [orders, filters],
   );
+  const pageCount = Math.max(1, Math.ceil(filteredOrders.length / PURCHASE_ORDER_PAGE_SIZE));
+  const pageOrders = useMemo(
+    () => filteredOrders.slice((currentPage - 1) * PURCHASE_ORDER_PAGE_SIZE, currentPage * PURCHASE_ORDER_PAGE_SIZE),
+    [filteredOrders, currentPage],
+  );
+  const supplierFilterOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const order of orders) names.set(order.supplier_id, order.supplier_name);
+    return [...names.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'ar'));
+  }, [orders]);
+  const warehouseFilterOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const order of orders) names.set(order.warehouse_id, order.warehouse_name);
+    return [...names.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'ar'));
+  }, [orders]);
+  const filterView = useMemo(() => ({
+    ...filters,
+    page: currentPage,
+    pageCount,
+    total: filteredOrders.length,
+    suppliers: supplierFilterOptions,
+    warehouses: warehouseFilterOptions,
+  }), [filters, currentPage, pageCount, filteredOrders.length, supplierFilterOptions, warehouseFilterOptions]);
   const selectedOrder = useMemo(
-    () => orders.find((order) => order.id === selectedId) ?? null,
-    [orders,selectedId],
+    () => filteredOrders.find((order) => order.id === selectedId) ?? null,
+    [filteredOrders, selectedId],
   );
   const activeSuppliers = useMemo(
     () => suppliers.filter((supplier) => (supplier.status ?? 'active') === 'active'),
@@ -483,13 +656,29 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
   const totalOpen = orders.filter((order) => ['submitted','partially_received'].includes(order.status)).length;
   const totalDraft = orders.filter((order) => order.status === 'draft').length;
   const totalReceived = orders.filter((order) => order.status === 'received').length;
+  const resultsFilterLabel = [
+    filters.status === 'all' ? 'كل الحالات' : statusLabel[filters.status],
+    filters.search.trim() ? 'بحث: ' + filters.search.trim() : null,
+    filters.supplierId !== 'all'
+      ? 'المورد: ' + (supplierFilterOptions.find((item) => item.id === filters.supplierId)?.name ?? 'مورد محدد')
+      : null,
+    filters.warehouseId !== 'all'
+      ? 'المخزن: ' + (warehouseFilterOptions.find((item) => item.id === filters.warehouseId)?.name ?? 'مخزن محدد')
+      : null,
+    filters.dateFrom ? 'من: ' + filters.dateFrom : null,
+    filters.dateTo ? 'إلى: ' + filters.dateTo : null,
+    filters.sortOrder === 'newest' ? 'الأحدث أولاً' : 'الأقدم أولاً',
+  ].filter(Boolean).join(' · ');
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount));
+  }, [pageCount]);
   const printRoles = user?.roles ?? [];
   const printOrderDocument = selectedOrder
     ? projectPurchaseOrderPrintDocument(selectedOrder, printRoles)
     : null;
   const printResultsDocument = projectPurchaseOrderPrintResults(
-    visibleOrders,
-    statusFilter === 'all' ? 'كل الحالات' : statusLabel[statusFilter],
+    filteredOrders,
+    resultsFilterLabel,
     printRoles,
   );
 
@@ -602,13 +791,12 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
     setError('');
     setNotice('');
     try {
-      const filterLabel = statusFilter === 'all' ? 'كل الحالات' : statusLabel[statusFilter];
-      const started = downloadPurchaseOrdersWorkbookXlsx(visibleOrders, filterLabel);
+      const started = downloadPurchaseOrdersWorkbookXlsx(filteredOrders, resultsFilterLabel);
       if (!started) {
         setError('تنزيل ملف Excel غير متاح في هذه البيئة.');
         return;
       }
-      setNotice('تم تجهيز ملف Excel للنتائج الظاهرة وفق فلتر الحالة الحالي؛ التكاليف غير المسجلة بقيت فارغة.');
+      setNotice('تم تجهيز ملف Excel لكل النتائج المطابقة للفلاتر الحالية؛ التكاليف غير المسجلة بقيت فارغة.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel لأوامر الشراء.');
     }
@@ -643,6 +831,13 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
       .purchase-orders .po-field{display:grid;gap:5px;min-width:0}
       .purchase-orders .po-field input,.purchase-orders .po-field select,.purchase-orders .po-field textarea{width:100%;box-sizing:border-box;min-width:0}
       .purchase-orders .po-field textarea{min-height:72px}
+      .purchase-orders .po-filter-grid{display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(145px,1fr));gap:10px;align-items:end;margin-top:14px}
+      .purchase-orders .po-filter-grid input,.purchase-orders .po-filter-grid select{width:100%;box-sizing:border-box;min-width:0}
+      .purchase-orders .po-filter-actions{display:flex;align-items:end}
+      .purchase-orders .po-results-meta{margin:10px 0 0;color:var(--muted-foreground,#64748b);font-size:12px}
+      .purchase-orders .po-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border,#e2e8f0)}
+      @media(max-width:850px){.purchase-orders .po-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      @media(max-width:480px){.purchase-orders .po-filter-grid{grid-template-columns:1fr}.purchase-orders .po-pagination{align-items:stretch}.purchase-orders .po-pagination .po-actions{width:100%}.purchase-orders .po-pagination .po-actions button{flex:1}}
       @media(max-width:850px){.purchase-orders .po-layout{grid-template-columns:1fr}.purchase-orders .po-line{grid-template-columns:1fr 1fr}.purchase-orders .po-line .wide{grid-column:1/-1}}
       @media(max-width:480px){.purchase-orders .po-summary,.purchase-orders .po-create-grid{grid-template-columns:1fr}.purchase-orders .po-line{grid-template-columns:1fr}}
       @media print{
@@ -673,8 +868,8 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
       <div className="panel-head"><div><h2>متابعة التوريد</h2><p>الموردون والمخازن والأصناف من سجلات المؤسسة الحالية. لا توجد بيانات تجريبية.</p></div>
         <div className="po-actions">
           <button className="btn secondary" type="button" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={16}/> تحديث</button>
-          <button className="btn secondary" type="button" onClick={exportVisibleOrders} disabled={loading||busy||!visibleOrders.length}><FileSpreadsheet size={16}/> تصدير نتائج Excel</button>
-          <button className="btn outline" type="button" onClick={()=>startPrint('results')} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
+          <button className="btn secondary" type="button" onClick={exportVisibleOrders} disabled={loading||busy||!filteredOrders.length}><FileSpreadsheet size={16}/> تصدير نتائج Excel</button>
+          <button className="btn outline" type="button" onClick={()=>startPrint('results')} disabled={!filteredOrders.length}><Printer size={16}/> طباعة النتائج</button>
           <button className="btn primary" type="button" onClick={()=>{setShowCreate((v)=>!v);setError('');}} disabled={busy}><Plus size={16}/>{showCreate?'إغلاق نموذج الشراء':'إنشاء مسودة أمر شراء'}</button>
         </div>
       </div>
@@ -715,17 +910,26 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
     
     <PurchaseOrderRecordsPanel
       loading={loading}
-      orders={visibleOrders}
+      orders={pageOrders}
       selectedId={selectedId}
       selectedOrder={selectedOrder}
-      statusFilter={statusFilter}
+      filters={filterView}
       busy={busy}
       cancelReason={cancelReason}
       receiveDrafts={receiveDrafts}
       batchDrafts={receiveBatchDrafts}
       expiryDrafts={receiveExpiryDrafts}
       receiptNotes={receiptNotes}
-      onStatusFilterChange={setStatusFilter}
+      onFiltersChange={(patch) => {
+        setFilters((current) => ({ ...current, ...patch }));
+        setCurrentPage(1);
+      }}
+      onClearFilters={() => {
+        setFilters(DEFAULT_PURCHASE_ORDER_FILTERS);
+        setCurrentPage(1);
+        setSelectedId(null);
+      }}
+      onPageChange={(page) => setCurrentPage(Math.max(1, Math.min(pageCount, page)))}
       onSelect={(order) => { setSelectedId(order.id); setCancelReason(""); setReceiveDrafts({}); setReceiveBatchDrafts({}); setReceiveExpiryDrafts({}); setReceiptNotes(""); setError(""); }}
       onCancelReasonChange={setCancelReason}
       onSubmit={() => void submitSelected()}
