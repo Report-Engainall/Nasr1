@@ -232,4 +232,15 @@ describe("product revenue concentration client evidence contract", () => {
       status: "UNAVAILABLE",
     });
   });
+
+  it("maps an asynchronously rejected RPC transport to UNAVAILABLE without leaking a rejection", async () => {
+    mocks.rpc.mockImplementation(async () => {
+      throw new Error("network unavailable");
+    });
+
+    await expect(fetchProductRevenueConcentration(request)).resolves.toMatchObject({
+      ok: false,
+      status: "UNAVAILABLE",
+    });
+  });
 });
