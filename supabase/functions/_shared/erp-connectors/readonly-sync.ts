@@ -909,7 +909,7 @@ export async function runIncrementalReadOnlySync(input: {
         modifiedSince: checkpoint.cursor || !checkpoint.completedWatermark
           ? null
           : subtractOverlap(checkpoint.completedWatermark, overlapMs),
-        maxRows: maxRecords - recordsRead,
+        maxRows: Math.min(maxRecords - recordsRead, MAX_PAGE_ROWS),
       });
     } catch (error) {
       if (
