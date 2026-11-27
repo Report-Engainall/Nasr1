@@ -375,16 +375,17 @@ test("manager completes the real admin image-upload journey against local Storag
 
     const afterFirstAttempt = await readProductMedia(harness.service);
     expect(afterFirstAttempt.product.image_url).toMatch(/^https:\/\/storage\.local\.test\//);
-    expect(afterFirstAttempt.media.filter((item) => item.is_primary)).toHaveLength(1);
-    expect(afterFirstAttempt.media.filter((item) => !item.is_primary)).toHaveLength(0);
+    // The primary URL is stored on products.image_url; product_media stores
+    // only additional gallery rows.
+    expect(afterFirstAttempt.media).toHaveLength(0);
 
     await manager.getByRole("button", { name: "إعادة محاولة الصور الفاشلة (1)", exact: true }).click();
     await expect(resultRegion.getByRole("status")).toContainText("تعذر 0", { timeout: 45_000 });
     await expect(resultRegion.getByRole("alert")).toHaveCount(0);
     const afterRetry = await readProductMedia(harness.service);
     expect(afterRetry.product.image_url).toBeTruthy();
-    expect(afterRetry.media.filter((item) => item.is_primary)).toHaveLength(1);
-    expect(afterRetry.media.filter((item) => !item.is_primary)).toHaveLength(1);
+    expect(afterRetry.media).toHaveLength(1);
+    expect(afterRetry.media.every((item) => item.is_primary === false)).toBe(true);
 
     const browserUploadCalls = harness.calls.filter((call) => call.productId === PRODUCT_ID && call.mode !== "command");
     expect(browserUploadCalls.filter((call) => call.mode === "primary" && call.status === 200)).toHaveLength(1);
@@ -406,7 +407,8 @@ test("manager completes the real admin image-upload journey against local Storag
       expect(galleryResult.body.image_linked).toBe(true);
     }
     const atGalleryLimit = await readProductMedia(harness.service);
-    expect(atGalleryLimit.media.filter((item) => !item.is_primary)).toHaveLength(8);
+    expect(atGalleryLimit.media).toHaveLength(8);
+    expect(atGalleryLimit.media.every((item) => item.is_primary === false)).toBe(true);
 
     await manager.reload();
     await expect(manager.getByRole("heading", { name: "إدارة المنتجات", exact: true })).toBeVisible({ timeout: 30_000 });
@@ -434,7 +436,7 @@ test("manager completes the real admin image-upload journey against local Storag
     ).slice(-1)[0];
     expect(limitResponse).toBeTruthy();
     const afterLimitAttempt = await readProductMedia(harness.service);
-    expect(afterLimitAttempt.media.filter((item) => !item.is_primary)).toHaveLength(8);
+    expect(afterLimitAttempt.media).toHaveLength(8);
     const rejectedObjectPath = harness.uploadedObjectPaths[harness.uploadedObjectPaths.length - 1];
     expect(rejectedObjectPath).toBeTruthy();
     expect(await harness.objectExists(rejectedObjectPath!)).toBe(false);
