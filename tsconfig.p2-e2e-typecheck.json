@@ -9,6 +9,7 @@
     "e2e/storefront-price-visibility.spec.ts",
     "e2e/critical-path.spec.ts",
     "e2e/checkout-lost-response-replay.spec.ts",
-    "e2e/admin-category-tree.spec.ts"
+    "e2e/admin-category-tree.spec.ts",
+    "e2e/product-image-upload-admin.spec.ts"
   ]
 }

@@ -59,7 +59,37 @@ describe("product image filename matching", () => {
       [file("000125__2.png"), file("000125 (3).webp")],
     );
     expect(entries.every((entry) => entry.status === "ready")).toBe(true);
-    expect(entries.map((entry) => entry.placement)).toEqual(["gallery", "primary"]);
+    expect(entries.map((entry) => entry.placement)).toEqual(["primary", "gallery"]);
+  });
+
+  it("assigns the exact SKU image as primary before numbered aliases regardless of selection order", () => {
+    const entries = matchProductImagesByCode(
+      [product()],
+      [file("000125__2.png"), file("000125 (3).webp"), file("000125.jpg")],
+    );
+    const placementByName = Object.fromEntries(
+      entries.map((entry) => [entry.file.name, entry.placement]),
+    );
+    expect(placementByName).toEqual({
+      "000125__2.png": "gallery",
+      "000125 (3).webp": "gallery",
+      "000125.jpg": "primary",
+    });
+  });
+
+  it("matches two-digit numbered aliases and enforces gallery capacity", () => {
+    const entries = matchProductImagesByCode(
+      [product({
+        image_url: "https://cdn.example.test/primary.webp",
+        image_gallery_urls: Array.from({ length: 8 }, (_, index) =>
+          "https://cdn.example.test/gallery-" + index + ".webp",
+        ),
+      })],
+      [file("000125__10.png"), file("000125 (12).webp")],
+    );
+
+    expect(entries.every((entry) => entry.product?.id === "product-1")).toBe(true);
+    expect(entries.map((entry) => entry.status)).toEqual(["gallery_limit", "gallery_limit"]);
   });
 
   it("prefers an exact product code that itself ends with a number suffix", () => {
