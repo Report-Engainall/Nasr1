@@ -62,6 +62,7 @@ function createUploadHarness() {
   });
   const bucket = service.storage.from(PRODUCT_IMAGE_BUCKET);
   const uploadedObjectPaths: string[] = [];
+  const attemptedObjectPaths: string[] = [];
   const calls: HandlerCall[] = [];
   let activeMode: UploadMode = "primary";
   let failFirstGalleryUpload = true;
@@ -138,6 +139,7 @@ function createUploadHarness() {
         },
         storage: {
           async upload(objectPath, bytes, options) {
+            attemptedObjectPaths.push(objectPath);
             if (activeMode === "gallery" && failFirstGalleryUpload) {
               failFirstGalleryUpload = false;
               injectedGalleryFailure = true;
@@ -187,10 +189,16 @@ function createUploadHarness() {
       const browserRequest = route.request();
       const method = browserRequest.method();
       const body = method === "GET" || method === "HEAD" ? undefined : browserRequest.postDataBuffer() ?? undefined;
+      let requestBody: ArrayBuffer | undefined;
+      if (body) {
+        const copy = new Uint8Array(body.byteLength);
+        copy.set(body);
+        requestBody = copy.buffer;
+      }
       const response = await handleRequest(new Request(browserRequest.url(), {
         method,
         headers: browserRequest.headers(),
-        body,
+        body: requestBody,
       }));
       await route.fulfill({
         status: response.status,
@@ -229,6 +237,7 @@ function createUploadHarness() {
     service,
     calls,
     uploadedObjectPaths,
+    attemptedObjectPaths,
     injectedGalleryFailure: () => injectedGalleryFailure,
     installBrowserRoutes,
     directGalleryUpload,
@@ -309,7 +318,7 @@ async function openUploader(page: Page): Promise<void> {
   await expect(page.getByLabel("اختر عدة صور (JPG / PNG / WebP)")).toBeEnabled({ timeout: 30_000 });
 }
 
-async function readProductMedia(service: ReturnType<typeof createClient>) {
+async function readProductMedia(service: ReturnType<typeof createUploadHarness>["service"]) {
   const product = await service
     .from("products")
     .select("id,organization_id,image_url")
@@ -437,7 +446,7 @@ test("manager completes the real admin image-upload journey against local Storag
     expect(limitResponse).toBeTruthy();
     const afterLimitAttempt = await readProductMedia(harness.service);
     expect(afterLimitAttempt.media).toHaveLength(8);
-    const rejectedObjectPath = harness.uploadedObjectPaths[harness.uploadedObjectPaths.length - 1];
+    const rejectedObjectPath = harness.attemptedObjectPaths[harness.attemptedObjectPaths.length - 1];
     expect(rejectedObjectPath).toBeTruthy();
     expect(await harness.objectExists(rejectedObjectPath!)).toBe(false);
 
