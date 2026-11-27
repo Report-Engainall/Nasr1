@@ -455,6 +455,60 @@ describe("server-side ERP read connector contract", () => {
     expect(page.records).toHaveLength(1);
   });
 
+  it("retries a mid-stream response failure with the same cursor within the shared retry budget", async () => {
+    const waits: number[] = [];
+    const requests: string[] = [];
+    let calls = 0;
+    const connector = new OfficialJsonErpReadConnector(connection, productContract, {
+      fetcher: vi.fn(async (url: string | URL | Request) => {
+        requests.push(String(url));
+        calls += 1;
+        if (calls === 1) {
+          const brokenBody = new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("{\"data\":"));
+              controller.error(new Error("provider connection closed during body transfer"));
+            },
+          });
+          return new Response(brokenBody, { status: 200 });
+        }
+        return jsonResponse({
+          data: { items: [sourceProduct("stream-retry-1")] },
+          meta: { next_cursor: null },
+        });
+      }),
+      sleep: async (value) => { waits.push(value); },
+    });
+
+    const page = await connector.readPage({ cursor: "opaque-cursor-1", modifiedSince: null });
+    expect(calls).toBe(2);
+    expect(requests[0]).toBe(requests[1]);
+    expect(waits).toEqual([500]);
+    expect(page.records.map((item) => item.externalId)).toEqual(["stream-retry-1"]);
+  });
+
+  it("stops retrying a broken response stream at the configured retry limit", async () => {
+    const waits: number[] = [];
+    const fetcher = vi.fn(async () => {
+      const brokenBody = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(new Error("provider stream interrupted"));
+        },
+      });
+      return new Response(brokenBody, { status: 200 });
+    });
+    const connector = new OfficialJsonErpReadConnector(
+      { ...connection, maxRetries: 1 },
+      productContract,
+      { fetcher, sleep: async (value) => { waits.push(value); } },
+    );
+
+    await expect(connector.readPage({ cursor: null, modifiedSince: null }))
+      .rejects.toMatchObject({ code: "ERP_RESPONSE_READ_FAILED", retryable: true });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(waits).toEqual([500]);
+  });
+
   it("does not retry credential failures and does not expose secrets in safe errors", async () => {
     const fetcher = vi.fn(async () => new Response("secret provider error", { status: 401 }));
     const connector = new OfficialJsonErpReadConnector(connection, productContract, { fetcher });
