@@ -121,6 +121,7 @@ async function main(){
  const replacementDate=(await db.unsafe(
   "select to_char((pg_catalog.now() at time zone 'UTC')::date+1,'YYYY-MM-DD') d",
  ))[0].d;
+ await db.unsafe("reset role");
  const alternateWarehouse=(await db.unsafe(
   "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and id<>$2::uuid order by id limit 1",
   [org,warehouse],
