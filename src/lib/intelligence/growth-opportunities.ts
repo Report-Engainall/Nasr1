@@ -130,7 +130,7 @@ const titles: Record<GrowthOpportunityKind, string> = {
 
 function validTime(value: string): boolean {
   if (typeof value !== "string" ||
-      !/^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/.test(value)) {
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
     return false;
   }
   const datePart = value.slice(0, 10);
