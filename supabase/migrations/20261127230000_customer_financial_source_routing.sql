@@ -664,7 +664,6 @@ BEGIN
     SELECT 1 FROM public.customers c
      WHERE c.id=v_customer AND c.organization_id=v_org AND c.status='approved'
   ) THEN
-  IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='customer is outside the active organization';
   END IF;
   SELECT b.* INTO v_binding
