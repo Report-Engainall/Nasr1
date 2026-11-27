@@ -6,13 +6,18 @@ const asOf = "2026-11-13T04:00:00.000Z";
 const currentPeriod: EvidencePeriod = { from: "2026-08-16", to: "2026-11-13" };
 const baselinePeriod: EvidencePeriod = { from: "2026-05-18", to: "2026-08-15" };
 
-function evidence(id: string, period: EvidencePeriod = currentPeriod): EvidenceRecord {
+function evidence(
+  id: string,
+  period: EvidencePeriod = currentPeriod,
+  currency?: string,
+): EvidenceRecord {
   return {
     id,
     source: { kind: "RPC", name: "growth-radar-test-fixture", version: "1" },
     sourceTimestamp: asOf,
     asOf,
     period,
+    ...(currency ? { currency } : {}),
     status: "VERIFIED",
     completeness: "COMPLETE",
     quality: "ACCEPTABLE",
@@ -194,7 +199,7 @@ describe("multi-source growth opportunity radar", () => {
 
   it("calculates currency product trends from exact minor units without floating-point drift", () => {
     const result = build({
-      evidenceRecords: [evidence("current", currentPeriod), evidence("baseline", baselinePeriod)],
+      evidenceRecords: [evidence("current", currentPeriod, "YER"), evidence("baseline", baselinePeriod, "YER")],
       metrics: [
         metric({ id: "current-revenue", key: "product.net_sales", value: "120.01", unit: "CURRENCY", currency: "YER", evidenceId: "current", formulaId: "product.net-sales.v1" }),
         metric({ id: "current-orders", key: "product.orders.sample_count", value: 5, evidenceId: "current", formulaId: "orders.v1" }),
@@ -223,7 +228,7 @@ describe("multi-source growth opportunity radar", () => {
 
   it("withholds currency trends when the source value has sub-cent precision", () => {
     const result = build({
-      evidenceRecords: [evidence("current", currentPeriod), evidence("baseline", baselinePeriod)],
+      evidenceRecords: [evidence("current", currentPeriod, "YER"), evidence("baseline", baselinePeriod, "YER")],
       metrics: [
         metric({ id: "current-revenue", key: "product.net_sales", value: "120.001", unit: "CURRENCY", currency: "YER", evidenceId: "current", formulaId: "product.net-sales.v1" }),
         metric({ id: "current-orders", key: "product.orders.sample_count", value: 5, evidenceId: "current", formulaId: "orders.v1" }),
@@ -246,7 +251,7 @@ describe("multi-source growth opportunity radar", () => {
 
   it("requires a canonical currency identity for monetary growth evidence", () => {
     const result = build({
-      evidenceRecords: [evidence("current", currentPeriod), evidence("baseline", baselinePeriod)],
+      evidenceRecords: [evidence("current", currentPeriod, "yer"), evidence("baseline", baselinePeriod, "YER")],
       metrics: [
         metric({ id: "current-revenue", key: "product.net_sales", value: "120.00", unit: "CURRENCY", currency: "yer", evidenceId: "current", formulaId: "product.net-sales.v1" }),
         metric({ id: "current-orders", key: "product.orders.sample_count", value: 5, evidenceId: "current", formulaId: "orders.v1" }),
