@@ -29,8 +29,8 @@ Branch: `fix/finance-cash-reconciliation-retry-safety-20261117`
 
 ## Current branch boundary
 - Current branch head at checkpoint review: `04d377a8b44d21003dcb21e9bffe4794b16dc1df`. It is one commit after tested code head `3f9edbd...`; compare confirms the intervening commit changes only this P2 checkpoint (no app, SQL, runner or workflow source change).
-- Latest observed `main`: `85331656b51825e0e1316f31faff644a09c58602`.
-- Current compare: 36 commits ahead / 3 behind, merge base `317ebca76c4d236a1d0efe0fd5934b028598c72b`, and only three changed paths against `main`: `.github/workflows/p2-playwright-critical-paths.yml`, this checkpoint and `scripts/test-finance-bank-match-idempotency.mjs`.
+- Latest observed `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e`.
+- Current compare against `586db78...`: **37 commits ahead / 6 behind**, merge base `317ebca76c4d236a1d0efe0fd5934b028598c72b`, with exactly three changed paths: `.github/workflows/p2-playwright-critical-paths.yml`, this checkpoint and `scripts/test-finance-bank-match-idempotency.mjs`.
 - P1 owns fixing the actual viewport overflow, synchronizing this narrow P2 branch with latest `main`, reviewing the three-file scoped diff and rerunning exact-head P1/P2. P2 does not merge to `main`.
 
 ## Safety and handoff
