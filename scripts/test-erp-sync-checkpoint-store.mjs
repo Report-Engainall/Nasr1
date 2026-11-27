@@ -764,6 +764,31 @@ async function main() {
   assert.equal((await loadCheckpoint(statementScope)).version, 1,
     "invalid dual-sided statement entry must not advance its checkpoint");
 
+  const unchangedPage = page({
+    expectedVersion: 6,
+    label: "same-time-unchanged",
+    records: [stagedRecord("Product version two", timestamp2)],
+    nextCursor: cursorCiphertext("same-time-unchanged"),
+    pendingWatermark: timestamp3,
+    completedWatermark: timestamp2,
+    completed: false,
+  });
+  const unchangedSaved = await persistPage(unchangedPage);
+  assert.equal(unchangedSaved.checkpoint.version, 7);
+  assert.equal(unchangedSaved.counts.unchanged, 1);
+
+  const outcomeRows = await db.unsafe(
+    "select page_fingerprint,external_id,disposition from public.erp_sync_page_record_outcomes " +
+    "where organization_id=$1::uuid and scope_key=$2::text order by recorded_at,page_fingerprint",
+    [organizationA, scopeKey(baseScope)],
+  );
+  const outcomesByPage = new Map(outcomeRows.map((row) => [row.page_fingerprint, row.disposition]));
+  assert.equal(outcomesByPage.get(sha256("page:initial-page")), "created");
+  assert.equal(outcomesByPage.get(sha256("page:newer-source-version")), "updated");
+  assert.equal(outcomesByPage.get(sha256("page:stale-source-row")), "rejected");
+  assert.equal(outcomesByPage.get(sha256("page:same-time-source-conflict")), "conflicted");
+  assert.equal(outcomesByPage.get(sha256("page:same-time-unchanged")), "unchanged");
+
   const invoicePreviewRows = await db.unsafe(
     "select public.list_erp_sync_staged_records(" +
       "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::integer) as result",
@@ -784,6 +809,7 @@ async function main() {
   assert.equal(invoicePreview.total, 1);
   assert.equal(invoicePreview.records.length, 1);
   assert.equal(invoicePreview.records[0].external_id, "ONYX-INVOICE-1001");
+  assert.equal(invoicePreview.records[0].last_disposition, "created");
   assert.equal(asJson(invoicePreview.records[0].fields).total_amount, "1250.7500");
   assert.equal(asJson(invoicePreview.records[0].fields).currency_code, "YER");
   assert.equal(Object.prototype.hasOwnProperty.call(invoicePreview.records[0], "idempotency_key"), false,
@@ -832,6 +858,10 @@ async function main() {
 
   await db.unsafe("reset role");
   await db.unsafe(
+    "delete from public.erp_sync_page_record_outcomes where organization_id in ($1::uuid,$2::uuid)",
+    [organizationA, organizationB],
+  );
+  await db.unsafe(
     "delete from public.erp_sync_page_receipts where organization_id in ($1::uuid,$2::uuid)",
     [organizationA, organizationB],
   );
@@ -843,7 +873,7 @@ async function main() {
     "delete from public.erp_sync_checkpoints where organization_id in ($1::uuid,$2::uuid)",
     [organizationA, organizationB],
   );
-  console.log("ERP_SYNC_CHECKPOINT_POSTGRES17_PASS: service-role-only RPC ACLs, RLS, tenant/company/branch/warehouse/currency/object/provider isolation, encrypted cursor storage, immutable receipts, concurrent duplicate replay, competing-version CAS, injected post-staging receipt failure with full rollback, row idempotency, stale/conflict ordering, completed watermark preservation, invoice/receipt/statement staging, exact decimal-string validation and financial debit-credit exclusivity.");
+  console.log("ERP_SYNC_CHECKPOINT_POSTGRES17_PASS: service-role-only RPC ACLs, RLS, tenant/company/branch/warehouse/currency/object/provider isolation, encrypted cursor storage, immutable receipts, concurrent duplicate replay, competing-version CAS, injected post-staging receipt failure with full rollback, row idempotency, stale/conflict ordering, completed watermark preservation, all five per-record dispositions, invoice/receipt/statement staging, exact decimal-string validation and financial debit-credit exclusivity.");
 }
 
 try {
