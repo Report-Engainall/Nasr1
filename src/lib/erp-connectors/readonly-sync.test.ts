@@ -207,7 +207,53 @@ describe("server-side ERP read connector contract", () => {
       ...productContract,
       modifiedSinceParameter: undefined,
       cursorParameter: undefined,
+      nextCursorPath: undefined,
+      pageSizeParameter: undefined,
     })).toThrowError(/cursor أو modified-since/);
+  });
+
+  it("requires explicit cursor continuation for paged delta reads", async () => {
+    expect(() => new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      cursorParameter: undefined,
+      nextCursorPath: undefined,
+    })).toThrowError(/تقسيم استجابة ERP إلى صفحات يتطلب cursor/);
+
+    expect(() => new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      nextCursorPath: undefined,
+    })).toThrowError(/معامل cursor ومسار cursor التالي معًا/);
+
+    expect(() => new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      nextCursorPath: [],
+    })).toThrowError(/مسار cursor التالي في عقد ERP غير صالح/);
+
+    let requestedUrl = "";
+    const singlePage = new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      cursorParameter: undefined,
+      nextCursorPath: undefined,
+      pageSizeParameter: undefined,
+    }, {
+      fetcher: vi.fn(async (url: string | URL | Request) => {
+        requestedUrl = String(url);
+        return jsonResponse({
+          data: { items: [sourceProduct("single-page")] },
+          meta: {},
+        });
+      }),
+    });
+
+    const page = await singlePage.readPage({
+      cursor: null,
+      modifiedSince: "2026-11-27T09:58:00Z",
+    });
+    expect(page.records).toHaveLength(1);
+    expect(page.nextCursor).toBeNull();
+    expect(new URL(requestedUrl).searchParams.get("modified_since"))
+      .toBe("2026-11-27T09:58:00.000Z");
+    expect(new URL(requestedUrl).searchParams.has("limit")).toBe(false);
   });
 
   it("does not allow authentication, permission or retryable statuses as cursor-expiry signals", () => {
