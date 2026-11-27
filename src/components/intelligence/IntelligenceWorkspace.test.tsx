@@ -460,10 +460,12 @@ describe("production intelligence workspace inventory screens", () => {
       expectedVersion: 2,
       reason,
     }));
-    const deferredCard = (await within(register).findByRole("heading", { name: "قرار يحتاج مستنداً" })).closest("article");
-    expect(deferredCard).toHaveTextContent("مؤجل");
-    expect(deferredCard).toHaveTextContent("تأجيل القرار");
-    expect(deferredCard).toHaveTextContent("السبب المحفوظ: " + reason);
+    await waitFor(() => {
+      const deferredCard = within(register).getByRole("heading", { name: "قرار يحتاج مستنداً" }).closest("article");
+      expect(deferredCard).toHaveTextContent("مؤجل");
+      expect(deferredCard).toHaveTextContent("تأجيل القرار");
+      expect(deferredCard).toHaveTextContent("السبب المحفوظ: " + reason);
+    });
   });
 
   it("returns a deferred decision to review only after a reasoned resume command", async () => {
@@ -510,10 +512,12 @@ describe("production intelligence workspace inventory screens", () => {
       expectedVersion: 4,
       reason,
     }));
-    const resumedCard = (await within(register).findByRole("heading", { name: "قرار مؤجل للمراجعة" })).closest("article");
-    expect(resumedCard).toHaveTextContent("قيد المراجعة");
-    expect(resumedCard).toHaveTextContent("إعادة للمراجعة");
-    expect(resumedCard).toHaveTextContent("السبب المحفوظ: " + reason);
+    await waitFor(() => {
+      const resumedCard = within(register).getByRole("heading", { name: "قرار مؤجل للمراجعة" }).closest("article");
+      expect(resumedCard).toHaveTextContent("قيد المراجعة");
+      expect(resumedCard).toHaveTextContent("إعادة للمراجعة");
+      expect(resumedCard).toHaveTextContent("السبب المحفوظ: " + reason);
+    });
   });
 
   it("keeps saved concentration decisions scoped as ratios and never offers cash measurement", async () => {
