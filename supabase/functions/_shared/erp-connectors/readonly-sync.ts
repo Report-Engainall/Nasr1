@@ -204,6 +204,33 @@ export type ErpSyncRunResult = {
   checkpoint: ErpCheckpoint;
 };
 
+export type ErpSyncBatchTask = {
+  scope: ErpSyncScope;
+  connector: ErpReadConnector;
+  store: ErpSyncCheckpointStore;
+  overlapMs?: number;
+  maxPages?: number;
+  maxRecords?: number;
+};
+
+export type ErpSyncBatchTaskResult = {
+  objectType: ErpObjectType;
+  status: "complete" | "continuation_required" | "failed";
+  pagesCommitted: number | null;
+  recordsRead: number | null;
+  counts: ErpPersistCounts;
+  errorCode: string | null;
+  retryable: boolean;
+};
+
+export type ErpSyncBatchResult = {
+  status: "complete" | "continuation_required" | "partial_failure";
+  completedTasks: number;
+  continuedTasks: number;
+  failedTasks: number;
+  tasks: ErpSyncBatchTaskResult[];
+};
+
 export class ErpConnectorError extends Error {
   readonly code: string;
   readonly httpStatus: number | null;
@@ -1026,6 +1053,116 @@ export async function runIncrementalReadOnlySync(input: {
     recordsRead,
     counts,
     checkpoint,
+  };
+}
+
+/**
+ * Runs a bounded set of independent ERP object streams sequentially.
+ *
+ * Each object keeps its own scope, store and checkpoint. A failed object does not
+ * suppress unrelated object streams; its failure is reduced to a stable safe code.
+ * The result deliberately omits checkpoint cursors and exception messages.
+ */
+export async function runIncrementalReadOnlyBatch(input: {
+  tasks: readonly ErpSyncBatchTask[];
+}): Promise<ErpSyncBatchResult> {
+  const maximumTasks = Object.keys(SAFE_FIELDS).length;
+  if (!Array.isArray(input.tasks) || input.tasks.length < 1 || input.tasks.length > maximumTasks) {
+    throw new ErpConnectorError(
+      "INVALID_ERP_SYNC_BATCH",
+      "دفعة مزامنة ERP يجب أن تحتوي كائنًا واحدًا على الأقل، وألا تتجاوز عدد أنواع البيانات المدعومة.",
+    );
+  }
+
+  const scopeKeys = new Set<string>();
+  for (const task of input.tasks) {
+    if (!task || !task.scope || typeof task.scope !== "object") {
+      throw new ErpConnectorError("INVALID_ERP_SYNC_BATCH", "تحتوي دفعة مزامنة ERP على نطاق غير صالح.");
+    }
+    const taskScope = task.scope;
+    if (!UUID_PATTERN.test(taskScope.organizationId) ||
+        !["onyx_pro", "al_mutakamel"].includes(taskScope.provider) ||
+        !Object.prototype.hasOwnProperty.call(SAFE_FIELDS, taskScope.objectType)) {
+      throw new ErpConnectorError("INVALID_ERP_SYNC_BATCH", "تحتوي دفعة مزامنة ERP على نطاق مؤسسة أو مزود أو كائن غير صالح.");
+    }
+    const key = stableJson({
+      provider: taskScope.provider,
+      organizationId: taskScope.organizationId.toLocaleLowerCase("en"),
+      companyExternalId: cleanIdentity(taskScope.companyExternalId, "company_external_id"),
+      branchExternalId: cleanIdentity(taskScope.branchExternalId, "branch_external_id"),
+      warehouseExternalId: taskScope.warehouseExternalId == null
+        ? null
+        : cleanIdentity(taskScope.warehouseExternalId, "warehouse_external_id"),
+      currencyCode: taskScope.currencyCode == null
+        ? null
+        : cleanIdentity(taskScope.currencyCode, "currency_code", 12).toLocaleUpperCase("en"),
+      objectType: taskScope.objectType,
+    });
+    if (scopeKeys.has(key)) {
+      throw new ErpConnectorError(
+        "DUPLICATE_ERP_SYNC_BATCH_SCOPE",
+        "تحتوي دفعة مزامنة ERP على نطاق كائن مكرر؛ رُفضت الدفعة قبل بدء أي قراءة.",
+      );
+    }
+    scopeKeys.add(key);
+  }
+
+  const tasks: ErpSyncBatchTaskResult[] = [];
+  const emptyCounts = (): ErpPersistCounts => ({
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    rejected: 0,
+    conflicted: 0,
+  });
+
+  for (const task of input.tasks) {
+    try {
+      const result = await runIncrementalReadOnlySync({
+        connector: task.connector,
+        store: task.store,
+        scope: task.scope,
+        overlapMs: task.overlapMs,
+        maxPages: task.maxPages,
+        maxRecords: task.maxRecords,
+      });
+      tasks.push({
+        objectType: task.scope.objectType,
+        status: result.status,
+        pagesCommitted: result.pagesCommitted,
+        recordsRead: result.recordsRead,
+        counts: result.counts,
+        errorCode: null,
+        retryable: false,
+      });
+    } catch (error) {
+      tasks.push({
+        objectType: task.scope.objectType,
+        status: "failed",
+        pagesCommitted: null,
+        recordsRead: null,
+        counts: emptyCounts(),
+        errorCode: error instanceof ErpConnectorError
+          ? error.code
+          : "ERP_SYNC_UNEXPECTED_FAILURE",
+        retryable: error instanceof ErpConnectorError && error.retryable,
+      });
+    }
+  }
+
+  const completedTasks = tasks.filter((task) => task.status === "complete").length;
+  const continuedTasks = tasks.filter((task) => task.status === "continuation_required").length;
+  const failedTasks = tasks.filter((task) => task.status === "failed").length;
+  return {
+    status: failedTasks > 0
+      ? "partial_failure"
+      : continuedTasks > 0
+        ? "continuation_required"
+        : "complete",
+    completedTasks,
+    continuedTasks,
+    failedTasks,
+    tasks,
   };
 }
 
