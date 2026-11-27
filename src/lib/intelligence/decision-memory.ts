@@ -1,5 +1,8 @@
 import type { DecisionOutcomeView } from "./decision-outcome-client";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
+const NUMERIC_METRIC_UNITS = new Set<MetricSnapshot["unit"]>([
+  "COUNT", "RATIO", "CURRENCY", "CURRENCY_PER_UNIT", "QUANTITY", "DAYS",
+]);
 
 export const DECISION_MEMORY_POLICY_VERSION = "1.0.0";
 
@@ -444,8 +447,9 @@ function samePeriod(a: EvidencePeriod | null, b: EvidencePeriod | null): boolean
   return Boolean(a && b && validPeriod(a) && validPeriod(b) && a.from === b.from && a.to === b.to);
 }
 function finiteNumber(value: number | string | null): number | null {
+  const normalized = typeof value === "string" ? value.trim() : null;
   const parsed = typeof value === "number" ? value :
-    typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+    normalized !== null && /^-?\\d+(?:\\.\\d{1,6})?$/.test(normalized) ? Number(normalized) : Number.NaN;
   return Number.isFinite(parsed) && Math.abs(parsed) <= Number.MAX_SAFE_INTEGER ? parsed : null;
 }
 function unique<T extends string>(values: T[]): T[] {
@@ -471,6 +475,9 @@ function verifiedMetric(metric: MetricSnapshot | null, evidence: Map<string, Evi
   if (!metric) return { metric: null as DecisionMemoryMetricResult | null, reason: "METRIC_MISSING" as string | null };
   if (metric.status !== "VERIFIED" || metric.completeness !== "COMPLETE" || metric.quality !== "ACCEPTABLE") {
     return { metric: null, reason: "METRIC_NOT_VERIFIED" };
+  }
+  if (!NUMERIC_METRIC_UNITS.has(metric.unit)) {
+    return { metric: null, reason: "METRIC_UNIT_NOT_NUMERIC" };
   }
   if (!validTime(metric.asOf) || Date.parse(metric.asOf) > Date.parse(noLaterThan) ||
       !validPeriod(metric.period) || !metric.lineage?.formulaId?.trim() ||
