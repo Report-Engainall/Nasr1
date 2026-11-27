@@ -80,6 +80,7 @@ CREATE TABLE public.erp_sync_page_record_outcomes (
   page_fingerprint text NOT NULL,
   external_id text NOT NULL CHECK (length(btrim(external_id)) BETWEEN 1 AND 256),
   source_updated_at timestamptz NOT NULL,
+  fields jsonb NOT NULL CHECK (jsonb_typeof(fields)='object'),
   disposition text NOT NULL CHECK (disposition IN ('created','updated','unchanged','rejected','conflicted')),
   recorded_at timestamptz NOT NULL DEFAULT statement_timestamp(),
   PRIMARY KEY (organization_id,scope_key,page_fingerprint,external_id),
@@ -551,6 +552,7 @@ BEGIN
       pg_catalog.jsonb_build_object(
         'external_id',v_external_id,
         'source_updated_at',v_source_updated_at,
+        'fields',v_fields,
         'disposition',v_disposition
       )
     );
@@ -579,12 +581,12 @@ BEGIN
   );
 
   INSERT INTO public.erp_sync_page_record_outcomes(
-    organization_id,scope_key,page_fingerprint,external_id,source_updated_at,disposition
+    organization_id,scope_key,page_fingerprint,external_id,source_updated_at,fields,disposition
   )
   SELECT p_organization_id,p_scope_key,p_page_fingerprint,
-         outcome.external_id,outcome.source_updated_at,outcome.disposition
+         outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition
     FROM pg_catalog.jsonb_to_recordset(v_outcomes) AS outcome(
-      external_id text,source_updated_at timestamptz,disposition text
+      external_id text,source_updated_at timestamptz,fields jsonb,disposition text
     );
 
   RETURN pg_catalog.jsonb_build_object(
@@ -689,18 +691,21 @@ BEGIN
  THEN RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP staged preview scope hash is already bound to different scope metadata'; END IF;
  WITH latest_outcomes AS MATERIALIZED (
    SELECT DISTINCT ON (outcome.external_id)
-          outcome.external_id,outcome.source_updated_at,outcome.disposition
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition
      FROM public.erp_sync_page_record_outcomes outcome
     WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
     ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
  ),
  preview_rows AS MATERIALIZED (
-   SELECT staged.external_id,staged.source_updated_at,staged.fields,latest.disposition
+   SELECT staged.external_id,
+          coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
+          coalesce(latest.fields,staged.fields) AS fields,
+          latest.disposition
      FROM public.erp_sync_staged_records staged
      LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
     WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
    UNION ALL
-   SELECT latest.external_id,latest.source_updated_at,'{}'::jsonb,latest.disposition
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition
      FROM latest_outcomes latest
     WHERE latest.disposition IN ('rejected','conflicted')
       AND NOT EXISTS (
@@ -714,13 +719,16 @@ BEGIN
 
  WITH latest_outcomes AS MATERIALIZED (
    SELECT DISTINCT ON (outcome.external_id)
-          outcome.external_id,outcome.source_updated_at,outcome.disposition
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition
      FROM public.erp_sync_page_record_outcomes outcome
     WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
     ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
  ),
  preview_rows AS MATERIALIZED (
-   SELECT staged.external_id,staged.source_updated_at,staged.fields,latest.disposition
+   SELECT staged.external_id,
+          coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
+          coalesce(latest.fields,staged.fields) AS fields,
+          latest.disposition
      FROM public.erp_sync_staged_records staged
      LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
     WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
