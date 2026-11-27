@@ -208,6 +208,79 @@ async function main(){
  assert.equal(Number(finalParity.r),Number(finalParity.br),
   "aggregate reserved quantities must remain in exact parity after release, replacement and shipment");
 
+ // If no valid lot can replace an expired reservation, the release itself must
+ // roll back: no partial release movement, no lower aggregate reserve, no audit.
+ const failedReplacementReceipt=await receipt(manager,"FEFO-ATOMIC-FAIL-"+suffix,
+  (await db.unsafe("select to_char((pg_catalog.now() at time zone 'UTC')::date+2,'YYYY-MM-DD') d"))[0].d);
+ await as(manager);
+ const order4=(await rpc(
+  "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
+  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO insufficient replacement rollback",randomUUID().replaceAll("-",""),"cash_on_delivery"],
+ )).id;
+ assert.ok(order4);
+ await status(manager,order4,"confirmed");
+ await status(manager,order4,"processing");
+ const failedSource=(await db.unsafe(
+  "select im.inventory_batch_id::text id,b.batch_number " +
+  "from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id " +
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve'",
+  [order4],
+ ))[0];
+ assert.ok(failedSource,"the fourth order must hold a real FEFO lot before the rollback case");
+ // Expire every physically positive lot in this disposable product so that no
+ // alternate batch can satisfy the reservation. Include the reserved lot itself.
+ await db.unsafe(
+  "update public.inventory_batches " +
+  "set batch_number=coalesce(batch_number,'FEFO-FORCED-EXPIRED-'||pg_catalog.left(id::text,8)),expiry_date=$2::date " +
+  "where organization_id=$1::uuid and product_id=$3::uuid and quantity_on_hand>0",
+  [org,expiredDate,product],
+ );
+ const noReplacementLots=await db.unsafe(
+  "select count(*)::integer count from public.inventory_batches " +
+  "where organization_id=$1::uuid and product_id=$2::uuid and quantity_on_hand>quantity_reserved " +
+  "and (expiry_date is null or expiry_date>=(pg_catalog.now() at time zone 'UTC')::date)",
+  [org,product],
+ );
+ assert.equal(noReplacementLots[0].count,0);
+ const balanceBeforeFailedReallocation=await balance(product);
+ const reservedBeforeFailedReallocation=(await db.unsafe(
+  "select quantity_reserved::text from public.inventory_batches where id=$1::uuid",
+  [failedSource.id],
+ ))[0];
+ await as(manager);
+ await assert.rejects(
+  () => rpc(
+   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [order4,"fefo-no-stock-"+randomUUID().replaceAll("-",""),"No replacement lot exists; reject partial release"],
+  ),
+  error => String(error?.code)==="P0001" && String(error?.message).includes("no changes were committed"),
+  "reallocation must fail atomically when no non-expired replacement lot exists",
+ );
+ const reservedAfterFailedReallocation=(await db.unsafe(
+  "select quantity_reserved::text from public.inventory_batches where id=$1::uuid",
+  [failedSource.id],
+ ))[0];
+ assert.equal(Number(reservedAfterFailedReallocation.quantity_reserved),Number(reservedBeforeFailedReallocation.quantity_reserved),
+  "failed replacement must restore the original expired-lot reservation");
+ const releaseAfterFailedReallocation=await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='release_reservation'",
+  [order4],
+ );
+ assert.equal(releaseAfterFailedReallocation[0].count,0,
+  "failed transaction must not leave a release movement behind");
+ const balanceAfterFailedReallocation=await balance(product);
+ assert.equal(Number(balanceAfterFailedReallocation.quantity_reserved),Number(balanceBeforeFailedReallocation.quantity_reserved),
+  "failed transaction must preserve aggregate reserved stock");
+ const failureParity=(await db.unsafe(
+  "select ib.quantity_reserved::text r,coalesce(pg_catalog.sum(b.quantity_reserved),0)::text br " +
+  "from public.inventory_balances ib left join public.inventory_batches b " +
+  "on b.product_id=ib.product_id and b.warehouse_id=ib.warehouse_id " +
+  "where ib.product_id=$1::uuid and ib.warehouse_id=$2::uuid group by ib.id",
+  [product,warehouse],
+ ))[0];
+ assert.equal(Number(failureParity.r),Number(failureParity.br),
+  "failed replacement must preserve aggregate-to-batch reservation parity");
+
  await as(customer);
  await assert.rejects(
   () => rpc(
