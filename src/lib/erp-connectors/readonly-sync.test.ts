@@ -378,6 +378,37 @@ describe("server-side ERP read connector contract", () => {
     expect(page.responseSha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it("honors the remaining per-run row budget and refuses a provider that ignores it", async () => {
+    let requestedUrl = "";
+    const bounded = new OfficialJsonErpReadConnector(connection, productContract, {
+      fetcher: vi.fn(async (url: string | URL | Request) => {
+        requestedUrl = String(url);
+        return jsonResponse({
+          data: { items: [sourceProduct("budget-1")] },
+          meta: { next_cursor: null },
+        });
+      }),
+    });
+    await bounded.readPage({ cursor: null, modifiedSince: null, maxRows: 1 });
+    expect(new URL(requestedUrl).searchParams.get("limit")).toBe("1");
+
+    const noPageLimitContract: ErpReadContract = {
+      ...productContract,
+      pageSizeParameter: undefined,
+    };
+    const ignoresBudget = new OfficialJsonErpReadConnector(connection, noPageLimitContract, {
+      fetcher: vi.fn(async () => jsonResponse({
+        data: { items: [sourceProduct("budget-2"), sourceProduct("budget-3")] },
+        meta: { next_cursor: "cursor-after-page" },
+      })),
+    });
+    await expect(ignoresBudget.readPage({
+      cursor: null,
+      modifiedSince: null,
+      maxRows: 1,
+    })).rejects.toMatchObject({ code: "ERP_PAGE_EXCEEDS_RUN_LIMIT" });
+  });
+
   it("uses the opaque source cursor on continuation pages and never follows redirects", async () => {
     let requestedUrl = "";
     const fetcher = vi.fn(async (url: string | URL | Request) => {
@@ -535,8 +566,8 @@ describe("incremental ERP sync checkpoint orchestration", () => {
 
     const result = await runIncrementalReadOnlySync({ connector, store, scope, overlapMs: 120_000 });
     expect(inputs).toEqual([
-      { cursor: null, modifiedSince: "2026-11-27T08:58:00.000Z" },
-      { cursor: "page-2", modifiedSince: null },
+      { cursor: null, modifiedSince: "2026-11-27T08:58:00.000Z", maxRows: 2000 },
+      { cursor: "page-2", modifiedSince: null, maxRows: 1999 },
     ]);
     expect(store.committed).toHaveLength(2);
     expect(store.committed[0].receipt).toEqual({
@@ -633,30 +664,34 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     expect(replay.counts.created).toBe(0);
   });
 
-  it("commits an entire source page even when it slightly exceeds the per-run record target", async () => {
+  it("does not persist a page that exceeds the remaining run budget when a connector ignores maxRows", async () => {
     const store = new InMemoryCheckpointStore();
+    const inputs: ErpReadPageInput[] = [];
     const connector: ErpReadConnector = {
-      readPage: async () => ({
-        records: [
-          record("limit-1", "2026-11-27T10:00:00Z"),
-          record("limit-2", "2026-11-27T10:01:00Z"),
-        ],
-        nextCursor: "next-page",
-        httpStatus: 200,
-        externalRequestId: null,
-        responseSha256: "e".repeat(64),
-      }),
+      readPage: async (input) => {
+        inputs.push(input);
+        return {
+          records: [
+            record("limit-1", "2026-11-27T10:00:00Z"),
+            record("limit-2", "2026-11-27T10:01:00Z"),
+          ],
+          nextCursor: "next-page",
+          httpStatus: 200,
+          externalRequestId: null,
+          responseSha256: "e".repeat(64),
+        };
+      },
     };
-    const result = await runIncrementalReadOnlySync({
+    await expect(runIncrementalReadOnlySync({
       connector,
       store,
       scope,
       maxRecords: 1,
-    });
-    expect(result.recordsRead).toBe(2);
-    expect(result.status).toBe("continuation_required");
-    expect(result.checkpoint.cursor).toBe("next-page");
-    expect(store.committed[0].records).toHaveLength(2);
+    })).rejects.toMatchObject({ code: "ERP_PAGE_EXCEEDS_RUN_LIMIT" });
+    expect(inputs[0].maxRows).toBe(1);
+    expect(store.committed).toHaveLength(0);
+    expect(store.state.cursor).toBeNull();
+    expect(store.state.version).toBe(0);
   });
 
   it("includes tenant and branch scope in the record idempotency key", async () => {
@@ -710,8 +745,8 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     };
     const result = await runIncrementalReadOnlySync({ connector, store, scope });
     expect(inputs).toEqual([
-      { cursor: "expired-cursor", modifiedSince: null },
-      { cursor: null, modifiedSince: "2026-11-27T09:58:00.000Z" },
+      { cursor: "expired-cursor", modifiedSince: null, maxRows: 2000 },
+      { cursor: null, modifiedSince: "2026-11-27T09:58:00.000Z", maxRows: 2000 },
     ]);
     expect(result.status).toBe("complete");
     expect(result.checkpoint.pendingWatermark).toBeNull();
