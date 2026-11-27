@@ -507,7 +507,7 @@ describe("decision review queue and memory filtering", () => {
   it("exports the filtered source records as safe UTF-8 CSV with evidence and verification context", () => {
     const record = queueRecord("csv-export", "MEASURED", "NOT_REQUIRED", null, true);
     record.proposedResult = "=HYPERLINK(\"https://example.invalid\",\"click\")";
-    record.problem = "سطر أول, \"مقتبس\"\\nسطر ثان";
+    record.problem = ["سطر أول, \"مقتبس\"","سطر ثان"].join(String.fromCharCode(10));
     record.facts = [{
       id: "fact-csv",
       kind: "FACT",
@@ -518,13 +518,13 @@ describe("decision review queue and memory filtering", () => {
     }];
 
     const csv = buildDecisionMemoryCsv([record]);
-    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv.startsWith(String.fromCharCode(0xfeff))).toBe(true);
     expect(csv).toContain("\"معرف القرار\",\"القرار\"");
     expect(csv).toContain("'=HYPERLINK(");
-    expect(csv).toContain("\"سطر أول, \"\"مقتبس\"\"\\nسطر ثان\"");
+    expect(csv).toContain('"سطر أول, ""مقتبس""'+String.fromCharCode(10)+'سطر ثان"');
     expect(csv).toContain("invoice:00000000-0000-4000-8000-000000000001");
     expect(csv).toContain("\"مكتملة\"");
-    expect(buildDecisionMemoryCsv([])).toBe("\\uFEFF");
+    expect(buildDecisionMemoryCsv([])).toBe(String.fromCharCode(0xfeff));
   });
 
   it("filters by normalized Arabic terms and exact decision state without changing source records", () => {

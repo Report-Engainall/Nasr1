@@ -242,7 +242,10 @@ const decisionMemoryCsvStateLabels: Record<DecisionMemoryRecord["state"], string
 
 function csvCell(value: string | number | null | undefined): string {
   const raw = value === null || value === undefined ? "" : String(value);
-  const safe = /^[\\u0000-\\u0020]*[=+\\-@]/.test(raw) ? "'" + raw : raw;
+  const firstMeaningful = raw.trimStart().charAt(0);
+  const formulaLike = firstMeaningful === "=" || firstMeaningful === "+" ||
+    firstMeaningful === "-" || firstMeaningful === "@";
+  const safe = formulaLike ? "'" + raw : raw;
   return '"' + safe.replace(/"/g, '""') + '"';
 }
 
@@ -307,7 +310,8 @@ export function buildDecisionMemoryCsv(records: DecisionMemoryRecord[]): string 
       record.updatedAt,
     ];
   });
-  return "\\uFEFF" + [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\\r\\n");
+  return String.fromCharCode(0xfeff) +
+    [headers, ...rows].map(row => row.map(csvCell).join(",")).join(String.fromCharCode(13, 10));
 }
 
 export interface DecisionMemoryRecordFilter {
