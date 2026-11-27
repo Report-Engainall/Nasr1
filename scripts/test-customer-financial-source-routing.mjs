@@ -141,6 +141,11 @@ async function main() {
   const resolverBefore = await rpc(customerDb, "select public.get_my_customer_financial_source() as result");
   assert.equal(resolverBefore.source_mode, "APP_ONLY");
   assert.equal(resolverBefore.can_read_app_ledger, true);
+  const appOnlyInvoiceRead = await rpc(customerDb,
+    "select public.customer_app_only_invoice_read_allowed($1::uuid,$2::uuid) as result",
+    [customerId, orgId],
+  );
+  assert.equal(appOnlyInvoiceRead, true, "APP_ONLY customer may read their own invoice metadata");
   const initialStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
   assert.ok(Array.isArray(initialStatement.summary), "APP_ONLY statement retains the existing ledger contract");
   const initialSummary = JSON.stringify(initialStatement.summary);
@@ -170,6 +175,11 @@ async function main() {
   assert.equal(directPrivileges[0].sync_execute, false, "authenticated roles cannot call provider sync writer");
   assert.equal(directPrivileges[0].evidence_execute, false, "authenticated roles cannot call provider evidence writer");
   assert.equal(directPrivileges[0].service_sync_execute, true, "service role can use the scoped sync RPC");
+  const invoiceGuardPrivileges = await managerDb.unsafe(
+    "select has_function_privilege('authenticated','public.customer_app_only_invoice_read_allowed(uuid,uuid)','EXECUTE') as helper_execute",
+  );
+  assert.equal(invoiceGuardPrivileges[0].helper_execute, true, "authenticated users can only call the boolean-only invoice source guard");
+
 
   const invoiceSourcePolicies = await db.unsafe(
     "select p.polname,p.polpermissive,pg_catalog.pg_get_expr(p.polqual,p.polrelid) as predicate " +
@@ -179,7 +189,7 @@ async function main() {
   );
   assert.equal(invoiceSourcePolicies.length, 2, "both direct invoice and line reads require source guards");
   assert.ok(invoiceSourcePolicies.every(policy => policy.polpermissive === false), "invoice source guards must be RESTRICTIVE");
-  assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("customer_financial_source_bindings")), "invoice source policies must consult the server-owned financial binding");
+  assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("customer_app_only_invoice_read_allowed")), "invoice source policies must use the scoped source predicate");
 
   const idempotencyKey = randomUUID() + randomUUID();
   const requestArgs = [customerId, "ONYX", "ONYX-CUST-0001", "Verified migration to Onyx customer ledger", idempotencyKey, 1];
@@ -251,6 +261,11 @@ async function main() {
   assert.equal(resolverOnyx.source_mode, "ONYX");
   assert.equal(resolverOnyx.can_read_app_ledger, false, "external source disables app ledger reads");
   assert.equal(resolverOnyx.is_stale, false, "fresh reconciliation is not stale");
+  const externalInvoiceRead = await rpc(customerDb,
+    "select public.customer_app_only_invoice_read_allowed($1::uuid,$2::uuid) as result",
+    [customerId, orgId],
+  );
+  assert.equal(externalInvoiceRead, false, "ONYX customer cannot read app-ledger invoice rows");
   assert.equal(Object.hasOwn(resolverOnyx, "external_account_ref"), false, "customer resolver does not expose ERP account references");
   const staffSource = await rpc(accountantDb, "select public.get_customer_financial_source_for_staff($1::uuid) as result", [customerId]);
   assert.equal(staffSource.source_mode, "ONYX");
