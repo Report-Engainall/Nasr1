@@ -153,3 +153,9 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Both legitimate server paths already satisfy the invariant: Maker/Checker cutover records `last_synced_at` from matched reconciliation evidence, and later provider sync advances it in the same transaction as evidence insertion.
 - Expanded the PostgreSQL 17 acceptance to attempt a cutover-shaped update with valid external account reference, source watermark, evidence hash and verification time but a null `last_synced_at`. It must fail with `23514`; the test then re-reads and proves the APP_ONLY binding, revision and every source field remained unchanged.
 - This is a database-level safety invariant, not a UI guard. The exact updated migration/test SHA must pass local PostgreSQL 17 before acceptance. No live ERP, production data or account balances were changed.
+
+## 2026-11-28 — Future ERP sync watermark rejection proof
+
+- Extended the existing provider sync acceptance after a successful first write/replay: a service-role sync carrying `source_as_of = statement_timestamp() + 1 minute` must fail with SQLSTATE `22023` before writing any evidence.
+- The test snapshots the current binding watermark/sync time/evidence hash and the sync-evidence row count before the rejected request, then asserts every binding field is unchanged and no evidence row was appended.
+- This proves the server-side future-date guard is operational and not merely present in SQL source. Historical watermark monotonicity, exact replay and wrong external-account denial remain in the same flow.

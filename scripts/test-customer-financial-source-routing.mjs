@@ -896,6 +896,44 @@ async function main() {
   assert.equal(syncResult.replayed, false);
   const syncReplay = await rpc(serviceDb, syncSql, syncArgs);
   assert.equal(syncReplay.replayed, true, "same evidence hash replays without duplicate sync row");
+
+  const syncStateBeforeFuture = await serviceDb.unsafe(
+    "select source_as_of,last_synced_at,source_evidence_sha256 " +
+    "from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId, customerId],
+  );
+  const syncCountBeforeFuture = await serviceDb.unsafe(
+    "select count(*)::integer as count from public.customer_financial_source_sync_evidence " +
+    "where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId, customerId],
+  );
+  const futureSyncTime = await serviceDb.unsafe("select statement_timestamp()+interval '1 minute' as as_of");
+  await expectFailure(
+    "provider sync rejects a future source watermark",
+    rpc(serviceDb, syncSql, [
+      orgId, customerId, "ONYX", "ONYX-CUST-0001", futureSyncTime[0].as_of,
+      hash("future-source-watermark"), 1, ["YER"], "FUTURE-SNAPSHOT",
+    ]),
+    "22023",
+    "valid ERP source sync evidence metadata",
+  );
+  const [syncStateAfterFuture,syncCountAfterFuture] = await Promise.all([
+    serviceDb.unsafe(
+      "select source_as_of,last_synced_at,source_evidence_sha256 " +
+      "from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
+      [orgId, customerId],
+    ),
+    serviceDb.unsafe(
+      "select count(*)::integer as count from public.customer_financial_source_sync_evidence " +
+      "where organization_id=$1::uuid and customer_id=$2::uuid",
+      [orgId, customerId],
+    ),
+  ]);
+  assert.deepEqual(syncStateAfterFuture, syncStateBeforeFuture,
+    "rejected future watermark must not change the active source binding");
+  assert.equal(syncCountAfterFuture[0].count, syncCountBeforeFuture[0].count,
+    "rejected future watermark must not create a source sync evidence row");
+
   await expectFailure(
     "same provider evidence hash with changed metadata",
     rpc(serviceDb, syncSql, [...syncArgs.slice(0, 6), 4, syncArgs[7], syncArgs[8]]),
