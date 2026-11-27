@@ -107,3 +107,6 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 
 - Additional rollback evidence: the cross-warehouse test now snapshots and compares both source and target `inventory_balances.quantity_reserved` values before and after the rejected RPC, in addition to batch counters and movement count. It verifies that no aggregate reservation counter changes survive.
 - Latest acceptance-test source commit: `55f85309754c7be8dbd9174002445526e4783832`. The subsequent checkpoint commit is the PR head used for exact-head CI.
+
+- CI fixture correction: the P2 seed deliberately creates two active but unassigned warehouse fixtures. The FEFO cross-warehouse test now selects one of those exact fixtures and grants the manager an explicit, audited warehouse scope through `set_authorization_profile_scope` using the local admin JWT before receiving the replacement purchase lot. This avoids accidental permission denial while preserving the RLS test's unassigned warehouse fixtures until the targeted assignment step; all writes stay inside disposable PostgreSQL 17.
+- Latest acceptance-test commit: `5fcd058b7626c58c94b3666a38a1aaf3a6731ecf`. A fresh checkpoint and exact-head CI run are required; no acceptance claim is made until that head completes.
