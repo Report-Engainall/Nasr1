@@ -505,12 +505,15 @@ describe("server-side ERP read connector contract", () => {
       "2026-11-27T10:00:00-14:01",
       "2026-11-27T10:00:00+14:59",
       "0000-01-01T00:00:00Z",
-      "0001-01-01T00:00:00+14:00",
-      "9999-12-31T23:59:59-14:00",
     ]) {
       await expect(readTimestamp(timestamp))
         .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP" });
     }
+
+    await expect(readTimestamp("0001-01-01T00:00:00+14:00"))
+      .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP_RANGE" });
+    await expect(readTimestamp("9999-12-31T23:59:59-14:00"))
+      .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP_RANGE" });
 
     for (const timestamp of [
       "2024-02-29T10:00:00Z",
