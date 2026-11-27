@@ -151,6 +151,7 @@ export async function fetchUnavailableProductSearchDemand(
 
     for (const item of raw.products) {
       const row = object(item);
+      const sourceTimestampMicros = timestampMicroseconds(row?.sourceTimestamp);
       if (!row || typeof row.productRef !== "string" || !UUID.test(row.productRef) ||
           !(row.productLabel === null || text(row.productLabel, 140)) ||
           !count(row.searchCount) || !count(row.distinctSearchers) ||
@@ -159,8 +160,7 @@ export async function fetchUnavailableProductSearchDemand(
           !day(row.firstObservedOn) || !day(row.lastObservedOn) ||
           row.firstObservedOn < from || row.lastObservedOn > to ||
           row.firstObservedOn > row.lastObservedOn ||
-          timestampMicroseconds(row.sourceTimestamp) === null ||
-          timestampMicroseconds(row.sourceTimestamp) > (asOfMicros as bigint)) {
+          sourceTimestampMicros === null || sourceTimestampMicros > (asOfMicros as bigint)) {
         return { ok: false, status: "ERROR", message: "صف طلب صنف غير مكتمل أو يتجاوز فترة القياس؛ حُجبت الإشارات." };
       }
       const productRef = row.productRef.toLowerCase();
