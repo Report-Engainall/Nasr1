@@ -222,12 +222,22 @@ async function main() {
   assert.equal(appOnlyReceiptPrint.allocations.length, 2,
     "APP_ONLY receipt print reconciles both saved invoice allocations");
 
-  const appOnlyPaymentRows = await managerDb.unsafe(
-    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
-    [sourceTestReceiptId, orgId, customerId],
+  const appPaymentSourceDecision = await rpc(managerDb,
+    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    [customerId, orgId]);
+  assert.equal(appPaymentSourceDecision, true,
+    "manager source guard permits APP_ONLY allocations inside the active organization");
+  const paymentSourcePolicy = await db.unsafe(
+    "select c.relrowsecurity,p.polpermissive,pg_catalog.pg_get_expr(p.polqual,p.polrelid) as predicate " +
+      "from pg_catalog.pg_policy p join pg_catalog.pg_class c on c.oid=p.polrelid " +
+      "join pg_catalog.pg_namespace n on n.oid=c.relnamespace " +
+      "where n.nspname='public' and c.relname='customer_payments' and p.polname='customer_payment_financial_source_read_guard'",
   );
-  assert.equal(appOnlyPaymentRows.length, 2,
-    "manager may read both saved payment allocations while the selected source is APP_ONLY");
+  assert.equal(paymentSourcePolicy.length, 1, "payment source restrictive policy must be installed");
+  assert.equal(paymentSourcePolicy[0].relrowsecurity, true, "customer_payments RLS must be enabled");
+  assert.equal(paymentSourcePolicy[0].polpermissive, false, "payment source policy must be restrictive");
+  assert.ok(paymentSourcePolicy[0].predicate.includes("staff_customer_app_only_payment_read_allowed"),
+    "payment source policy must invoke the server-owned boolean guard");
   const statementAfterReceipt = await rpc(customerDb,
     "select public.get_customer_account_statement() as result");
   initialSummary = JSON.stringify(statementAfterReceipt.summary);
@@ -460,12 +470,11 @@ async function main() {
   assert.equal(externalReceiptRows.length, 0,
     "direct finance receipt reads are denied after ONYX cutover");
 
-  const externalPaymentRows = await managerDb.unsafe(
-    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
-    [sourceTestReceiptId, orgId, customerId],
-  );
-  assert.equal(externalPaymentRows.length, 0,
-    "direct staff payment allocations are denied after ONYX cutover");
+  const onyxPaymentSourceDecision = await rpc(managerDb,
+    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    [customerId, orgId]);
+  assert.equal(onyxPaymentSourceDecision, false,
+    "manager APP_ONLY payment-read guard denies app allocations after ONYX cutover");
   const externalReceiptOptions = await rpc(accountantDb,
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.equal(externalReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId), false,
@@ -535,12 +544,11 @@ async function main() {
   assert.equal(mutakamelReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId), false,
     "APP_ONLY receipt remains excluded after MUTAKAMEL cutover");
 
-  const mutakamelPaymentRows = await managerDb.unsafe(
-    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
-    [sourceTestReceiptId, orgId, customerId],
-  );
-  assert.equal(mutakamelPaymentRows.length, 0,
-    "direct staff payment allocations remain denied after MUTAKAMEL cutover");
+  const mutakamelPaymentSourceDecision = await rpc(managerDb,
+    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    [customerId, orgId]);
+  assert.equal(mutakamelPaymentSourceDecision, false,
+    "manager APP_ONLY payment-read guard denies app allocations after MUTAKAMEL cutover");
   await expectFailure(
     "MUTAKAMEL source cannot print an APP_ONLY receipt",
     rpc(accountantDb,
@@ -580,12 +588,11 @@ async function main() {
   assert.equal(finalReceiptPrint.receipt.id, sourceTestReceiptId,
     "APP_ONLY receipt remains printable after source transitions");
 
-  const finalPaymentRows = await managerDb.unsafe(
-    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
-    [sourceTestReceiptId, orgId, customerId],
-  );
-  assert.equal(finalPaymentRows.length, 2,
-    "direct staff payment allocations are restored only after approved APP_ONLY cutover");
+  const finalPaymentSourceDecision = await rpc(managerDb,
+    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    [customerId, orgId]);
+  assert.equal(finalPaymentSourceDecision, true,
+    "manager APP_ONLY payment-read guard is restored only after approved APP_ONLY cutover");
 
   await expectFailure(
     "staff cannot resolve a foreign tenant customer's financial source",
