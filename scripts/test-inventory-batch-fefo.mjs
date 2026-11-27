@@ -814,16 +814,24 @@ async function main(){
  // Exercise the opposite mismatch: an order has one extra unit reserved in a
  // valid lot. The worklist must identify the excess, and the manager RPC must
  // release only that excess while preserving the one unit actually ordered.
- const excessReceiptDate=(await db.unsafe(
-  "select to_char((pg_catalog.now() at time zone 'UTC')::date+14,'YYYY-MM-DD') d",
- ))[0].d;
- const excessReceipt=await receipt(manager,"FEFO-EXCESS-"+suffix,excessReceiptDate,2);
- assert.ok(excessReceipt.receiptId);
- const excessBatch=(await db.unsafe(
-  "select id::text batch_id,batch_number from public.inventory_batches where receipt_id=$1::uuid",
-  [excessReceipt.receiptId],
+ const excessDates=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+13,'YYYY-MM-DD') early_date,"+
+  "to_char((pg_catalog.now() at time zone 'UTC')::date+14,'YYYY-MM-DD') late_date",
  ))[0];
- assert.ok(excessBatch);
+ const excessEarlyReceipt=await receipt(manager,"FEFO-EXCESS-EARLY-"+suffix,excessDates.early_date,1);
+ const excessLateReceipt=await receipt(manager,"FEFO-EXCESS-LATE-"+suffix,excessDates.late_date,1);
+ assert.ok(excessEarlyReceipt.receiptId);
+ assert.ok(excessLateReceipt.receiptId);
+ const excessEarlyBatch=(await db.unsafe(
+  "select id::text batch_id,batch_number from public.inventory_batches where receipt_id=$1::uuid",
+  [excessEarlyReceipt.receiptId],
+ ))[0];
+ const excessLateBatch=(await db.unsafe(
+  "select id::text batch_id,batch_number from public.inventory_batches where receipt_id=$1::uuid",
+  [excessLateReceipt.receiptId],
+ ))[0];
+ assert.ok(excessEarlyBatch);
+ assert.ok(excessLateBatch);
  await as(manager);
  const excessOrder=(await rpc(
   "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
@@ -833,15 +841,19 @@ async function main(){
  await status(manager,excessOrder,"confirmed");
  await status(manager,excessOrder,"processing");
  const originalExcessReserve=(await db.unsafe(
-  "select quantity::text from public.inventory_movements where reference_type='order' and reference_id=$1::uuid "+
-  "and movement_type='reserve' and inventory_batch_id=$2::uuid",
-  [excessOrder,excessBatch.batch_id],
+  "select im.quantity::text,b.batch_number from public.inventory_movements im "+
+  "join public.inventory_batches b on b.id=im.inventory_batch_id "+
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve' "+
+  "and im.inventory_batch_id=$2::uuid",
+  [excessOrder,excessEarlyBatch.batch_id],
  ))[0];
  assert.equal(Number(originalExcessReserve.quantity),1);
+ assert.equal(originalExcessReserve.batch_number,excessEarlyBatch.batch_number,
+  "initial one-unit order reservation must select the earlier-expiry FEFO lot");
  const extraReserveBalance=(await db.unsafe(
   "update public.inventory_batches set quantity_reserved=quantity_reserved+1 "+
   "where id=$1::uuid and quantity_on_hand>=quantity_reserved+1 returning quantity_reserved::text reserved",
-  [excessBatch.batch_id],
+  [excessLateBatch.batch_id],
  ))[0];
  assert.ok(extraReserveBalance);
  const extraReserveAggregate=(await db.unsafe(
@@ -852,8 +864,8 @@ async function main(){
  assert.ok(extraReserveAggregate);
  await db.unsafe(
   "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) "+
-  "values($1::uuid,$2::uuid,'reserve',1,$3,'order',$4::uuid,'Local acceptance fixture: one excess batch reservation',$5::uuid,$6::uuid)",
-  [product,warehouse,extraReserveAggregate.quantity_available,excessOrder,manager.id,excessBatch.batch_id],
+  "values($1::uuid,$2::uuid,'reserve',1,$3,'order',$4::uuid,'Local acceptance fixture: one excess reservation in the later-expiry batch',$5::uuid,$6::uuid)",
+  [product,warehouse,extraReserveAggregate.quantity_available,excessOrder,manager.id,excessLateBatch.batch_id],
  );
 
  await as(manager);
@@ -877,7 +889,8 @@ async function main(){
  assert.equal(Number(excessReleased.released_quantity),1);
  assert.equal(excessReleased.released_lot_count,1);
  assert.equal(excessReleased.allocations.length,1);
- assert.equal(excessReleased.allocations[0].batch_id,excessBatch.batch_id);
+ assert.equal(excessReleased.allocations[0].batch_id,excessLateBatch.batch_id,
+  "excess release must remove the latest-expiry lot first and preserve the earlier FEFO reservation");
  const excessAudit=await db.unsafe(
   "select count(*)::integer count from public.audit_logs where action='inventory.order_reservation.excess_released' "+
   "and entity_type='order_reservation_reconciliation' and entity_id=$1::uuid",
@@ -910,20 +923,32 @@ async function main(){
  ))[0];
  assert.equal(Number(excessNet.quantity),1,
   "release action must retain exactly the one unit ordered");
- const excessBatchState=(await db.unsafe(
-  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
-  [excessBatch.batch_id],
- ))[0];
- assert.equal(Number(excessBatchState.on_hand),2);
- assert.equal(Number(excessBatchState.reserved),1);
+ const excessBatchStates=await db.unsafe(
+  "select id::text batch_id,quantity_on_hand::text on_hand,quantity_reserved::text reserved "+
+  "from public.inventory_batches where id=ANY($1::uuid[])",
+  [[excessEarlyBatch.batch_id,excessLateBatch.batch_id]],
+ );
+ assert.equal(excessBatchStates.length,2);
+ const retainedEarly=excessBatchStates.find(row=>row.batch_id===excessEarlyBatch.batch_id);
+ const releasedLate=excessBatchStates.find(row=>row.batch_id===excessLateBatch.batch_id);
+ assert.equal(Number(retainedEarly.on_hand),1);
+ assert.equal(Number(retainedEarly.reserved),1,
+  "the earlier-expiry FEFO batch remains reserved for the order");
+ assert.equal(Number(releasedLate.on_hand),1);
+ assert.equal(Number(releasedLate.reserved),0,
+  "the later-expiry lot is the one released as excess");
  await status(manager,excessOrder,"shipped");
  const excessSale=(await db.unsafe(
-  "select pg_catalog.sum(quantity)::text quantity from public.inventory_movements where reference_type='order' "+
-  "and reference_id=$1::uuid and movement_type='sale'",
+  "select pg_catalog.sum(im.quantity)::text quantity,pg_catalog.count(*)::integer count,"+
+  "pg_catalog.min(im.inventory_batch_id::text) batch_id "+
+  "from public.inventory_movements im where im.reference_type='order' "+
+  "and im.reference_id=$1::uuid and im.movement_type='sale'",
   [excessOrder],
  ))[0];
- assert.equal(Number(excessSale.quantity),-1,
-  "after excess release, shipment must sell only the commercial order quantity");
+ assert.equal(Number(excessSale.quantity),-1);
+ assert.equal(excessSale.count,1);
+ assert.equal(excessSale.batch_id,excessEarlyBatch.batch_id,
+  "shipment must consume the earlier-expiry FEFO lot kept after excess release");
 
  await as(customer);
  await assert.rejects(
