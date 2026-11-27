@@ -434,6 +434,7 @@ async function main() {
   assert.equal(committed3.counts.rejected, 1);
   const rejectedPreview = await previewStagedRecords(baseScope);
   assert.equal(rejectedPreview.records[0].last_disposition, "rejected");
+  assert.equal(rejectedPreview.records[0].last_disposition_reason, "source_timestamp_older");
   assert.equal(rejectedPreview.records[0].fields.name, "Older source projection",
     "preview must show the exact rejected source projection rather than the older accepted snapshot");
 
@@ -448,6 +449,7 @@ async function main() {
   assert.equal(committed4.counts.conflicted, 1);
   const conflictedPreview = await previewStagedRecords(baseScope);
   assert.equal(conflictedPreview.records[0].last_disposition, "conflicted");
+  assert.equal(conflictedPreview.records[0].last_disposition_reason, "same_timestamp_payload_mismatch");
   assert.equal(conflictedPreview.records[0].fields.name, "Conflicting same-time projection");
 
   const completed = page({
