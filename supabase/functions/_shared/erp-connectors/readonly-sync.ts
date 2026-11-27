@@ -528,6 +528,7 @@ function parseRetryAfter(value: string | null, now: number, maxDelayMs: number):
 async function readBoundedBody(response: Response, maxBytes: number): Promise<string> {
   const contentLength = response.headers.get("content-length");
   if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
     throw new ErpConnectorError("ERP_RESPONSE_TOO_LARGE", "استجابة ERP تجاوزت حد الحجم الآمن.");
   }
   if (!response.body) return "";
