@@ -31,8 +31,8 @@ Branch: `p2/inventory-transfer-replay-endpoint-pg17-20261126`
 - FEFO lineage, expiry/receipt/cost metadata, destination-child lot ancestry, paired movements and reserved-stock preservation are asserted.
 
 ## Current integration boundary
-- Latest observed `main`: `85331656b51825e0e1316f31faff644a09c58602`; merge base is `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`.
-- PR #602 remains open and GitHub reports it mergeable. The latest compare is **19 commits ahead / 1 behind**, with exactly three changed paths relative to current `main`: the existing inventory PG17 workflow, this checkpoint, and the endpoint-replay SQL test.
+- Latest observed `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e`; merge base is `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`.
+- PR #602 remains open. The latest compare is **20 commits ahead / 4 behind**, with exactly three changed paths relative to current `main`: the existing inventory PG17 workflow, this checkpoint, and the endpoint-replay SQL test. GitHub currently reports `mergeable=false`; P1 must synchronize before exact-head reruns.
 - P1 owns synchronization with latest `main`, scoped diff review, exact-head reruns on the synchronized head, and the merge. P2 does not merge to `main`.
 - Do not carry the above test results to a post-sync SHA without rerunning the dedicated Inventory PG17 workflow on that exact SHA.
 
