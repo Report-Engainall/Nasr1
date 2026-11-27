@@ -9,7 +9,7 @@ const validTime=(value:unknown):value is string=>{
  return day<=monthDays[month-1]&&Number.isFinite(Date.parse(value));
 };
 const unique=(v:string[])=>[...new Set(v.filter(Boolean))];
-function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>,expectedAsOf:string,expectedGeneratedAt:string):MetricSnapshot {
+function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>,expectedAsOf:string):MetricSnapshot {
  if(metric.status!=="VERIFIED") return metric;
  const ids=metric.lineage?.evidenceIds??[], warnings=[...(metric.warnings??[])];
  const downgrade=(status:EvidenceStatus,warning:string,completeness=metric.completeness):MetricSnapshot=>({...metric,status,completeness,warnings:unique([...warnings,warning])});
@@ -31,10 +31,12 @@ function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,dupl
  if(rs.some(s=>s.quality!=="ACCEPTABLE"))return downgrade(rs.some(s=>s.quality==="INVALID")?"UNVERIFIED":"NEEDS_REVIEW","SOURCE_QUALITY_NOT_ACCEPTABLE","PARTIAL");
  if(metric.completeness!=="COMPLETE")return downgrade("NEEDS_REVIEW","METRIC_INCOMPLETE","PARTIAL");
  if(metric.quality!=="ACCEPTABLE")return downgrade(metric.quality==="INVALID"?"UNVERIFIED":"NEEDS_REVIEW","METRIC_QUALITY_NOT_ACCEPTABLE","PARTIAL");
- if(metric.value===null||!validTime(metric.asOf)||!validTime(metric.lineage.calculatedAt)||!metric.lineage.formulaId.trim()||!metric.lineage.formulaVersion.trim())
+ if(metric.value===null||!validTime(metric.asOf)||typeof metric.lineage.calculatedAt!=="string"||!metric.lineage.calculatedAt.trim()||!metric.lineage.formulaId.trim()||!metric.lineage.formulaVersion.trim())
   return downgrade("NEEDS_REVIEW","METRIC_METADATA_INCOMPLETE","PARTIAL");
- if(Date.parse(metric.lineage.calculatedAt)>Date.parse(expectedGeneratedAt))
-  return downgrade("NEEDS_REVIEW","METRIC_CALCULATED_AFTER_REPORT_GENERATION","PARTIAL");
+ // Domain engines own the comparison against their business snapshot. Keep the
+ // shared passport responsible for timestamp syntax, not snapshot semantics.
+ if(!validTime(metric.lineage.calculatedAt))
+  return downgrade("NEEDS_REVIEW","METRIC_CALCULATION_TIMESTAMP_INVALID","PARTIAL");
  if(metric.unit==="CURRENCY"||metric.unit==="CURRENCY_PER_UNIT"){
   if(!metric.currency?.trim())return downgrade("NEEDS_REVIEW","CURRENCY_NOT_IDENTIFIED","PARTIAL");
   if(rs.some(s=>!s.currency?.trim()))return downgrade("NEEDS_REVIEW","SOURCE_CURRENCY_MISSING","PARTIAL");
@@ -64,7 +66,7 @@ export function buildEvidencePassport(input:BuildEvidencePassportInput):Evidence
   throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps");
  if(Date.parse(input.asOf)>Date.parse(input.generatedAt))
   throw new Error("asOf cannot be after generatedAt");
- const metrics=input.metrics.map(m=>normalize(m,records,duplicates,input.asOf,input.generatedAt));
+ const metrics=input.metrics.map(m=>normalize(m,records,duplicates,input.asOf));
  const warnings=unique([...input.evidenceRecords.flatMap(r=>r.warnings??[]),...metrics.flatMap(m=>m.warnings??[]),...(duplicates.size?["DUPLICATE_EVIDENCE_RECORD_ID"]:[])]);
  return {id:input.id,generatedAt:input.generatedAt,asOf:input.asOf,status:statusRollup(metrics.map(m=>m.status)),completeness:completenessRollup(metrics),evidenceRecords:input.evidenceRecords,metrics,warnings};
 }
