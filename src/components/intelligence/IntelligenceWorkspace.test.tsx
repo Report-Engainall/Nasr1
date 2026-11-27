@@ -643,6 +643,14 @@ describe("production intelligence workspace inventory screens", () => {
     expect(productCard).toHaveTextContent("75%");
     expect(productCard).toHaveTextContent("80%");
     expect(productCard).toHaveTextContent("لم تُهيأ معادلة أثر معتمدة");
+    const dailyConcentrationScope = screen.getAllByRole("note").find(note =>
+      note.textContent?.includes("تركيز مبيعات المنتجات"),
+    );
+    expect(dailyConcentrationScope).toBeDefined();
+    expect(dailyConcentrationScope).toHaveTextContent("الفترة الحالية: 2026-08-01 — 2026-10-31");
+    expect(dailyConcentrationScope).toHaveTextContent("المقارنة: 2026-05-01 — 2026-07-31");
+    expect(dailyConcentrationScope).toHaveTextContent("وقت اللقطة: " + asOf);
+    expect(dailyConcentrationScope).toHaveTextContent("لقطتا RPC تجميعيّتان");
     fireEvent.click(within(productCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
       ruleId: "finance.product-concentration.review-increase.YER",

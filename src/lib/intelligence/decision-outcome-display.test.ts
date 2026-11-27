@@ -82,12 +82,12 @@ describe("decision outcome display scope", () => {
     });
   });
 
-  it("withholds windows longer than the source RPC's 366-day maximum", () => {
+  it("withholds two adjacent equal windows when each exceeds the source RPC's 366-day maximum", () => {
     const result = buildDecisionOutcomeDisplayScope(savedOutcome(
       "finance.product-concentration.review-increase.YER",
       [
-        "rpc:product-revenue-concentration:YER:2024-01-01:2024-12-31:" + asOf,
-        "rpc:product-revenue-concentration:YER:2025-01-01:2025-12-31:" + asOf,
+        "rpc:product-revenue-concentration:YER:2024-01-01:2025-02-03:" + asOf,
+        "rpc:product-revenue-concentration:YER:2025-02-04:2026-03-10:" + asOf,
       ],
       productMetric,
     ));
