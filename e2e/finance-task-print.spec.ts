@@ -240,7 +240,34 @@ async function assertRouteViewportAtWidth(page: Page, route: string, width: numb
       right: element.getBoundingClientRect().right,
       left: element.getBoundingClientRect().left,
     }));
-    expect(scrollMetrics.clientWidth).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
+    const layoutChain = await journalLineScroller.evaluate((element) => {
+      const chain: Array<Record<string, string | number>> = [];
+      let current: HTMLElement | null = element as HTMLElement;
+      for (let depth = 0; depth < 8 && current; depth += 1) {
+        const rect = current.getBoundingClientRect();
+        const style = getComputedStyle(current);
+        chain.push({
+          depth,
+          tag: current.tagName.toLowerCase(),
+          className: typeof current.className === "string" ? current.className : "",
+          width: Math.round(rect.width),
+          clientWidth: current.clientWidth,
+          scrollWidth: current.scrollWidth,
+          minWidth: style.minWidth,
+          maxWidth: style.maxWidth,
+          display: style.display,
+          flex: style.flex,
+          gridTemplateColumns: style.gridTemplateColumns,
+          overflowX: style.overflowX,
+        });
+        current = current.parentElement;
+      }
+      return chain;
+    });
+    expect(
+      scrollMetrics.clientWidth,
+      "Journal line scroller exceeded the mobile viewport: " + JSON.stringify({ scrollMetrics, layoutChain }),
+    ).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
     expect(scrollMetrics.right).toBeLessThanOrEqual(scrollMetrics.viewportWidth + 1);
     expect(scrollMetrics.left).toBeGreaterThanOrEqual(-1);
     expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
