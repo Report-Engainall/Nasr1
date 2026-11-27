@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { createUnavailableProductDemandFollowUpTask } from "@/lib/intelligence/unavailable-product-search-demand-client";
+import { createDecisionOutcomeProposal, type DecisionCandidateSnapshot } from "@/lib/intelligence/decision-outcome-client";
 import type { GrowthOpportunity, GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import { EvidenceReferences, EvidenceStatusLabel, formatEvidenceNumber, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 
@@ -45,16 +46,20 @@ function GrowthOpportunityCard({
   opportunity,
   onOpenRecord,
   canCreateFollowUpTask,
+  canCreateDecisionProposal,
   followUpBusy,
   followUpMessage,
   onCreateFollowUpTask,
+  onCreateDecisionProposal,
 }: {
   opportunity: GrowthOpportunity;
   onOpenRecord?: GrowthOpportunityRadarProps["onOpenRecord"];
   canCreateFollowUpTask: boolean;
+  canCreateDecisionProposal: boolean;
   followUpBusy: boolean;
   followUpMessage: string | null;
   onCreateFollowUpTask: (opportunity: GrowthOpportunity) => void;
+  onCreateDecisionProposal: (opportunity: GrowthOpportunity) => void;
 }) {
   const current = numberLabel(opportunity.observedValue, opportunity.unit, opportunity.currency, opportunity.unitOfMeasure);
   const baseline = opportunity.baselineValue === null
@@ -96,11 +101,23 @@ function GrowthOpportunityCard({
         <p>النتيجة المتوقعة: {opportunity.expectedOutcome}</p>
         {opportunity.warnings.map(warning => <p key={warning} className="text-muted-foreground">{warning}</p>)}
       </section>
-      {onOpenRecord || (canCreateFollowUpTask && opportunity.kind === "PRODUCT_UNAVAILABLE_DEMAND") ? (
+      {onOpenRecord || canCreateDecisionProposal || (canCreateFollowUpTask && opportunity.kind === "PRODUCT_UNAVAILABLE_DEMAND") ? (
         <footer className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
           {onOpenRecord ? (
             <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={() => onOpenRecord(opportunity.kind, opportunity.subjectRef)}>
               فتح السجل المرتبط
+            </button>
+          ) : null}
+          {canCreateDecisionProposal ? (
+            <button
+              type="button"
+              className="rounded-lg border px-3 py-2 text-sm"
+              disabled={followUpBusy || opportunity.proof.evidenceIds.length === 0 ||
+                opportunity.proof.metricKeys.length === 0 || opportunity.proof.formulaVersions.length === 0 ||
+                opportunity.id.length > 150}
+              onClick={() => onCreateDecisionProposal(opportunity)}
+            >
+              {followUpBusy ? "جارٍ حفظ القرار…" : "حفظ كقرار إداري للمتابعة"}
             </button>
           ) : null}
           {canCreateFollowUpTask && opportunity.kind === "PRODUCT_UNAVAILABLE_DEMAND" ? (
@@ -127,10 +144,12 @@ export function GrowthOpportunityRadar({
   onOpenRecord,
 }: GrowthOpportunityRadarProps) {
   const { user } = useAuth();
-  const canCreateFollowUpTask = Boolean(
-    user && Array.isArray(user.roles) &&
+  const canManageIntelligenceFollowUps = Boolean(
+    user && typeof user.profileId === "string" && Array.isArray(user.roles) &&
     (user.roles.includes("admin") || user.roles.includes("manager")),
   );
+  const canCreateFollowUpTask = canManageIntelligenceFollowUps;
+  const canCreateDecisionProposal = canManageIntelligenceFollowUps;
   const [busyOpportunityId, setBusyOpportunityId] = useState<string | null>(null);
   const [followUpMessages, setFollowUpMessages] = useState<Record<string, string>>({});
 
@@ -152,6 +171,87 @@ export function GrowthOpportunityRadar({
           : "أُنشئت مهمة مراجعة المشتريات في قائمة المهام."
         : result.message,
     }));
+  }
+
+  async function createDecisionProposal(opportunity: GrowthOpportunity) {
+    if (!canCreateDecisionProposal || !user?.profileId || busyOpportunityId) return;
+    if (opportunity.id.length > 150 || opportunity.proof.evidenceIds.length === 0 ||
+        opportunity.proof.metricKeys.length === 0 || opportunity.proof.formulaVersions.length === 0) {
+      setFollowUpMessages(current => ({
+        ...current,
+        [opportunity.id]: "لم يُحفظ القرار: لقطة الفرصة لا تحتوي هوية أو أدلة ومعادلات مكتملة.",
+      }));
+      return;
+    }
+
+    const ruleByKind: Record<GrowthOpportunity["kind"], string> = {
+      QUOTE_UNCONVERTED: "growth.quote.unconverted",
+      PRODUCT_UNAVAILABLE_DEMAND: "growth.product.unavailable-demand",
+      CUSTOMER_ACTIVITY_DECLINE: "growth.customer.activity-decline",
+      REPEAT_PURCHASE: "growth.customer.repeat-purchase",
+      PRODUCT_PERFORMANCE_CHANGE: "growth.product.performance-change",
+    };
+    const priorityScore = opportunity.priority === "P1" ? 300
+      : opportunity.priority === "P2" ? 200 : 100;
+    const ruleId = ruleByKind[opportunity.kind];
+    const candidateId = opportunity.id;
+    const expectedOutcome = opportunity.expectedOutcome.trim();
+    const candidateSnapshot: DecisionCandidateSnapshot = {
+      schemaVersion: "1.0.0",
+      candidateId,
+      ruleId,
+      ruleVersion: opportunity.policyVersion,
+      priority: opportunity.priority,
+      priorityScore,
+      what: (opportunity.title + " — " + opportunity.what).slice(0, 500),
+      why: opportunity.why.slice(0, 2000),
+      risk: opportunity.soWhat.slice(0, 2000),
+      soWhat: opportunity.soWhat.slice(0, 2000),
+      whatNext: opportunity.whatNext.slice(0, 2000),
+      owner: opportunity.owner.slice(0, 150),
+      expectedOutcome: expectedOutcome.slice(0, 2000),
+      impact: null,
+      impactStatus: "WITHHELD",
+      impactReason: "GROWTH_OPPORTUNITY_IS_NOT_A_VERIFIED_FINANCIAL_FORECAST",
+      proof: {
+        evidenceIds: [...opportunity.proof.evidenceIds],
+        metricKeys: [...opportunity.proof.metricKeys],
+        asOf: opportunity.asOf,
+        formulaVersions: [...opportunity.proof.formulaVersions],
+      },
+      createdAt: opportunity.asOf,
+      expiresAt: null,
+    };
+
+    setBusyOpportunityId(opportunity.id);
+    setFollowUpMessages(current => ({ ...current, [opportunity.id]: "" }));
+    try {
+      const saved = await createDecisionOutcomeProposal({
+        candidateId,
+        ruleId,
+        ruleVersion: opportunity.policyVersion,
+        ownerProfileId: user.profileId,
+        expectedOutcome: expectedOutcome.slice(0, 2000),
+        reason: opportunity.why.slice(0, 2000),
+        candidateSnapshot,
+      });
+      setFollowUpMessages(current => ({
+        ...current,
+        [opportunity.id]: saved.ok
+          ? saved.duplicate
+            ? "هذا القرار محفوظ مسبقاً؛ أُعيد استخدام سجلّه الحالي دون إنشاء نسخة."
+            : "حُفظ القرار في دورة القرارات بالخادم مع أدلته وأولويته؛ لم يُعتمد أو يُنفذ تلقائياً."
+          : saved.message,
+      }));
+      if (saved.ok) onRetry?.();
+    } catch {
+      setFollowUpMessages(current => ({
+        ...current,
+        [opportunity.id]: "تعذر إكمال حفظ القرار؛ لم تُعرض نتيجة نجاح غير مؤكدة.",
+      }));
+    } finally {
+      setBusyOpportunityId(null);
+    }
   }
 
   if (state !== "ready") {
@@ -212,9 +312,11 @@ export function GrowthOpportunityRadar({
           opportunity={opportunity}
           onOpenRecord={onOpenRecord}
           canCreateFollowUpTask={canCreateFollowUpTask}
+          canCreateDecisionProposal={canCreateDecisionProposal}
           followUpBusy={busyOpportunityId === opportunity.id}
           followUpMessage={followUpMessages[opportunity.id] || null}
           onCreateFollowUpTask={createFollowUpTask}
+          onCreateDecisionProposal={createDecisionProposal}
         />
       ))}
       {result.withheld.length > 0 ? (
