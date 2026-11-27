@@ -122,7 +122,7 @@ BEGIN
       MESSAGE='order reservation has no batch lineage and cannot be safely reallocated';
   END IF;
 
-  SELECT coalesce(pg_catalog.array_agg(expired.product_id ORDER BY expired.product_id),ARRAY[]::uuid[])
+  SELECT coalesce(pg_catalog.array_agg(DISTINCT expired.product_id ORDER BY expired.product_id),ARRAY[]::uuid[])
     INTO v_product_ids
     FROM (
       SELECT b.product_id
@@ -295,6 +295,7 @@ BEGIN
 
   v_result:=pg_catalog.jsonb_build_object(
     'order_id',v_order.id,
+    'reallocation_status',CASE WHEN v_reallocated_quantity>0 THEN 'reallocated' ELSE 'no_expired_reservations' END,
     'reallocated_quantity',v_reallocated_quantity,
     'released_lot_count',v_released_lot_count,
     'replacement_lot_count',v_replacement_lot_count,
