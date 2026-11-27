@@ -93,6 +93,7 @@ class InMemoryCheckpointStore implements ErpSyncCheckpointStore {
   state: ErpCheckpoint;
   readonly committed: Array<{
     pageFingerprint: string;
+    receipt: { httpStatus: number; externalRequestId: string | null; responseSha256: string };
     records: readonly ErpCanonicalRecord[];
     nextCursor: string | null;
     pendingWatermark: string | null;
@@ -113,6 +114,7 @@ class InMemoryCheckpointStore implements ErpSyncCheckpointStore {
     scope: ErpSyncScope;
     expectedVersion: number;
     pageFingerprint: string;
+    receipt: { httpStatus: number; externalRequestId: string | null; responseSha256: string };
     records: readonly ErpCanonicalRecord[];
     nextCursor: string | null;
     pendingWatermark: string | null;
@@ -132,6 +134,7 @@ class InMemoryCheckpointStore implements ErpSyncCheckpointStore {
     }
     this.committed.push({
       pageFingerprint: input.pageFingerprint,
+      receipt: input.receipt,
       records: input.records,
       nextCursor: input.nextCursor,
       pendingWatermark: input.pendingWatermark,
@@ -204,6 +207,15 @@ describe("server-side ERP read connector contract", () => {
       modifiedSinceParameter: undefined,
       cursorParameter: undefined,
     })).toThrowError(/cursor أو modified-since/);
+  });
+
+  it("rejects percent-encoded path traversal and encoded separators", () => {
+    for (const path of ["items/%2e%2e/admin", "items/%2fadmin", "items/%5cadmin"]) {
+      expect(() => new OfficialJsonErpReadConnector(connection, {
+        ...productContract,
+        path,
+      })).toThrowError(/مسارًا نسبيًا/);
+    }
   });
 
   it("reads a bounded page, applies the documented delta cursor, and projects only allowlisted fields", async () => {
@@ -378,6 +390,11 @@ describe("incremental ERP sync checkpoint orchestration", () => {
       { cursor: "page-2", modifiedSince: null },
     ]);
     expect(store.committed).toHaveLength(2);
+    expect(store.committed[0].receipt).toEqual({
+      httpStatus: 200,
+      externalRequestId: null,
+      responseSha256: "a".repeat(64),
+    });
     expect(store.committed[0].completedWatermark).toBe("2026-11-27T09:00:00.000Z");
     expect(store.committed[0].pendingWatermark).toBe("2026-11-27T09:30:00.000Z");
     expect(store.committed[1].completedWatermark).toBe("2026-11-27T09:40:00.000Z");
@@ -422,6 +439,7 @@ describe("incremental ERP sync checkpoint orchestration", () => {
       scope,
       expectedVersion: 0,
       pageFingerprint: "f".repeat(64),
+      receipt: { httpStatus: 200, externalRequestId: "receipt-1", responseSha256: "e".repeat(64) },
       records: [record("replay", "2026-11-27T10:00:00Z")],
       nextCursor: "after-replay",
       pendingWatermark: "2026-11-27T10:00:00.000Z",
