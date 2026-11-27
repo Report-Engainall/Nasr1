@@ -47,7 +47,7 @@ const CUSTOMER_PAYMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 const MAX_CUSTOMER_PAYMENT_INVOICES = 200;
 const MAX_CUSTOMER_PAYMENT_ROWS = 500;
 const PAYMENT_AMOUNT_DECIMAL = /^\d{1,13}(?:\.\d{1,2})?$/;
-const PAYMENT_TIMESTAMP = /^(\\d{4})-(\\d{2})-(\\d{2})T([01]\\d|2[0-3]):([0-5]\\d):([0-5]\\d)(?:\\.(\\d{1,9}))?(Z|([+-])(\\d{2}):([0-5]\\d))$/;
+const PAYMENT_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):([0-5]\d))$/;
 
 function isValidCustomerPaymentTimestamp(value: string): boolean {
   const match = PAYMENT_TIMESTAMP.exec(value);
