@@ -29,6 +29,8 @@
     "src/components/CustomerOrders.tsx",
     "src/components/CustomerServiceDesk.tsx",
     "src/components/CustomerServicePortal.test.tsx",
+    "src/components/CustomerPaymentReceiptSelfServiceActions.test.tsx",
+    "src/components/CustomerPaymentReceiptSelfServiceActions.tsx",
     "src/components/CustomerServicePortal.tsx",
     "src/components/CustomerServiceSlaPolicyPanel.test.tsx",
     "src/components/CustomerServiceSlaPolicyPanel.tsx",
