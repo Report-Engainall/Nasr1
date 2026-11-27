@@ -119,3 +119,52 @@ describe("dead-stock engine",()=>{
  });
 
 });
+
+
+describe("dead-stock metric calculation clock",()=>{
+ const pWith=(changes:{quantity?:MetricSnapshot;cost?:MetricSnapshot}={})=>({
+  productRef:"P-CLOCK",lastMovementAt:null,
+  movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-clock"]},
+  availableQuantity:changes.quantity??{...metric("qty-clock","QUANTITY",10),period:null},
+  quantityUnit:"EA",
+  unitCost:changes.cost??metric("cost-clock","CURRENCY_PER_UNIT",4,"YER"),
+  costQuantityUnit:"EA",
+  soldQuantityWindow:metric("sold-clock","QUANTITY",1),
+  averageInventoryWindow:metric("avg-clock","QUANTITY",20),
+ });
+ const buildClock=(product:ReturnType<typeof pWith>,records:EvidenceRecord[])=>buildDeadStockReport({
+  id:"clock",asOf,period,evidenceRecords:records,products:[product],rule,
+ });
+ const records=()=>[evidence("mv-clock"),{...evidence("qty-clock"),period:null},evidence("cost-clock","YER"),evidence("sold-clock"),evidence("avg-clock")];
+
+ it("withholds exposure when the unit-cost metric was calculated after as-of",()=>{
+  const base=metric("cost-clock","CURRENCY_PER_UNIT",4,"YER");
+  const item=pWith({cost:{...base,lineage:{...base.lineage,calculatedAt:"2026-10-30T07:00:00.001Z"}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW",unitCost:null});
+  expect(result.items[0].warnings).toContain("METRIC_CALCULATED_AFTER_SNAPSHOT");
+ });
+
+ it("withholds exposure when available quantity was calculated after as-of",()=>{
+  const base=metric("qty-clock","QUANTITY",10);
+  const item=pWith({quantity:{...base,period:null,lineage:{...base.lineage,calculatedAt:"2026-10-30T07:00:00.001Z"}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW"});
+  expect(result.items[0].warnings).toContain("METRIC_CALCULATED_AFTER_SNAPSHOT");
+ });
+
+ it("withholds a metric whose calculation clock lacks an explicit timezone",()=>{
+  const base=metric("cost-clock","CURRENCY_PER_UNIT",4,"YER");
+  const item=pWith({cost:{...base,lineage:{...base.lineage,calculatedAt:"2026-10-30T07:00:00"}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW"});
+  expect(result.items[0].warnings).toContain("METRIC_CALCULATION_TIMESTAMP_INVALID");
+ });
+
+ it("accepts calculation exactly at the as-of boundary",()=>{
+  const base=metric("cost-clock","CURRENCY_PER_UNIT",4,"YER");
+  const item=pWith({cost:{...base,lineage:{...base.lineage,calculatedAt:asOf}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:40,exposureStatus:"VERIFIED"});
+ });
+});
