@@ -363,56 +363,100 @@ DECLARE
   v_binding public.customer_financial_source_bindings%ROWTYPE;
   v_evidence public.customer_financial_source_reconciliation_evidence%ROWTYPE;
   v_existing public.customer_financial_source_reconciliation_evidence%ROWTYPE;
+  v_balance record;
+  v_balance_currency_count integer;
+  v_balance_field_count integer;
 BEGIN
   IF auth.uid() IS NOT NULL OR coalesce(auth.role(),'')<>'service_role' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP reconciliation evidence writer required';
   END IF;
-  IF p_request_id IS NULL OR p_source_as_of IS NULL OR p_source_as_of>statement_timestamp()
-     OR p_evidence_sha256 IS NULL OR p_evidence_sha256 !~ '^[0-9a-f]{64}$'
-     OR p_reconciliation_result IS NULL OR p_reconciliation_result NOT IN ('matched','mismatch')
-     OR p_currency_codes IS NULL OR cardinality(p_currency_codes) NOT BETWEEN 1 AND 10
-     OR array_position(p_currency_codes,NULL) IS NOT NULL
-     OR EXISTS(SELECT 1 FROM unnest(p_currency_codes) AS u(currency_code) WHERE u.currency_code !~ '^[A-Z]{3}$')
-     OR cardinality(p_currency_codes)<>(SELECT count(DISTINCT u.currency_code) FROM unnest(p_currency_codes) AS u(currency_code))
-     OR p_record_counts IS NULL OR jsonb_typeof(p_record_counts)<>'object'
+  -- Validate scalar and collection envelopes first. Do not mix JSON traversal,
+  -- conditional casts and row locking inside one compound boolean expression.
+  IF p_request_id IS NULL
+     OR p_source_as_of IS NULL
+     OR p_source_as_of>statement_timestamp()
+     OR p_evidence_sha256 IS NULL
+     OR p_evidence_sha256 !~ '^[0-9a-f]{64}$'
+     OR p_reconciliation_result IS NULL
+     OR p_reconciliation_result NOT IN ('matched','mismatch')
+     OR p_currency_codes IS NULL
+     OR cardinality(p_currency_codes) IS NULL
+     OR cardinality(p_currency_codes) NOT BETWEEN 1 AND 10
+     OR p_record_counts IS NULL
+     OR jsonb_typeof(p_record_counts) IS DISTINCT FROM 'object'
      OR p_balances_by_currency IS NULL
      OR jsonb_typeof(p_balances_by_currency) IS DISTINCT FROM 'object'
-     OR CASE WHEN jsonb_typeof(p_balances_by_currency)='object'
-             THEN (SELECT count(*) FROM jsonb_object_keys(p_balances_by_currency))<>cardinality(p_currency_codes)
-             ELSE true END
-     OR EXISTS (
-       SELECT 1
-         FROM jsonb_each(
-           CASE WHEN jsonb_typeof(p_balances_by_currency)='object'
-                THEN p_balances_by_currency ELSE '{}'::jsonb END
-         ) AS balance(currency_code,totals)
-        WHERE NOT (balance.currency_code=ANY(p_currency_codes))
-           OR jsonb_typeof(balance.totals) IS DISTINCT FROM 'object'
-           OR CASE WHEN jsonb_typeof(balance.totals)='object'
-                   THEN (SELECT count(*) FROM jsonb_object_keys(balance.totals))<>2
-                   ELSE true END
-           OR CASE
-                WHEN jsonb_typeof(balance.totals->'current_source_balance')='string'
-                 AND jsonb_typeof(balance.totals->'target_source_balance')='string'
-                 AND balance.totals->>'current_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
-                 AND balance.totals->>'target_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
-                THEN p_reconciliation_result='matched'
-                 AND (balance.totals->>'current_source_balance')::numeric
-                     <> (balance.totals->>'target_source_balance')::numeric
-                ELSE true
-              END
-     )
-     OR (p_source_reference IS NOT NULL AND
-         (length(btrim(p_source_reference)) NOT BETWEEN 1 AND 200
-          OR p_source_reference ~ '://' OR position('@' in p_source_reference)>0))
-     OR EXISTS(
-       SELECT 1
-         FROM jsonb_each_text(
-           CASE WHEN jsonb_typeof(p_record_counts)='object' THEN p_record_counts ELSE '{}'::jsonb END
-         ) e
-        WHERE e.value !~ '^[0-9]{1,9}$'
-     ) THEN
+     OR (p_source_reference IS NOT NULL AND (
+          length(btrim(p_source_reference)) NOT BETWEEN 1 AND 200
+          OR p_source_reference ~ '://'
+          OR position('@' in p_source_reference)>0
+        ))
+  THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid provider reconciliation evidence metadata is required';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM unnest(p_currency_codes) AS currency(currency_code)
+     WHERE currency.currency_code IS NULL
+        OR currency.currency_code !~ '^[A-Z]{3}$'
+  ) OR cardinality(p_currency_codes)<>(
+    SELECT count(DISTINCT currency.currency_code)
+      FROM unnest(p_currency_codes) AS currency(currency_code)
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reconciliation currency codes must be unique ISO-style codes';
+  END IF;
+
+  SELECT count(*)
+    INTO v_balance_currency_count
+    FROM jsonb_object_keys(p_balances_by_currency);
+
+  IF v_balance_currency_count<>cardinality(p_currency_codes) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reconciliation balances must cover every declared currency exactly once';
+  END IF;
+
+  FOR v_balance IN
+    SELECT entry.key,entry.value
+      FROM jsonb_each(p_balances_by_currency) AS entry(key,value)
+  LOOP
+    IF NOT (v_balance.key=ANY(p_currency_codes)) THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reconciliation balances contain an undeclared currency';
+    END IF;
+
+    IF jsonb_typeof(v_balance.value) IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='each currency balance must be an object';
+    END IF;
+
+    SELECT count(*)
+      INTO v_balance_field_count
+      FROM jsonb_object_keys(v_balance.value);
+
+    IF v_balance_field_count<>2 THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='each currency balance must contain exactly the source and target amounts';
+    END IF;
+
+    IF jsonb_typeof(v_balance.value->'current_source_balance') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_balance.value->'target_source_balance') IS DISTINCT FROM 'string'
+       OR coalesce(v_balance.value->>'current_source_balance','') !~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+       OR coalesce(v_balance.value->>'target_source_balance','') !~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+    THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='currency balances must be canonical decimal strings';
+    END IF;
+
+    IF p_reconciliation_result='matched'
+       AND (v_balance.value->>'current_source_balance')::numeric
+           <> (v_balance.value->>'target_source_balance')::numeric
+    THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='matched reconciliation requires equal source and target balances for every currency';
+    END IF;
+  END LOOP;
+
+  IF EXISTS (
+    SELECT 1
+      FROM jsonb_each_text(p_record_counts) AS entry(key,value)
+     WHERE entry.value IS NULL OR entry.value !~ '^[0-9]{1,9}$'
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reconciliation record counts must be non-negative integers';
   END IF;
   SELECT r.* INTO v_request
     FROM public.customer_financial_source_change_requests r
