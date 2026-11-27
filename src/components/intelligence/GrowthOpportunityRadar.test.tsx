@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import {
+  buildGrowthOpportunityCsv,
   filterAndSortGrowthOpportunities,
   GrowthOpportunityRadar,
   normalizeGrowthOpportunitySearch,
@@ -212,6 +213,20 @@ describe("GrowthOpportunityRadar", () => {
     expect(within(coverage).getByText("غير متاح")).toBeInTheDocument();
     expect(within(coverage).getByText("مصدر أداء المنتجات غير متاح حالياً.")).toBeInTheDocument();
     expect(within(coverage).getByText("TRACKER_COVERAGE_STARTED_AFTER_PERIOD_START")).toBeInTheDocument();
+  });
+
+  it("exports filtered opportunity evidence with spreadsheet-safe cells and UTF-8 BOM", () => {
+    const csv = buildGrowthOpportunityCsv([{
+      ...verifiedOpportunity,
+      title: '=HYPERLINK("https://example.invalid","open")',
+    }]);
+
+    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toContain('"\'=HYPERLINK(""https://example.invalid"",""open"")"');
+    expect(csv).toContain('"retention-evidence-1 | retention-evidence-2"');
+    expect(csv).toContain('"customer.orders.current | customer.orders.baseline"');
+    expect(csv).toContain('"customer-retention@1 | growth-opportunity-comparison@1.0.0"');
+    expect(buildGrowthOpportunityCsv([])).toContain("مراجع الإثبات");
   });
 
   it("does not claim that there are no opportunities when source coverage is incomplete", () => {
