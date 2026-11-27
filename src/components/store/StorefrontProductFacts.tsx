@@ -1,25 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { isSafeStorefrontImageUrl } from "@/lib/storefront-image-url";
 import { fetchStorefrontProductFacts, type StorefrontProductFacts as Facts } from "@/lib/storefront-product-details";
-
-const PRIVATE_IMAGE_QUERY_KEYS = new Set([
-  "token", "signature", "sig", "apikey", "api_key", "authorization",
-  "x-amz-signature", "x-goog-signature",
-]);
-
-function safeImage(value: string | null): value is string {
-  if (typeof value !== "string" || !value.trim() || value.trim() !== value || value.length > 2048) return false;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password) return false;
-    let privateQuery = false;
-    url.searchParams.forEach((_queryValue, key) => {
-      if (PRIVATE_IMAGE_QUERY_KEYS.has(key.toLowerCase())) privateQuery = true;
-    });
-    return !privateQuery;
-  } catch {
-    return false;
-  }
-}
 
 function RecommendationGroup({
   title,
@@ -48,7 +29,7 @@ function RecommendationGroup({
               style={{ minWidth: 0, textAlign: "right" }}
               aria-label={"عرض تفاصيل " + product.name}
             >
-              {safeImage(product.image_url) ? (
+              {isSafeStorefrontImageUrl(product.image_url) ? (
                 <span className="sf-related-image">
                   <img src={product.image_url} alt="" loading="lazy" decoding="async" />
                 </span>
