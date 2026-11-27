@@ -200,6 +200,28 @@ describe("ERP read-only Edge Function handler", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe(origin);
   });
 
+  it("keeps a committed sync successful when the optional staged preview read fails", async () => {
+    const context = buildDependencies();
+    context.store.listStagedRecords = vi.fn(async () => {
+      throw new Error("internal preview failure must not escape");
+    });
+    const response = await createErpReadSyncHandler(context.dependencies)(request(scopeInput));
+    const payload = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload.status).toBe("complete");
+    expect(payload.counts).toEqual({
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      rejected: 0,
+      conflicted: 0,
+    });
+    expect(payload.preview).toBeNull();
+    expect(payload.preview_error).toBe("ERP_STAGING_PREVIEW_FAILED");
+    expect(JSON.stringify(payload)).not.toContain("internal preview failure");
+  });
+
   it("rejects any client-supplied organization identifier before authentication or database access", async () => {
     const context = buildDependencies();
     const handler = createErpReadSyncHandler(context.dependencies);
