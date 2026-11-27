@@ -441,6 +441,14 @@ async function main(){
  assert.equal(Number(reconciled.reconciled_quantity),1);
  assert.ok(reconciled.allocation_lot_count>=1);
  assert.ok(reconciled.allocations.length>=1);
+ const reconciliationAudit=await db.unsafe(
+  "select count(*)::integer count from public.audit_logs " +
+  "where action='inventory.order_reservation.reconciled' " +
+  "and entity_type='order_reservation_reconciliation' and entity_id=$1::uuid",
+  [reconciled.reconciliation_id],
+ );
+ assert.equal(reconciliationAudit[0].count,1,
+  "successful reservation reconciliation must write one source audit event");
  const reconciliationReplay=await rpc(
   "select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
   [shortShipmentOrder,reconciliationKey,reconciliationReason],
