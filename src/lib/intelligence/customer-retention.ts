@@ -26,7 +26,8 @@ function day(value:string):number|null {
  return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
 }
 function timestamp(value:string):number|null {
- if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
+ if(typeof value!=="string"||
+  !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value))return null;
  if(day(value.slice(0,10))===null)return null;
  const parsed=Date.parse(value);
  return Number.isFinite(parsed)?parsed:null;
@@ -43,8 +44,8 @@ export function buildCustomerRetentionReport(input:{
  id:string;asOf:string;period:EvidencePeriod;previousPeriod:EvidencePeriod;evidenceRecords:EvidenceRecord[];
  coverage:CustomerRetentionCoverage;customers:CustomerRetentionRecord[];salesByCurrency:CustomerRetentionSaleRecord[];
 }):CustomerRetentionReport {
- const asOfTime=Date.parse(input.asOf);
- if(!Number.isFinite(asOfTime))throw new Error("asOf must be a valid timestamp");
+ const asOfTime=timestamp(input.asOf);
+ if(asOfTime===null)throw new Error("asOf must be a valid timezone-qualified timestamp");
  const asOfDay=new Date(asOfTime).setUTCHours(0,0,0,0);
  const customerRefs=input.customers.map(c=>c.customerRef);
  const uniqueCustomers=new Set(customerRefs);
@@ -61,7 +62,9 @@ export function buildCustomerRetentionReport(input:{
  const coverageEvidenceValid=coverageEvidenceIds.length>0&&new Set(coverageEvidenceIds).size===coverageEvidenceIds.length&&
   Number.isFinite(asOfTime)&&coverageEvidenceIds.every(id=>{
    const matches=coverageEvidenceMap.get(id)??[];
+   const sourceTime=matches.length===1?timestamp(matches[0].sourceTimestamp):null;
    return matches.length===1&&matches[0].status==="VERIFIED"&&matches[0].completeness==="COMPLETE"&&matches[0].quality==="ACCEPTABLE"&&
+    matches[0].asOf===input.asOf&&sourceTime!==null&&sourceTime<=asOfTime;
     matches[0].asOf===input.asOf&&Number.isFinite(Date.parse(matches[0].sourceTimestamp))&&Date.parse(matches[0].sourceTimestamp)<=asOfTime;
   });
  const fullCoverage=coverage.status==="VERIFIED"&&coverage.completeness==="COMPLETE"&&coverage.quality==="ACCEPTABLE"&&!coverage.truncated&&countsValid&&
