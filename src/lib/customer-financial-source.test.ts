@@ -65,6 +65,23 @@ describe("staff customer financial source lookup", () => {
     expect(canReadCustomerAppLedger(source)).toBe(true);
   });
 
+  it("rejects a source response belonging to a different customer", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        customer_id: "22222222-2222-4222-8222-222222222222",
+        source_mode: "APP_ONLY",
+        source_status: "active",
+        source_as_of: null,
+        last_synced_at: null,
+        verified_at: null,
+        revision: 1,
+        is_stale: false,
+      },
+      error: null,
+    });
+    await expect(fetchStaffCustomerFinancialSource("11111111-1111-4111-8111-111111111111")).rejects.toThrow(/هوية العميل المحدد/);
+  });
+
   it("does not authorize local payment entry for external or suspended sources", async () => {
     mocks.rpc.mockResolvedValue({
       data: {
