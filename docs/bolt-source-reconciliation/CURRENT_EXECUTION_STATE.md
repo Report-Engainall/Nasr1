@@ -1,45 +1,39 @@
-# LIVE EXECUTION RESUME — 2026-11-27
+# LIVE EXECUTION RESUME — 2026-11-27 03:10 UTC
 
-> Sole live execution pointer. Resume from the first next action. Historical checkpoints after the marker are preserved verbatim; do not reopen completed work or repeat the OSS selection recorded here.
+> Sole live execution pointer. Resume from the first next action. Do not repeat the OSS selection below or rebuild accepted components.
 
-- Repository: `Report-Engainall/Nasr1`; the only source of truth is `main`.
-- Current `main` SHA at this handoff: `21f0504345bfa987869d4be88b5603f4bb7299cd`.
-- Latest accepted application/test integration #638: PR https://github.com/Report-Engainall/Nasr1/pull/638 merged as `c4e16283d3e0a593e8214b2ec2515d942596fbbe`; tested application SHA `a79a7ca87f588671351da98cc5f35578a48c5123`.
-- #638 exact-SHA P1 run `45927665856` PASS; exact-SHA P2 local Supabase/Storage/Chromium run `45927665865` PASS (66/66 steps, no failures); PostgreSQL 17 product feedback run `45927665860` PASS. Artifacts: local authenticated E2E `15167189286`; public UI smoke `15167456541`.
-- Product-media acceptance leaf: local Storage UI is accepted. It proves primary/gallery placement, retry-only-failed behavior, reload persistence, eight-image cap/rejection and cleanup of ninth, manager allow, customer deny and foreign-tenant deny. Original product images remain **0/114** until owner-supplied source assets are mapped by SKU. Hosted Edge was not deployed or tested.
-- #649: PR https://github.com/Report-Engainall/Nasr1/pull/649 merged as `946ad06588218c62a70d44b01a44510261bd8c9a`. The PR is P1-only regression coverage; no production route/auth/RLS code changed. Its source SHA was `ad75961430c8bc93ed98e1d5642ec936645d9659`.
-- #649 P1 run `45929399558` SUCCESS: Vitest full regression suite, strict TypeScript P1, strict TypeScript P4 and production build; all 11 steps successful, no failures.
-- PR #650 is open: https://github.com/Report-Engainall/Nasr1/pull/650. P1 branch `p1/finance-mobile-width-20261127`, exact head `f431e863829c7fc814f58961955e77cd71951bd8`, based on current `main` `21f0504345bfa987869d4be88b5603f4bb7299cd` (zero commits behind at branch sync). It fixes the measured 360px finance journal-line container overflow without removing the 650px inner scroll surface or weakening assertions; it also adds ancestor-width diagnostics to the existing finance/print Chromium assertion.
-- PR #650 adds P1 component coverage to `src/routes/profile.navigation.test.tsx`: company editor hidden during load and revealed on valid response; optimistic-versioned save sends the loaded `updated_at` and refreshes the displayed company values. Existing #649 tests already cover error/retry, staff precedence, Auth identity A→B and same-user sessionRevision reset.
-- Exact-head P1 run `45930330670` and P2 run `45930330655` are QUEUED on `f431e863829c7fc814f58961955e77cd71951bd8`; no PASS has been claimed. Component tests do not substitute for P2's real local Auth A→B browser fixture or mobile/desktop Chromium acceptance.
-- #649 P2 run `45929399634`: public Storefront smoke job `140278256177` SUCCESS (20 steps); Auth E2E infrastructure gate `140278256304` SUCCESS. The isolated local Supabase/PostgreSQL 17 job `140279055599` has passed full migration replay, DB contracts, exact-source build/launch, order persistence/cross-tenant denial, stock-count XLSX, purchase-order XLSX, checkout replay, customer return/credit memo and audited Onyx export. At last inspection it remained IN_PROGRESS at Chromium finance document and operational-task printing; later customer-manager/session/price/admin/category/AI acceptance steps were pending. Do not close the run until a terminal result. This suite does not prove /profile Auth A→B.
-- New matrix leaf `PROFILE-ROLE-SESSION-ISOLATION-001` records component-level coverage only: staff precedence when identity also carries customer role; customer-company draft clears and correct profile reloads on Auth A→B and same-user sessionRevision change. It is not hosted or authenticated browser proof.
-- DLV-002 roll-up remains OPEN. The accepted admin access-matrix UI leaf and component-level profile leaf do not close every route/role/loading/error/empty/retry state.
-- DLV-001 requirement→screen/action/service/RPC/Edge/tenant-scope/migration/exact-SHA acceptance crosswalk remains OPEN.
-- Release remains **NO-GO**: no hosted authenticated customer/profile A→B E2E was completed; exact production Supabase target has not been proven; hosted Edge runtime not deployed/tested; original product images remain 0/114. No production DB/Storage writes, deployment, Bolt/Lovable/Vercel usage, or paid AI calls were performed.
+- Repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
+- Current `main` SHA: `4465bf39a5f6eede4ace970cbc13133228b2513a`.
+- PR #650 https://github.com/Report-Engainall/Nasr1/pull/650 is **MERGED** into `main` as `4465bf39a5f6eede4ace970cbc13133228b2513a` (squash). The tested PR head was `4566157e9c4a0661f9cc75eaff65dbc5ed4cfa11`; expected-head protection was used.
+- #650 exact-head P1 run `45930475197`: **SUCCESS**, 11/11 steps; Vitest, strict TypeScript and production build passed.
+- #650 exact-head P2 run `45930475289`: **SUCCESS** on exact head `4566157e9c4a0661f9cc75eaff65dbc5ed4cfa11`. Local PostgreSQL 17/Supabase/Chromium job `140283774461`: 68 steps, 66 SUCCESS, 2 conditional SKIPPED, 0 failures. Public UI smoke and authenticated infrastructure gate SUCCESS. The separate customer/tenant external E2E job `140282993481` was **SKIPPED**, not PASS. The local tests do not prove hosted auth or the real customer A→B transition inside `/profile`.
+- #650 source scope: mobile finance workspace width/scroll assertions, failure diagnostics, and /profile company-editor loading/versioned-save component regression coverage. No SQL, RPC, RLS, Auth, finance posting or inventory mutation was changed.
+- Post-merge exact-main workflows are queued on `4465bf39a5f6eede4ace970cbc13133228b2513a`: P1 `45932332432`; P2 `45932332568`. These are not PASS yet; close them before claiming post-merge verification.
+- DLV-002 remains **OPEN**. P2 must still run a disposable local Supabase Auth Chromium fixture: customer A edits an unsaved company draft, signs out, customer B signs in and sees only B's profile; include staff/admin and restricted-role separation, same-user `sessionRevision`, and 360px/1280px layout. Component tests do not substitute for this browser proof.
+- DLV-001 requirement→screen/action/service/RPC/Edge/tenant-scope/migration/exact-SHA crosswalk remains **OPEN**.
+- DLV-003 product catalogue/detail/discovery/admin acceptance remains **OPEN** beyond the accepted image-uploader lifecycle. Original product-image associations remain **0/114** until the owner supplies original assets mapped by SKU. Do not fabricate, hotlink, or rebuild the uploader/gallery.
+- Release remains **NO-GO**: hosted customer/profile Auth E2E, effective production Supabase target identity, hosted Edge deployment and original product imagery are not proven. No production DB/Storage writes, deployment, Bolt/Vercel usage or paid AI calls were performed.
 
 ## Reuse decision — OSS quick check for 2026-11-27
 
 - Uppy React: MIT. Official React docs: https://uppy.io/docs/react/ ; license: https://github.com/transloadit/uppy/blob/main/LICENSE.
 - React Dropzone: MIT. License: https://github.com/react-dropzone/react-dropzone/blob/master/LICENSE.
-- Decision: do NOT add either dependency. Nasr1 already has a domain-specific uploader, SKU matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. A generic dropzone/transfer library would duplicate behavior and would not address the identified Playwright protocol bridge or Arabic numeral mismatch. No package was added. Do not repeat OSS search next session unless design changes.
+- Decision: do not add either dependency. Nasr1 already has the domain-specific uploader, SKU matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. Do not repeat OSS search next session unless the design changes.
 
 ## First next actions
 
-1. Close P2 job `140279055599` in run `45929399634`: its last observed active step was Chromium finance-document and operational-task printing after stock-count XLSX, PO XLSX, checkout replay, returns and Onyx browser paths passed. Capture the terminal conclusion and any failure trace; do not assume it completed.
-2. Resolve PR #650 on exact head `f431e863829c7fc814f58961955e77cd71951bd8`: inspect P1 `45930330670` and P2 `45930330655`; confirm the 360px finance scroll-region assertions and the two new /profile component tests, plus strict TypeScript and production build. IN_PROGRESS/QUEUED/SKIPPED is never PASS.
-3. P2 still owns the true disposable local Supabase Auth browser fixture for /profile: customer A edits an unsaved company draft, signs out, customer B signs in and sees only B's own profile; include staff/admin and restricted-role separation, same-user sessionRevision transition, and real Chromium layouts at 360px/1280px. P1's component tests do not replace this.
-4. Keep DLV-002 OPEN until all required routes and actual Auth session/account switching have exact-SHA evidence. Continue DLV-003 product catalogue/detail/discovery independently; do not rebuild the accepted uploader or claim original images are linked (0/114).
-5. Continue DLV-001 mapping of every mandatory screen/action to service/RPC/Edge, role/tenant boundary, migration and exact-SHA acceptance. Keep deployment/release NO-GO until the true hosted target and dedicated test credentials are explicitly identified and approved.
+1. Close post-merge P1 `45932332432` and P2 `45932332568` on exact `main` SHA `4465bf39a5f6eede4ace970cbc13133228b2513a`. Queued/in-progress/skipped is not PASS.
+2. P2: implement and run the dedicated local Auth A→B browser fixture for `/profile` described above. Do not query or write an unidentified production Supabase project.
+3. P1: continue DLV-003 product catalogue/detail/discovery/admin gaps from the current code. Preserve existing search, server pagination, privacy projections, detail/reviews/questions, and accepted uploader. Do not duplicate existing work.
+4. Continue DLV-001/002 traceability and screen-state coverage only where evidence is still missing.
 
 ## Delivery discipline
 
-- `main` only; P1 merges accepted work. Avoid duplicate branches/features and repeated checks.
-- Reuse current Supabase/RLS/services; no parallel accounting, inventory, CRM, Storage or AI systems.
+- `main` only as source of truth; merge accepted P1 work and keep the cursor current.
+- Preserve current Supabase/RLS/services; no parallel accounting, inventory, CRM, Storage or AI systems.
 - IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
-- Update this pointer and the existing acceptance matrix only. Do not create duplicate status reports or resume files.
+- No production mutation, deployment, Bolt/Vercel usage or paid AI calls without explicit authorization.
 
----
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
 
