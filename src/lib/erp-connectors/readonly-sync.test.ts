@@ -210,6 +210,37 @@ describe("server-side ERP read connector contract", () => {
     })).toThrowError(/cursor أو modified-since/);
   });
 
+  it("does not allow authentication, permission or retryable statuses as cursor-expiry signals", () => {
+    for (const statuses of [[401], [403], [408], [425], [429], [500], [200], [404, 404]]) {
+      expect(() => new OfficialJsonErpReadConnector(connection, {
+        ...productContract,
+        cursorExpiredHttpStatuses: statuses,
+      })).toThrowError(/حالات انتهاء مؤشر ERP/);
+    }
+
+    expect(() => new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      cursorExpiredHttpStatuses: [404, 410],
+    })).not.toThrow();
+  });
+
+  it("honors a vendor-confirmed 404 cursor-expiry status without weakening authentication errors", async () => {
+    const expired = new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      cursorExpiredHttpStatuses: [404],
+    }, {
+      fetcher: vi.fn(async () => new Response("not found", { status: 404 })),
+    });
+    await expect(expired.readPage({ cursor: "expired-cursor", modifiedSince: null }))
+      .rejects.toMatchObject({ code: "ERP_CURSOR_EXPIRED", httpStatus: 404 });
+
+    const unauthorized = new OfficialJsonErpReadConnector(connection, productContract, {
+      fetcher: vi.fn(async () => new Response("unauthorized", { status: 401 })),
+    });
+    await expect(unauthorized.readPage({ cursor: "expired-cursor", modifiedSince: null }))
+      .rejects.toMatchObject({ code: "ERP_AUTHENTICATION_FAILED", httpStatus: 401 });
+  });
+
   it("refuses sensitive response headers as external request receipts", () => {
     for (const requestIdHeader of ["set-cookie", "authorization", "x-api-key"]) {
       expect(() => new OfficialJsonErpReadConnector(connection, {
