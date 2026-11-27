@@ -16,20 +16,20 @@ async function as(a){
  await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:a.auth_user_id,email:a.email,role:"authenticated",session_id:a.auth_user_id})]);
  await db.unsafe("set role authenticated");
 }
-async function receipt(manager,batch,expiry){
+async function receipt(manager,batch,expiry,quantity=1){
  await as(manager);
  const po=(await rpc("select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) result",
- [supplier,warehouse,db.json([{product_id:product,quantity:1,unit_cost:125.5}]),"FEFO "+batch,randomUUID().replaceAll("-","")])).purchase_order.id;
+ [supplier,warehouse,db.json([{product_id:product,quantity,unit_cost:125.5}]),"FEFO "+batch,randomUUID().replaceAll("-","")])).purchase_order.id;
  assert.ok(po);await rpc("select public.submit_purchase_order($1::uuid) result",[po]);
  const visibleOrders=await rpc("select public.fetch_purchase_orders() result");
  assert.ok(Array.isArray(visibleOrders),"authorized purchase-order reader must return an array");
  const visibleOrder=visibleOrders.find(value=>value.id===po);
  assert.ok(visibleOrder,"manager must read the submitted purchase order through the tenant-authorized RPC");
  assert.equal(visibleOrder.organization_id,org,"purchase-order detail must remain inside the active organization");
- const item=visibleOrder.items?.find(value=>value.product_id===product && Number(value.remaining_quantity)===1);
+ const item=visibleOrder.items?.find(value=>value.product_id===product && Number(value.remaining_quantity)===quantity);
  assert.ok(item,"purchase-order RPC must return the submitted line with its remaining quantity");
  const line={id:item.id};
- const input={item_id:line.id,quantity:1,batch_number:batch,expiry_date:expiry},key="fefo-"+randomUUID().replaceAll("-","");
+ const input={item_id:line.id,quantity,batch_number:batch,expiry_date:expiry},key="fefo-"+randomUUID().replaceAll("-","");
  const first=await rpc("select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) result",[po,db.json([input]),"Physical FEFO acceptance",key]);
  const replay=await rpc("select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) result",[po,db.json([input]),"Physical FEFO acceptance",key]);
  assert.ok(first.receipt.id);assert.equal(replay.idempotent_replay,true);
