@@ -27,7 +27,7 @@ async function expectSqlState(label, action, code, messagePattern) {
   try { await action(); } catch (error) { caught = error; }
   assert.ok(caught, label + " must be rejected");
   assert.equal(caught.code, code, label + " must return SQLSTATE " + code + "; got " + String(caught));
-  if (messagePattern) assert.match(String(caught.message), messagePattern, label + " must explain the rejection");
+  if (messagePattern) assert.match(String(caught.message), messagePattern, label + " must explain the rejection; actual message: " + String(caught.message));
   return caught;
 }
 async function findProfile(email) {
@@ -196,6 +196,7 @@ async function main() {
     payable: await createAccount(suffix + "P", "P2 three-way supplier payable " + suffix, "liability", manager.id),
     variance: await createAccount(suffix + "V", "P2 supplier invoice variance " + suffix, "expense", manager.id),
     tax: await createAccount(suffix + "T", "P2 supplier input tax " + suffix, "asset", manager.id),
+    alternativeTax: await createAccount(suffix + "T2", "P2 alternative supplier input tax " + suffix, "asset", manager.id),
   };
 
   // Exact three-way match, immutable line evidence and no second payable journal.
@@ -320,8 +321,8 @@ async function main() {
   assert.equal(handoffReplay.replayed, true);
 
   await expectSqlState(
-    "accounting handoff idempotency key cannot be reused with a changed account mapping",
-    () => prepareInvoice(admin, variance.invoice_id, accounts.variance, accounts.tax, handoffKey),
+    "accounting handoff idempotency key cannot be reused with a changed valid tax-account mapping",
+    () => prepareInvoice(admin, variance.invoice_id, accounts.alternativeTax, accounts.variance, handoffKey),
     "22023", /idempotency key payload conflict/i,
   );
 
