@@ -299,3 +299,63 @@ describe("deterministic evidence-backed anomaly detection", () => {
     })).toThrow("anomaly_detection_timestamp_or_id_invalid");
   });
 });
+
+describe("anomaly metric unit admission", () => {
+  it("withholds numeric-looking TEXT values instead of emitting a numeric anomaly", () => {
+    const result = buildAnomalyDetection({
+      id: "text-metric-anomaly",
+      generatedAt: asOf,
+      asOf,
+      evidenceRecords: [
+        evidence("evidence-current", currentPeriod),
+        evidence("evidence-baseline", baselinePeriod),
+      ],
+      metrics: [
+        metric({
+          id: "outflow-current",
+          key: rule.metricKey,
+          value: "125.00",
+          unit: "TEXT",
+          period: currentPeriod,
+          evidenceId: "evidence-current",
+        }),
+        metric({
+          id: "outflow-baseline",
+          key: rule.metricKey,
+          value: "100.00",
+          unit: "TEXT",
+          period: baselinePeriod,
+          evidenceId: "evidence-baseline",
+        }),
+        metric({
+          id: "outflow-current-samples",
+          key: "cashflow.scheduled_outflow_sample_count",
+          value: 5,
+          unit: "COUNT",
+          period: currentPeriod,
+          evidenceId: "evidence-current",
+          formulaId: "sample.v1",
+        }),
+        metric({
+          id: "outflow-baseline-samples",
+          key: "cashflow.scheduled_outflow_sample_count",
+          value: 5,
+          unit: "COUNT",
+          period: baselinePeriod,
+          evidenceId: "evidence-baseline",
+          formulaId: "sample.v1",
+        }),
+      ],
+      rules: [rule],
+      signals: [signal],
+      sourceSnapshotVerified: true,
+    });
+
+    expect(result.anomalies).toHaveLength(0);
+    expect(result.withheld).toMatchObject([
+      { signalId: signal.id, reason: "METRIC_SCOPE_MISMATCH" },
+    ]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+});
+
