@@ -651,8 +651,8 @@ DECLARE
   v_is_stale boolean;
 BEGIN
   IF auth.uid() IS NULL OR v_profile IS NULL OR v_customer IS NULL
-     OR NOT public.current_customer_can('statement.read') THEN
-    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='an authenticated customer with statement.read access is required';
+     OR NOT (public.current_customer_can('statement.read') OR public.current_customer_can('invoices.read')) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='an authenticated customer with invoice or statement read access is required';
   END IF;
   SELECT p.organization_id INTO v_org
     FROM public.profiles p JOIN public.organizations o ON o.id=p.organization_id AND o.is_active=true
