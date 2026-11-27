@@ -23,6 +23,22 @@ export type ErpReadSyncRequest = {
   max_records?: number;
 };
 
+export type ErpReadSyncPreviewRecord = {
+  externalId: string;
+  sourceUpdatedAt: string;
+  fields: Record<string, string | number | boolean | null>;
+};
+
+export type ErpReadSyncPreview = {
+  records: ErpReadSyncPreviewRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+  checkpointVersion: number;
+  pendingWatermark: string | null;
+  completedWatermark: string | null;
+};
+
 export type ErpReadSyncResult = {
   status: "complete" | "continuation_required";
   pages_committed: number;
@@ -34,6 +50,8 @@ export type ErpReadSyncResult = {
     rejected: number;
     conflicted: number;
   };
+  preview: ErpReadSyncPreview | null;
+  preview_error: string | null;
   checkpoint: {
     version: number;
     has_cursor: boolean;
@@ -56,6 +74,46 @@ function timestamp(value: unknown, label: string): string | null {
   }
   return value;
 }
+function parsePreview(value: unknown): ErpReadSyncPreview | null {
+  if (value === null) return null;
+  if (!isRecord(value) || !Array.isArray(value.records)) {
+    throw new Error("معاينة سجلات ERP لا تطابق العقد المرحلي.");
+  }
+  const total = count(value.total, "preview.total");
+  const limit = count(value.limit, "preview.limit");
+  const offset = count(value.offset, "preview.offset");
+  const checkpointVersion = count(value.checkpointVersion, "preview.checkpointVersion");
+  if (limit < 1 || limit > 50 || offset > 5000 || value.records.length > limit || value.records.length > total) {
+    throw new Error("حدود معاينة سجلات ERP غير صالحة.");
+  }
+  const records = value.records.map((item): ErpReadSyncPreviewRecord => {
+    if (!isRecord(item) || typeof item.externalId !== "string" || !item.externalId.trim() ||
+        typeof item.sourceUpdatedAt !== "string" || !Number.isFinite(Date.parse(item.sourceUpdatedAt)) ||
+        !isRecord(item.fields)) {
+      throw new Error("أحد سجلات معاينة ERP غير صالح.");
+    }
+    const fields: Record<string, string | number | boolean | null> = {};
+    for (const [key, fieldValue] of Object.entries(item.fields)) {
+      if (!/^[a-z][a-z0-9_]{0,63}$/.test(key) ||
+          !(fieldValue === null || typeof fieldValue === "string" || typeof fieldValue === "boolean" ||
+            (typeof fieldValue === "number" && Number.isFinite(fieldValue)))) {
+        throw new Error("معاينة ERP تحتوي حقلًا خارج الإسقاط الآمن.");
+      }
+      fields[key] = fieldValue;
+    }
+    return { externalId: item.externalId, sourceUpdatedAt: item.sourceUpdatedAt, fields };
+  });
+  return {
+    records,
+    total,
+    limit,
+    offset,
+    checkpointVersion,
+    pendingWatermark: timestamp(value.pendingWatermark, "preview.pendingWatermark"),
+    completedWatermark: timestamp(value.completedWatermark, "preview.completedWatermark"),
+  };
+}
+
 export function parseErpReadSyncResult(value: unknown): ErpReadSyncResult {
   if (!isRecord(value) || (value.status !== "complete" && value.status !== "continuation_required") ||
       !isRecord(value.counts) || !isRecord(value.checkpoint)) {
@@ -75,6 +133,11 @@ export function parseErpReadSyncResult(value: unknown): ErpReadSyncResult {
       rejected: count(value.counts.rejected, "rejected"),
       conflicted: count(value.counts.conflicted, "conflicted"),
     },
+    preview: parsePreview(value.preview),
+    preview_error: value.preview_error === null ? null :
+      typeof value.preview_error === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value.preview_error)
+        ? value.preview_error
+        : (() => { throw new Error("رمز خطأ معاينة ERP غير صالح."); })(),
     checkpoint: {
       version: count(value.checkpoint.version, "version"),
       has_cursor: value.checkpoint.has_cursor,
