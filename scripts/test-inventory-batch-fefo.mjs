@@ -146,6 +146,12 @@ async function main(){
   error => String(error?.code)==="22023",
   "expired FEFO work queue must reject invalid pagination limits",
  );
+ await assert.rejects(
+  () => rpc("select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+   [order3,"fefo-expiry-prerequisite-"+randomUUID().replaceAll("-",""),"Do not reconcile while a reserved lot is expired"]),
+  error => String(error?.code)==="55000" && String(error?.message).includes("expired reservations require FEFO reallocation"),
+  "incomplete reservation repair must refuse an order with an expired active batch reservation",
+ );
 
 
  await as(manager);
@@ -465,8 +471,8 @@ async function main(){
  assert.equal(Number(completeNet.quantity),2);
  const repairMovements=await db.unsafe(
   "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid " +
-  "and movement_type='reserve' and created_at>=(select created_at from public.inventory_order_reservation_reconciliations where id=$2::uuid)",
-  [shortShipmentOrder,reconciled.reconciliation_id],
+  "and movement_type='reserve' and reason like 'استكمال الحجز الناقص للطلب حسب FEFO:%'",
+  [shortShipmentOrder],
  );
  assert.ok(repairMovements[0].count>=1,"repair must append real reserve source movements");
  await status(manager,shortShipmentOrder,"shipped");
