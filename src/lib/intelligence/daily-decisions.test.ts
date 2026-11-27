@@ -349,6 +349,18 @@ describe("daily decision action shortlist adapter", () => {
     expect(selected.actions.map(item => item.payload)).toEqual(["large", "small", "count"]);
   });
 
+  it("shows shortlist coverage and the exact number of omitted actions", () => {
+    const actions = Array.from({ length: 12 }, (_, index) => {
+      const decision = decisionCandidate({ id: "coverage-" + index, ruleId: "coverage-" + String(index).padStart(2, "0") });
+      return { decision, payload: "payload-" + index };
+    });
+    const selected = selectTopDailyDecisionActions(actions, 10);
+    expect(selected.actions).toHaveLength(10);
+    expect(selected.totalCandidates).toBe(12);
+    expect(selected.omittedCount).toBe(2);
+    expect(selected.limit).toBe(10);
+  });
+
   it("deduplicates repeated decision identities while retaining the first source action", () => {
     const decision = decisionCandidate({ id: "same-decision", ruleId: "same-rule" });
     const selected = selectTopDailyDecisionActions([
