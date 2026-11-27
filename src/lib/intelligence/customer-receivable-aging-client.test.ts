@@ -90,8 +90,19 @@ describe("customer receivable aging client identity", () => {
     }
   });
 
+  it("accepts exact six-digit PostgreSQL microseconds and rejects finer precision", async () => {
+    const precise = "2026-11-13T22:00:00.123456Z";
+    const validItem = { ...item(customerA, 111), asOf: precise, calculatedAt: precise };
+    rpc.mockResolvedValue({ data: { ...response([validItem]), asOf: precise }, error: null });
+    await expect(fetchExecutiveCustomerReceivableAging()).resolves.toMatchObject({ ok: true });
+
+    const invalidItem = { ...item(customerA, 111), calculatedAt: "2026-11-13T22:00:00.1234567Z" };
+    rpc.mockResolvedValue({ data: response([invalidItem]), error: null });
+    await expect(fetchExecutiveCustomerReceivableAging()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects timezone-less and impossible as-of timestamps", async () => {
-    for (const invalidAsOf of ["2026-11-13T22:00:00", "2026-02-31T22:00:00.000Z"]) {
+    for (const invalidAsOf of ["2026-11-13T22:00:00", "2026-02-31T22:00:00.000Z", "2026-11-13T22:00:00.1234567Z"]) {
       rpc.mockResolvedValue({ data: { ...response([item(customerA, 111)]), asOf: invalidAsOf }, error: null });
       await expect(fetchExecutiveCustomerReceivableAging()).resolves.toMatchObject({ ok: false, status: "ERROR" });
     }
