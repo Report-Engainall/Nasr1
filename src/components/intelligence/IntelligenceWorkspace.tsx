@@ -266,6 +266,18 @@ function DecisionOutcomeCard({
         {outcome.measuredOutcome ? <p className="font-semibold">النتيجة المقاسة: {formatMoney(outcome.measuredOutcome.value, outcome.measuredOutcome.currency)} · {outcome.measuredOutcome.asOf}</p> : null}
         {outcome.reason ? <p>السبب: {outcome.reason}</p> : null}
       </div>
+      {outcome.state === "APPROVED" ? (
+        <label className="mt-3 grid gap-1 text-sm">
+          سبب الإسناد (اختياري)
+          <input
+            className="rounded-lg border bg-background p-2"
+            value={actionReason}
+            maxLength={2000}
+            onChange={(event) => onReasonChange(outcome.id, event.target.value)}
+            placeholder="مثلاً: تسليم متابعة المورد إلى مسؤول المشتريات"
+          />
+        </label>
+      ) : null}
       {outcome.state === "IN_REVIEW" || outcome.state === "DEFERRED" ? (
         <label className="mt-3 grid gap-1 text-sm">
           {outcome.state === "DEFERRED" ? "سبب إعادة القرار للمراجعة" : "سبب الاعتماد أو الرفض أو التأجيل"}
@@ -347,7 +359,6 @@ function DecisionOutcomeActions({
     return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
   }
   if (outcome.state === "IN_REVIEW") {
-    const missingReason = !actionReason.trim();
     return (
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="btn primary" type="button" disabled={disabled || actionReason.trim().length < 3} onClick={() => onTransition(outcome, "APPROVE", { reason: actionReason })}>اعتماد</button>
@@ -396,7 +407,10 @@ function DecisionOutcomeActions({
               className="btn primary"
               type="button"
               disabled={disabled || !selectedAssignee}
-              onClick={() => selectedAssignee && onTransition(outcome, "ASSIGN", { ownerProfileId: selectedAssignee.profileId })}
+              onClick={() => selectedAssignee && onTransition(outcome, "ASSIGN", {
+                ownerProfileId: selectedAssignee.profileId,
+                ...(actionReason.trim() ? { reason: actionReason.trim() } : {}),
+              })}
             >تثبيت المسؤول</button>
             <button
               className="btn secondary"

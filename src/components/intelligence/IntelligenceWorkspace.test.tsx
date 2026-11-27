@@ -605,6 +605,9 @@ describe("production intelligence workspace inventory screens", () => {
     expect(card).not.toBeNull();
     const select = await within(card as HTMLElement).findByRole("combobox", { name: "تعيين القرار إلى عضو من المؤسسة" });
     fireEvent.change(select, { target: { value: staffId } });
+    fireEvent.change(within(card as HTMLElement).getByRole("textbox", { name: "سبب الإسناد (اختياري)" }), {
+      target: { value: "تسليم متابعة المورد إلى مسؤول المخزون" },
+    });
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "تثبيت المسؤول" }));
 
     await waitFor(() => expect(mocks.commandOutcome).toHaveBeenCalledWith(expect.objectContaining({
@@ -612,6 +615,7 @@ describe("production intelligence workspace inventory screens", () => {
       expectedVersion: 3,
       eventType: "ASSIGN",
       ownerProfileId: staffId,
+      reason: "تسليم متابعة المورد إلى مسؤول المخزون",
     })));
     await waitFor(() => expect(within(register).getByText("مسؤول المخزون")).toBeInTheDocument());
   });

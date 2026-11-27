@@ -381,7 +381,12 @@ function validateProposal(input: {
 export async function fetchDecisionOutcomeAssignees(): Promise<DecisionOutcomeAssigneeListResult> {
   try {
     const { data, error } = await supabase.rpc("list_operational_task_assignees");
-    if (error) return { ok: false, ...safeFailure(error) };
+    if (error) {
+      if (record(error)?.code === "42501") {
+        return { ok: false, status: "DENIED", message: "تتطلب قائمة أعضاء المؤسسة صلاحية المدير أو مدير المؤسسة." };
+      }
+      return { ok: false, ...safeFailure(error) };
+    }
     if (!Array.isArray(data) || data.length > 2000) {
       return { ok: false, status: "ERROR", message: "استجابة أعضاء المؤسسة غير صالحة؛ أُوقف الإسناد." };
     }
