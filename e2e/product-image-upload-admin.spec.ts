@@ -335,6 +335,83 @@ async function readProductMedia(service: ReturnType<typeof createUploadHarness>[
   return { product: product.data, media: media.data ?? [] };
 }
 
+function storageObjectPathFromPublicUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const pathname = new URL(value).pathname;
+    const marker = "/storage/v1/object/public/" + PRODUCT_IMAGE_BUCKET + "/";
+    const markerIndex = pathname.indexOf(marker);
+    return markerIndex < 0 ? null : pathname.slice(markerIndex + marker.length);
+  } catch {
+    return null;
+  }
+}
+
+async function resetProductImageFixture(service: ReturnType<typeof createUploadHarness>["service"]) {
+  const productResult = await service
+    .from("products")
+    .select("image_url")
+    .eq("id", PRODUCT_ID)
+    .eq("organization_id", ORGANIZATION_ID)
+    .single();
+  if (productResult.error || !productResult.data) {
+    throw new Error("The disposable product image fixture could not be loaded for reset.");
+  }
+
+  const mediaResult = await service
+    .from("product_media")
+    .select("url")
+    .eq("product_id", PRODUCT_ID);
+  if (mediaResult.error) throw new Error("Existing disposable product gallery rows could not be inspected.");
+
+  const prefix = ORGANIZATION_ID + "/" + PRODUCT_ID;
+  const objectPaths = new Set<string>();
+  const primaryPath = storageObjectPathFromPublicUrl(productResult.data.image_url);
+  if (primaryPath) objectPaths.add(primaryPath);
+  for (const row of mediaResult.data ?? []) {
+    const path = storageObjectPathFromPublicUrl(row.url);
+    if (path) objectPaths.add(path);
+  }
+
+  // Also remove orphaned objects left by an interrupted Playwright attempt.
+  const bucket = service.storage.from(PRODUCT_IMAGE_BUCKET);
+  let offset = 0;
+  while (true) {
+    const listed = await bucket.list(prefix, { limit: 100, offset });
+    if (listed.error) throw new Error("The disposable product Storage prefix could not be inspected.");
+    const files = listed.data ?? [];
+    for (const file of files) {
+      if (file.name) objectPaths.add(prefix + "/" + file.name);
+    }
+    if (files.length < 100) break;
+    offset += 100;
+  }
+
+  const deletedMedia = await service
+    .from("product_media")
+    .delete()
+    .eq("product_id", PRODUCT_ID);
+  if (deletedMedia.error) throw new Error("The disposable product gallery rows could not be cleared.");
+
+  const clearedPrimary = await service
+    .from("products")
+    .update({ image_url: null })
+    .eq("id", PRODUCT_ID)
+    .eq("organization_id", ORGANIZATION_ID);
+  if (clearedPrimary.error) throw new Error("The disposable product primary image could not be cleared.");
+
+  if (objectPaths.size > 0) {
+    const removed = await bucket.remove([...objectPaths]);
+    if (removed.error) throw new Error("Old disposable product image objects could not be removed from local Storage.");
+  }
+
+  const remaining = await readProductMedia(service);
+  if (remaining.product.image_url !== null || remaining.media.length !== 0) {
+    throw new Error("The disposable product image fixture did not return to an empty state.");
+  }
+  return { removedObjectCount: objectPaths.size, remainingMediaRows: remaining.media.length };
+}
+
 test("manager completes the real admin image-upload journey against local Storage", async ({ browser }) => {
   test.setTimeout(240_000);
   const harness = createUploadHarness();
@@ -357,9 +434,13 @@ test("manager completes the real admin image-upload journey against local Storag
   };
 
   try {
+    // Playwright may retry this test in the same disposable database. Reset the
+    // dedicated product and its Storage prefix before every attempt.
+    const preflightReset = await resetProductImageFixture(harness.service);
     const initial = await readProductMedia(harness.service);
     expect(initial.product.image_url).toBeNull();
     expect(initial.media).toHaveLength(0);
+    expect(preflightReset.remainingMediaRows).toBe(0);
 
     await harness.installBrowserRoutes(manager);
     await signIn(manager, MANAGER_EMAIL, MANAGER_PASSWORD);
@@ -378,9 +459,9 @@ test("manager completes the real admin image-upload journey against local Storag
     const resultRegion = manager.getByRole("region", { name: "نتائج رفع الصور", exact: true });
     const batchSummary = resultRegion.locator('span[role="status"]');
     // The result region also contains per-file paragraphs with role=status.
-    // Target the batch summary span explicitly to avoid an ambiguous role locator.
-    expect(harness.injectedGalleryFailure()).toBe(true);
+    // Wait until both file attempts finish before checking the injected gallery failure.
     await expect(batchSummary).toContainText("نجح 1 · تعذر 1", { timeout: 45_000 });
+    expect(harness.injectedGalleryFailure()).toBe(true);
     await expect(resultRegion).toContainText("الصورة الرئيسية");
     await expect(resultRegion).toContainText("صورة إضافية");
     await expect(manager.getByRole("button", { name: "إعادة محاولة الصور الفاشلة (1)", exact: true })).toBeEnabled();
@@ -497,27 +578,17 @@ test("manager completes the real admin image-upload journey against local Storag
     proof.failure = error instanceof Error ? error.message : String(error);
     throw error;
   } finally {
+    // Stop browser-side work before clearing the database and Storage fixture,
+    // preventing an outstanding upload request from racing with cleanup.
+    await managerContext.close().catch(() => undefined);
     try {
-      // All writes are confined to this deterministic, disposable P2 fixture.
-      const media = await harness.service
-        .from("product_media")
-        .delete()
-        .eq("product_id", PRODUCT_ID);
-      const product = await harness.service
-        .from("products")
-        .update({ image_url: null })
-        .eq("id", PRODUCT_ID)
-        .eq("organization_id", ORGANIZATION_ID);
-      const storage = harness.uploadedObjectPaths.length
-        ? await harness.service.storage.from(PRODUCT_IMAGE_BUCKET).remove([...new Set(harness.uploadedObjectPaths)])
-        : { error: null };
-      const remaining = await readProductMedia(harness.service);
-      cleanupCompleted = !media.error && !product.error && !storage.error &&
-        remaining.product.image_url === null && remaining.media.length === 0;
+      const cleanup = await resetProductImageFixture(harness.service);
+      cleanupCompleted = true;
       proof.cleanup = {
-        completed: cleanupCompleted,
-        removedStorageObjects: harness.uploadedObjectPaths.length,
-        remainingMediaRows: remaining.media.length,
+        completed: true,
+        removedStorageObjects: cleanup.removedObjectCount,
+        uploadedStorageObjectsObserved: harness.uploadedObjectPaths.length,
+        remainingMediaRows: cleanup.remainingMediaRows,
       };
     } catch (cleanupError) {
       proof.cleanup = {
@@ -526,7 +597,6 @@ test("manager completes the real admin image-upload journey against local Storag
       };
     }
 
-    await managerContext.close().catch(() => undefined);
     if (testFailure) proof.result = "FAIL";
     else if (!cleanupCompleted) proof.result = "FAIL";
     try {
