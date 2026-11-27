@@ -599,7 +599,18 @@ describe("production intelligence workspace inventory screens", () => {
 
 
   it("passes exact current and adjacent prior-period sources into the existing business health map", async () => {
-    mocks.fetchProductRevenueConcentration.mockResolvedValue(productRevenueConcentrationFixture());
+    mocks.fetchProductRevenueConcentration
+      .mockResolvedValueOnce(productRevenueConcentrationFixture())
+      .mockResolvedValueOnce({
+        ...productRevenueConcentrationFixture(),
+        snapshot: {
+          ...productRevenueConcentrationFixture().snapshot,
+          period: { from: "2026-05-01", to: "2026-07-31" },
+          currencies: productRevenueConcentrationFixture().snapshot.currencies.map(row => ({
+            ...row, top5ConcentrationPercent: 75, top5NetInvoiceLineAmount: 750,
+          })),
+        },
+      });
     mocks.fetchSupplierPostedPayableActivity
       .mockResolvedValueOnce(supplierPayableActivityFixture(period, 85))
       .mockResolvedValueOnce(supplierPayableActivityFixture({ from: "2026-05-01", to: "2026-07-31" }, 80));
@@ -613,8 +624,11 @@ describe("production intelligence workspace inventory screens", () => {
     expect(map).toHaveTextContent("صافي حركة الالتزام ضمن النطاق");
     expect(map).toHaveTextContent("ارتفع التركّز");
 
-    expect(mocks.fetchProductRevenueConcentration).toHaveBeenCalledWith({
+    expect(mocks.fetchProductRevenueConcentration).toHaveBeenNthCalledWith(1, {
       from: period.from, to: period.to, asOf,
+    });
+    expect(mocks.fetchProductRevenueConcentration).toHaveBeenNthCalledWith(2, {
+      from: "2026-05-01", to: "2026-07-31", asOf,
     });
     expect(mocks.fetchSupplierPostedPayableActivity).toHaveBeenNthCalledWith(1, {
       from: period.from, to: period.to, asOf,
@@ -622,6 +636,48 @@ describe("production intelligence workspace inventory screens", () => {
     expect(mocks.fetchSupplierPostedPayableActivity).toHaveBeenNthCalledWith(2, {
       from: "2026-05-01", to: "2026-07-31", asOf,
     });
+
+    const productDecision = await screen.findByRole("heading", { name: /مراجعة ارتفاع تركّز مبيعات المنتجات · YER/ });
+    const productCard = productDecision.closest("article");
+    expect(productCard).not.toBeNull();
+    expect(productCard).toHaveTextContent("75%");
+    expect(productCard).toHaveTextContent("80%");
+    expect(productCard).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
+    fireEvent.click(within(productCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      ruleId: "finance.product-concentration.review-increase.YER",
+      candidateSnapshot: expect.objectContaining({
+        impact: null,
+        impactStatus: "NOT_CONFIGURED",
+        proof: expect.objectContaining({
+          evidenceIds: expect.arrayContaining([
+            expect.stringContaining("rpc:product-revenue-concentration:YER:"),
+          ]),
+          metricKeys: expect.arrayContaining(["product.revenue.top5_concentration_change:YER"]),
+          formulaVersions: expect.arrayContaining(["nasr1.top5-product-revenue-concentration-period-delta@1.0.0"]),
+        }),
+      }),
+    })));
+
+    const supplierDecision = await screen.findByRole("heading", { name: /مراجعة ارتفاع تركّز التزامات الموردين · YER/ });
+    const supplierCard = supplierDecision.closest("article");
+    expect(supplierCard).not.toBeNull();
+    expect(supplierCard).toHaveTextContent("80%");
+    expect(supplierCard).toHaveTextContent("85%");
+    fireEvent.click(within(supplierCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      ruleId: "finance.supplier-concentration.review-increase.YER",
+      candidateSnapshot: expect.objectContaining({
+        impact: null,
+        impactStatus: "NOT_CONFIGURED",
+        proof: expect.objectContaining({
+          evidenceIds: expect.arrayContaining([
+            expect.stringContaining("rpc:supplier-posted-payable-activity:YER:"),
+          ]),
+          metricKeys: expect.arrayContaining(["supplier.posted_payable.top5_concentration_change:YER"]),
+        }),
+      }),
+    })));
   });
 
   it("renders the server evidence passport, scheduled cashflows and an actionable verified collection decision without inventing liquidity", async () => {

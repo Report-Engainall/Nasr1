@@ -22,6 +22,7 @@ import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
 import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
 import { fetchProductRevenueConcentration, type ProductRevenueConcentrationFetchResult } from "@/lib/intelligence/product-revenue-concentration-client";
 import { fetchSupplierPostedPayableActivity, type SupplierPostedPayableActivityFetchResult } from "@/lib/intelligence/supplier-posted-payable-activity-client";
+import { buildConcentrationDecisionCandidates } from "@/lib/intelligence/concentration-decisions";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -427,6 +428,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [businessHealthSources, setBusinessHealthSources] = useState<{
     asOf: string;
     productRevenueConcentration: ProductRevenueConcentrationFetchResult;
+    productRevenueConcentrationBaseline: ProductRevenueConcentrationFetchResult;
     supplierCurrent: SupplierPostedPayableActivityFetchResult;
     supplierBaseline: SupplierPostedPayableActivityFetchResult;
   } | null>(null);
@@ -980,6 +982,11 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         to: inventoryData.period.to,
         asOf: inventoryData.asOf,
       }),
+      fetchProductRevenueConcentration({
+        from: baselinePeriod.from,
+        to: baselinePeriod.to,
+        asOf: inventoryData.asOf,
+      }),
       fetchSupplierPostedPayableActivity({
         from: inventoryData.period.from,
         to: inventoryData.period.to,
@@ -990,11 +997,12 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         to: baselinePeriod.to,
         asOf: inventoryData.asOf,
       }),
-    ]).then(([productRevenueConcentration, supplierCurrent, supplierBaseline]) => {
+    ]).then(([productRevenueConcentration, productRevenueConcentrationBaseline, supplierCurrent, supplierBaseline]) => {
       if (!active || generation !== businessHealthSourceRequestGeneration.current) return;
       setBusinessHealthSources({
         asOf: inventoryData.asOf,
         productRevenueConcentration,
+        productRevenueConcentrationBaseline,
         supplierCurrent,
         supplierBaseline,
       });
@@ -1008,6 +1016,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       setBusinessHealthSources({
         asOf: inventoryData.asOf,
         productRevenueConcentration: unavailable,
+        productRevenueConcentrationBaseline: unavailable,
         supplierCurrent: unavailable,
         supplierBaseline: unavailable,
       });
@@ -1023,6 +1032,32 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     };
   }, [canManage, inventoryData]);
   const customerRetention = retentionResult?.ok ? retentionResult.data : null;
+  const concentrationDecisionResult = useMemo(() => {
+    if (!inventoryData || businessHealthSources?.asOf !== inventoryData.asOf) {
+      return { candidates: [], evidenceRecords: [], metrics: [], withheld: [] };
+    }
+    return buildConcentrationDecisionCandidates({
+      generatedAt: inventoryData.asOf,
+      productCurrent: businessHealthSources.productRevenueConcentration.ok
+        ? businessHealthSources.productRevenueConcentration.snapshot : null,
+      productBaseline: businessHealthSources.productRevenueConcentrationBaseline.ok
+        ? businessHealthSources.productRevenueConcentrationBaseline.snapshot : null,
+      supplierCurrent: businessHealthSources.supplierCurrent.ok
+        ? businessHealthSources.supplierCurrent.snapshot : null,
+      supplierBaseline: businessHealthSources.supplierBaseline.ok
+        ? businessHealthSources.supplierBaseline.snapshot : null,
+    });
+  }, [inventoryData, businessHealthSources]);
+  const concentrationDecisionActions = useMemo<EvidenceBackedAction[]>(() =>
+    concentrationDecisionResult.candidates.map(decision => ({
+      decision,
+      proof: null,
+      candidateId: decision.id,
+      metricIds: concentrationDecisionResult.metrics
+        .filter(metric => decision.proof.metricKeys.includes(metric.key))
+        .map(metric => metric.id),
+    })),
+  [concentrationDecisionResult]);
   const shiftWorkspace = shiftResponse?.ok ? shiftResponse.data : null;
   const shiftViewState = shiftLoading ? "loading"
     : shiftResponse?.ok ? "ready"
@@ -1129,6 +1164,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       ...(retentionResult?.ok && retentionResult.data.asOf === evidencePassport.asOf &&
           retentionResult.growthInputs.sourceSnapshotVerified
         ? retentionResult.growthInputs.metrics : []),
+      ...concentrationDecisionResult.metrics,
     ];
     const metricsById = new Map<string, MetricSnapshot>();
     const conflictingMetrics: MetricSnapshot[] = [];
@@ -1144,10 +1180,11 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       id: "intelligence-claim-evidence:" + evidencePassport.asOf,
       generatedAt: evidencePassport.generatedAt,
       asOf: evidencePassport.asOf,
-      evidenceRecords: [...evidencePassport.evidenceRecords, ...(inventoryData?.evidenceRecords ?? []), ...retentionEvidence],
+      evidenceRecords: [...evidencePassport.evidenceRecords, ...(inventoryData?.evidenceRecords ?? []), ...retentionEvidence,
+        ...concentrationDecisionResult.evidenceRecords],
       metrics: [...evidencePassport.metrics, ...metricsById.values(), ...conflictingMetrics],
     });
-  }, [evidencePassport, inventoryData, retentionResult]);
+  }, [evidencePassport, inventoryData, retentionResult, concentrationDecisionResult]);
 
   const cashflowForecast = useMemo(() => {
     if (!data) return null;
@@ -1351,7 +1388,8 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       metricIds: [metric.id],
       boundaries: metric.warnings,
     }));
-    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions];
+    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions,
+      ...customerRetentionDecisionActions, ...concentrationDecisionActions];
     const drivers = actions.flatMap(({ decision, metricIds }) => {
       const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
       return linkedMetricIds.length ? [{
@@ -1376,11 +1414,13 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
     }] : [];
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
-  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
+    customerRetentionDecisionActions, concentrationDecisionActions]);
 
   const dailyDecisionActionSelection = useMemo(() => {
     const selection = selectTopDailyDecisionActions(
-      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
+      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions,
+        ...customerRetentionDecisionActions, ...concentrationDecisionActions]
         .map(action => ({ decision: action.decision, payload: action })),
       10,
     );
@@ -1396,7 +1436,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       omittedCount: selection.omittedCount + omittedRetentionActions,
     };
   }, [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
-    customerRetentionDecisionActions, retentionResult, evidencePassport]);
+    customerRetentionDecisionActions, concentrationDecisionActions, retentionResult, evidencePassport]);
   const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
   const inventoryViewState = inventoryLoading
     ? "loading"
