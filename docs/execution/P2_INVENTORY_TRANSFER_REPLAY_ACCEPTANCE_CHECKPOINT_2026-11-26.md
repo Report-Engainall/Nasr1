@@ -5,6 +5,14 @@ Role: P2 — inventory transaction integrity, PostgreSQL 17 acceptance, idempote
 PR: #602 — https://github.com/Report-Engainall/Nasr1/pull/602
 Branch: `p2/inventory-transfer-replay-endpoint-pg17-20261126`
 
+## Latest head after the P1 PostgREST fixture repair
+- P1 fixture repair commit `c73c9f7983234d877d1cf96544f4b61c16e36676` is included in this branch's P1-owned `e2e/helpers/customer-orders-keyboard-test.ts`; the fixture now validates actual `offset`/`limit` query parameters.
+- Current PR #602 code-bearing head at this check: `f926cdf5dd5e785940dc50297a01cb805edaaa96`; compare with `main` `348da8e756201fc103089cf4a5a690a4132528b7`: **28 ahead / 0 behind**, four paths (three P2 paths plus the P1 fixture helper). GitHub reported mergeable true at the last PR check.
+- Dedicated Inventory PG17 workflow [run 46064134872](https://github.com/Report-Engainall/Nasr1/actions/runs/46064134872): **SUCCESS** on exact head `f926...`; actual endpoint-replay SQL acceptance passed.
+- P1 workflow [run 46064134934](https://github.com/Report-Engainall/Nasr1/actions/runs/46064134934): **SUCCESS** on that same head (Vitest + strict TypeScript).
+- P2 critical-path [run 46064134964](https://github.com/Report-Engainall/Nasr1/actions/runs/46064134964): public Chromium smoke **SUCCESS**. Local Supabase/PostgreSQL 17 authenticated job [140726621642](https://github.com/Report-Engainall/Nasr1/actions/runs/46064134964/job/140726621642) was still **IN_PROGRESS** during local container startup; wrapper customer/order/tenant job remained **SKIPPED**, not PASS.
+- No production migration/RPC, hosted Supabase, ERP, production inventory, or financial record was changed. P1 owns merge and full integration acceptance.
+
 ## Latest synchronization and exact-head PostgreSQL 17 result — 2026-11-27
 - Synchronized non-force onto current `main` `348da8e756201fc103089cf4a5a690a4132528b7`; current code head: `7b875f32e2b21d4bf16a935163862c095c3fa6a0`.
 - Compare is **25 commits ahead / 0 behind** with exactly three changed paths: this P2 checkpoint, `.github/workflows/inventory-balance-adjustment-pg17.yml`, and `supabase/tests/inventory_transfer_replay_endpoint_guard.sql`. The production endpoint guard migration is unchanged and byte-identical to `main` (blob `b857ea233e3fe8fe955a9f66b92b96b8694f4a01`).
