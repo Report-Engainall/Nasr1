@@ -158,10 +158,9 @@ async function main() {
   const sourceTestInvoiceItemId = randomUUID();
   const sourceTestInvoiceNumber = "FIN-SOURCE-" + randomUUID().slice(0, 8).toUpperCase();
   await db.unsafe(
-    "insert into public.orders (id,organization_id,customer_id,order_number,status,notes,created_by,idempotency_key,payment_terms,business_name_snapshot,contact_name_snapshot,phone_snapshot,idempotency_payload_hash,total_amount,total_items) " +
-      "select $1::uuid,c.organization_id,c.id,$4::text,'pending','financial source RLS test fixture',c.profile_id,$5::text,'cash_on_delivery',c.company_name,c.contact_name,c.phone,$6::text,0,0 " +
-      "from public.customers c where c.id=$3::uuid and c.organization_id=$2::uuid",
-    [sourceTestOrderId, orgId, customerId, "ORD-" + sourceTestInvoiceNumber, "KEY-" + sourceTestInvoiceId, "0".repeat(64)],
+    "insert into public.orders (id,organization_id,customer_id,order_number,status,notes,created_by,idempotency_key,idempotency_payload_hash) " +
+      "values ($1::uuid,$2::uuid,$3::uuid,$4::text,'pending','financial source RLS test fixture',$5::uuid,$6::uuid,$7::text)",
+    [sourceTestOrderId, orgId, customerId, "ORD-" + sourceTestInvoiceNumber, customerProfile.id, randomUUID(), "0".repeat(64)],
   );
   await db.unsafe(
     "insert into public.customer_invoices (id,organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount) " +
