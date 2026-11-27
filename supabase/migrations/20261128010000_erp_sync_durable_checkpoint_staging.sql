@@ -348,6 +348,14 @@ BEGIN
       THEN
         RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial document fields must use approved statuses, ISO dates and canonical decimal strings';
       END IF;
+      BEGIN
+        PERFORM (v_fields->>'issue_date')::date;
+        IF v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' THEN
+          PERFORM (v_fields->>'due_date')::date;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial document dates must be valid calendar dates';
+      END;
     ELSIF p_object_type='customer_payment_receipts' THEN
       IF jsonb_typeof(v_fields->'receipt_number') IS DISTINCT FROM 'string'
          OR length(btrim(v_fields->>'receipt_number')) NOT BETWEEN 1 AND 160
@@ -360,6 +368,11 @@ BEGIN
       THEN
         RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP receipt fields must use approved statuses, ISO dates and canonical decimal strings';
       END IF;
+      BEGIN
+        PERFORM (v_fields->>'receipt_date')::date;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP receipt date must be a valid calendar date';
+      END;
     ELSIF p_object_type='customer_statement_entries' THEN
       IF jsonb_typeof(v_fields->'entry_reference') IS DISTINCT FROM 'string'
          OR length(btrim(v_fields->>'entry_reference')) NOT BETWEEN 1 AND 160
@@ -376,6 +389,14 @@ BEGIN
       THEN
         RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry fields must use approved types, ISO dates and canonical decimal strings';
       END IF;
+      BEGIN
+        PERFORM (v_fields->>'entry_date')::date;
+        IF v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' THEN
+          PERFORM (v_fields->>'due_date')::date;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement dates must be valid calendar dates';
+      END;
       IF (v_fields->>'debit_amount')::numeric>0 AND (v_fields->>'credit_amount')::numeric>0 THEN
         RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry cannot contain debit and credit amounts simultaneously';
       END IF;
