@@ -99,6 +99,10 @@ describe("customer receivable aging client identity", () => {
     const invalidItem = { ...item(customerA, 111), calculatedAt: "2026-11-13T22:00:00.1234567Z" };
     rpc.mockResolvedValue({ data: response([invalidItem]), error: null });
     await expect(fetchExecutiveCustomerReceivableAging()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+
+    const futureCalculation = { ...item(customerA, 111), calculatedAt: "2026-11-13T22:00:00.000001Z" };
+    rpc.mockResolvedValue({ data: response([futureCalculation]), error: null });
+    await expect(fetchExecutiveCustomerReceivableAging()).resolves.toMatchObject({ ok: false, status: "ERROR" });
   });
 
   it("rejects timezone-less and impossible as-of timestamps", async () => {
