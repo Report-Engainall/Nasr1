@@ -811,6 +811,120 @@ async function main(){
  assert.equal(noStockIdempotencyRow.length,0,
   "failed missing-reservation repair must not persist an idempotency result");
 
+ // Exercise the opposite mismatch: an order has one extra unit reserved in a
+ // valid lot. The worklist must identify the excess, and the manager RPC must
+ // release only that excess while preserving the one unit actually ordered.
+ const excessReceiptDate=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+14,'YYYY-MM-DD') d",
+ ))[0].d;
+ const excessReceipt=await receipt(manager,"FEFO-EXCESS-"+suffix,excessReceiptDate,2);
+ assert.ok(excessReceipt.receiptId);
+ const excessBatch=(await db.unsafe(
+  "select id::text batch_id,batch_number from public.inventory_batches where receipt_id=$1::uuid",
+  [excessReceipt.receiptId],
+ ))[0];
+ assert.ok(excessBatch);
+ await as(manager);
+ const excessOrder=(await rpc(
+  "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
+  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO excess reservation correction",randomUUID().replaceAll("-",""),"cash_on_delivery"],
+ )).id;
+ assert.ok(excessOrder);
+ await status(manager,excessOrder,"confirmed");
+ await status(manager,excessOrder,"processing");
+ const originalExcessReserve=(await db.unsafe(
+  "select quantity::text from public.inventory_movements where reference_type='order' and reference_id=$1::uuid "+
+  "and movement_type='reserve' and inventory_batch_id=$2::uuid",
+  [excessOrder,excessBatch.batch_id],
+ ))[0];
+ assert.equal(Number(originalExcessReserve.quantity),1);
+ const extraReserveBalance=(await db.unsafe(
+  "update public.inventory_batches set quantity_reserved=quantity_reserved+1 "+
+  "where id=$1::uuid and quantity_on_hand>=quantity_reserved+1 returning quantity_reserved::text reserved",
+  [excessBatch.batch_id],
+ ))[0];
+ assert.ok(extraReserveBalance);
+ const extraReserveAggregate=(await db.unsafe(
+  "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
+  "where product_id=$1::uuid and warehouse_id=$2::uuid and quantity_available>=1 returning quantity_available",
+  [product,warehouse],
+ ))[0];
+ assert.ok(extraReserveAggregate);
+ await db.unsafe(
+  "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) "+
+  "values($1::uuid,$2::uuid,'reserve',1,$3,'order',$4::uuid,'Local acceptance fixture: one excess batch reservation',$5::uuid,$6::uuid)",
+  [product,warehouse,extraReserveAggregate.quantity_available,excessOrder,manager.id,excessBatch.batch_id],
+ );
+
+ await as(manager);
+ const excessWorklist=await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result");
+ const excessEntry=excessWorklist.orders.find(row=>row.order_id===excessOrder);
+ assert.ok(excessEntry,"over-reserved active order must appear in the inventory mismatch worklist");
+ assert.equal(excessEntry.has_excess,true);
+ assert.equal(excessEntry.has_shortage,false);
+ assert.equal(Number(excessEntry.excess_quantity),1);
+ assert.equal(Number(excessEntry.missing_quantity),0);
+ assert.equal(Number(excessEntry.lines[0].excess_quantity),1);
+ assert.equal(excessEntry.lines[0].reservation_status,"excess");
+
+ const excessReleaseKey="fefo-excess-release-"+randomUUID().replaceAll("-","");
+ const excessReleaseReason="Release one unit reserved beyond the commercial order quantity";
+ const excessReleased=await rpc(
+  "select public.release_excess_order_reservations($1::uuid,$2::text,$3::text) result",
+  [excessOrder,excessReleaseKey,excessReleaseReason],
+ );
+ assert.equal(excessReleased.release_status,"excess_released");
+ assert.equal(Number(excessReleased.released_quantity),1);
+ assert.equal(excessReleased.released_lot_count,1);
+ assert.equal(excessReleased.allocations.length,1);
+ assert.equal(excessReleased.allocations[0].batch_id,excessBatch.batch_id);
+ const excessAudit=await db.unsafe(
+  "select count(*)::integer count from public.audit_logs where action='inventory.order_reservation.excess_released' "+
+  "and entity_type='order_reservation_reconciliation' and entity_id=$1::uuid",
+  [excessReleased.reconciliation_id],
+ );
+ assert.equal(excessAudit[0].count,1,"excess release must append one audit event");
+
+ const excessReplay=await rpc(
+  "select public.release_excess_order_reservations($1::uuid,$2::text,$3::text) result",
+  [excessOrder,excessReleaseKey,excessReleaseReason],
+ );
+ assert.equal(excessReplay.idempotent_replay,true);
+ assert.equal(excessReplay.reconciliation_id,excessReleased.reconciliation_id);
+ await assert.rejects(
+  () => rpc(
+   "select public.release_excess_order_reservations($1::uuid,$2::text,$3::text) result",
+   [excessOrder,excessReleaseKey,"Changed reason must not reuse the idempotency key"],
+  ),
+  error => String(error?.code)==="22023" && String(error?.message).includes("idempotency payload conflict"),
+  "excess release must reject changed payload reuse",
+ );
+ const excessWorklistAfter=await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result");
+ assert.equal(excessWorklistAfter.orders.some(row=>row.order_id===excessOrder),false,
+  "order with reconciled reservation quantity must leave the mismatch worklist");
+ const excessNet=(await db.unsafe(
+  "select pg_catalog.sum(case when movement_type='reserve' then quantity else -quantity end)::text quantity "+
+  "from public.inventory_movements where reference_type='order' and reference_id=$1::uuid "+
+  "and movement_type in ('reserve','release_reservation')",
+  [excessOrder],
+ ))[0];
+ assert.equal(Number(excessNet.quantity),1,
+  "release action must retain exactly the one unit ordered");
+ const excessBatchState=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [excessBatch.batch_id],
+ ))[0];
+ assert.equal(Number(excessBatchState.on_hand),2);
+ assert.equal(Number(excessBatchState.reserved),1);
+ await status(manager,excessOrder,"shipped");
+ const excessSale=(await db.unsafe(
+  "select pg_catalog.sum(quantity)::text quantity from public.inventory_movements where reference_type='order' "+
+  "and reference_id=$1::uuid and movement_type='sale'",
+  [excessOrder],
+ ))[0];
+ assert.equal(Number(excessSale.quantity),-1,
+  "after excess release, shipment must sell only the commercial order quantity");
+
  await as(customer);
  await assert.rejects(
   () => rpc(
