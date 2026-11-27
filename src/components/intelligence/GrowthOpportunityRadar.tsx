@@ -145,11 +145,13 @@ export function GrowthOpportunityRadar({
 }: GrowthOpportunityRadarProps) {
   const { user } = useAuth();
   const canManageIntelligenceFollowUps = Boolean(
-    user && typeof user.profileId === "string" && Array.isArray(user.roles) &&
+    user && Array.isArray(user.roles) &&
     (user.roles.includes("admin") || user.roles.includes("manager")),
   );
   const canCreateFollowUpTask = canManageIntelligenceFollowUps;
-  const canCreateDecisionProposal = canManageIntelligenceFollowUps;
+  const canCreateDecisionProposal = Boolean(
+    canManageIntelligenceFollowUps && typeof user?.profileId === "string",
+  );
   const [busyOpportunityId, setBusyOpportunityId] = useState<string | null>(null);
   const [followUpMessages, setFollowUpMessages] = useState<Record<string, string>>({});
 
