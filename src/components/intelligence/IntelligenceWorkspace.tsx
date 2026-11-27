@@ -1262,13 +1262,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
   }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
 
-  const dailyDecisionActions = useMemo(() =>
+  const dailyDecisionActionSelection = useMemo(() =>
     selectTopDailyDecisionActions(
       [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions]
         .map(action => ({ decision: action.decision, payload: action })),
       10,
-    ).actions.map(item => item.payload),
+    ),
   [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
+  const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -1985,6 +1986,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
               <div className="space-y-3">
+                {dailyDecisionActionSelection.totalCandidates > 0 ? (
+                  <p role="status" aria-live="polite" className="report-note">
+                    يعرض المركز {dailyDecisionActions.length} من {dailyDecisionActionSelection.totalCandidates} إجراءً مرتباً حسب الأولوية.
+                    {dailyDecisionActionSelection.omittedCount > 0
+                      ? " تم إرجاء " + dailyDecisionActionSelection.omittedCount + " إجراءً خارج القائمة المختصرة."
+                      : " جميع الإجراءات المستحقة ظاهرة."}
+                  </p>
+                ) : null}
                 {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
                   <ActionCard
                     key={candidateId}
