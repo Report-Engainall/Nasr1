@@ -14,11 +14,18 @@ Branch: `p2/task-quality-review-pg17-20261127`
 - **Hosted customer/order/tenant E2E:** **SKIPPED**, because authorized external hosted test infrastructure is not configured. This is not PASS and is not inferred from local acceptance.
 - This is source/local acceptance only. It does not establish hosted database identity, live data behavior or release readiness.
 
-## Current integration boundary
-- Live `main` at latest check: `85331656b51825e0e1316f31faff644a09c58602`.
-- PR #633 remains open and GitHub reports it mergeable. It is **17 commits ahead / 3 commits behind** current `main`; scoped changed paths remain the P2 workflow, this checkpoint, `e2e/finance-task-print.spec.ts`, and `scripts/test-task-quality-review-authorization.mjs`.
-- **Next integration action belongs to P1:** synchronize #633 with current `main`, inspect the same four-path diff for duplicate/overlapping ownership, rerun the required P1/P2 checks on the resulting exact head, and then make the merge decision. P2 does not merge to `main`.
-- P2 implementation and its exact-head local acceptance are ready for that integration handoff. No production behavior or migration was changed in this test-only PR.
+## Current integration boundary — refreshed 2026-11-27
+- Exact tested PR head: `74682caa09b27fc3ea49bf3996725dd12c0862ae`.
+  - P1 [run 45926186975](https://github.com/Report-Engainall/Nasr1/actions/runs/45926186975): **SUCCESS** — 11/11 steps, Vitest, strict TypeScript and production build.
+  - P2 [run 45926187004](https://github.com/Report-Engainall/Nasr1/actions/runs/45926187004): **SUCCESS**.
+  - Local PostgreSQL 17/Supabase job [140268658098](https://github.com/Report-Engainall/Nasr1/actions/runs/45926187004/job/140268658098): **SUCCESS**, 66 successful steps, zero failures; the task-quality authorization/tenant/idempotency/append-only step passed on that exact head.
+  - Public Chromium read-only smoke: **SUCCESS**.
+  - Hosted customer/order/tenant E2E: **SKIPPED**, not PASS.
+- Current branch head: `1662550304ca9cffab7ae83874a7acd25f8c7dac`; the commit after tested `74682caa...` changes only this P2 checkpoint and the PR description, not application, SQL, acceptance script, or workflow source. Test evidence remains code-valid for that source, but do not describe the later docs-only SHA as directly rerun.
+- Latest live `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e`.
+- Current compare: **18 commits ahead / 6 behind**, merge base `317ebca76c4d236a1d0efe0fd5934b028598c72b`; unique changed paths remain exactly four: P2 workflow, this checkpoint, `e2e/finance-task-print.spec.ts`, and `scripts/test-task-quality-review-authorization.mjs`.
+- PR #633 remains open. P1 owns synchronization with current `main`, the scoped four-path review and exact-head P1/P2 reruns after sync. P1 alone merges to `main`; P2 does not merge.
+- This is local/source acceptance only. The actual hosted Supabase target remains unverified; keep hosted E2E SKIPPED and release NO-GO until the effective application runtime project ref is proven and an approved non-production target is authorized.
 
 ## Implemented acceptance contract
 - Manager/admin review authorization; staff/customer denial; cross-tenant isolation.
