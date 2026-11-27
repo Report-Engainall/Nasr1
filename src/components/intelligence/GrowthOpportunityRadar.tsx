@@ -37,6 +37,80 @@ const withheldLabels: Record<GrowthOpportunityRadarResult["withheld"][number]["r
   SOURCE_AMOUNT_WITHHELD: "القيمة المصدرية غير قابلة للمقارنة",
 };
 
+export type GrowthOpportunityPriorityFilter = "ALL" | GrowthOpportunity["priority"];
+export type GrowthOpportunityKindFilter = "ALL" | GrowthOpportunity["kind"];
+
+export interface GrowthOpportunityFilters {
+  searchText: string;
+  priority: GrowthOpportunityPriorityFilter;
+  kind: GrowthOpportunityKindFilter;
+}
+
+/** Arabic-aware normalization for merchant search; it does not mutate source evidence. */
+export function normalizeGrowthOpportunitySearch(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .toLocaleLowerCase("ar")
+    .trim()
+    .replace(/\\s+/g, " ");
+}
+
+export function filterAndSortGrowthOpportunities(
+  opportunities: GrowthOpportunity[],
+  filters: GrowthOpportunityFilters,
+): GrowthOpportunity[] {
+  const query = normalizeGrowthOpportunitySearch(filters.searchText);
+  const priorityOrder: Record<GrowthOpportunity["priority"], number> = { P1: 0, P2: 1, P3: 2 };
+  return opportunities
+    .filter(opportunity => {
+      if (filters.priority !== "ALL" && opportunity.priority !== filters.priority) return false;
+      if (filters.kind !== "ALL" && opportunity.kind !== filters.kind) return false;
+      if (!query) return true;
+      const searchable = normalizeGrowthOpportunitySearch([
+        opportunity.kind,
+        opportunity.priority,
+        opportunity.title,
+        opportunity.what,
+        opportunity.why,
+        opportunity.soWhat,
+        opportunity.whatNext,
+        opportunity.owner,
+        opportunity.expectedOutcome,
+        opportunity.subjectRef,
+        opportunity.period.from,
+        opportunity.period.to,
+      ].join(" "));
+      return searchable.includes(query);
+    })
+    .sort((left, right) =>
+      priorityOrder[left.priority] - priorityOrder[right.priority] ||
+      right.asOf.localeCompare(left.asOf) ||
+      left.id.localeCompare(right.id),
+    );
+}
+
+export function paginateGrowthOpportunities(
+  opportunities: GrowthOpportunity[],
+  requestedPage: number,
+  pageSize = 5,
+): { items: GrowthOpportunity[]; page: number; pageCount: number; totalCount: number } {
+  const safePageSize = Number.isSafeInteger(pageSize) && pageSize > 0 ? pageSize : 5;
+  const pageCount = Math.ceil(opportunities.length / safePageSize);
+  const requested = Number.isFinite(requestedPage) ? Math.max(0, Math.floor(requestedPage)) : 0;
+  const page = pageCount === 0 ? 0 : Math.min(requested, pageCount - 1);
+  const start = page * safePageSize;
+  return {
+    items: opportunities.slice(start, start + safePageSize),
+    page,
+    pageCount,
+    totalCount: opportunities.length,
+  };
+}
+
 function numberLabel(value: number | null, unit: string, currency?: string, unitOfMeasure?: string): string {
   if (value === null || !Number.isFinite(value)) return "غير متاح";
   return formatEvidenceNumber(value) + " " + (currency ?? unitOfMeasure ?? unit);
@@ -154,6 +228,24 @@ export function GrowthOpportunityRadar({
   );
   const [busyOpportunityId, setBusyOpportunityId] = useState<string | null>(null);
   const [followUpMessages, setFollowUpMessages] = useState<Record<string, string>>({});
+  const [searchText, setSearchText] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<GrowthOpportunityPriorityFilter>("ALL");
+  const [kindFilter, setKindFilter] = useState<GrowthOpportunityKindFilter>("ALL");
+  const [page, setPage] = useState(0);
+  const allOpportunities = result?.opportunities ?? [];
+  const filteredOpportunities = filterAndSortGrowthOpportunities(allOpportunities, {
+    searchText,
+    priority: priorityFilter,
+    kind: kindFilter,
+  });
+  const paginatedOpportunities = paginateGrowthOpportunities(filteredOpportunities, page);
+  const priorityCounts = allOpportunities.reduce(
+    (counts, opportunity) => {
+      counts[opportunity.priority] += 1;
+      return counts;
+    },
+    { P1: 0, P2: 0, P3: 0 },
+  );
 
   async function createFollowUpTask(opportunity: GrowthOpportunity) {
     if (!canCreateFollowUpTask || opportunity.kind !== "PRODUCT_UNAVAILABLE_DEMAND" || busyOpportunityId) return;
@@ -300,6 +392,83 @@ export function GrowthOpportunityRadar({
           </div>
         </section>
       ) : null}
+      {result.opportunities.length > 0 ? (
+        <section className="space-y-3 rounded-lg border p-3" aria-label="البحث وتصفية فرص النمو">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border p-2 text-xs">
+              <span className="text-muted-foreground">أولوية مرتفعة P1</span>
+              <p className="text-lg font-semibold">{priorityCounts.P1}</p>
+            </div>
+            <div className="rounded-lg border p-2 text-xs">
+              <span className="text-muted-foreground">أولوية متوسطة P2</span>
+              <p className="text-lg font-semibold">{priorityCounts.P2}</p>
+            </div>
+            <div className="rounded-lg border p-2 text-xs">
+              <span className="text-muted-foreground">متابعة P3</span>
+              <p className="text-lg font-semibold">{priorityCounts.P3}</p>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <label className="space-y-1 text-sm">
+              <span className="block">البحث في الفرص</span>
+              <input
+                type="search"
+                aria-label="ابحث في فرص النمو"
+                value={searchText}
+                onChange={event => { setSearchText(event.target.value); setPage(0); }}
+                placeholder="اسم الفرصة أو الدليل أو المسؤول..."
+                className="w-full rounded-lg border bg-background px-3 py-2"
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">الأولوية</span>
+              <select
+                aria-label="تصفية حسب الأولوية"
+                value={priorityFilter}
+                onChange={event => { setPriorityFilter(event.target.value as GrowthOpportunityPriorityFilter); setPage(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2"
+              >
+                <option value="ALL">كل الأولويات</option>
+                <option value="P1">مرتفعة P1</option>
+                <option value="P2">متوسطة P2</option>
+                <option value="P3">متابعة P3</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">نوع الفرصة</span>
+              <select
+                aria-label="تصفية حسب نوع الفرصة"
+                value={kindFilter}
+                onChange={event => { setKindFilter(event.target.value as GrowthOpportunityKindFilter); setPage(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2"
+              >
+                <option value="ALL">كل أنواع الفرص</option>
+                <option value="QUOTE_UNCONVERTED">عروض أسعار غير محولة</option>
+                <option value="PRODUCT_UNAVAILABLE_DEMAND">طلب على منتج غير متاح</option>
+                <option value="CUSTOMER_ACTIVITY_DECLINE">تراجع نشاط العملاء</option>
+                <option value="REPEAT_PURCHASE">شراء متكرر</option>
+                <option value="PRODUCT_PERFORMANCE_CHANGE">تغير أداء المنتجات</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>يعرض {formatEvidenceNumber(paginatedOpportunities.totalCount)} من {formatEvidenceNumber(allOpportunities.length)} فرصة · الترتيب: الأعلى أولوية ثم الأحدث</span>
+            <button
+              type="button"
+              className="rounded-lg border px-3 py-2 text-xs"
+              disabled={!searchText && priorityFilter === "ALL" && kindFilter === "ALL"}
+              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setKindFilter("ALL"); setPage(0); }}
+            >
+              مسح البحث والتصفية
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {result.opportunities.length > 0 && paginatedOpportunities.totalCount === 0 ? (
+        <div role="status" className="rounded-lg border p-3 text-sm">
+          لا توجد فرص تطابق البحث والتصفية الحالية؛ وسّع نطاق البحث أو امسح عوامل التصفية.
+        </div>
+      ) : null}
       {result.opportunities.length === 0 && result.withheld.length === 0 && result.status === "VERIFIED" ? (
         <div role="status" className="rounded-lg border p-3 text-sm">لا توجد فرص تجاوزت العتبات المحددة في مجتمع البيانات المكتمل لهذه الفترة.</div>
       ) : null}
@@ -308,7 +477,7 @@ export function GrowthOpportunityRadar({
           لا توجد فرصة يمكن إثباتها حالياً، لكن تغطية المصادر أو جودة بعض المؤشرات لا تسمح باستنتاج أن فرص النمو غير موجودة.
         </div>
       ) : null}
-      {result.opportunities.map(opportunity => (
+      {paginatedOpportunities.items.map(opportunity => (
         <GrowthOpportunityCard
           key={opportunity.id}
           opportunity={opportunity}
@@ -321,6 +490,29 @@ export function GrowthOpportunityRadar({
           onCreateDecisionProposal={createDecisionProposal}
         />
       ))}
+      {paginatedOpportunities.pageCount > 1 ? (
+        <nav className="flex flex-wrap items-center justify-center gap-3 rounded-lg border p-3" aria-label="صفحات فرص النمو">
+          <button
+            type="button"
+            className="rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={paginatedOpportunities.page === 0}
+            onClick={() => setPage(Math.max(0, paginatedOpportunities.page - 1))}
+          >
+            السابق
+          </button>
+          <span className="text-xs text-muted-foreground">
+            الصفحة {paginatedOpportunities.page + 1} من {paginatedOpportunities.pageCount}
+          </span>
+          <button
+            type="button"
+            className="rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={paginatedOpportunities.page >= paginatedOpportunities.pageCount - 1}
+            onClick={() => setPage(Math.min(paginatedOpportunities.pageCount - 1, paginatedOpportunities.page + 1))}
+          >
+            التالي
+          </button>
+        </nav>
+      ) : null}
       {result.withheld.length > 0 ? (
         <details className="rounded-lg border p-3">
           <summary className="cursor-pointer text-sm font-semibold">الإشارات المحجوبة بسبب نقص المصدر أو المقارنة ({result.withheld.length})</summary>
