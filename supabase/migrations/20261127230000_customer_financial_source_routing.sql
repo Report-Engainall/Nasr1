@@ -640,8 +640,9 @@ DECLARE
   v_binding public.customer_financial_source_bindings%ROWTYPE;
   v_is_stale boolean;
 BEGIN
-  IF auth.uid() IS NULL OR v_profile IS NULL OR v_customer IS NULL THEN
-    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='an authenticated customer account is required';
+  IF auth.uid() IS NULL OR v_profile IS NULL OR v_customer IS NULL
+     OR NOT public.current_customer_can('statement.read') THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='an authenticated customer with statement.read access is required';
   END IF;
   SELECT p.organization_id INTO v_org
     FROM public.profiles p JOIN public.organizations o ON o.id=p.organization_id AND o.is_active=true
@@ -734,11 +735,12 @@ SET search_path=''
 AS $function$
 DECLARE
   v_profile uuid:=public.current_profile_id();
-  v_customer uuid:=public.current_customer_id();
+  v_customer uuid;
   v_org uuid;
+  v_locked_customer uuid;
   v_binding public.customer_financial_source_bindings%ROWTYPE;
 BEGIN
-  IF auth.uid() IS NULL OR v_profile IS NULL OR v_customer IS NULL THEN
+  IF auth.uid() IS NULL OR v_profile IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='an authenticated customer account is required';
   END IF;
   SELECT p.organization_id INTO v_org
@@ -746,6 +748,20 @@ BEGIN
    WHERE p.id=v_profile AND p.auth_user_id=auth.uid() AND p.is_active=true;
   IF v_org IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active customer organization context required';
+  END IF;
+  IF NOT public.current_customer_can('statement.read') THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='company member is not allowed to read the account statement';
+  END IF;
+  v_customer:=public.current_customer_id();
+  IF v_customer IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='customer account is not linked to the active profile';
+  END IF;
+  SELECT c.id INTO v_locked_customer
+    FROM public.customers c
+   WHERE c.id=v_customer AND c.organization_id=v_org AND c.status='approved'
+   FOR SHARE;
+  IF v_locked_customer IS NULL OR NOT public.current_customer_can('statement.read') THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='customer statement access is outside the active customer scope';
   END IF;
   SELECT b.* INTO v_binding
     FROM public.customer_financial_source_bindings b
