@@ -292,6 +292,8 @@ async function main(){
  assert.equal(cancelLotBalances.length,2);
  assert.ok(cancelLotBalances.every(row=>Number(row.reserved)===0),
   "cancellation after reallocation must leave no residual reservation on either source or replacement lot");
+ assert.ok(cancelLotBalances.every(row=>Number(row.on_hand)===1),
+  "cancellation must release reservations without consuming either lot's on-hand stock");
  const cancelledStatus=(await db.unsafe("select status from public.orders where id=$1::uuid",[cancelOrder]))[0];
  assert.equal(cancelledStatus.status,"cancelled");
 
@@ -530,6 +532,6 @@ async function main(){
  await assert.rejects(()=>db.unsafe("select * from public.inventory_batches limit 1"),/permission denied/i);
  await assert.rejects(()=>rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]),/inventory\.read_balance capability|warehouse assignment/i);
  await db.unsafe("reset role");
- process.stdout.write("PASS FEFO batches: receipt lot creation/replay, receipt print, earliest-expiry reservation, exact-lot sale, reservation release, lot reader, access denial and balance parity\n");
+ process.stdout.write("PASS FEFO batches: receipt lot creation/replay, receipt print, FEFO reserve/sale, expired-order reallocation, post-reallocation cancellation, shared-lot ledger guard, shortage rollback, access denial and balance parity\n");
 }
 main().catch(e=>{process.stderr.write("FAIL inventory batch FEFO: "+String(e?.stack??e)+"\n");process.exitCode=1;}).finally(async()=>{await db.end({timeout:5}).catch(()=>{});});
