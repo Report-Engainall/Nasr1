@@ -416,6 +416,79 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     expect(result.checkpoint.pendingWatermark).toBe("2026-11-27T10:00:00.000Z");
   });
 
+  it("replays a page after a lost persistence response without duplicating its effect", async () => {
+    const store = new InMemoryCheckpointStore();
+    const input = {
+      scope,
+      expectedVersion: 0,
+      pageFingerprint: "f".repeat(64),
+      records: [record("replay", "2026-11-27T10:00:00Z")],
+      nextCursor: "after-replay",
+      pendingWatermark: "2026-11-27T10:00:00.000Z",
+      completedWatermark: null,
+      completed: false,
+    };
+    const first = await store.persistPageAtomically(input);
+    const replay = await store.persistPageAtomically(input);
+    expect(first.duplicatePage).toBe(false);
+    expect(replay.duplicatePage).toBe(true);
+    expect(replay.checkpoint.version).toBe(1);
+    expect(store.committed).toHaveLength(1);
+    expect(replay.counts.created).toBe(0);
+  });
+
+  it("commits an entire source page even when it slightly exceeds the per-run record target", async () => {
+    const store = new InMemoryCheckpointStore();
+    const connector: ErpReadConnector = {
+      readPage: async () => ({
+        records: [
+          record("limit-1", "2026-11-27T10:00:00Z"),
+          record("limit-2", "2026-11-27T10:01:00Z"),
+        ],
+        nextCursor: "next-page",
+        httpStatus: 200,
+        externalRequestId: null,
+        responseSha256: "e".repeat(64),
+      }),
+    };
+    const result = await runIncrementalReadOnlySync({
+      connector,
+      store,
+      scope,
+      maxRecords: 1,
+    });
+    expect(result.recordsRead).toBe(2);
+    expect(result.status).toBe("continuation_required");
+    expect(result.checkpoint.cursor).toBe("next-page");
+    expect(store.committed[0].records).toHaveLength(2);
+  });
+
+  it("includes tenant and branch scope in the record idempotency key", async () => {
+    const connector: ErpReadConnector = {
+      readPage: async () => ({
+        records: [record("same-external-id", "2026-11-27T10:00:00Z")],
+        nextCursor: null,
+        httpStatus: 200,
+        externalRequestId: null,
+        responseSha256: "f".repeat(64),
+      }),
+    };
+    const firstStore = new InMemoryCheckpointStore();
+    const secondStore = new InMemoryCheckpointStore();
+    await runIncrementalReadOnlySync({ connector, store: firstStore, scope });
+    await runIncrementalReadOnlySync({
+      connector,
+      store: secondStore,
+      scope: {
+        ...scope,
+        organizationId: "7eb3cb3c-c8df-4b3a-b0be-8c45c5bc9a22",
+        branchExternalId: "branch-02",
+      },
+    });
+    expect(firstStore.committed[0].records[0].idempotencyKey)
+      .not.toBe(secondStore.committed[0].records[0].idempotencyKey);
+  });
+
   it("recovers once from an expired cursor by replaying the completed watermark overlap", async () => {
     const store = new InMemoryCheckpointStore(checkpoint({
       version: 5,
