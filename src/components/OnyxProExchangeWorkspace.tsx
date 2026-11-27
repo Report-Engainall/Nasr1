@@ -226,14 +226,14 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
           <article style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 7 }}>
             <strong>Onyx Pro</strong>
-            <span role="status" style={{ fontSize: 13, fontWeight: 700 }}>المزامنة المباشرة غير متاحة في التطبيق الحالي</span>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>المزامنة المباشرة غير متاحة في التطبيق الحالي</span>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.8 }}>
               المتاح هو تبادل ملفات وقوالب من خلال مسارات الاستيراد والتصدير واللقطات الحالية. تصدير البيانات هنا يقرأ قاعدة الأغبري ولا يرسلها تلقائيًا إلى خادم Onyx.
             </p>
           </article>
           <article style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 7 }}>
             <strong>المتكامل المحاسبي</strong>
-            <span role="status" style={{ fontSize: 13, fontWeight: 700 }}>لا يوجد موصل خادمي مفعّل في التطبيق الحالي</span>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>لا يوجد موصل خادمي مفعّل في التطبيق الحالي</span>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.8 }}>
               لم يُثبت بعد عقد API أو قناة تبادل معتمدة لهذا الإصدار؛ لذلك لا تُعرض مزامنة أو اختبار اتصال على أنهما متاحان.
             </p>
