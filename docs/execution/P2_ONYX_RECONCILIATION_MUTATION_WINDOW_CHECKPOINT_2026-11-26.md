@@ -6,6 +6,16 @@ PR: #605 — https://github.com/Report-Engainall/Nasr1/pull/605
 Branch: `p2/onyx-reconciliation-mutation-window-pg17-20261126`
 
 ## Latest reconciliation and exact-head acceptance — 2026-11-27
+
+### Latest head after the P1 PostgREST fixture repair
+- Current code-bearing PR head: `9aeed0785d90f34b39a98f961ddf5746cf701912`, compare against `main` `348da8e756201fc103089cf4a5a690a4132528b7`: **27 commits ahead / 0 behind**, four changed paths. Three are this P2 batch's workflow/checkpoint/PG17 acceptance SQL; the fourth is the P1-owned `e2e/helpers/customer-orders-keyboard-test.ts` pagination-fixture repair. No production migration/RPC changed.
+- P1's fixture repair changes the mocked PostgREST pagination contract to `offset`/`limit` query parameters, normalizes `%...%` search patterns, and asserts the actual query parameters instead of assuming a `Range` request header.
+- Dedicated Onyx PostgreSQL 17 [run 46063832177](https://github.com/Report-Engainall/Nasr1/actions/runs/46063832177): **SUCCESS** on exact head `9aeed0785d90f34b39a98f961ddf5746cf701912`.
+- P2 critical-path [run 46063832165](https://github.com/Report-Engainall/Nasr1/actions/runs/46063832165): **IN_PROGRESS** on that same head. Public Chromium smoke: **SUCCESS**. Its local Supabase/PostgreSQL 17 job [140725496834](https://github.com/Report-Engainall/Nasr1/actions/runs/46063832165/job/140725496834) had 44/70 steps complete and was running authenticated order persistence/cross-tenant Chromium, with no failed steps reported. The dependent customer/order/tenant wrapper job remained **SKIPPED** by workflow dependency; the separate local job is running independently.
+- GitHub reported `mergeable=false` at last PR read despite compare being 0 commits behind; P1 must re-check GitHub mergeability after checks and review. P2 does not merge.
+- Hosted customer/order/tenant E2E remains **SKIPPED**, not PASS. No hosted/production Supabase or live ERP action was performed.
+
+## Historical synchronization result — 2026-11-27
 - Current `main` at synchronization: `348da8e756201fc103089cf4a5a690a4132528b7`.
 - The stale branch was refreshed without force-push by a two-parent merge commit; current tested code head: `bd48763c09315d5d45e1e1f4d53cdc1f8e0ffe4c`.
 - Compare against that `main`: **24 commits ahead / 0 behind**, exactly three changed paths: this checkpoint, `.github/workflows/onyx-inventory-asof-postgres17.yml`, and `supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql`. The production migration remains identical to `main` (blob `9430c09815704ee77e88f06b16ec346bd5c82381`).
