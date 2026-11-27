@@ -1,4 +1,5 @@
 import { buildEvidencePassport } from "./evidence-passport";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import { decimalToMinorUnits, minorUnitsToNumber, roundedPercentageHundredths } from "./financial-precision";
 import type { EvidencePeriod, EvidenceRecord, EvidenceStatus, MetricSnapshot, MetricUnit } from "./types";
 
@@ -130,15 +131,7 @@ const titles: Record<GrowthOpportunityKind, string> = {
 };
 
 function validTime(value: string): boolean {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)) {
-    return false;
-  }
-  const datePart = value.slice(0, 10);
-  const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
-  return Number.isFinite(Date.parse(value)) &&
-    Number.isFinite(dateMillis) &&
-    new Date(dateMillis).toISOString().slice(0, 10) === datePart;
+  return timestampMicroseconds(value) !== null;
 }
 
 function day(value: string): number | null {
@@ -192,7 +185,7 @@ function readMetric(
   }
   if (metric.asOf !== asOf || !validPeriod(metric.period) || !metric.lineage?.evidenceIds?.length ||
       !metric.lineage.formulaId?.trim() || !metric.lineage.formulaVersion?.trim() ||
-      !validTime(metric.lineage.calculatedAt) || Date.parse(metric.lineage.calculatedAt) > Date.parse(asOf)) {
+      !validTime(metric.lineage.calculatedAt) || timestampMicroseconds(metric.lineage.calculatedAt)! > timestampMicroseconds(asOf)!) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   // Numeric-looking TEXT is still descriptive text, never a comparable business quantity.
@@ -331,7 +324,7 @@ export function buildGrowthOpportunityRadar(input: {
   sourceWarnings?: string[];
 }): GrowthOpportunityRadarResult {
   if (!input.id.trim() || !validTime(input.generatedAt) || !validTime(input.asOf) ||
-      Date.parse(input.generatedAt) < Date.parse(input.asOf)) {
+      timestampMicroseconds(input.generatedAt)! < timestampMicroseconds(input.asOf)!) {
     throw new Error("growth_radar_timestamp_or_id_invalid");
   }
   if (!Array.isArray(input.evidenceRecords) || !Array.isArray(input.metrics) || !Array.isArray(input.signals)) {
