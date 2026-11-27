@@ -329,11 +329,13 @@ async function main(){
  const partialSource=shortShipmentReserves[0];
  const partialReleaseQuantity=Math.min(1,Number(partialSource.quantity));
  assert.ok(partialReleaseQuantity>0);
- await db.unsafe(
+ const partialBatchAfter=await db.unsafe(
   "update public.inventory_batches set quantity_reserved=quantity_reserved-$2::numeric " +
-  "where id=$1::uuid and quantity_reserved>=$2::numeric",
+  "where id=$1::uuid and quantity_reserved>=$2::numeric returning quantity_reserved",
   [partialSource.batch_id,partialReleaseQuantity],
  );
+ assert.equal(partialBatchAfter.length,1,
+  "the controlled local release fixture must change exactly the selected batch");
  const partialBalanceAfter=(await db.unsafe(
   "update public.inventory_balances set quantity_reserved=quantity_reserved-$3::numeric," +
   "last_movement_at=now(),updated_at=now() " +
