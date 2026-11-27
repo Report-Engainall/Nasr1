@@ -877,7 +877,7 @@ CREATE POLICY customer_invoice_financial_source_read_guard
   FOR SELECT
   TO authenticated
   USING (
-    public.is_staff()
+    (public.is_staff() AND organization_id = public.current_organization_id())
     OR public.customer_app_only_invoice_read_allowed(customer_id, organization_id)
   );
 
@@ -888,7 +888,7 @@ CREATE POLICY customer_invoice_item_financial_source_read_guard
   FOR SELECT
   TO authenticated
   USING (
-    public.is_staff()
+    (public.is_staff() AND customer_invoice_items.organization_id = public.current_organization_id())
     OR EXISTS (
       SELECT 1
         FROM public.customer_invoices i
