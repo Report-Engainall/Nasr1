@@ -462,7 +462,9 @@ describe("production intelligence workspace inventory screens", () => {
     const actionText = await screen.findByText(/إعادة تنشيط العميل · customer-retention-1/);
     const card = actionText.closest("article");
     expect(card).not.toBeNull();
-    expect(card).toHaveTextContent("CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE");
+    expect(card).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
+    expect(card).toHaveTextContent("evidence:retention:current");
+    expect(card).toHaveTextContent("customer.orders.current");
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
 
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
