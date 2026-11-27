@@ -4,30 +4,31 @@ Repository: `Report-Engainall/Nasr1`
 Owner: P1 — customer workflows, finance presentation, admin UI and integration.
 Main baseline: `12b0db37a97128a19073f907ba12fb700251802b`
 Branch: `p1/customer-financial-source-ui-guard-20261127-r2`
-Exact branch SHA: `d11624083b1935576cf76f852f2338afc077f2c3`
+Current branch parent before this gate/checkpoint refresh: `5b8449bd20d21333462bbd35b6908735a4526eef`
+Last code-bearing P1 commit: `d11624083b1935576cf76f852f2338afc077f2c3`
 PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not merge.
 
 ## Delivered
 - Customer statement/invoice/payment UI consumes the server-selected source contract. APP_ONLY data is not blended with ONYX/MUTAKAMEL; unknown, stale, suspended and resolver-error states fail closed.
-- Customer saved-receipt list and reprint use the customer-only RPC names `get_my_customer_payment_receipt_print_options` and `get_my_customer_payment_receipt_print_data`. The customer UI never calls the staff-only receipt RPCs and printing does not create a payment.
-- The existing account statement provides direct actions to request a balance review and a statement for an inclusive validated date range. These create an audited, idempotent, customer-scoped service case; they do not write ledger, payment or balance data.
-- Existing Finance/Collections workflow resolves the selected invoice customer's financial source before local payment/receipt creation and rechecks identity on submit.
-- Existing Onyx exchange workspace mounts the bounded ERP read-sync panel. The client invokes only the server-side Edge Function; the panel displays actual result counts/checkpoint watermarks and handles provider-not-configured/not-enabled failure without claiming connectivity.
-- **Admin Customer 360 now resolves the selected customer's source before calling `get_staff_customer_360`.** APP_ONLY active/fresh is required before loading the SECURITY DEFINER finance projection. ONYX/MUTAKAMEL/stale/suspended sources show the source notice and suppress the APP_ONLY summary. Resolver failure fails closed.
-- Focused tests cover customer financial requests, customer receipt reprint, ERP panel/parser, source notices and Customer 360 source gating. Strict TypeScript and the three P1 path-filter groups include the new Customer 360 test and ERP panel/parser tests.
+- Customer saved-receipt list/reprint calls customer-only `get_my_customer_payment_receipt_print_options` and `get_my_customer_payment_receipt_print_data`; it does not call staff-only RPCs or create/post a payment.
+- The account statement offers balance-review and inclusive date-ranged statement requests. Both create an audited, idempotent, customer-scoped service case, with no ledger/payment/balance mutation.
+- Finance/Collections resolves the selected invoice customer's source before local payment/receipt creation and rechecks the source/customer identity on submit.
+- Existing Onyx exchange workspace mounts the bounded ERP read-sync panel; requests go only to the server Edge Function. It shows actual counts/checkpoint watermarks and safe provider-not-configured/not-enabled results.
+- Admin Customer 360 resolves the selected customer's source before `get_staff_customer_360`. Active/fresh APP_ONLY is required before the SECURITY DEFINER finance projection. ONYX/MUTAKAMEL/stale/suspended and resolver-error states suppress the APP_ONLY summary.
+- Focused tests cover customer requests, customer receipt reprint, ERP panel/parser, source notices and Customer 360 source gating. Strict TypeScript and P1 path filters include all new tests.
 
 ## Cross-owner dependencies
-- **P2 #697 current head:** `1d9cbbf4aff0bec3e9275995c3c826e8ed8beb4b`. The existing migration now defines customer-only `get_my_customer_payment_receipt_print_options(integer,integer)` and `get_my_customer_payment_receipt_print_data(uuid)`; staff-only functions remain separate. Server derives customer/org from the authenticated context, checks active APP_ONLY binding, locks the binding FOR SHARE, and verifies allocation count/uniqueness/customer/tenant/currency/positive amounts/exact total. The acceptance script includes cross-tenant, ONYX/MUTAKAMEL/suspended, paging and cutover-lock cases. This closes the missing-code dependency; **exact-head PostgreSQL 17 acceptance is still QUEUED** and must pass before release.
-- **P4 #686 current observed head:** `c0a6330aa7b55100165d4fc677e47a5ee2192d2f`. Its branch contains the `erp-read-sync` Edge Function and encrypted checkpoint store, not in `main`. Provider use still requires server-side official contract, confirmed license/endpoint, sandbox, server credentials, encrypted cursor key, organization binding and allow-listed company/branch/warehouse/currency. No live provider readiness or external connection is asserted.
-- P3 #700 and companion #680/#698 remain P3-owned; no parallel analytics engine or duplicate recommendation system was created.
+- **P2 #697 current head observed:** `efecdf744a1b5aaa0e8ac99677eba91f76b92a7f`. The current branch includes customer-only receipt list/print RPCs separate from staff functions and adds the P2 ERP durable-checkpoint/staging store consumed by P4. The customer receipt SQL derives identity from auth context, locks the binding FOR SHARE, requires active APP_ONLY and validates allocation count, customer/tenant/currency, positive amounts and exact totals. P2 local PostgreSQL 17 acceptance includes the source-cutover script. Its exact-head P2 / P1 / PostgreSQL 17 runs are queued, not PASS.
+- **P4 #686 current head observed:** `c0a6330aa7b55100165d4fc677e47a5ee2192d2f`. The branch carries the `erp-read-sync` Edge Function, connector and encrypted checkpoint store, not in main. Provider use still requires official contract, confirmed license/endpoint, sandbox, server-side credentials and cursor key, tenant binding and allow-listed company/branch/warehouse/currency. No live connector readiness is asserted.
+- P3 #700/#680/#698 remain P3-owned; no duplicate analytics engine was created.
 
 ## Exact-SHA acceptance
-- P1 head `d11624083b1935576cf76f852f2338afc077f2c3`: P1 Admin Context Verification run `46077686288`, job `140769153157`, **QUEUED** at last observation.
-- P2 #697 head `1d9cbbf4aff0bec3e9275995c3c826e8ed8beb4b`: P2 critical-path run `46077214867`, strict P1 run `46077214882`, and PostgreSQL 17 run `46077214878` are **QUEUED**. The critical-path workflow includes the local PostgreSQL 17 financial-source script.
-- P4 #686 workflows on its current branch have not reached a terminal successful exact-head acceptance; a prior critical-path run was cancelled.
-- Older SHA results are not transferred. No PASS is claimed for queued, pending, skipped or cancelled jobs.
-- Acceptance remains **IN_PROGRESS**. Merge requires P1 strict TypeScript/Vitest, relevant Chromium flows, P2 PostgreSQL 17 and source isolation, and P4 Edge-handler/checkpoint tests on their exact accepted heads.
+- The previous P1 run for code-bearing SHA `d11624083b1935576cf76f852f2338afc077f2c3` (`46077686288`) was **CANCELLED** by subsequent branch updates. It is not a test result.
+- This commit changes the P1 path filter and checkpoint only, adding this checkpoint path so the new branch SHA triggers the P1 gate. The new exact-head Vitest/strict-TypeScript, P2 critical-path and relevant PostgreSQL 17 checks must complete successfully; no prior result transfers.
+- P2 #697 exact-head workflow runs observed: `46077869427` critical paths, `46077869434` strict P1 checks, `46077869484` PostgreSQL 17 — all QUEUED.
+- P4 #686 exact-head workflow runs observed: `46077727955` P1 verification, `46077727960` PostgreSQL 17, `46077728027` critical paths and `46077728009` shopping-list PostgreSQL 17 — all QUEUED.
+- Acceptance remains **IN_PROGRESS**. No queued, pending, skipped, cancelled or older-SHA run is PASS.
 
 ## Safety
-- `main` unchanged. No production Supabase writes/migrations, ERP calls, financial mutations, secrets, deployment, paid services or Vercel/Bolt/Lovable usage.
-- Release remains NO-GO until exact-head checks pass and integration/runtime evidence is complete.
+- `main` unchanged. No production database writes/migrations, ERP calls, financial mutations, secrets, deployment, paid services or Vercel/Bolt/Lovable use.
+- Release remains NO-GO until exact-head P1/P2/P4 security, PostgreSQL 17 and integration checks pass.
