@@ -1,3 +1,4 @@
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 export interface CustomerQuotePipelineSnapshot {
   asOf:string; period:{from:string;to:string;timeZone:"UTC"}; completePopulation:true;
   totalQuotes:number; requestedForPricing:number; awaitingCustomerResponse:number;
@@ -21,12 +22,7 @@ function validDay(value:unknown):value is string {
  return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;
 }
 function validTimestamp(value:unknown):value is string {
- if(typeof value!=="string"||
-    !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value))return false;
- const day=value.slice(0,10);
- const dayMillis=Date.parse(day+"T00:00:00.000Z");
- return Number.isFinite(Date.parse(value))&&Number.isFinite(dayMillis)&&
-  new Date(dayMillis).toISOString().slice(0,10)===day;
+  return timestampMicroseconds(value) !== null;
 }
 function count(value:unknown):value is number{return typeof value==="number"&&Number.isSafeInteger(value)&&value>=0}
 export function parseCustomerQuotePipelineSnapshot(value:unknown):CustomerQuotePipelineSnapshot|null {
