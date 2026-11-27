@@ -53,7 +53,7 @@ import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintAc
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { CustomerPaymentReceiptSelfServiceActions } from "@/components/CustomerPaymentReceiptSelfServiceActions";
 import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
-import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, type CustomerFinancialSource } from "@/lib/customer-financial-source";
+import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, revalidateMyCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
@@ -607,6 +607,7 @@ function Invoices() {
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
   const invoiceReadSequenceRef = useRef(0);
+  const invoiceDetailSequenceRef = useRef(0);
   const [olderInvoicesError, setOlderInvoicesError] = useState("");
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingOlderInvoices, setLoadingOlderInvoices] = useState(false);
@@ -616,6 +617,7 @@ function Invoices() {
   const [xlsxError, setXlsxError] = useState("");
   const load = useCallback(async () => {
     const requestId = ++invoiceReadSequenceRef.current;
+    invoiceDetailSequenceRef.current += 1;
     const isCurrentRequest = () => invoiceReadSequenceRef.current === requestId;
     let confirmingSource = false;
     setBusy(true);
@@ -723,9 +725,15 @@ function Invoices() {
   }, [busy, financialSource, hasMoreInvoices, loadingOlderInvoices, rows]);
   useEffect(() => {
     void load();
-    return () => { invoiceReadSequenceRef.current += 1; };
+    return () => {
+      invoiceReadSequenceRef.current += 1;
+      invoiceDetailSequenceRef.current += 1;
+    };
   }, [load]);
   async function open(i: Invoice) {
+    const sourceSnapshot = financialSource;
+    if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
+    const detailRequestId = ++invoiceDetailSequenceRef.current;
     setChosen(i);
     setDetailBusy(true);
     setChosenFinancials(null);
@@ -742,6 +750,39 @@ function Invoices() {
         .eq("id", i.order_id)
         .maybeSingle(),
     ]);
+    if (detailRequestId !== invoiceDetailSequenceRef.current) return;
+    try {
+      const sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+      if (detailRequestId !== invoiceDetailSequenceRef.current) return;
+      if (!sourceCheck.unchanged) {
+        setFinancialSource(sourceCheck.source);
+        setFinancialSourceError("تغير مصدر الحساب المالي أثناء تحميل تفاصيل الفاتورة؛ أسقطنا تفاصيل الدفتر السابق.");
+        setRows([]);
+        setHasMoreInvoices(false);
+        setChosen(null);
+        setChosenCustomer(null);
+        setChosenFinancials(null);
+        setFinancialDetailsVisible(false);
+        setItems([]);
+        setInvoiceOrder(null);
+        setDetailBusy(false);
+        return;
+      }
+    } catch {
+      if (detailRequestId !== invoiceDetailSequenceRef.current) return;
+      setFinancialSource(null);
+      setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد تحميل تفاصيل الفاتورة؛ أوقفنا عرض التفاصيل.");
+      setRows([]);
+      setHasMoreInvoices(false);
+      setChosen(null);
+      setChosenCustomer(null);
+      setChosenFinancials(null);
+      setFinancialDetailsVisible(false);
+      setItems([]);
+      setInvoiceOrder(null);
+      setDetailBusy(false);
+      return;
+    }
     const payload = invoicePayloadResult.data as {
       invoice?: Invoice & { id?: string };
       lines?: InvoiceLine[];
@@ -842,7 +883,21 @@ function Invoices() {
   async function downloadInvoicePdf(invoiceId: string) {
     setPdfBusyId(invoiceId);
     setPdfError("");
+    const sourceSnapshot = financialSource;
     try {
+      if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) throw new Error("مصدر الحساب لا يسمح بتنزيل مستندات دفتر التطبيق.");
+      let sourceBefore: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try { sourceBefore = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      catch (cause) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تنزيل الفاتورة؛ أوقفنا إخراج المستند.");
+        throw cause;
+      }
+      if (!sourceBefore.unchanged) {
+        setFinancialSource(sourceBefore.source);
+        setFinancialSourceError("تغير مصدر الحساب المالي؛ أوقفنا تنزيل الفاتورة من الدفتر السابق.");
+        throw new Error("تغير مصدر الحساب المالي؛ حدّث الفواتير قبل إعادة التنزيل.");
+      }
       const sessionResult = await supabase.auth.getSession();
       const accessToken = sessionResult.data.session?.access_token;
       if (sessionResult.error || !accessToken) {
@@ -873,6 +928,18 @@ function Invoices() {
       }
       const blob = await response.blob();
       if (blob.size < 500) throw new Error("ملف PDF فارغ أو غير صالح.");
+      let sourceAfter: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try { sourceAfter = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      catch (cause) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد تجهيز الفاتورة؛ أوقفنا التنزيل.");
+        throw cause;
+      }
+      if (!sourceAfter.unchanged) {
+        setFinancialSource(sourceAfter.source);
+        setFinancialSourceError("تغير مصدر الحساب أثناء إنشاء ملف الفاتورة؛ ألغينا تنزيل النسخة القديمة.");
+        throw new Error("تغير مصدر الحساب أثناء إعداد الفاتورة؛ لم يتم تنزيل الملف.");
+      }
 
       const objectUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
       const anchor = document.createElement("a");
@@ -889,11 +956,25 @@ function Invoices() {
       setPdfBusyId(null);
     }
   }
-  function downloadInvoiceXlsx() {
+  async function downloadInvoiceXlsx() {
     setXlsxError("");
+    const sourceSnapshot = financialSource;
     try {
+      if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) throw new Error("مصدر الحساب لا يسمح بتصدير فواتير دفتر التطبيق.");
       if (!chosen || detailBusy || items.length === 0) {
         throw new Error("حمّل تفاصيل الفاتورة أولًا قبل إنشاء ملف Excel.");
+      }
+      let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      catch (cause) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تصدير الفاتورة؛ أوقفنا التصدير.");
+        throw cause;
+      }
+      if (!sourceCheck.unchanged) {
+        setFinancialSource(sourceCheck.source);
+        setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا تصدير تفاصيل الفاتورة القديمة.");
+        throw new Error("تغير مصدر الحساب؛ حدّث تفاصيل الفاتورة ثم أعد التصدير.");
       }
       downloadCustomerInvoiceWorkbookXlsx({
         invoiceNumber: chosen.invoice_number,
@@ -1276,7 +1357,21 @@ function Statement() {
   const downloadStatementPdf = useCallback(async () => {
     setPdfBusy(true);
     setPdfError("");
+    const sourceSnapshot = financialSource;
     try {
+      if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) throw new Error("مصدر الحساب لا يسمح بتنزيل كشف دفتر التطبيق.");
+      let sourceBefore: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try { sourceBefore = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      catch (cause) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تنزيل كشف الحساب؛ أوقفنا إخراج المستند.");
+        throw cause;
+      }
+      if (!sourceBefore.unchanged) {
+        setFinancialSource(sourceBefore.source);
+        setFinancialSourceError("تغير مصدر الحساب المالي؛ أوقفنا إنشاء كشف من الدفتر السابق.");
+        throw new Error("تغير مصدر الحساب؛ حدّث الكشف قبل التنزيل.");
+      }
       const sessionResult = await supabase.auth.getSession();
       const accessToken = sessionResult.data.session?.access_token;
       if (sessionResult.error || !accessToken) {
@@ -1309,6 +1404,18 @@ function Statement() {
       if (blob.size < 500 || blob.type && !blob.type.toLowerCase().includes("application/pdf")) {
         throw new Error("ملف PDF فارغ أو غير صالح.");
       }
+      let sourceAfter: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try { sourceAfter = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      catch (cause) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد إنشاء كشف PDF؛ أوقفنا التنزيل.");
+        throw cause;
+      }
+      if (!sourceAfter.unchanged) {
+        setFinancialSource(sourceAfter.source);
+        setFinancialSourceError("تغير مصدر الحساب أثناء إعداد كشف PDF؛ ألغينا تنزيل النسخة القديمة.");
+        throw new Error("تغير مصدر الحساب أثناء تجهيز كشف الحساب؛ لم يتم تنزيل الملف.");
+      }
 
       const objectUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
       const anchor = document.createElement("a");
@@ -1324,13 +1431,26 @@ function Statement() {
     } finally {
       setPdfBusy(false);
     }
-  }, []);
+  }, [financialSource]);
 
-  const downloadStatementXlsx = useCallback(() => {
-    if (!canReadCustomerAppLedger(financialSource)) return;
+  const downloadStatementXlsx = useCallback(async () => {
+    if (!financialSource || !canReadCustomerAppLedger(financialSource)) return;
+    const sourceSnapshot = financialSource;
     setXlsxBusy(true);
     setXlsxError("");
     try {
+      let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      catch (cause) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تصدير كشف Excel؛ أوقفنا التصدير.");
+        throw cause;
+      }
+      if (!sourceCheck.unchanged) {
+        setFinancialSource(sourceCheck.source);
+        setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا تصدير كشف Excel من الدفتر السابق.");
+        throw new Error("تغير مصدر الحساب؛ حدّث كشف الحساب ثم أعد التصدير.");
+      }
       downloadCustomerAccountStatementWorkbookXlsx({
         invoices,
         payments,
@@ -1346,6 +1466,24 @@ function Statement() {
       setXlsxBusy(false);
     }
   }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable, financialSource]);
+
+  const printStatement = useCallback(async () => {
+    const sourceSnapshot = financialSource;
+    if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
+    let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+    try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+    catch {
+      setFinancialSource(null);
+      setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل الطباعة؛ أوقفنا إخراج المستند.");
+      return;
+    }
+    if (!sourceCheck.unchanged) {
+      setFinancialSource(sourceCheck.source);
+      setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا طباعة كشف الدفتر السابق.");
+      return;
+    }
+    window.print();
+  }, [financialSource]);
 
   useEffect(() => {
     void load();
@@ -1374,7 +1512,7 @@ function Statement() {
         >
           <FileSpreadsheet size={15} /> {xlsxBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel"}
         </button>
-        <button style={secondary} onClick={() => window.print()} disabled={!appLedgerAvailable || loading}>
+        <button style={secondary} onClick={() => void printStatement()} disabled={!appLedgerAvailable || loading}>
           <Printer size={15} /> طباعة من المتصفح
         </button>
         <a href="/service-cases?request=statement_period" style={{...secondary,textDecoration:"none"}}>طلب كشف حساب لفترة</a>
@@ -1652,11 +1790,24 @@ function CustomerPayments() {
   const filtered = paymentFilter.items;
   const appLedgerAvailable = canReadCustomerAppLedger(financialSource);
 
-  function downloadPaymentHistoryXlsx() {
-    if (!appLedgerAvailable || loading || error || paymentFilter.error || filtered.length === 0 || xlsxBusy) return;
+  async function downloadPaymentHistoryXlsx() {
+    if (!appLedgerAvailable || loading || error || paymentFilter.error || filtered.length === 0 || xlsxBusy || !financialSource) return;
+    const sourceSnapshot = financialSource;
     setXlsxBusy(true);
     setXlsxError("");
     try {
+      let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      catch (cause) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تصدير سجل الدفعات؛ أوقفنا التصدير.");
+        throw cause;
+      }
+      if (!sourceCheck.unchanged) {
+        setFinancialSource(sourceCheck.source);
+        setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا تصدير سجل الدفعات القديم.");
+        throw new Error("تغير مصدر الحساب؛ حدّث سجل الدفعات ثم أعد التصدير.");
+      }
       downloadCustomerPaymentHistoryWorkbookXlsx({
         payments: filtered.map((payment) => {
           const invoice = invoiceById.get(payment.invoice_id);

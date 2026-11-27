@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
-import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource } from "./customer-financial-source";
+import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
 const appOnly = { source_mode:"APP_ONLY", source_status:"active", source_as_of:null, last_synced_at:null, verified_at:null, revision:1, is_stale:false, can_read_app_ledger:true };
 describe("customer financial source contract", () => {
   it("allows the app ledger only when the server confirms APP_ONLY and active status", () => {
@@ -117,5 +117,36 @@ describe("customer financial source snapshot binding", () => {
       can_read_app_ledger: false, revision: 2,
     });
     expect(isSameCustomerFinancialSourceVersion(first, external)).toBe(false);
+  });
+});
+
+describe("customer financial source export revalidation", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+
+  it("permits an export only when the server returns the exact same active APP_ONLY revision", async () => {
+    mocks.rpc.mockResolvedValue({ data: { ...appOnly }, error: null });
+    const result = await revalidateMyCustomerFinancialSource(parseCustomerFinancialSource(appOnly));
+    expect(mocks.rpc).toHaveBeenCalledWith("get_my_customer_financial_source");
+    expect(result.unchanged).toBe(true);
+    expect(result.source.revision).toBe(1);
+  });
+
+  it("blocks export after the server moves the account to ONYX", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        ...appOnly, source_mode: "ONYX", source_as_of: "2026-11-28T00:00:00Z",
+        last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z",
+        revision: 2, can_read_app_ledger: false,
+      },
+      error: null,
+    });
+    const result = await revalidateMyCustomerFinancialSource(parseCustomerFinancialSource(appOnly));
+    expect(result.unchanged).toBe(false);
+    expect(result.source.source_mode).toBe("ONYX");
+  });
+
+  it("blocks export when the source resolver becomes unavailable", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "resolver unavailable" } });
+    await expect(revalidateMyCustomerFinancialSource(parseCustomerFinancialSource(appOnly))).rejects.toThrow();
   });
 });

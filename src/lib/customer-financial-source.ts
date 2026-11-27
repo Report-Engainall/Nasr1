@@ -104,3 +104,18 @@ export function isSameCustomerFinancialSourceVersion(
     expected.is_stale === actual.is_stale &&
     expected.can_read_app_ledger === actual.can_read_app_ledger;
 }
+
+/**
+ * Re-read the server-owned customer source immediately before a document
+ * leaves the page. The caller must not export when this snapshot differs.
+ */
+export async function revalidateMyCustomerFinancialSource(
+  expected: CustomerFinancialSource,
+): Promise<{ source: CustomerFinancialSource; unchanged: boolean }> {
+  const source = await fetchMyCustomerFinancialSource();
+  return {
+    source,
+    unchanged: canReadCustomerAppLedger(source) &&
+      isSameCustomerFinancialSourceVersion(expected, source),
+  };
+}
