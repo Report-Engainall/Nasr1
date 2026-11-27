@@ -146,3 +146,10 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - The test also proves no ERP external reference, source watermark, sync timestamp, evidence hash, verification timestamp, invoice or payment receipt is synthesized for the new customer.
 - The new-customer and source-binding rows are created inside a transaction intentionally rolled back after assertions; the test verifies neither row remains afterward.
 - No migration, production RPC, customer business data, account balance or ledger write was changed. Exact-head PostgreSQL 17 acceptance remains required.
+
+## 2026-11-28 — External source sync watermark is now a database invariant
+
+- Tightened `customer_financial_source_external_evidence_ck`: ONYX/MUTAKAMEL bindings must now carry `last_synced_at` in addition to exact evidence SHA-256, `source_as_of` and `verified_at`. APP_ONLY bindings remain valid with all provider sync/evidence fields null.
+- Both legitimate server paths already satisfy the invariant: Maker/Checker cutover records `last_synced_at` from matched reconciliation evidence, and later provider sync advances it in the same transaction as evidence insertion.
+- Expanded the PostgreSQL 17 acceptance to attempt a cutover-shaped update with valid external account reference, source watermark, evidence hash and verification time but a null `last_synced_at`. It must fail with `23514`; the test then re-reads and proves the APP_ONLY binding, revision and every source field remained unchanged.
+- This is a database-level safety invariant, not a UI guard. The exact updated migration/test SHA must pass local PostgreSQL 17 before acceptance. No live ERP, production data or account balances were changed.

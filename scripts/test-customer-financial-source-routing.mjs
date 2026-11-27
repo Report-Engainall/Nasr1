@@ -226,6 +226,44 @@ async function main() {
   assert.equal(initialBinding[0].source_mode, "APP_ONLY", "legacy customers stay APP_ONLY until approved cutover");
   assert.equal(initialBinding[0].source_status, "active");
   assert.equal(initialBinding[0].external_account_ref, null);
+
+  // A provider-backed binding cannot be represented as valid until the source
+  // reconciliation has a recorded sync timestamp. A failed cutover-shaped write
+  // must leave the existing APP_ONLY binding byte-for-byte unchanged.
+  let missingExternalSyncTimeRejected = false;
+  try {
+    await db.unsafe(
+      "update public.customer_financial_source_bindings " +
+        "set source_mode='ONYX',source_status='active',external_account_ref='ONYX-UNVERIFIED-ACCOUNT'," +
+        "source_as_of=statement_timestamp(),last_synced_at=null," +
+        "source_evidence_sha256=$3::text,verified_at=statement_timestamp() " +
+      "where organization_id=$1::uuid and customer_id=$2::uuid",
+      [orgId, customerId, "a".repeat(64)],
+    );
+  } catch (error) {
+    assert.equal(String(error.code), "23514",
+      "external source activation without last_synced_at must fail its database CHECK");
+    missingExternalSyncTimeRejected = true;
+  }
+  assert.equal(missingExternalSyncTimeRejected, true,
+    "the database must reject an ERP binding with a missing last-sync timestamp");
+  const bindingAfterRejectedExternalWrite = await db.unsafe(
+    "select source_mode,source_status,revision,external_account_ref,source_as_of,last_synced_at," +
+      "source_evidence_sha256,verified_at " +
+    "from public.customer_financial_source_bindings " +
+    "where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId, customerId],
+  );
+  assert.equal(bindingAfterRejectedExternalWrite.length, 1);
+  assert.equal(bindingAfterRejectedExternalWrite[0].source_mode, "APP_ONLY");
+  assert.equal(bindingAfterRejectedExternalWrite[0].source_status, "active");
+  assert.equal(bindingAfterRejectedExternalWrite[0].revision, 1);
+  assert.equal(bindingAfterRejectedExternalWrite[0].external_account_ref, null);
+  assert.equal(bindingAfterRejectedExternalWrite[0].source_as_of, null);
+  assert.equal(bindingAfterRejectedExternalWrite[0].last_synced_at, null);
+  assert.equal(bindingAfterRejectedExternalWrite[0].source_evidence_sha256, null);
+  assert.equal(bindingAfterRejectedExternalWrite[0].verified_at, null);
+
   const foreignBinding = await db.unsafe(
     "select source_mode from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
     [foreignProfile.organization_id, foreignCustomerId],
