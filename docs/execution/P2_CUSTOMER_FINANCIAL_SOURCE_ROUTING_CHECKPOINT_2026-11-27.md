@@ -118,3 +118,5 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Exact acceptance additions: printed allocation details must sum to the receipt header; attempts to acquire `FOR UPDATE NOWAIT` on the receipt and allocation rows while the customer print transaction is open must fail with `55P03`.
 - This is read-only hardening. It creates no receipt, payment, allocation, balance or journal write and does not change APP_ONLY/source-cutover ownership.
 - Required re-run: existing financial-source PostgreSQL 17 acceptance on the new exact branch head. No PASS is claimed until the resulting workflow is terminal-success on that SHA.
+
+- Phantom-allocation hardening: the print RPC now locks the receipt header with `FOR UPDATE`, not only `FOR SHARE`. PostgreSQL foreign-key validation uses a KEY SHARE lock on the referenced receipt; the stronger header lock makes a concurrent allocation insert/re-reference wait or fail under NOWAIT. PG17 acceptance now asserts a `FOR KEY SHARE NOWAIT` attempt is rejected while printing holds the receipt lock.
