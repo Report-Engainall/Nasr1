@@ -298,7 +298,7 @@ describe("approved opening balance timestamp contract", () => {
     expect(buildApprovedCashOpeningBalances(invalidWorkspace, AS_OF).metrics).toEqual([]);
 
     const invalidApproval = workspace({
-      proposals: workspace().proposals.map(proposal => ({
+      openingBalances: workspace().openingBalances.map(proposal => ({
         ...proposal,
         reviewedAt: "2026-11-13T09:00:00.1234567Z",
       })),
