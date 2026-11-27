@@ -159,7 +159,7 @@ async function main() {
   assert.equal(appOnlyInvoiceRead, true, "APP_ONLY customer may read their own invoice metadata");
   const initialStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
   assert.ok(Array.isArray(initialStatement.summary), "APP_ONLY statement retains the existing ledger contract");
-  const initialSummary = JSON.stringify(initialStatement.summary);
+  let initialSummary = JSON.stringify(initialStatement.summary);
 
 
   // Seed a real order, invoice and invoice line so the APP_ONLY/ONYX RLS checks
@@ -167,6 +167,9 @@ async function main() {
   const sourceTestOrderId = randomUUID();
   const sourceTestInvoiceId = randomUUID();
   const sourceTestInvoiceItemId = randomUUID();
+  const sourceTestSecondOrderId = randomUUID();
+  const sourceTestSecondInvoiceId = randomUUID();
+  const sourceTestSecondInvoiceNumber = "FIN-SOURCE-SECOND-" + randomUUID().slice(0, 8).toUpperCase();
   const sourceTestInvoiceNumber = "FIN-SOURCE-" + randomUUID().slice(0, 8).toUpperCase();
   await db.unsafe(
     "insert into public.orders (id,organization_id,customer_id,order_number,status,notes,created_by,idempotency_key,idempotency_payload_hash) " +
@@ -183,6 +186,44 @@ async function main() {
       "values ($1::uuid,$2::uuid,$3::uuid,'FIN-SOURCE-ITEM','Financial source isolation fixture','box',1,125,125)",
     [sourceTestInvoiceItemId, orgId, sourceTestInvoiceId],
   );
+
+
+  await db.unsafe(
+    "insert into public.orders (id,organization_id,customer_id,order_number,status,notes,created_by,idempotency_key,idempotency_payload_hash) " +
+      "values ($1::uuid,$2::uuid,$3::uuid,$4::text,'pending','financial source receipt fixture',$5::uuid,$6::text,$7::text)",
+    [sourceTestSecondOrderId, orgId, customerId, "ORD-" + sourceTestSecondInvoiceNumber, customerProfile.id, randomUUID(), "0".repeat(64)],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoices (id,organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount) " +
+      "values ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,'issued','YER',85,0,85)",
+    [sourceTestSecondInvoiceId, orgId, customerId, sourceTestSecondOrderId, sourceTestSecondInvoiceNumber],
+  );
+
+  const seededReceipt = await rpc(accountantDb,
+    "select public.record_customer_payment_allocation($1::jsonb,'cash',$2::uuid,'FIN-SOURCE-RECEIPT','source routing acceptance fixture') as result",
+    [JSON.stringify([
+      { invoice_id: sourceTestInvoiceId, amount: "5.00" },
+      { invoice_id: sourceTestSecondInvoiceId, amount: "7.00" },
+    ]), randomUUID()],
+  );
+  const sourceTestReceiptId = seededReceipt.receipt_id;
+  assert.ok(sourceTestReceiptId, "a real two-invoice customer receipt is atomically saved");
+
+  const appOnlyReceiptOptions = await rpc(accountantDb,
+    "select public.get_customer_payment_receipt_print_options(100,0) as result");
+  assert.ok(appOnlyReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
+    "APP_ONLY receipt selector includes the saved receipt");
+  const appOnlyReceiptPrint = await rpc(accountantDb,
+    "select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result",
+    [sourceTestReceiptId],
+  );
+  assert.equal(appOnlyReceiptPrint.receipt.id, sourceTestReceiptId,
+    "APP_ONLY receipt print returns the saved receipt");
+  assert.equal(appOnlyReceiptPrint.allocations.length, 2,
+    "APP_ONLY receipt print reconciles both saved invoice allocations");
+  const statementAfterReceipt = await rpc(customerDb,
+    "select public.get_customer_account_statement() as result");
+  initialSummary = JSON.stringify(statementAfterReceipt.summary);
 
   const appOnlyInvoiceRows = await customerDb.unsafe(
     "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
@@ -405,6 +446,25 @@ async function main() {
     "APP_ONLY invoice PDF",
   );
 
+  const externalReceiptRows = await accountantDb.unsafe(
+    "select id from public.customer_payment_receipts where id=$1::uuid and organization_id=$2::uuid",
+    [sourceTestReceiptId, orgId],
+  );
+  assert.equal(externalReceiptRows.length, 0,
+    "direct finance receipt reads are denied after ONYX cutover");
+  const externalReceiptOptions = await rpc(accountantDb,
+    "select public.get_customer_payment_receipt_print_options(100,0) as result");
+  assert.equal(externalReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId), false,
+    "APP_ONLY receipts are excluded from the active-source print selector after ONYX cutover");
+  await expectFailure(
+    "ONYX source cannot print an APP_ONLY receipt",
+    rpc(accountantDb,
+      "select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result",
+      [sourceTestReceiptId]),
+    "55000",
+    "APP_ONLY receipt print",
+  );
+
   const deniedHash = hash("auth-denied");
   await expectFailure(
     "authenticated customer cannot execute the service-role sync writer",
@@ -456,6 +516,19 @@ async function main() {
   assert.equal(mutakamelApproved.source_mode, "MUTAKAMEL");
   assert.equal(mutakamelApproved.revision, 3);
 
+  const mutakamelReceiptOptions = await rpc(accountantDb,
+    "select public.get_customer_payment_receipt_print_options(100,0) as result");
+  assert.equal(mutakamelReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId), false,
+    "APP_ONLY receipt remains excluded after MUTAKAMEL cutover");
+  await expectFailure(
+    "MUTAKAMEL source cannot print an APP_ONLY receipt",
+    rpc(accountantDb,
+      "select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result",
+      [sourceTestReceiptId]),
+    "55000",
+    "APP_ONLY receipt print",
+  );
+
   const appOnlyRequest = await requestSource(
     managerDb, customerId, "APP_ONLY", null,
     "return to app-only after closing and matching external balances", randomUUID() + randomUUID(), 3,
@@ -475,6 +548,16 @@ async function main() {
   assert.equal(finalResolver.can_read_app_ledger, true);
   const finalStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
   assert.equal(JSON.stringify(finalStatement.summary), initialSummary, "source cutover must not synthesize or alter the app ledger");
+
+  const finalReceiptOptions = await rpc(accountantDb,
+    "select public.get_customer_payment_receipt_print_options(100,0) as result");
+  assert.ok(finalReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
+    "APP_ONLY receipt returns to the print selector after approved return cutover");
+  const finalReceiptPrint = await rpc(accountantDb,
+    "select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result",
+    [sourceTestReceiptId]);
+  assert.equal(finalReceiptPrint.receipt.id, sourceTestReceiptId,
+    "APP_ONLY receipt remains printable after source transitions");
 
   await expectFailure(
     "staff cannot resolve a foreign tenant customer's financial source",
