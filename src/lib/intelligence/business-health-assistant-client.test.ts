@@ -120,6 +120,18 @@ describe("business health assistant source completeness", () => {
       ...complete,
       productRevenueConcentration: { ...revenueReady, asOf: "2026-11-17T12:00:00" },
     }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      supplierPostedPayableActivity: { ...supplierReady, asOf: "2026-11-17T12:00:00+14:01" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      productRevenueConcentration: { ...revenueReady, asOf: "2026-11-17T12:00:00+23:00" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      inventory: { ...complete.inventory, asOf: "2026-11-17T12:00:00+14:01" },
+    }, "VERIFIED")).toBe(false);
   });
 
   it("does not elevate the complete-source rollup when one important source is partial or missing", () => {

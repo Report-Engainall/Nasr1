@@ -55,14 +55,7 @@ function day(v: unknown): v is string {
   const d = new Date(v + "T00:00:00.000Z");
   return Number.isFinite(d.getTime()) && d.toISOString().slice(0,10) === v;
 }
-function timestampValue(v: unknown): number | null {
-  if (typeof v !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(v) ||
-      !day(v.slice(0, 10))) return null;
-  const parsed = Date.parse(v);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-function ts(v: unknown): v is string { return timestampValue(v) !== null; }
+function ts(v: unknown): v is string { return typeof v === "string" && v.includes("T") && Number.isFinite(Date.parse(v)); }
 function text(v: unknown, max=180): v is string { return typeof v === "string" && v.length > 0 && v.length <= max; }
 function int(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v >= 0; }
 function num(v: unknown): v is number { return typeof v === "number" && Number.isFinite(v) && v >= 0; }

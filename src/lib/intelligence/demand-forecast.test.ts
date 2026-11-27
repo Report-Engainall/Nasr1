@@ -68,8 +68,8 @@ const signal: GrowthOpportunitySignal = {
 function fixture(options: {
   currentQuantity?: number | string;
   baselineQuantity?: number | string;
-  currentOrders?: number;
-  baselineOrders?: number;
+  currentOrders?: number | string;
+  baselineOrders?: number | string;
   currentQuantityUnit?: MetricUnit;
   baselineQuantityUnit?: MetricUnit;
   currentOrdersUnit?: MetricUnit;
@@ -179,6 +179,16 @@ describe("evidence-backed product demand forecast", () => {
     const result = fixture({ currentOrders: 4 });
     expect(result.forecasts).toHaveLength(0);
     expect(result.withheld).toMatchObject([{ reason: "SAMPLE_INSUFFICIENT" }]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+
+  it.each([
+    ["current period", { currentOrders: "9007199254740992" }],
+    ["baseline period", { baselineOrders: "9007199254740992" }],
+  ])("withholds unsafe sample counts beyond the JavaScript safe-integer ceiling in the %s", (_label, options) => {
+    const result = fixture(options);
+    expect(result.forecasts).toHaveLength(0);
+    expect(result.withheld).toMatchObject([{ reason: "UNSUPPORTED_PRECISION" }]);
     expect(result.status).toBe("NEEDS_REVIEW");
   });
 

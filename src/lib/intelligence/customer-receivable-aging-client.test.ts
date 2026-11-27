@@ -70,6 +70,26 @@ describe("customer receivable aging client identity", () => {
     });
   });
 
+  it.each([
+    ["+14:00", "2026-11-14T12:00:00.000+14:00"],
+    ["-14:00", "2026-11-13T08:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", async (_label, offsetAsOf) => {
+    const validItem = { ...item(customerA, 111), asOf: offsetAsOf, calculatedAt: offsetAsOf };
+    rpc.mockResolvedValue({ data: { ...response([validItem]), asOf: offsetAsOf }, error: null });
+    await expect(fetchExecutiveCustomerReceivableAging()).resolves.toMatchObject({ ok: true });
+  });
+
+  it("rejects offsets beyond the ISO maximum in the report timestamp", async () => {
+    for (const invalidAsOf of [
+      "2026-11-14T12:01:00.000+14:01",
+      "2026-11-13T07:59:00.000-14:01",
+      "2026-11-14T23:59:00.000+23:59",
+    ]) {
+      rpc.mockResolvedValue({ data: { ...response([item(customerA, 111)]), asOf: invalidAsOf }, error: null });
+      await expect(fetchExecutiveCustomerReceivableAging()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+    }
+  });
+
   it("rejects timezone-less and impossible as-of timestamps", async () => {
     for (const invalidAsOf of ["2026-11-13T22:00:00", "2026-02-31T22:00:00.000Z"]) {
       rpc.mockResolvedValue({ data: { ...response([item(customerA, 111)]), asOf: invalidAsOf }, error: null });
