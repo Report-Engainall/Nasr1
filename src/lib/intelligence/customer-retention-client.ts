@@ -79,8 +79,10 @@ function snapshot(value: unknown, key: string, expectedPeriod: EvidencePeriod, a
     completeness: "COMPLETE", quality: "ACCEPTABLE",
     period: metricPeriod, asOf,
     lineage: {
-      evidenceIds, calculatedAt: lineage.calculatedAt,
-      formulaId: lineage.formulaId, formulaVersion: lineage.formulaVersion,
+      evidenceIds,
+      calculatedAt: lineage.calculatedAt as string,
+      formulaId: lineage.formulaId as string,
+      formulaVersion: lineage.formulaVersion as string,
       transformations: lineage.transformations as string[],
     },
     warnings,
@@ -107,7 +109,7 @@ function evidence(value: unknown, asOf: string): EvidenceRecord | null {
     id: raw.id,
     source: {
       kind: source.kind as EvidenceRecord["source"]["kind"],
-      name: source.name,
+      name: source.name as string,
       ...(source.recordId ? { recordId: source.recordId as string } : {}),
       ...(source.version ? { version: source.version as string } : {}),
     },
