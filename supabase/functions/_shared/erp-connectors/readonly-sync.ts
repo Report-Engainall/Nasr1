@@ -1043,7 +1043,18 @@ export async function runIncrementalReadOnlySync(input: {
       completedWatermark,
       completed,
     }));
+    const duplicateMadeNoCheckpointProgress = persisted.duplicatePage &&
+      persisted.checkpoint.cursor === checkpoint.cursor &&
+      persisted.checkpoint.pendingWatermark === checkpoint.pendingWatermark &&
+      persisted.checkpoint.completedWatermark === checkpoint.completedWatermark;
     checkpoint = persisted.checkpoint;
+    if (duplicateMadeNoCheckpointProgress) {
+      if (completed) break;
+      throw new ErpConnectorError(
+        "ERP_DUPLICATE_PAGE_NO_PROGRESS",
+        "أعاد مخزن ERP صفحة مكررة دون تحريك نقطة الاستئناف؛ أوقفت التشغيل لمنع حلقة لا نهائية.",
+      );
+    }
     if (!persisted.duplicatePage) {
       pagesCommitted += 1;
       recordsRead += records.length;
