@@ -582,6 +582,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [outcomeBusyId, setOutcomeBusyId] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
   const [outcomeReasons, setOutcomeReasons] = useState<Record<string, string>>({});
+  const outcomeCommandKeys = useRef(new Map<string, {
+    eventId: string;
+    idempotencyKey: string;
+    reason: string;
+    ownerProfileId?: string;
+    proofKey: string;
+    measuredAt?: string;
+  }>());
   const [decisionAssigneesResult, setDecisionAssigneesResult] = useState<DecisionOutcomeAssigneeListResult | null>(null);
   const [decisionAssigneesLoading, setDecisionAssigneesLoading] = useState(false);
   const [decisionAssigneesRefreshKey, setDecisionAssigneesRefreshKey] = useState(0);
@@ -1857,15 +1865,37 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       );
       return;
     }
+    const commandIdentity = outcome.id + ":" + outcome.version + ":" + eventType;
+    const proofKey = options.proof ? JSON.stringify(options.proof) : "";
+    const pendingCommand = outcomeCommandKeys.current.get(commandIdentity);
+    if (pendingCommand && (
+      pendingCommand.reason !== reason ||
+      pendingCommand.ownerProfileId !== options.ownerProfileId ||
+      pendingCommand.proofKey !== proofKey
+    )) {
+      setOutcomeMessage("نتيجة الأمر السابق غير مؤكدة؛ أعد المحاولة بالسبب والمسؤول والإثبات نفسيهما قبل تغيير التفاصيل.");
+      return;
+    }
+    const commandTokens = pendingCommand ?? {
+      eventId: crypto.randomUUID(),
+      idempotencyKey: crypto.randomUUID(),
+      reason,
+      ...(options.ownerProfileId ? { ownerProfileId: options.ownerProfileId } : {}),
+      proofKey,
+      ...(options.proof ? { measuredAt: new Date().toISOString() } : {}),
+    };
+    if (!pendingCommand) outcomeCommandKeys.current.set(commandIdentity, commandTokens);
     setOutcomeBusyId(outcome.id);
     setOutcomeMessage(null);
     const measuredOutcome = options.proof
-      ? { ...options.proof, measuredAt: new Date().toISOString() }
+      ? { ...options.proof, measuredAt: commandTokens.measuredAt as string }
       : undefined;
     const commandInput = {
       outcomeId: outcome.id,
       expectedVersion: outcome.version,
       reason,
+      eventId: commandTokens.eventId,
+      idempotencyKey: commandTokens.idempotencyKey,
     };
     const updated = eventType === "DEFER"
       ? await deferDecisionOutcome(commandInput)
@@ -1879,12 +1909,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
           });
     setOutcomeBusyId(null);
     if (!updated.ok) {
+      if (updated.status !== "UNAVAILABLE") outcomeCommandKeys.current.delete(commandIdentity);
       setOutcomeMessage(updated.message);
       if (updated.status === "STALE" || updated.status === "CONFLICT") {
         await Promise.all([loadOutcomes(), loadDecisionMemoryCollection()]);
       }
       return;
     }
+    outcomeCommandKeys.current.delete(commandIdentity);
     setOutcomeMessage(updated.duplicate ? "تم التعرف على إعادة إرسال الأمر دون إنشاء حدث مكرر." : "تم تسجيل انتقال القرار وإثباته في سجل التدقيق.");
     setOutcomeReasons((current) => ({ ...current, [outcome.id]: "" }));
     await Promise.all([loadOutcomes(), loadDecisionMemoryCollection()]);

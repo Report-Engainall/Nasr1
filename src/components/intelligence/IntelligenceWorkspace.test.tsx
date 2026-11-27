@@ -460,17 +460,60 @@ describe("production intelligence workspace inventory screens", () => {
     expect(deferButton).toBeEnabled();
     fireEvent.click(deferButton);
 
-    await waitFor(() => expect(mocks.deferDecision).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.deferDecision).toHaveBeenCalledWith(expect.objectContaining({
       outcomeId: review.id,
       expectedVersion: 2,
       reason,
-    }));
+      eventId: expect.any(String),
+      idempotencyKey: expect.any(String),
+    })));
     await waitFor(() => {
       const deferredCard = within(register).getByRole("heading", { name: "قرار يحتاج مستنداً" }).closest("article");
       expect(deferredCard).toHaveTextContent("مؤجل");
       expect(deferredCard).toHaveTextContent("تأجيل القرار");
       expect(deferredCard).toHaveTextContent("السبب المحفوظ: " + reason);
     });
+  });
+
+  it("retries a deferred decision with the same event and idempotency keys after an ambiguous response", async () => {
+    const review = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000073", "قرار ينتظر مستند الشحن"),
+      state: "IN_REVIEW" as const,
+      version: 2,
+    };
+    const reason = "بانتظار صورة مستند الشحن";
+    const deferred = {
+      ...review,
+      state: "DEFERRED" as const,
+      version: 3,
+      reason,
+      updatedAt: asOf,
+      eventCount: 3,
+      history: [...review.history, {
+        id: "defer-73", type: "DEFER", version: 3, at: asOf, actorRole: "admin", reason,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [review], total: 1 })
+      .mockResolvedValue({ ok: true, items: [deferred], total: 1 });
+    mocks.deferDecision
+      .mockResolvedValueOnce({ ok: false, status: "UNAVAILABLE", message: "نتيجة الاتصال غير مؤكدة" })
+      .mockResolvedValueOnce({ ok: true, duplicate: true, outcome: deferred });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "قرار ينتظر مستند الشحن" })).closest("article");
+    const reasonInput = within(card as HTMLElement).getByRole("textbox", { name: "سبب الاعتماد أو الرفض أو التأجيل" });
+    fireEvent.change(reasonInput, { target: { value: reason } });
+    const defer = within(card as HTMLElement).getByRole("button", { name: "تأجيل مع السبب" });
+    fireEvent.click(defer);
+    expect(await within(register).findByText("نتيجة الاتصال غير مؤكدة")).toBeInTheDocument();
+    fireEvent.click(defer);
+
+    await waitFor(() => expect(mocks.deferDecision).toHaveBeenCalledTimes(2));
+    expect(mocks.deferDecision.mock.calls[0][0].eventId).toBe(mocks.deferDecision.mock.calls[1][0].eventId);
+    expect(mocks.deferDecision.mock.calls[0][0].idempotencyKey).toBe(mocks.deferDecision.mock.calls[1][0].idempotencyKey);
+    expect(mocks.deferDecision.mock.calls[0][0].reason).toBe(reason);
   });
 
   it("returns a deferred decision to review only after a reasoned resume command", async () => {
@@ -512,11 +555,13 @@ describe("production intelligence workspace inventory screens", () => {
     fireEvent.change(reasonInput, { target: { value: reason } });
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "إعادة للمراجعة" }));
 
-    await waitFor(() => expect(mocks.resumeDecision).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.resumeDecision).toHaveBeenCalledWith(expect.objectContaining({
       outcomeId: deferred.id,
       expectedVersion: 4,
       reason,
-    }));
+      eventId: expect.any(String),
+      idempotencyKey: expect.any(String),
+    })));
     await waitFor(() => {
       const resumedCard = within(register).getByRole("heading", { name: "قرار مؤجل للمراجعة" }).closest("article");
       expect(resumedCard).toHaveTextContent("قيد المراجعة");
