@@ -1254,6 +1254,6 @@ async function main(){
  await assert.rejects(()=>db.unsafe("select * from public.inventory_batches limit 1"),/permission denied/i);
  await assert.rejects(()=>rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]),/inventory\.read_balance capability|warehouse assignment/i);
  await db.unsafe("reset role");
- process.stdout.write("PASS FEFO batches: receipt lot creation/replay, receipt print, FEFO reserve/sale, expired-order reallocation, incomplete-reservation recovery and shortage rollback, excess-reservation release, full shipment, post-reallocation cancellation, shared-lot ledger guard, access denial and balance parity\n");
+ process.stdout.write("PASS FEFO batches: receipt lot creation/replay, receipt print, FEFO reserve/sale, expired-order reallocation, incomplete-reservation recovery and shortage rollback, excess-reservation release, batch/aggregate ledger preflight, full shipment, post-reallocation cancellation, shared-lot ledger guard, access denial and balance parity\n");
 }
 main().catch(e=>{process.stderr.write("FAIL inventory batch FEFO: "+String(e?.stack??e)+"\n");process.exitCode=1;}).finally(async()=>{await db.end({timeout:5}).catch(()=>{});});
