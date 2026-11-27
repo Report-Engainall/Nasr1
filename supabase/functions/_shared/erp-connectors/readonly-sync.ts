@@ -317,7 +317,7 @@ function validateBaseUrl(connection: ErpConnection): URL {
   }
   if (
     url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
-    !url.hostname || url.port && !/^\d{2,5}$/.test(url.port)
+    !url.hostname || Boolean(url.port)
   ) {
     throw new ErpConnectorError("UNSAFE_CONNECTION_URL", "يسمح بموصل ERP بعنوان HTTPS معتمد فقط، دون بيانات دخول أو query أو fragment.");
   }
@@ -509,34 +509,45 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
       throw new ErpConnectorError("ERP_ORIGIN_CHANGED", "تغير أصل اتصال ERP أثناء بناء الطلب.");
     }
 
-    const response = await this.requestWithRetry(url);
-    const text = await readBoundedBody(response, this.maxResponseBytes);
+    const request = await this.requestWithRetry(url);
+    let text: string;
+    try {
+      text = await readBoundedBody(request.response, this.maxResponseBytes);
+    } catch (error) {
+      request.cleanup();
+      if (request.signal.aborted) {
+        throw new ErpConnectorError("ERP_TIMEOUT", "انتهت مهلة قراءة استجابة مصدر ERP.", { retryable: true });
+      }
+      if (error instanceof ErpConnectorError) throw error;
+      throw new ErpConnectorError("ERP_RESPONSE_READ_FAILED", "تعذرت قراءة استجابة مصدر ERP بأمان.", { retryable: true });
+    }
+    request.cleanup();
     let payload: unknown;
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new ErpConnectorError("INVALID_ERP_JSON", "أعاد ERP استجابة غير صالحة بصيغة JSON.", { httpStatus: response.status });
+      throw new ErpConnectorError("INVALID_ERP_JSON", "أعاد ERP استجابة غير صالحة بصيغة JSON.", { httpStatus: request.response.status });
     }
 
     const rows = getPath(payload, this.contract.itemsPath, "itemsPath");
     if (!Array.isArray(rows) || rows.length > MAX_PAGE_ROWS) {
-      throw new ErpConnectorError("INVALID_ERP_PAGE", "بنية صفحة ERP غير صالحة أو تتجاوز حد الصفوف.", { httpStatus: response.status });
+      throw new ErpConnectorError("INVALID_ERP_PAGE", "بنية صفحة ERP غير صالحة أو تتجاوز حد الصفوف.", { httpStatus: request.response.status });
     }
     const next = this.contract.nextCursorPath
       ? getPath(payload, this.contract.nextCursorPath, "nextCursorPath")
       : null;
     if (next != null && (typeof next !== "string" || next.length > MAX_CURSOR_LENGTH ||
         !next.trim() || /[\u0000-\u001f\u007f]/.test(next))) {
-      throw new ErpConnectorError("INVALID_ERP_CURSOR", "أعاد ERP مؤشر صفحة غير صالح.", { httpStatus: response.status });
+      throw new ErpConnectorError("INVALID_ERP_CURSOR", "أعاد ERP مؤشر صفحة غير صالح.", { httpStatus: request.response.status });
     }
 
     const records = await Promise.all(rows.map((row) => this.projectRecord(row)));
     return {
       records,
       nextCursor: typeof next === "string" ? next : null,
-      httpStatus: response.status,
+      httpStatus: request.response.status,
       externalRequestId: this.contract.requestIdHeader
-        ? safeHeaderValue(response.headers.get(this.contract.requestIdHeader))
+        ? safeHeaderValue(request.response.headers.get(this.contract.requestIdHeader))
         : null,
       responseSha256: await sha256Hex(text),
     };
@@ -591,12 +602,13 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
     };
   }
 
-  private async requestWithRetry(url: URL): Promise<Response> {
+  private async requestWithRetry(url: URL): Promise<{ response: Response; signal: AbortSignal; cleanup: () => void }> {
     const headerName = this.connection.credential.headerName;
     const authValue = (this.connection.credential.prefix ?? "") + this.connection.credential.secret;
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      const cleanup = () => clearTimeout(timer);
       let response: Response;
       try {
         response = await this.fetcher(url.toString(), {
@@ -609,7 +621,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
           signal: controller.signal,
         });
       } catch {
-        clearTimeout(timer);
+        cleanup();
         if (attempt >= this.maxRetries) {
           throw new ErpConnectorError(
             controller.signal.aborted ? "ERP_TIMEOUT" : "ERP_NETWORK_ERROR",
@@ -620,28 +632,32 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
         await this.sleep(Math.min(500 * (2 ** attempt), this.maxRetryDelayMs));
         continue;
       }
-      clearTimeout(timer);
 
       if (response.status >= 300 && response.status < 400) {
         await response.body?.cancel().catch(() => undefined);
+        cleanup();
         throw new ErpConnectorError("ERP_REDIRECT_BLOCKED", "تم رفض إعادة توجيه اتصال ERP لحماية نطاق المضيف المعتمد.", { httpStatus: response.status });
       }
       const expiredStatuses = this.contract.cursorExpiredHttpStatuses ?? [410];
       if (expiredStatuses.includes(response.status)) {
         await response.body?.cancel().catch(() => undefined);
+        cleanup();
         throw new ErpConnectorError("ERP_CURSOR_EXPIRED", "انتهت صلاحية مؤشر المزامنة؛ ستتم إعادة القراءة من آخر watermark مكتمل.", { httpStatus: response.status });
       }
       if (response.status === 401) {
         await response.body?.cancel().catch(() => undefined);
+        cleanup();
         throw new ErpConnectorError("ERP_AUTHENTICATION_FAILED", "رفض مصدر ERP بيانات الاعتماد.", { httpStatus: 401 });
       }
       if (response.status === 403) {
         await response.body?.cancel().catch(() => undefined);
+        cleanup();
         throw new ErpConnectorError("ERP_PERMISSION_DENIED", "حساب الربط لا يملك صلاحية قراءة الكائن المطلوب.", { httpStatus: 403 });
       }
       if (response.status === 429 || [500, 502, 503, 504].includes(response.status)) {
         const retryAfter = parseRetryAfter(response.headers.get("retry-after"), this.now(), this.maxRetryDelayMs);
         await response.body?.cancel().catch(() => undefined);
+        cleanup();
         if (attempt >= this.maxRetries) {
           throw new ErpConnectorError(
             response.status === 429 ? "ERP_RATE_LIMITED" : "ERP_PROVIDER_UNAVAILABLE",
@@ -654,9 +670,10 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
       }
       if (!response.ok) {
         await response.body?.cancel().catch(() => undefined);
+        cleanup();
         throw new ErpConnectorError("ERP_HTTP_ERROR", "أعاد مصدر ERP حالة HTTP غير ناجحة.", { httpStatus: response.status });
       }
-      return response;
+      return { response, signal: controller.signal, cleanup };
     }
     throw new ErpConnectorError("ERP_RETRY_EXHAUSTED", "انتهت محاولات الاتصال بمصدر ERP.", { retryable: true });
   }
@@ -752,12 +769,30 @@ export async function runIncrementalReadOnlySync(input: {
     }
     if (page.nextCursor) seenCursors.add(page.nextCursor);
 
-    const records = page.records.map((record) => ({
-      ...record,
-      companyExternalId: input.scope.companyExternalId,
-      branchExternalId: input.scope.branchExternalId,
-      warehouseExternalId: input.scope.warehouseExternalId ?? null,
-      currencyCode: input.scope.currencyCode ?? null,
+    const records = await Promise.all(page.records.map(async (record) => {
+      if (record.provider !== input.scope.provider || record.objectType !== input.scope.objectType) {
+        throw new ErpConnectorError("ERP_RECORD_SCOPE_MISMATCH", "نوع سجل المصدر لا يطابق نطاق مزامنة المؤسسة.");
+      }
+      const scopedRecord = {
+        ...record,
+        companyExternalId: input.scope.companyExternalId,
+        branchExternalId: input.scope.branchExternalId,
+        warehouseExternalId: input.scope.warehouseExternalId ?? null,
+        currencyCode: input.scope.currencyCode ?? null,
+      };
+      const idempotencyKey = await sha256Hex(stableJson({
+        provider: scopedRecord.provider,
+        organizationId: input.scope.organizationId,
+        companyExternalId: scopedRecord.companyExternalId,
+        branchExternalId: scopedRecord.branchExternalId,
+        warehouseExternalId: scopedRecord.warehouseExternalId,
+        currencyCode: scopedRecord.currencyCode,
+        objectType: scopedRecord.objectType,
+        externalId: scopedRecord.externalId,
+        sourceUpdatedAt: scopedRecord.sourceUpdatedAt,
+        fields: scopedRecord.fields,
+      }));
+      return { ...scopedRecord, idempotencyKey };
     }));
     const pageWatermark = records.reduce(
       (latest, record) => maxTimestamp(latest, record.sourceUpdatedAt),
