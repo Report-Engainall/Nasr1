@@ -351,6 +351,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [reviewHorizon,setReviewHorizon]=useState<7|30|90>(30);
 
   const [focusedDecisionId,setFocusedDecisionId]=useState("");
+  const [selectedReviewKind,setSelectedReviewKind]=useState<DecisionReviewQueueKind|"ALL">("ALL");
 
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
   const [learningTotal,setLearningTotal]=useState(0);
@@ -477,14 +478,18 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       setLearningBusy("");
     }
   }
-  const filteredRecords=filterDecisionMemoryRecords(result?.records??[],{query:recordSearch,state:recordStateFilter,memoryStatus:recordMemoryFilter});
+  const reviewQueue=buildDecisionReviewQueue(result?.records??[],browserLocalDay(),reviewHorizon);
+  const reviewQueueIds=selectedReviewKind==="ALL"?null:new Set(
+    reviewQueue.items.filter(item=>item.kind===selectedReviewKind).map(item=>item.decisionId),
+  );
+  const filteredRecords=filterDecisionMemoryRecords(result?.records??[],{query:recordSearch,state:recordStateFilter,memoryStatus:recordMemoryFilter})
+    .filter(record=>reviewQueueIds===null||reviewQueueIds.has(record.decisionId));
   const pageCount=Math.max(1,Math.ceil(filteredRecords.length/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
   const currentPage=Math.min(recordPage,pageCount-1);
   const pageRecords=filteredRecords.slice(
     currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
     (currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
   );
-  const reviewQueue=buildDecisionReviewQueue(result?.records??[],browserLocalDay(),reviewHorizon);
   const selectedTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??null;
   const referenceOptions=selectedTarget&&!pageRecords.some(record=>record.decisionId===selectedTarget.decisionId)
     ?[selectedTarget,...pageRecords]:pageRecords;
@@ -515,10 +520,16 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         <span className="text-xs text-muted-foreground">الأفق: {reviewHorizon} أيام</span>
       </div>
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-        {(Object.keys(reviewQueue.counts) as DecisionReviewQueueKind[]).map(kind=><article key={kind} className="rounded-lg bg-muted/40 p-2">
-          <p className="text-xs text-muted-foreground">{reviewQueueLabels[kind]}</p>
+        {(Object.keys(reviewQueue.counts) as DecisionReviewQueueKind[]).map(kind=><button
+          key={kind}
+          type="button"
+          aria-pressed={selectedReviewKind===kind}
+          className={"rounded-lg border p-2 text-start transition-colors "+(selectedReviewKind===kind?"border-primary bg-primary/10":"bg-muted/40 hover:bg-muted")}
+          onClick={()=>{setSelectedReviewKind(current=>current===kind?"ALL":kind);setRecordPage(0);setFocusedDecisionId("");}}
+        >
+          <span className="block text-xs text-muted-foreground">{reviewQueueLabels[kind]}</span>
           <strong className="text-xl">{reviewQueue.counts[kind]}</strong>
-        </article>)}
+        </button>)}
       </div>
       {reviewQueue.items.length?<div className="space-y-2">
         {reviewQueue.items.slice(0,12).map(item=>{
@@ -537,6 +548,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
               setRecordSearch("");
               setRecordStateFilter("ALL");
               setRecordMemoryFilter("ALL");
+              setSelectedReviewKind("ALL");
               setRecordPage(Math.floor(recordIndex/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
               setFocusedDecisionId(item.decisionId);
             }}>فتح السجل</button>
@@ -810,9 +822,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         </select>
       </label>
       <div className="flex items-end">
-        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"&&recordMemoryFilter==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordMemoryFilter("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"&&recordMemoryFilter==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordMemoryFilter("ALL");setSelectedReviewKind("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
       </div>
-      <p className="text-xs text-muted-foreground sm:col-span-4" role="status">نتائج البحث: {filteredRecords.length} من {result.loadedCount} قراراً محمّلاً · البحث لا يشمل صفحات لم تُحمّل من الخادم.</p>
+      <p className="text-xs text-muted-foreground sm:col-span-4" role="status">{selectedReviewKind!=="ALL"?"فئة طابور المراجعة: "+reviewQueueLabels[selectedReviewKind]+" · ":""}نتائج البحث: {filteredRecords.length} من {result.loadedCount} قراراً محمّلاً · البحث لا يشمل صفحات لم تُحمّل من الخادم.</p>
     </section>:null}
     {result.records.length?<>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">

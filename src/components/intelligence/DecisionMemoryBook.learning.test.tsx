@@ -254,6 +254,13 @@ describe("DecisionMemoryBook outcome learning controls", () => {
     expect(screen.getByText("طابور مراجعة القرارات والمتابعة")).toBeInTheDocument();
     expect(screen.getByText(/متأخرة \\d+ يوم/)).toBeInTheDocument();
     expect(screen.getByText(/يغطي الطابور 1 قراراً محمّلاً من أصل 3/)).toBeInTheDocument();
+    const overdueTile=screen.getByRole("button",{name:/مراجعات متأخرة/});
+    expect(overdueTile).toHaveAttribute("aria-pressed","false");
+    fireEvent.click(overdueTile);
+    expect(screen.getByText(/فئة طابور المراجعة: مراجعات متأخرة/)).toBeInTheDocument();
+    expect(screen.getByText(/نتائج البحث: 1 من 1 قراراً محمّلاً/)).toBeInTheDocument();
+    fireEvent.click(overdueTile);
+    expect(screen.queryByText(/فئة طابور المراجعة: مراجعات متأخرة/)).not.toBeInTheDocument();
 
     const search=screen.getByLabelText("بحث في القرارات المحمّلة");
     fireEvent.change(search,{target:{value:"مصطلح لا يوجد"}});
