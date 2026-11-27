@@ -84,7 +84,15 @@ describe("ProductMediaGallery", () => {
     render(
       <ProductMediaGallery
         productName="هاتف"
-        imageUrls={[images[0], images[0], "javascript:alert(1)", "http://images.example.test/unsafe.png"]}
+        imageUrls={[
+          images[0],
+          images[0],
+          "javascript:alert(1)",
+          "http://images.example.test/unsafe.png",
+          "https://user:password@images.example.test/private.webp",
+          "https://images.example.test/private.webp?token=private-token",
+          "https://images.example.test/private.webp?X-Amz-Signature=private-signature",
+        ]}
       />,
     );
 
