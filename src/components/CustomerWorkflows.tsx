@@ -51,6 +51,7 @@ import {
 import { fetchProducts, fetchResolvedProductPrices, fetchSettingsMap } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
+import { CustomerPaymentReceiptSelfServiceActions } from "@/components/CustomerPaymentReceiptSelfServiceActions";
 import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
 import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
@@ -1586,6 +1587,7 @@ function CustomerPayments() {
       subtitle="حركات الدفعات المسجلة في دفتر حسابك. هذه الشاشة للقراءة فقط ولا تنشئ دفعة أو إيصال سداد."
     >
       <CustomerFinancialSourceNotice source={financialSource} loading={loading && !financialSourceError} error={financialSourceError} />
+      {appLedgerAvailable && <CustomerPaymentReceiptSelfServiceActions source={financialSource} />}
       <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link to="/statement" style={secondary}>كشف الحساب</Link>
