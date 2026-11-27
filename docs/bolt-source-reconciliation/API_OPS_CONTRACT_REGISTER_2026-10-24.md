@@ -116,3 +116,5 @@ Regenerate a current callable RPC/Edge inventory from active main and the approv
 ### P2 staff receipt print snapshot guarantee (2026-11-28)
 
 `get_staff_customer_payment_receipt_print_data(uuid)` now follows the same lock order as customer printing: source binding `FOR SHARE`, receipt header `FOR UPDATE`, existing allocation rows `FOR SHARE`. It reconciles and returns allocations from one materialized SQL snapshot and rejects tenant/customer/currency mismatches. No financial write occurs.
+
+- `get_customer_payment_receipt_print_options(integer,integer)` derives its staff-facing total, ordered receipt page and `has_more` from one materialized SQL snapshot, avoiding inconsistent pagination metadata during concurrent receipt activity.
