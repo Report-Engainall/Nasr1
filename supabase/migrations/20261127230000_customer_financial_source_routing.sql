@@ -271,6 +271,8 @@ BEGIN
       'expected_binding_revision',p_expected_binding_revision
     )::text,'UTF8'),'sha256'),'hex');
 
+  -- Serialize retries by tenant/idempotency key before lookup, including concurrent identical requests.
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_org::text || ':' || btrim(p_idempotency_key),0));
   SELECT r.* INTO v_existing
     FROM public.customer_financial_source_change_requests r
    WHERE r.organization_id=v_org AND r.idempotency_key=btrim(p_idempotency_key)
@@ -655,9 +657,10 @@ BEGIN
   IF v_org IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active customer organization context required';
   END IF;
-  PERFORM 1 FROM public.customers c
-   WHERE c.id=v_customer AND c.organization_id=v_org AND c.status='approved'
-   FOR KEY SHARE;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.customers c
+     WHERE c.id=v_customer AND c.organization_id=v_org AND c.status='approved'
+  ) THEN
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='customer is outside the active organization';
   END IF;
