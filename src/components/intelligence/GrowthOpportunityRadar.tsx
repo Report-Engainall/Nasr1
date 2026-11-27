@@ -111,6 +111,72 @@ export function paginateGrowthOpportunities(
   };
 }
 
+const growthKindLabels: Record<GrowthOpportunity["kind"], string> = {
+  QUOTE_UNCONVERTED: "عرض سعر غير محول",
+  PRODUCT_UNAVAILABLE_DEMAND: "طلب على منتج غير متاح",
+  CUSTOMER_ACTIVITY_DECLINE: "تراجع نشاط العملاء",
+  REPEAT_PURCHASE: "شراء متكرر",
+  PRODUCT_PERFORMANCE_CHANGE: "تغير أداء المنتج",
+};
+
+function growthCsvCell(value: unknown): string {
+  let text = value === null || value === undefined ? "" : String(value);
+  // A leading apostrophe keeps spreadsheet software from executing text as a formula.
+  if (/^[\s\u0000-\u001F]*[=+\-@]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export function buildGrowthOpportunityCsv(opportunities: GrowthOpportunity[]): string {
+  const headers = [
+    "الفرصة", "نوع الفرصة", "الأولوية", "القيمة الحالية المثبتة", "قيمة فترة الأساس",
+    "التغير النسبي %", "الوحدة", "العملة", "وحدة الصنف", "المسؤول المقترح",
+    "الفترة من", "الفترة إلى", "حتى تاريخ", "سبب الإشارة", "الأهمية",
+    "الخطوة التالية", "النتيجة المتوقعة", "مراجع الإثبات", "مفاتيح المؤشرات", "إصدارات المعادلات",
+  ];
+  const rows = opportunities.map(opportunity => [
+    opportunity.title,
+    growthKindLabels[opportunity.kind],
+    opportunity.priority,
+    opportunity.observedValue,
+    opportunity.baselineValue,
+    opportunity.changePercent,
+    opportunity.unit,
+    opportunity.currency ?? "",
+    opportunity.unitOfMeasure ?? "",
+    opportunity.owner,
+    opportunity.period.from,
+    opportunity.period.to,
+    opportunity.asOf,
+    opportunity.why,
+    opportunity.soWhat,
+    opportunity.whatNext,
+    opportunity.expectedOutcome,
+    [...new Set(opportunity.proof.evidenceIds)].join(" | "),
+    [...new Set(opportunity.proof.metricKeys)].join(" | "),
+    [...new Set(opportunity.proof.formulaVersions)].join(" | "),
+  ]);
+  return "\uFEFF" + [headers, ...rows].map(row => row.map(growthCsvCell).join(",")).join("\r\n");
+}
+
+export function downloadGrowthOpportunityCsv(opportunities: GrowthOpportunity[]): void {
+  if (opportunities.length === 0) return;
+  const blob = new Blob([buildGrowthOpportunityCsv(opportunities)], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "nasr1-growth-opportunities-" + new Date().toISOString().slice(0, 10) + ".csv";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
 function numberLabel(value: number | null, unit: string, currency?: string, unitOfMeasure?: string): string {
   if (value === null || !Number.isFinite(value)) return "غير متاح";
   return formatEvidenceNumber(value) + " " + (currency ?? unitOfMeasure ?? unit);
@@ -460,6 +526,14 @@ export function GrowthOpportunityRadar({
               onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setKindFilter("ALL"); setPage(0); }}
             >
               مسح البحث والتصفية
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border px-3 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={filteredOpportunities.length === 0}
+              onClick={() => downloadGrowthOpportunityCsv(filteredOpportunities)}
+            >
+              تصدير الفرص المصفّاة CSV
             </button>
           </div>
         </section>
