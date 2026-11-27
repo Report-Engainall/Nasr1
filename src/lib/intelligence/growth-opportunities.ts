@@ -116,6 +116,9 @@ const MIN_PRIOR_ORDERS_FOR_DECLINE = 3;
 const CUSTOMER_DECLINE_THRESHOLD_PERCENT = 30;
 const MIN_PRODUCT_PERIOD_TRANSACTIONS = 5;
 const PRODUCT_TREND_THRESHOLD_PERCENT = 20;
+const NUMERIC_METRIC_UNITS = new Set<MetricUnit>([
+  "COUNT", "RATIO", "CURRENCY", "CURRENCY_PER_UNIT", "QUANTITY", "DAYS",
+]);
 
 const titles: Record<GrowthOpportunityKind, string> = {
   QUOTE_UNCONVERTED: "عروض أسعار لم تتحول إلى طلب",
@@ -126,7 +129,15 @@ const titles: Record<GrowthOpportunityKind, string> = {
 };
 
 function validTime(value: string): boolean {
-  return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" ||
+      !/^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/.test(value)) {
+    return false;
+  }
+  const datePart = value.slice(0, 10);
+  const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dateMillis) &&
+    new Date(dateMillis).toISOString().slice(0, 10) === datePart;
 }
 
 function day(value: string): number | null {
@@ -181,6 +192,10 @@ function readMetric(
   if (metric.asOf !== asOf || !validPeriod(metric.period) || !metric.lineage?.evidenceIds?.length ||
       !metric.lineage.formulaId?.trim() || !metric.lineage.formulaVersion?.trim() ||
       !validTime(metric.lineage.calculatedAt) || Date.parse(metric.lineage.calculatedAt) > Date.parse(asOf)) {
+    return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
+  }
+  // Numeric-looking TEXT is still descriptive text, never a comparable business quantity.
+  if (!NUMERIC_METRIC_UNITS.has(metric.unit)) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   if ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") && !metric.currency?.trim()) {
