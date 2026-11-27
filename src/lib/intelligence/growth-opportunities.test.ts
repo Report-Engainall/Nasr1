@@ -384,6 +384,15 @@ describe("multi-source growth opportunity radar", () => {
 });
 
 describe("growth radar UTC offset ceiling", () => {
+  it("accepts six PostgreSQL fractional digits and rejects seven", () => {
+    const valid = "2026-11-13T04:00:00.123456Z";
+    expect(build({ evidenceRecords: [], metrics: [], signals: [], generatedAt: valid, asOf: valid }).asOf)
+      .toBe(valid);
+    const invalid = "2026-11-13T04:00:00.1234567Z";
+    expect(() => build({ evidenceRecords: [], metrics: [], signals: [], generatedAt: invalid, asOf: invalid }))
+      .toThrow("growth_radar_timestamp_or_id_invalid");
+  });
+
   it.each([
     ["+14:00", "2026-11-13T18:00:00.000+14:00"],
     ["-14:00", "2026-11-12T14:00:00.000-14:00"],
