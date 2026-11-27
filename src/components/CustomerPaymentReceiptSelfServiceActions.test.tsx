@@ -57,7 +57,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: { rpc: vi.fn() } }));
 describe("CustomerPaymentReceiptSelfServiceActions", () => {
   it("does not call receipt RPCs for ONYX customers", () => {
     render(<CustomerPaymentReceiptSelfServiceActions source={otherSource} />);
-    expect(screen.getByRole("status")).toHaveTextContent("مصدر الحساب");
+    expect(screen.getByRole("status")).toHaveTextContent("لا توجد سندات قبض محفوظة");
     expect(rpc).not.toHaveBeenCalled();
   });
 
