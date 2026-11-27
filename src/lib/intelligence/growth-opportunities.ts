@@ -1,4 +1,5 @@
 import { buildEvidencePassport } from "./evidence-passport";
+import { decimalToMinorUnits, minorUnitsToNumber, roundedPercentageHundredths } from "./financial-precision";
 import type { EvidencePeriod, EvidenceRecord, EvidenceStatus, MetricSnapshot, MetricUnit } from "./types";
 
 export const GROWTH_OPPORTUNITY_POLICY_VERSION = "1.0.0";
@@ -106,7 +107,7 @@ export interface GrowthOpportunityRadarResult {
   warnings: string[];
 }
 
-type MetricRead = { metric: MetricSnapshot; value: number };
+type MetricRead = { metric: MetricSnapshot; value: number; currencyMinorUnits?: bigint };
 
 const DAY_MS = 86_400_000;
 const MIN_QUOTE_SAMPLE = 3;
@@ -198,11 +199,20 @@ function readMetric(
   if (!NUMERIC_METRIC_UNITS.has(metric.unit)) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
-  if ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") && !metric.currency?.trim()) {
+  if ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") &&
+      (typeof metric.currency !== "string" || !/^[A-Z]{3}$/.test(metric.currency))) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   if ((metric.unit === "QUANTITY" || metric.unit === "CURRENCY_PER_UNIT") && !metric.unitOfMeasure?.trim()) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
+  }
+  if (metric.unit === "CURRENCY") {
+    const currencyMinorUnits = decimalToMinorUnits(metric.value, 2);
+    const value = currencyMinorUnits === null ? null : minorUnitsToNumber(currencyMinorUnits, 2);
+    if (currencyMinorUnits === null || value === null) {
+      return { read: null, reason: "METRIC_NOT_VERIFIED" };
+    }
+    return { read: { metric, value, currencyMinorUnits }, reason: null };
   }
   const value = numeric(metric.value);
   if (value === null) return { read: null, reason: "METRIC_NOT_VERIFIED" };
@@ -211,6 +221,16 @@ function readMetric(
 
 function countMetric(read: MetricRead): boolean {
   return read.metric.unit === "COUNT" && Number.isSafeInteger(read.value);
+}
+
+function currencyChangePercent(current: MetricRead, baseline: MetricRead): number | null {
+  const currentMinor = current.currencyMinorUnits;
+  const baselineMinor = baseline.currencyMinorUnits;
+  if (currentMinor === undefined || baselineMinor === undefined || baselineMinor <= 0n) return null;
+  const delta = currentMinor - baselineMinor;
+  const hundredths = roundedPercentageHundredths(delta < 0n ? -delta : delta, baselineMinor);
+  if (hundredths === null || hundredths > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return (Number(hundredths) / 100) * (delta < 0n ? -1 : 1);
 }
 
 function sampleFor(
@@ -447,11 +467,15 @@ export function buildGrowthOpportunityRadar(input: {
             changePercent = -100;
             eligible = true;
           } else if (baseline.value > 0) {
-            changePercent = ((observed.value - baseline.value) / baseline.value) * 100;
-            if (Number.isFinite(changePercent) && changePercent >= PRODUCT_TREND_THRESHOLD_PERCENT) {
+            changePercent = observed.metric.unit === "CURRENCY"
+              ? currencyChangePercent(observed, baseline)
+              : ((observed.value - baseline.value) / baseline.value) * 100;
+            if (changePercent === null || !Number.isFinite(changePercent)) {
+              reason = "INVALID_COMPARISON";
+            } else if (changePercent >= PRODUCT_TREND_THRESHOLD_PERCENT) {
               direction = "INCREASING";
               eligible = true;
-            } else if (Number.isFinite(changePercent) && changePercent <= -PRODUCT_TREND_THRESHOLD_PERCENT) {
+            } else if (changePercent <= -PRODUCT_TREND_THRESHOLD_PERCENT) {
               direction = "DECLINING";
               eligible = true;
             }

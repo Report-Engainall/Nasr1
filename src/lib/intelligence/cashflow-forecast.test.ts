@@ -24,6 +24,30 @@ describe("scheduled cash-flow forecast",()=>{
   expect(r.points.every(p=>p.currency==="YER" || p.currency==="USD")).toBe(true);
   expect(r.points.every(p=>p.projectedBalance!==null)).toBe(true);
  });
+ it("withholds every projected balance when a scheduled movement has a non-canonical currency identity",()=>{
+  const result=buildCashflowForecast(base([entry("invalid-currency-in","INFLOW","2026-11-01",20,"yer")]));
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point).toMatchObject({
+   currency:"YER",openingBalance:100,knownInflows:null,knownOutflows:null,
+   projectedBalance:null,status:"NEEDS_REVIEW",scheduleComplete:false,
+  });
+  expect(point?.warnings).toContain("INVALID_SCHEDULE_CURRENCY_IDENTITY");
+ });
+ it("does not create a currency forecast from a non-canonical opening-balance code",()=>{
+  const opening=metric("open-invalid","cash.opening",100,"yer");
+  const scheduled=entry("valid-in","INFLOW","2026-11-01",20,"YER");
+  const result=buildCashflowForecast({
+   ...base([scheduled]),
+   openingBalances:[opening],
+   evidenceRecords:[evidence("open-invalid","yer"),evidence("valid-in","YER")],
+  });
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point).toMatchObject({
+   currency:"YER",openingBalance:null,knownInflows:20,projectedBalance:null,
+   status:"UNAVAILABLE",scheduleComplete:true,
+  });
+  expect(result.warnings).toContain("OPENING_BALANCE_CURRENCY_IDENTITY_INVALID");
+ });
  it("withholds projected balance when schedule coverage is partial",()=>{
   const r=buildCashflowForecast({...base([entry("a","INFLOW","2026-11-01",20)]),scheduleCompleteness:"PARTIAL"});
   expect(r.points[0].projectedBalance).toBeNull();

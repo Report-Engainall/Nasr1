@@ -4,7 +4,7 @@ import type { DeadStockClass, DeadStockReport } from "./dead-stock";
 import type { EvidencePeriod, EvidenceStatus } from "./types";
 import type { LiquidityPosition, LiquiditySnapshot } from "./liquidity";
 import type { ReplenishmentRecommendation } from "./replenishment";
-import type { ProductRevenueConcentrationSnapshot } from "./product-revenue-concentration-client";
+import { timestampMicroseconds, type ProductRevenueConcentrationSnapshot } from "./product-revenue-concentration-client";
 import type { SupplierPostedPayableActivitySnapshot } from "./supplier-posted-payable-activity-client";
 import { buildSupplierPayableConcentrationTrend, type SupplierPayableConcentrationTrend } from "./supplier-payable-concentration-trend";
 
@@ -133,7 +133,7 @@ const STOCK_CLASSES: DeadStockClass[] = ["ACTIVE", "SLOW_MOVING", "STAGNANT", "Z
 const HORIZONS = [7, 30, 90] as const;
 
 function validTime(value: string): boolean {
-  return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
+  return timestampMicroseconds(value) !== null;
 }
 function validPeriod(period: EvidencePeriod | null | undefined): period is EvidencePeriod {
   if (!period || !/^\d{4}-\d{2}-\d{2}$/.test(period.from) || !/^\d{4}-\d{2}-\d{2}$/.test(period.to)) return false;
@@ -391,8 +391,10 @@ function buildAttention(currencies: BusinessHealthCurrencyPosition[], cashflow: 
 
 /** Composes verified engine outputs without double-counting overlapping capital categories. */
 export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessHealthMapResult {
-  if (!input.id.trim() || !validTime(input.generatedAt) || !validTime(input.asOf) ||
-      Date.parse(input.generatedAt) < Date.parse(input.asOf) || !validPeriod(input.period)) throw new Error("business_health_map_input_invalid");
+  const generatedAtMicros = timestampMicroseconds(input.generatedAt);
+  const asOfMicros = timestampMicroseconds(input.asOf);
+  if (!input.id.trim() || generatedAtMicros === null || asOfMicros === null ||
+      generatedAtMicros < asOfMicros || !validPeriod(input.period)) throw new Error("business_health_map_input_invalid");
   const warnings: string[] = [];
   const liquidityValid = input.liquidity?.asOf === input.asOf && validPeriod(input.liquidity.period);
   const liquidity = liquidityValid ? input.liquidity : null;
@@ -463,7 +465,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   const suppliedConcentration = input.productRevenueConcentration ?? null;
   const concentrationAligned = Boolean(
     suppliedConcentration &&
-    Date.parse(suppliedConcentration.asOf) === Date.parse(input.asOf) &&
+    timestampMicroseconds(suppliedConcentration.asOf) === asOfMicros &&
     suppliedConcentration.period.from === input.period.from &&
     suppliedConcentration.period.to === input.period.to
   );
@@ -494,7 +496,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
       );
   const suppliedSupplierActivity = input.supplierPostedPayableActivity ?? null;
   const supplierActivityAligned = Boolean(suppliedSupplierActivity &&
-    Date.parse(suppliedSupplierActivity.asOf) === Date.parse(input.asOf) &&
+    timestampMicroseconds(suppliedSupplierActivity.asOf) === asOfMicros &&
     suppliedSupplierActivity.period.from === input.period.from &&
     suppliedSupplierActivity.period.to === input.period.to);
   const supplierPostedPayableActivity = supplierActivityAligned ? suppliedSupplierActivity : null;
