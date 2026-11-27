@@ -87,6 +87,129 @@ async function main(){
  assert.equal(rel.length,1);assert.equal(rel[0].id,res2.id);
  const restored=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r from public.inventory_batches where id=$1::uuid",[res2.id]))[0];
  assert.equal(Number(restored.h),1);assert.equal(Number(restored.r),0);
+
+ // A lot may expire while the customer order is waiting in processing. The
+ // shipment must fail closed until a manager moves that reservation to a valid
+ // FEFO lot, preserving immutable reserve/release movement evidence.
+ await as(manager);
+ const order3=(await rpc("select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
+  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO reallocate expired reservation",randomUUID().replaceAll("-",""),"cash_on_delivery"])).id;
+ assert.ok(order3);
+ await status(manager,order3,"confirmed");
+ await status(manager,order3,"processing");
+ const originalReservation=(await db.unsafe(
+  "select im.inventory_batch_id::text id,b.batch_number,b.expiry_date::text " +
+  "from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id " +
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve'",
+  [order3],
+ ))[0];
+ assert.ok(originalReservation);
+ assert.equal(originalReservation.batch_number,late.batch,
+  "the still-valid next FEFO receipt lot must be reserved before it expires");
+ // Move the clock condition forward deterministically by making that test-only lot
+ // previous-day expired while keeping its reservation and aggregate balance intact.
+ await db.unsafe(
+  "update public.inventory_batches set expiry_date=$2::date where id=$1::uuid",
+  [originalReservation.id,expiredDate],
+ );
+ await assert.rejects(
+  () => status(manager,order3,"shipped"),
+  error => String(error?.code)==="55000" && String(error?.message).includes("expired reserved batch"),
+  "shipment must be rejected while its active reservation points to an expired batch",
+ );
+ const stillProcessing=(await db.unsafe("select status from public.orders where id=$1::uuid",[order3]))[0];
+ assert.equal(stillProcessing.status,"processing","failed shipment must leave order status unchanged");
+
+ const replacementDate=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+60,'YYYY-MM-DD') d",
+ ))[0].d;
+ const replacement=await receipt(manager,"FEFO-REPLACEMENT-"+suffix,replacementDate);
+ await as(manager);
+ const reallocationKey="fefo-reallocate-"+randomUUID().replaceAll("-","");
+ const reallocationReason="Replace a reserved lot that expired before shipment";
+ const reallocated=await rpc(
+  "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+  [order3,reallocationKey,reallocationReason],
+ );
+ assert.equal(Number(reallocated.reallocated_quantity),1);
+ assert.equal(reallocated.released_lot_count,1);
+ assert.equal(reallocated.replacement_lot_count,1);
+ assert.equal(reallocated.idempotent_replay,false);
+ assert.equal(reallocated.replacement_allocations.length,1);
+ const replacementBatchId=reallocated.replacement_allocations[0].to_batch_id;
+ const replacementBatch=(await db.unsafe(
+  "select batch_number,expiry_date::text,quantity_reserved::text from public.inventory_batches where id=$1::uuid",
+  [replacementBatchId],
+ ))[0];
+ assert.equal(replacementBatch.batch_number,replacement.batch);
+ assert.equal(replacementBatch.expiry_date,replacementDate);
+ assert.equal(Number(replacementBatch.quantity_reserved),1);
+
+ const reallocationReplay=await rpc(
+  "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+  [order3,reallocationKey,reallocationReason],
+ );
+ assert.equal(reallocationReplay.idempotent_replay,true);
+ assert.equal(reallocationReplay.reallocation_id,reallocated.reallocation_id);
+ assert.equal(reallocationReplay.replacement_allocations.length,1,
+  "replayed reallocation returns the original saved replacement evidence without rebooking stock");
+ await assert.rejects(
+  () => rpc(
+   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [order3,reallocationKey,"Changed payload must not reuse the reallocation key"],
+  ),
+  error => String(error?.code)==="22023" && String(error?.message).includes("payload conflict"),
+  "a reused reallocation key with a changed reason must be rejected",
+ );
+
+ const reallocationMovements=await db.unsafe(
+  "select im.movement_type,b.batch_number,pg_catalog.sum(im.quantity)::text quantity " +
+  "from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id " +
+  "where im.reference_type='order' and im.reference_id=$1::uuid " +
+  "and im.movement_type in ('reserve','release_reservation') " +
+  "group by im.movement_type,b.batch_number order by b.batch_number,im.movement_type",
+  [order3],
+ );
+ assert.ok(reallocationMovements.some(row=>row.movement_type==="reserve"&&row.batch_number===late.batch&&Number(row.quantity)===1));
+ assert.ok(reallocationMovements.some(row=>row.movement_type==="release_reservation"&&row.batch_number===late.batch&&Number(row.quantity)===1));
+ assert.ok(reallocationMovements.some(row=>row.movement_type==="reserve"&&row.batch_number===replacement.batch&&Number(row.quantity)===1));
+
+ await status(manager,order3,"shipped");
+ const reallocatedSale=(await db.unsafe(
+  "select im.inventory_batch_id::text id,im.quantity::text quantity,b.batch_number " +
+  "from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id " +
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='sale'",
+  [order3],
+ ));
+ assert.equal(reallocatedSale.length,1);
+ assert.equal(reallocatedSale[0].id,replacementBatchId,
+  "shipment must consume the replacement batch, not the expired original reservation");
+ assert.equal(reallocatedSale[0].batch_number,replacement.batch);
+ assert.equal(Number(reallocatedSale[0].quantity),-1);
+
+ const finalParity=(await db.unsafe(
+  "select ib.quantity_on_hand::text h,ib.quantity_reserved::text r,"+
+  "coalesce(pg_catalog.sum(b.quantity_on_hand),0)::text bh,"+
+  "coalesce(pg_catalog.sum(b.quantity_reserved),0)::text br "+
+  "from public.inventory_balances ib left join public.inventory_batches b "+
+  "on b.product_id=ib.product_id and b.warehouse_id=ib.warehouse_id "+
+  "where ib.product_id=$1::uuid and ib.warehouse_id=$2::uuid group by ib.id",
+  [product,warehouse],
+ ))[0];
+ assert.equal(Number(finalParity.h),Number(finalParity.bh));
+ assert.equal(Number(finalParity.r),Number(finalParity.br),
+  "aggregate reserved quantities must remain in exact parity after release, replacement and shipment");
+
+ await as(customer);
+ await assert.rejects(
+  () => rpc(
+   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [order3,"customer-forbidden-"+randomUUID().replaceAll("-",""),"Customer cannot reallocate inventory"],
+  ),
+  error => String(error?.code)==="42501",
+  "customer must not invoke the manager-only inventory reallocation RPC",
+ );
+
  // Compare the previous-day test lot with today, not with its own expiry date.
  const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<(pg_catalog.now() at time zone 'UTC')::date expired from public.inventory_batches where id=$1::uuid",[expiredBatchId]))[0];
  assert.equal(expiredState.expired,true);assert.equal(Number(expiredState.h),1);assert.equal(Number(expiredState.r),0);
