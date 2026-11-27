@@ -264,6 +264,7 @@ async function main() {
   const exactHandoffReplay = await prepareInvoice(admin, exact.invoice_id, null, null, exactHandoffKey);
   assert.equal(exactHandoffReplay.handoff_id, exactHandoff.handoff_id);
   assert.equal(exactHandoffReplay.replayed, true);
+  await db.unsafe("reset role");
   const exactRows = await db.unsafe(
     "select count(*)::integer as handoffs,count(*) filter (where journal_entry_id is not null)::integer as journal_handoffs " +
     "from public.purchase_supplier_invoice_accounting_drafts where organization_id=$1::uuid and invoice_id=$2::uuid",
@@ -381,6 +382,7 @@ async function main() {
     [variance.invoice_id],
   );
   assert.equal(status.accounting_status, "journal_posted");
+  await db.unsafe("reset role");
   assert.equal(await auditCount(variance.invoice_id, "supplier_invoice.accounting_draft_created"), 1);
   await db.unsafe("reset role");
   const postedJournal = await db.unsafe(
