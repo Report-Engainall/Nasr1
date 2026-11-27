@@ -627,35 +627,51 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
       throw new ErpConnectorError("ERP_ORIGIN_CHANGED", "تغير أصل اتصال ERP أثناء بناء الطلب.");
     }
 
-    const request = await this.requestWithRetry(url);
     let text: string;
-    try {
-      text = await readBoundedBody(request.response, this.maxResponseBytes);
-    } catch (error) {
-      request.cleanup();
-      if (request.signal.aborted) {
-        throw new ErpConnectorError("ERP_TIMEOUT", "انتهت مهلة قراءة استجابة مصدر ERP.", { retryable: true });
+    let response: Response;
+    let retriesUsed = 0;
+    for (;;) {
+      const request = await this.requestWithRetry(url, this.maxRetries - retriesUsed);
+      response = request.response;
+      try {
+        text = await readBoundedBody(request.response, this.maxResponseBytes);
+        request.cleanup();
+        break;
+      } catch (error) {
+        request.cleanup();
+        const timedOut = request.signal.aborted;
+        const retryableReadFailure = timedOut ||
+          !(error instanceof ErpConnectorError) ||
+          error.retryable;
+        retriesUsed += request.retriesUsed;
+        if (!retryableReadFailure || retriesUsed >= this.maxRetries) {
+          if (timedOut) {
+            throw new ErpConnectorError("ERP_TIMEOUT", "انتهت مهلة قراءة استجابة مصدر ERP.", { retryable: true });
+          }
+          if (error instanceof ErpConnectorError) throw error;
+          throw new ErpConnectorError("ERP_RESPONSE_READ_FAILED", "تعذرت قراءة استجابة مصدر ERP بأمان.", { retryable: true });
+        }
+        const backoffAttempt = retriesUsed;
+        retriesUsed += 1;
+        await this.sleep(Math.min(500 * (2 ** backoffAttempt), this.maxRetryDelayMs));
       }
-      if (error instanceof ErpConnectorError) throw error;
-      throw new ErpConnectorError("ERP_RESPONSE_READ_FAILED", "تعذرت قراءة استجابة مصدر ERP بأمان.", { retryable: true });
     }
-    request.cleanup();
     let payload: unknown;
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new ErpConnectorError("INVALID_ERP_JSON", "أعاد ERP استجابة غير صالحة بصيغة JSON.", { httpStatus: request.response.status });
+      throw new ErpConnectorError("INVALID_ERP_JSON", "أعاد ERP استجابة غير صالحة بصيغة JSON.", { httpStatus: response.status });
     }
 
     const rows = getPath(payload, this.contract.itemsPath, "itemsPath");
     if (!Array.isArray(rows) || rows.length > MAX_PAGE_ROWS) {
-      throw new ErpConnectorError("INVALID_ERP_PAGE", "بنية صفحة ERP غير صالحة أو تتجاوز حد الصفوف.", { httpStatus: request.response.status });
+      throw new ErpConnectorError("INVALID_ERP_PAGE", "بنية صفحة ERP غير صالحة أو تتجاوز حد الصفوف.", { httpStatus: response.status });
     }
     if (rows.length > maxRows) {
       throw new ErpConnectorError(
         "ERP_PAGE_EXCEEDS_RUN_LIMIT",
         "تجاوزت صفحة ERP سقف السجلات المتبقي للدفعة؛ لم يتم حفظ الصفحة أو تحريك مؤشر المزامنة.",
-        { httpStatus: request.response.status },
+        { httpStatus: response.status },
       );
     }
     const next = this.contract.nextCursorPath
@@ -663,7 +679,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
       : null;
     if (next != null && (typeof next !== "string" || next.length > MAX_CURSOR_LENGTH ||
         !next.trim() || /[\u0000-\u001f\u007f]/.test(next))) {
-      throw new ErpConnectorError("INVALID_ERP_CURSOR", "أعاد ERP مؤشر صفحة غير صالح.", { httpStatus: request.response.status });
+      throw new ErpConnectorError("INVALID_ERP_CURSOR", "أعاد ERP مؤشر صفحة غير صالح.", { httpStatus: response.status });
     }
 
     const records = await Promise.all(rows.map((row) => this.projectRecord(row)));
@@ -677,9 +693,9 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
     return {
       records,
       nextCursor: typeof next === "string" ? next : null,
-      httpStatus: request.response.status,
+      httpStatus: response.status,
       externalRequestId: this.contract.requestIdHeader
-        ? safeHeaderValue(request.response.headers.get(this.contract.requestIdHeader))
+        ? safeHeaderValue(response.headers.get(this.contract.requestIdHeader))
         : null,
       responseSha256: await sha256Hex(text),
     };
@@ -752,10 +768,13 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
     };
   }
 
-  private async requestWithRetry(url: URL): Promise<{ response: Response; signal: AbortSignal; cleanup: () => void }> {
+  private async requestWithRetry(
+    url: URL,
+    retryBudget: number,
+  ): Promise<{ response: Response; signal: AbortSignal; cleanup: () => void; retriesUsed: number }> {
     const headerName = this.connection.credential.headerName;
     const authValue = (this.connection.credential.prefix ?? "") + this.connection.credential.secret;
-    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+    for (let attempt = 0; attempt <= retryBudget; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       const cleanup = () => clearTimeout(timer);
@@ -772,7 +791,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
         });
       } catch {
         cleanup();
-        if (attempt >= this.maxRetries) {
+        if (attempt >= retryBudget) {
           throw new ErpConnectorError(
             controller.signal.aborted ? "ERP_TIMEOUT" : "ERP_NETWORK_ERROR",
             controller.signal.aborted ? "انتهت مهلة الاتصال بمصدر ERP." : "تعذر الاتصال بمصدر ERP.",
@@ -808,7 +827,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
         const retryAfter = parseRetryAfter(response.headers.get("retry-after"), this.now(), this.maxRetryDelayMs);
         await response.body?.cancel().catch(() => undefined);
         cleanup();
-        if (attempt >= this.maxRetries) {
+        if (attempt >= retryBudget) {
           throw new ErpConnectorError(
             response.status === 429 ? "ERP_RATE_LIMITED" : "ERP_PROVIDER_UNAVAILABLE",
             response.status === 429 ? "فرض مصدر ERP حدًا للطلبات؛ انتهت محاولات الإعادة المحدودة." : "مصدر ERP غير متاح بعد محاولات الإعادة المحدودة.",
@@ -823,7 +842,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
         cleanup();
         throw new ErpConnectorError("ERP_HTTP_ERROR", "أعاد مصدر ERP حالة HTTP غير ناجحة.", { httpStatus: response.status });
       }
-      return { response, signal: controller.signal, cleanup };
+      return { response, signal: controller.signal, cleanup, retriesUsed: attempt };
     }
     throw new ErpConnectorError("ERP_RETRY_EXHAUSTED", "انتهت محاولات الاتصال بمصدر ERP.", { retryable: true });
   }
