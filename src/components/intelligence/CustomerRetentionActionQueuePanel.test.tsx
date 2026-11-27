@@ -116,6 +116,16 @@ describe("CustomerRetentionActionQueuePanel", () => {
     expect(screen.getByText(/يعرض 1 من 2 إجراء محمّل/)).toBeInTheDocument();
   });
 
+  it("keeps filter hooks stable as source state changes from loading to verified", () => {
+    const view = render(<CustomerRetentionActionQueuePanel queue={null} loading />);
+    expect(screen.getByText(/جارٍ تجهيز قائمة الإجراءات/)).toBeInTheDocument();
+
+    view.rerender(<CustomerRetentionActionQueuePanel queue={verifiedQueue} loading={false} />);
+
+    expect(screen.getByRole("searchbox", { name: "البحث في إجراءات متابعة العملاء" })).toBeInTheDocument();
+    expect(screen.getByText("إعادة تنشيط العميل")).toBeInTheDocument();
+  });
+
   it("withholds all customer actions when the source population is not verified", () => {
     const withheld: CustomerRetentionActionQueue = {
       ...verifiedQueue,
