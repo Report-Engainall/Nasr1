@@ -635,6 +635,9 @@ describe("server-side ERP read connector contract", () => {
         .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP" });
     }
 
+    await expect(readTimestamp("2026-11-27T10:00:00.1234567Z"))
+      .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP_PRECISION" });
+
     await expect(readTimestamp("0001-01-01T00:00:00+14:00"))
       .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP_RANGE" });
     await expect(readTimestamp("9999-12-31T23:59:59-14:00"))
@@ -651,6 +654,9 @@ describe("server-side ERP read connector contract", () => {
       const page = await readTimestamp(timestamp);
       expect(page.records[0]?.sourceUpdatedAt).toBe(new Date(timestamp).toISOString());
     }
+
+    const microsecondPage = await readTimestamp("2024-02-29T13:00:00.123456+03:00");
+    expect(microsecondPage.records[0]?.sourceUpdatedAt).toBe("2024-02-29T10:00:00.123456Z");
 
     const stockContract: ErpReadContract = {
       ...productContract,
@@ -707,6 +713,42 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     expect(inputs[0].modifiedSince).toBe("2026-11-27T08:58:00.000Z");
   });
 
+
+  it("preserves PostgreSQL microseconds when ordering watermarks and calculating overlap", async () => {
+    const completedWatermark = "2026-11-27T09:00:00.123456Z";
+    const newerWatermark = "2026-11-27T09:00:00.123789Z";
+    const store = new InMemoryCheckpointStore(checkpoint({
+      version: 3,
+      completedWatermark,
+    }));
+    const inputs: ErpReadPageInput[] = [];
+    const connector: ErpReadConnector = {
+      readPage: async (input) => {
+        inputs.push(input);
+        return {
+          records: [{
+            ...record("microsecond-1", newerWatermark),
+            sourceUpdatedAt: newerWatermark,
+          }],
+          nextCursor: null,
+          httpStatus: 200,
+          externalRequestId: null,
+          responseSha256: "7".repeat(64),
+        };
+      },
+    };
+
+    const result = await runIncrementalReadOnlySync({
+      connector,
+      store,
+      scope,
+      overlapMs: 120_000,
+    });
+
+    expect(inputs[0].modifiedSince).toBe("2026-11-27T08:58:00.123456Z");
+    expect(result.checkpoint.completedWatermark).toBe(newerWatermark);
+    expect(store.committed[0].completedWatermark).toBe(newerWatermark);
+  });
 
   it("commits pages atomically and advances the completed watermark only at the final page", async () => {
     const store = new InMemoryCheckpointStore(checkpoint({
