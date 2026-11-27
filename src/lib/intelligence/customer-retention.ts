@@ -64,7 +64,9 @@ export function buildCustomerRetentionReport(input:{
    const matches=coverageEvidenceMap.get(id)??[];
    const sourceTime=matches.length===1?timestamp(matches[0].sourceTimestamp):null;
    return matches.length===1&&matches[0].status==="VERIFIED"&&matches[0].completeness==="COMPLETE"&&matches[0].quality==="ACCEPTABLE"&&
-    matches[0].asOf===input.asOf&&sourceTime!==null&&sourceTime<=asOfTime;
+    matches[0].asOf===input.asOf&&
+    matches[0].period?.from===input.period.from&&matches[0].period?.to===input.period.to&&
+    sourceTime!==null&&sourceTime<=asOfTime;
     matches[0].asOf===input.asOf&&Number.isFinite(Date.parse(matches[0].sourceTimestamp))&&Date.parse(matches[0].sourceTimestamp)<=asOfTime;
   });
  const fullCoverage=coverage.status==="VERIFIED"&&coverage.completeness==="COMPLETE"&&coverage.quality==="ACCEPTABLE"&&!coverage.truncated&&countsValid&&
