@@ -26,6 +26,7 @@ if (
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const foreignOrganizationId = "a1111111-1111-4111-8111-111111111111";
 const productId = "a1000000-0000-0000-0000-000000000001";
+const foreignProductId = "a1000000-0000-0000-0000-000000000002";
 const preferredWarehouseId = "d0000000-0000-0000-0000-000000000001";
 const runKey = (process.env.GITHUB_RUN_ID || "local") + "-" + randomUUID().slice(0, 8);
 const passwordA = randomUUID().replaceAll("-", "") + "Aa1!";
@@ -312,6 +313,24 @@ async function main() {
       throw new Error("The isolated P2 product fixture is missing, inactive, or owned by another tenant.");
     }
     purchaseProduct = product[0];
+
+    await tx.unsafe(
+      "insert into public.products(" +
+      "id,organization_id,category_id,name,item_code,barcode,description,unit,base_price,cost_price,min_stock,status" +
+      ") values($1::uuid,$2::uuid,NULL,'P2 Local E2E Foreign Product','P2-LOCAL-FOREIGN-001',NULL," +
+      "'Disposable cross-tenant image authorization fixture','carton',38500,0,0,'active') " +
+      "on conflict(id) do nothing",
+      [foreignProductId, foreignOrganizationId],
+    );
+    const foreignProduct = await tx.unsafe(
+      "select id,organization_id,item_code from public.products " +
+      "where id=$1::uuid and organization_id=$2::uuid and item_code='P2-LOCAL-FOREIGN-001' and status='active'",
+      [foreignProductId, foreignOrganizationId],
+    );
+    if (foreignProduct.length !== 1) {
+      throw new Error("The isolated foreign-tenant image product fixture is missing or tenant-mismatched.");
+    }
+
     await tx.unsafe(
       "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values " +
       "($1::uuid,'retail',38500,1,true),($1::uuid,'wholesale',37000,10,true),($1::uuid,'vip',35500,20,true) " +
@@ -538,6 +557,7 @@ async function main() {
     "E2E_STAFF_EMAIL=" + staffEmail,
     "E2E_STAFF_PASSWORD=" + staffPassword,
     "E2E_PRODUCT_ID=" + productId,
+    "E2E_FOREIGN_PRODUCT_ID=" + foreignProductId,
     "E2E_DEVICE_ADMIN_EMAIL=" + adminEmail,
     "E2E_DEVICE_ADMIN_PASSWORD=" + adminPassword,
     "E2E_DEVICE_TARGET_EMAIL=" + managerEmail,
