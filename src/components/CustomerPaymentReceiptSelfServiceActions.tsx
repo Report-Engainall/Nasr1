@@ -7,7 +7,7 @@ import {
   renderCustomerPaymentReceiptDocument,
   type FinancePrintReceiptOptions,
 } from "@/lib/finance-document-print";
-import { canReadCustomerAppLedger, type CustomerFinancialSource } from "@/lib/customer-financial-source";
+import { canReadCustomerAppLedger, revalidateMyCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 
 type Props = { source: CustomerFinancialSource | null };
 const PAGE_SIZE = 100;
@@ -39,10 +39,13 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const optionsRequestSequenceRef = useRef(0);
+  const printRequestSequenceRef = useRef(0);
 
   const loadOptions = useCallback(async (targetOffset = 0, preferredId?: string | null) => {
     const requestId = ++optionsRequestSequenceRef.current;
-    if (!canReadCustomerAppLedger(sourceRef.current)) {
+    printRequestSequenceRef.current += 1;
+    const sourceSnapshot = sourceRef.current;
+    if (!canReadCustomerAppLedger(sourceSnapshot)) {
       setOptions(emptyOptions);
       setSelectedId("");
       setLoading(false);
@@ -51,17 +54,25 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
     }
     setLoading(true);
     setError("");
+    setNotice("");
+    setOptions(emptyOptions);
+    setSelectedId("");
     try {
+      const sourceBefore = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+      if (requestId !== optionsRequestSequenceRef.current) return;
+      if (!sourceBefore.unchanged) {
+        throw new Error("تغير مصدر الحساب المالي قبل تحميل سندات القبض؛ لم نعتمد بيانات دفتر التطبيق.");
+      }
       const result = await supabase.rpc("get_my_customer_payment_receipt_print_options", {
         p_limit: PAGE_SIZE,
         p_offset: targetOffset,
       });
-      if (result.error) throw new Error("تعذر تحميل سندات القبض الخاصة بحسابك.");
       if (requestId !== optionsRequestSequenceRef.current) return;
-      if (!canReadCustomerAppLedger(sourceRef.current)) {
-        setOptions(emptyOptions);
-        setSelectedId("");
-        return;
+      if (result.error) throw new Error("تعذر تحميل سندات القبض الخاصة بحسابك.");
+      const sourceAfter = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+      if (requestId !== optionsRequestSequenceRef.current) return;
+      if (!sourceAfter.unchanged || !canReadCustomerAppLedger(sourceRef.current)) {
+        throw new Error("تغير مصدر الحساب المالي أثناء تحميل سندات القبض؛ أسقطنا الصفحة القديمة.");
       }
       const parsed = readCustomerPaymentReceiptPrintOptions(result.data);
       if (parsed.limit !== PAGE_SIZE || parsed.offset !== targetOffset) {
@@ -85,16 +96,30 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
 
   useEffect(() => {
     void loadOptions(0);
-    return () => { optionsRequestSequenceRef.current += 1; };
+    return () => {
+      optionsRequestSequenceRef.current += 1;
+      printRequestSequenceRef.current += 1;
+    };
   }, [loadOptions]);
 
   const selected = options.receipts.find((row) => row.id === selectedId) ?? null;
 
   async function printReceipt() {
     if (!selected || busy || !canReadCustomerAppLedger(sourceRef.current)) return;
+    const requestId = ++printRequestSequenceRef.current;
+    const selectedReceiptId = selected.id;
+    const sourceSnapshot = sourceRef.current;
     setError("");
     setNotice("");
     let printWindow: Window | null = null;
+    const ensureCurrentSelection = () => {
+      if (requestId === printRequestSequenceRef.current) return;
+      closePrintWindow(printWindow);
+      if (!canReadCustomerAppLedger(sourceRef.current)) {
+        throw new Error("تغير مصدر الحساب أثناء تجهيز السند؛ أوقفنا الطباعة وأغلقنا النافذة.");
+      }
+      throw new Error("تغير السند المحدد أثناء التجهيز؛ أوقفنا الطباعة وأغلقنا النافذة.");
+    };
     try {
       // Open synchronously in the click handler to avoid popup-blocker races.
       printWindow = window.open("", "_blank", "width=1000,height=800");
@@ -108,27 +133,43 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
       waiting.textContent = "جارٍ التحقق من سند القبض وصلاحية الحساب…";
       printWindow.document.body.appendChild(waiting);
       setBusy(true);
+
+      const sourceBefore = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+      ensureCurrentSelection();
+      if (!sourceBefore.unchanged) {
+        throw new Error("تغير مصدر الحساب قبل تجهيز سند القبض؛ أوقفنا الطباعة.");
+      }
+
       const result = await supabase.rpc("get_my_customer_payment_receipt_print_data", {
-        p_receipt_id: selected.id,
+        p_receipt_id: selectedReceiptId,
       });
+      ensureCurrentSelection();
       if (result.error) throw new Error("تعذر استرجاع سند القبض من مصدر الحساب المعتمد.");
       const payload = readCustomerPaymentReceiptPrintPayload(result.data);
+
+      const sourceAfter = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+      ensureCurrentSelection();
+      if (!sourceAfter.unchanged) {
+        throw new Error("تغير مصدر الحساب أثناء استرجاع السند؛ أوقفنا الطباعة وأغلقنا النافذة.");
+      }
+      if (payload.receipt.id !== selectedReceiptId) {
+        throw new Error("لم يطابق السند الذي أعاده الخادم السند المحدد؛ أوقفنا الطباعة.");
+      }
       if (!canReadCustomerAppLedger(sourceRef.current)) {
         throw new Error("تغير مصدر الحساب أثناء تجهيز السند؛ أوقفنا الطباعة وأغلقنا النافذة.");
-      }
-      if (payload.receipt.id !== selected.id) {
-        throw new Error("لم يطابق السند الذي أعاده الخادم السند المحدد؛ أوقفنا الطباعة.");
       }
       renderCustomerPaymentReceiptDocument(printWindow.document, payload, options.organization_name);
       printWindow.focus();
       printWindow.onafterprint = () => closePrintWindow(printWindow);
       window.setTimeout(() => {
-        if (printWindow && !printWindow.closed) printWindow.print();
+        if (printWindow && !printWindow.closed && requestId === printRequestSequenceRef.current) printWindow.print();
       }, 180);
       setNotice("تم تجهيز سند القبض المحفوظ من رأس السند وتخصيصات الفواتير الفعلية.");
     } catch (cause) {
       closePrintWindow(printWindow);
-      setError(cause instanceof Error ? cause.message : "تعذر تجهيز سند القبض للطباعة.");
+      if (requestId === printRequestSequenceRef.current || !canReadCustomerAppLedger(sourceRef.current)) {
+        setError(cause instanceof Error ? cause.message : "تعذر تجهيز سند القبض للطباعة.");
+      }
     } finally {
       setBusy(false);
     }
@@ -162,7 +203,10 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
       <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
         سند القبض
         <select aria-label="سندات القبض الخاصة بحساب العميل" value={selected?.id ?? ""}
-          onChange={(event) => setSelectedId(event.target.value)} disabled={loading || busy || options.receipts.length === 0}
+          onChange={(event) => {
+            printRequestSequenceRef.current += 1;
+            setSelectedId(event.target.value);
+          }} disabled={loading || busy || options.receipts.length === 0}
           style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px", border: "1px solid var(--border, #d6dfe4)", borderRadius: 8, background: "var(--card, #fff)", color: "var(--foreground, #17242a)", font: "inherit" }}>
           <option value="">{loading ? "جارٍ تحميل سندات القبض…" : "اختر سندًا محفوظًا…"}</option>
           {options.receipts.map((receipt) => <option key={receipt.id} value={receipt.id}>{receiptLabel(receipt)}</option>)}

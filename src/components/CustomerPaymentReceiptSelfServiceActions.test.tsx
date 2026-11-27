@@ -51,6 +51,10 @@ function printPayload() {
     ],
   };
 }
+
+function sourceResponse(source: CustomerFinancialSource = appOnly) {
+  return { data: { ...source }, error: null };
+}
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: vi.fn() } }));
 
@@ -62,8 +66,12 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
   });
 
   it("loads only the customer receipt contract and reprints the saved receipt without a write", async () => {
-    rpc.mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
-      .mockResolvedValueOnce({ data: printPayload(), error: null } as never);
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: printPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never);
     const popup = new JSDOM("<!doctype html><html><head></head><body></body></html>");
     const popupWindow = popup.window as unknown as Window;
     Object.assign(popupWindow, { print: vi.fn() });
@@ -71,11 +79,11 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
 
     render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
     await screen.findByRole("option", { name: /سند-000123/ });
-    expect(rpc).toHaveBeenNthCalledWith(1, "get_my_customer_payment_receipt_print_options", {
+    expect(rpc).toHaveBeenNthCalledWith(2, "get_my_customer_payment_receipt_print_options", {
       p_limit: 100, p_offset: 0,
     });
     await userEvent.click(screen.getByRole("button", { name: /طباعة سند القبض/ }));
-    await waitFor(() => expect(rpc).toHaveBeenNthCalledWith(2, "get_my_customer_payment_receipt_print_data", {
+    await waitFor(() => expect(rpc).toHaveBeenNthCalledWith(5, "get_my_customer_payment_receipt_print_data", {
       p_receipt_id: receiptId,
     }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("تم تجهيز سند القبض"));
@@ -85,7 +93,8 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
   });
   it("discards an APP_ONLY receipt page that completes after the source changes", async () => {
     let resolveOptions!: (value: { data: ReturnType<typeof optionsPayload>; error: null }) => void;
-    rpc.mockImplementationOnce(() => new Promise(resolve => { resolveOptions = resolve; }) as never);
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveOptions = resolve; }) as never);
     const view = render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_my_customer_payment_receipt_print_options", {
       p_limit: 100, p_offset: 0,
@@ -104,7 +113,10 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
 
   it("closes the print window when the financial source changes while receipt data is loading", async () => {
     let resolvePrint!: (value: { data: ReturnType<typeof printPayload>; error: null }) => void;
-    rpc.mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
       .mockImplementationOnce(() => new Promise(resolve => { resolvePrint = resolve; }) as never);
     const popup = new JSDOM("<!doctype html><html><head></head><body></body></html>");
     const popupWindow = popup.window as unknown as Window;
@@ -114,7 +126,7 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
     const view = render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
     await screen.findByRole("option", { name: /سند-000123/ });
     await userEvent.click(screen.getByRole("button", { name: /طباعة سند القبض/ }));
-    await waitFor(() => expect(rpc).toHaveBeenNthCalledWith(2, "get_my_customer_payment_receipt_print_data", {
+    await waitFor(() => expect(rpc).toHaveBeenNthCalledWith(5, "get_my_customer_payment_receipt_print_data", {
       p_receipt_id: receiptId,
     }));
 
@@ -129,13 +141,84 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
     expect(screen.queryByText(/تم تجهيز سند القبض/)).not.toBeInTheDocument();
   });
 
+
+  it("discards a receipt list when the server source changes after the list RPC", async () => {
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse(otherSource) as never);
+
+    render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تغير مصدر الحساب المالي أثناء تحميل سندات القبض");
+    expect(screen.queryByRole("option", { name: /سند-000123/ })).not.toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledTimes(3);
+    expect(rpc).toHaveBeenNthCalledWith(1, "get_my_customer_financial_source");
+    expect(rpc).toHaveBeenNthCalledWith(2, "get_my_customer_payment_receipt_print_options", {
+      p_limit: 100, p_offset: 0,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(3, "get_my_customer_financial_source");
+  });
+
+  it("does not request receipt print data when the server source changes before printing", async () => {
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse(otherSource) as never);
+    const popup = new JSDOM("<!doctype html><html><head></head><body></body></html>");
+    const popupWindow = popup.window as unknown as Window;
+    const closeSpy = vi.spyOn(popupWindow, "close");
+    vi.spyOn(window, "open").mockReturnValue(popupWindow);
+
+    render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
+    await screen.findByRole("option", { name: /سند-000123/ });
+    await userEvent.click(screen.getByRole("button", { name: /طباعة سند القبض/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تغير مصدر الحساب قبل تجهيز سند القبض");
+    expect(rpc).toHaveBeenCalledTimes(4);
+    expect(rpc).not.toHaveBeenCalledWith("get_my_customer_payment_receipt_print_data", expect.anything());
+    expect(closeSpy).toHaveBeenCalled();
+    expect(popup.window.document.body.textContent).not.toContain("SND-000123");
+    popup.window.close();
+  });
+
+  it("closes the print window when the server source changes after the receipt payload", async () => {
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: printPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse(otherSource) as never);
+    const popup = new JSDOM("<!doctype html><html><head></head><body></body></html>");
+    const popupWindow = popup.window as unknown as Window;
+    const closeSpy = vi.spyOn(popupWindow, "close");
+    vi.spyOn(window, "open").mockReturnValue(popupWindow);
+
+    render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
+    await screen.findByRole("option", { name: /سند-000123/ });
+    await userEvent.click(screen.getByRole("button", { name: /طباعة سند القبض/ }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("تغير مصدر الحساب أثناء استرجاع السند");
+    expect(rpc).toHaveBeenNthCalledWith(5, "get_my_customer_payment_receipt_print_data", {
+      p_receipt_id: receiptId,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(6, "get_my_customer_financial_source");
+    expect(closeSpy).toHaveBeenCalled();
+    expect(popup.window.document.body.textContent).not.toContain("SND-000123");
+    expect(screen.queryByText(/تم تجهيز سند القبض/)).not.toBeInTheDocument();
+    popup.window.close();
+  });
+
   it("rejects a print payload for a different receipt ID", async () => {
     const mismatchedPayload = {
       ...printPayload(),
       receipt: { ...printPayload().receipt, id: "a0000000-0000-4000-8000-000000000999" },
     };
-    rpc.mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
-      .mockResolvedValueOnce({ data: mismatchedPayload, error: null } as never);
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: mismatchedPayload, error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never);
     const popup = new JSDOM("<!doctype html><html><head></head><body></body></html>");
     const popupWindow = popup.window as unknown as Window;
     const closeSpy = vi.spyOn(popupWindow, "close");

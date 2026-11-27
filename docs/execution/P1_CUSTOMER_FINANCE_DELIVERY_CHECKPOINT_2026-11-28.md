@@ -22,13 +22,18 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Source mismatch updates the displayed source notice and blocks stale output. Resolver failure clears the trusted source and blocks document output.
 - Added helper tests for unchanged APP_ONLY revision, ONYX cutover and resolver failure.
 - Added route-level `/invoices` regressions for source cutover to ONYX after `get_customer_invoice_pdf`, and for resolver failure after detail read; both assert the stale invoice identifier, line prices and totals are not rendered.
+- Customer saved-receipt list now revalidates the server-selected source immediately before the list RPC and again after the list returns. A source revision cutover discards the page.
+- Customer saved-receipt print checks source before the print-data RPC and after its payload returns, then validates the receipt ID before rendering. Source failure/cutover closes the popup without printing.
+- A dedicated print sequence cancels pending print output when the selected receipt changes, the list is refreshed/paginated, the source prop changes, or the component unmounts.
+- Added three receipt-self-service regressions for server-side cutover after list fetch, before print RPC, and after receipt payload; previous prop-change cancellation and identity-mismatch tests remain.
 
 ## Branch and ownership
 - Implementation commit: `71a7653ca4581b5325852cb2d245ca28acc5d4d5` (first parent `02a0144b06953618b81575dbb212e833ef1faf5d`).
+- Receipt source revalidation batch is based on P1 branch head `757177e28672d2d070bfed69fb3e71fcc2181092`; it preserves the concurrent P4 staged-preview commit already on the branch.
 - Checkpoint trace commit: `d8e8c3d408ac612663df2806dfb3f4855c8f3744`.
 - Invoice detail route regression commit: `4e631a06569948ceb3bbf73d0c8bc9dd71c55d5d` (adds both source-cutover and resolver-failure test cases).
 - All updates use non-forced, expected-SHA branch leases; no force push.
-- Changed files: `src/lib/customer-financial-source.ts`, `src/lib/customer-financial-source.test.ts`, `src/components/CustomerWorkflows.tsx`, and this checkpoint.
+- Changed files in the invoice-export batch: `src/lib/customer-financial-source.ts`, `src/lib/customer-financial-source.test.ts`, `src/components/CustomerWorkflows.tsx`, `src/test/customer-workflow-tenant.test.tsx`. This receipt batch also changes `src/components/CustomerPaymentReceiptSelfServiceActions.tsx` and `src/components/CustomerPaymentReceiptSelfServiceActions.test.tsx`.
 - P1 does not write production data, post payments, move inventory, call live ERP endpoints, add secrets, deploy or merge to `main`.
 
 ## Cross-owner dependencies
