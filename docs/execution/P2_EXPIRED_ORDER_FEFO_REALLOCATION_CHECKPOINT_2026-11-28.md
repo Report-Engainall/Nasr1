@@ -34,6 +34,7 @@ The existing CI-wired `scripts/test-inventory-batch-fefo.mjs` now covers:
 - Manager reallocation into a new, earlier-valid FEFO lot.
 - Exact retry replay, conflicting idempotency payload rejection, and explicit zero-work response when no expired reservation remains.
 - Release/reserve movement lineage for the same order, shipment sale from the replacement batch (never the expired original), customer-role denial, and aggregate balance ↔ batch subledger parity.
+- Post-reallocation cancellation: after moving a reservation from an expired source lot to a valid replacement lot, cancellation releases only the replacement reservation; the source lot is not released twice, both lot reserved counters return to zero, and the order ends cancelled.
 - Insufficient replacement stock: the test expires every remaining positive lot, forces reallocation to fail with SQLSTATE `P0001`, then proves the original batch reservation and aggregate reserve total are unchanged and no release movement survived the rolled-back transaction.
 - Shared-lot ledger drift: two active orders reserve the same lot; the disposable fixture under-reports the batch and aggregate reserved counters while keeping their physical subledger totals equal. The worklist flags both orders as mismatched, and reallocation rejects with SQLSTATE `40001` without changing either counter or appending a release movement.
 
