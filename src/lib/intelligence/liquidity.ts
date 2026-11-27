@@ -96,8 +96,10 @@ function buildMetricEvidence(args:{
 }
 /** Computes reconciled liquidity independently by currency; this engine contains no FX conversion. */
 export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnapshot {
- const generatedAtMs=Date.parse(input.generatedAt);
- if(!Number.isFinite(generatedAtMs)||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
+ const generatedAtMs=strictTimestamp(input.generatedAt);
+ const asOfMs=strictTimestamp(input.asOf);
+ if(generatedAtMs===null||asOfMs===null||asOfMs>generatedAtMs)
+  throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps and asOf cannot be after generatedAt");
  const all=input.currencies.flatMap(allMetricInputs);
  const passport=buildEvidencePassport({id:"liquidity:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:all});
  const idCounts=new Map<string,number>();for(const m of passport.metrics)idCounts.set(m.id,(idCounts.get(m.id)??0)+1);
