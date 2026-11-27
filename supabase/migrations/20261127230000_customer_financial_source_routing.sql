@@ -799,7 +799,7 @@ REVOKE ALL ON FUNCTION public.get_customer_account_statement_app_only_internal()
 
 -- The source-binding tables intentionally revoke direct SELECT from authenticated.
 -- This narrowly scoped SECURITY DEFINER predicate exposes only a boolean decision for
--- the current customer's own invoice rows and never returns the binding or ERP account ref.
+-- the current customer''s own invoice rows and never returns the binding or ERP account ref.
 CREATE OR REPLACE FUNCTION public.customer_app_only_invoice_read_allowed(
   p_customer_id uuid,
   p_organization_id uuid
@@ -828,7 +828,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) TO authenticated;
 COMMENT ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) IS
-  'Boolean-only source predicate for the current customer's invoice RLS; does not disclose source mode, binding metadata or external account references.';
+  'Boolean-only source predicate for the current customer''s invoice RLS; does not disclose source mode, binding metadata or external account references.';
 
 ALTER TABLE public.customer_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customer_invoice_items ENABLE ROW LEVEL SECURITY;
