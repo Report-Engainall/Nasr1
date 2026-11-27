@@ -23,7 +23,7 @@ function evidence(id: string, period: EvidencePeriod = currentPeriod): EvidenceR
 function metric(input: {
   id: string;
   key: string;
-  value: number;
+  value: number | string;
   unit?: MetricUnit;
   unitOfMeasure?: string;
   period?: EvidencePeriod;
@@ -62,11 +62,13 @@ function build(input: {
   metrics: MetricSnapshot[];
   signals: GrowthOpportunitySignal[];
   sourceSnapshotVerified?: boolean;
+  generatedAt?: string;
+  asOf?: string;
 }) {
   return buildGrowthOpportunityRadar({
     id: "growth-radar-test",
-    generatedAt: asOf,
-    asOf,
+    generatedAt: input.generatedAt ?? asOf,
+    asOf: input.asOf ?? asOf,
     evidenceRecords: input.evidenceRecords,
     metrics: input.metrics,
     signals: input.signals,
@@ -75,6 +77,47 @@ function build(input: {
 }
 
 describe("multi-source growth opportunity radar", () => {
+  it.each([
+    ["timezone-less as-of timestamp", "2026-11-13T04:00:00", "2026-11-13T04:00:00.000Z"],
+    ["impossible as-of calendar date", "2026-02-31T04:00:00.000Z", "2026-11-13T04:00:00.000Z"],
+    ["timezone-less generated timestamp", "2026-11-13T04:00:00.000Z", "2026-11-13T04:00:00"],
+    ["impossible generated calendar date", "2026-02-28T04:00:00.000Z", "2026-02-31T04:00:00.000Z"],
+  ])("rejects %s", (_label, invalidAsOf, invalidGeneratedAt) => {
+    expect(() => build({
+      evidenceRecords: [],
+      metrics: [],
+      signals: [],
+      asOf: invalidAsOf,
+      generatedAt: invalidGeneratedAt,
+    })).toThrow("growth_radar_timestamp_or_id_invalid");
+  });
+
+  it("withholds numeric-looking TEXT metrics at the evidence boundary", () => {
+    const result = build({
+      evidenceRecords: [evidence("customer")],
+      metrics: [
+        metric({
+          id: "orders",
+          key: "customer.orders.current",
+          value: "3.00",
+          unit: "TEXT",
+          evidenceId: "customer",
+        }),
+      ],
+      signals: [{
+        id: "repeat:text-metric",
+        kind: "REPEAT_PURCHASE",
+        subjectRef: "opaque-customer-ref",
+        observedMetricId: "orders",
+        sampleMetricId: "orders",
+      }],
+    });
+
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.withheld).toMatchObject([{ reason: "METRIC_SCOPE_MISMATCH" }]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+
   it("admits unavailable-product demand only after the minimum verified search and distinct-searcher sample", () => {
     const signal: GrowthOpportunitySignal = {
       id: "unavailable-product:rice",
