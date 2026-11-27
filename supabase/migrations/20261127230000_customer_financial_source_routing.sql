@@ -178,10 +178,11 @@ REVOKE ALL ON TABLE public.customer_financial_source_bindings FROM PUBLIC,anon,a
 REVOKE ALL ON TABLE public.customer_financial_source_change_requests FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.customer_financial_source_reconciliation_evidence FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.customer_financial_source_sync_evidence FROM PUBLIC,anon,authenticated;
-GRANT SELECT,INSERT,UPDATE ON TABLE public.customer_financial_source_bindings TO service_role;
-GRANT SELECT,INSERT,UPDATE ON TABLE public.customer_financial_source_change_requests TO service_role;
-GRANT SELECT,INSERT ON TABLE public.customer_financial_source_reconciliation_evidence TO service_role;
-GRANT SELECT,INSERT ON TABLE public.customer_financial_source_sync_evidence TO service_role;
+REVOKE ALL ON TABLE public.customer_financial_source_bindings FROM service_role;
+REVOKE ALL ON TABLE public.customer_financial_source_change_requests FROM service_role;
+REVOKE ALL ON TABLE public.customer_financial_source_reconciliation_evidence FROM service_role;
+REVOKE ALL ON TABLE public.customer_financial_source_sync_evidence FROM service_role;
+-- The narrowly scoped SECURITY DEFINER RPCs below are the only write path; do not grant direct table DML to the ERP service role.
 
 INSERT INTO public.customer_financial_source_bindings(
   organization_id,customer_id,source_mode,source_status,revision,created_at,updated_at
