@@ -687,8 +687,54 @@ BEGIN
     OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
     OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
  THEN RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP staged preview scope hash is already bound to different scope metadata'; END IF;
- SELECT count(*) INTO v_total FROM public.erp_sync_staged_records staged
-  WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key;
+ WITH latest_outcomes AS MATERIALIZED (
+   SELECT DISTINCT ON (outcome.external_id)
+          outcome.external_id,outcome.source_updated_at,outcome.disposition
+     FROM public.erp_sync_page_record_outcomes outcome
+    WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
+    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+ ),
+ preview_rows AS MATERIALIZED (
+   SELECT staged.external_id,staged.source_updated_at,staged.fields,latest.disposition
+     FROM public.erp_sync_staged_records staged
+     LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
+    WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+   UNION ALL
+   SELECT latest.external_id,latest.source_updated_at,'{}'::jsonb,latest.disposition
+     FROM latest_outcomes latest
+    WHERE latest.disposition IN ('rejected','conflicted')
+      AND NOT EXISTS (
+        SELECT 1 FROM public.erp_sync_staged_records staged
+         WHERE staged.organization_id=p_organization_id
+           AND staged.scope_key=p_scope_key
+           AND staged.external_id=latest.external_id
+      )
+ )
+ SELECT count(*) INTO v_total FROM preview_rows;
+
+ WITH latest_outcomes AS MATERIALIZED (
+   SELECT DISTINCT ON (outcome.external_id)
+          outcome.external_id,outcome.source_updated_at,outcome.disposition
+     FROM public.erp_sync_page_record_outcomes outcome
+    WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
+    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+ ),
+ preview_rows AS MATERIALIZED (
+   SELECT staged.external_id,staged.source_updated_at,staged.fields,latest.disposition
+     FROM public.erp_sync_staged_records staged
+     LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
+    WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+   UNION ALL
+   SELECT latest.external_id,latest.source_updated_at,'{}'::jsonb,latest.disposition
+     FROM latest_outcomes latest
+    WHERE latest.disposition IN ('rejected','conflicted')
+      AND NOT EXISTS (
+        SELECT 1 FROM public.erp_sync_staged_records staged
+         WHERE staged.organization_id=p_organization_id
+           AND staged.scope_key=p_scope_key
+           AND staged.external_id=latest.external_id
+      )
+ )
  SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
      'external_id',page.external_id,
      'source_updated_at',page.source_updated_at,
@@ -697,19 +743,9 @@ BEGIN
      ORDER BY page.source_updated_at DESC,page.external_id),'[]'::jsonb)
   INTO v_records
   FROM (
-    SELECT staged.external_id,staged.source_updated_at,staged.fields,latest.disposition
-      FROM public.erp_sync_staged_records staged
-      LEFT JOIN LATERAL (
-        SELECT outcome.disposition
-          FROM public.erp_sync_page_record_outcomes outcome
-         WHERE outcome.organization_id=staged.organization_id
-           AND outcome.scope_key=staged.scope_key
-           AND outcome.external_id=staged.external_id
-         ORDER BY outcome.recorded_at DESC,outcome.page_fingerprint DESC
-         LIMIT 1
-      ) latest ON TRUE
-     WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
-     ORDER BY staged.source_updated_at DESC,staged.external_id
+    SELECT rows.external_id,rows.source_updated_at,rows.fields,rows.disposition
+      FROM preview_rows rows
+     ORDER BY rows.source_updated_at DESC,rows.external_id
      LIMIT p_limit OFFSET p_offset
   ) page;
  RETURN pg_catalog.jsonb_build_object('records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
