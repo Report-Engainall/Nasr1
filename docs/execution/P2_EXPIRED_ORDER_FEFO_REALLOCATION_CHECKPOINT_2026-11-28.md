@@ -19,6 +19,8 @@ The existing receipt → FEFO reserve → sale pipeline excluded already-expired
 - It calculates outstanding reservation per batch from immutable movement evidence: `reserve - release_reservation`. Only expired batches with a positive outstanding reservation are moved.
 - It appends a release movement against the expired batch, then FEFO reserve movements against non-expired available lots in active same-tenant warehouses. Aggregate balances and batch subledger change in the same transaction. If replacement stock is insufficient, the entire operation rolls back, including the release movement.
 - A server-only idempotency ledger prevents repeated execution. Exact retries return the persisted result; payload reuse with a different order/reason is rejected. A no-op response explicitly reports `no_expired_reservations` and zero quantity.
+- Before releasing an expired batch, reallocation validates that both its reserved counter and its warehouse aggregate reserved counter cover the combined net `reserve - release_reservation` movements of every active order. A shortfall fails closed with SQLSTATE `40001` before any movement or stock counter changes.
+- The worklist's `reservation_matches_batch` compares against the combined active-order reservation ledger for the lot, not only the individual order being displayed; multiple orders sharing one batch cannot each receive a misleading per-order `true`.
 - Shipment now fails closed with SQLSTATE `55000` while any net outstanding reservation still references an expired lot. Both shipment and cancellation settle only the net outstanding reservation after prior releases; previously released batches are not sold or released twice.
 - Reallocation records an audit event and does not write payments, invoices, receivables, cost postings or journals.
 - Strict execution boundary: `anon` and `service_role` are explicitly denied `EXECUTE`; only `authenticated` can reach the RPC, whose body then enforces manager/admin capability. The idempotency table grants no direct `SELECT` to authenticated or service_role. PG17 acceptance asserts both function and table privileges.
@@ -33,6 +35,7 @@ The existing CI-wired `scripts/test-inventory-batch-fefo.mjs` now covers:
 - Exact retry replay, conflicting idempotency payload rejection, and explicit zero-work response when no expired reservation remains.
 - Release/reserve movement lineage for the same order, shipment sale from the replacement batch (never the expired original), customer-role denial, and aggregate balance ↔ batch subledger parity.
 - Insufficient replacement stock: the test expires every remaining positive lot, forces reallocation to fail with SQLSTATE `P0001`, then proves the original batch reservation and aggregate reserve total are unchanged and no release movement survived the rolled-back transaction.
+- Shared-lot ledger drift: two active orders reserve the same lot; the disposable fixture under-reports the batch and aggregate reserved counters while keeping their physical subledger totals equal. The worklist flags both orders as mismatched, and reallocation rejects with SQLSTATE `40001` without changing either counter or appending a release movement.
 
 The existing P2 workflow already invokes this FEFO acceptance script on its disposable local Supabase/PostgreSQL 17 stack; no parallel workflow or dependency was added.
 
@@ -42,3 +45,7 @@ The existing P2 workflow already invokes this FEFO acceptance script on its disp
 - All stock mutations in acceptance are confined to the disposable local PostgreSQL 17 test database.
 - The exact new PR-head CI runs must finish successfully before this code is accepted. Queued, skipped or previous-SHA results do not count as PASS.
 - P1 retains final merge authority; P2 does not merge to `main`.
+
+## Additional P2 hardening on PR #701
+
+The warehouse worklist now checks the combined active-order reservation movement ledger per batch. The reallocation transaction independently guards both batch and aggregate reserved counters before changing stock. The exact-head PostgreSQL 17 test now includes two live orders sharing one lot and a controlled disposable-database ledger shortfall; the expected result is a false worklist parity indicator plus a no-write SQLSTATE `40001` rejection. This fixture is not production data.
