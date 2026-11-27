@@ -5,7 +5,7 @@
 ## Canonical state
 
 - Official repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Last accepted application/source SHA: `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` (PR #633 merge). Subsequent commits through observed main HEAD `378574eed2be5c9d3e567d974795a122bc5f5ff9` changed only the acceptance matrix and this execution pointer; no application, migration, test-runner or workflow source changed.
+- Last accepted application/source SHA: `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` (PR #633 merge). Subsequent commits through observed main HEAD `ffedf0f843f89f8201920be7a01ea97d9f59b9f0` changed only the acceptance matrix and this execution pointer; no application, migration, test-runner or workflow source changed.
 - This checkpoint refresh is documentation-only. Re-fetch `main` before the next write because other owners are updating the canonical pointer concurrently.
 - Application remains TanStack Start. Preserve current Supabase, RLS, tenant scope, service/RPC architecture and role model.
 - No production Supabase writes, remote migrations, production Storage mutations, Edge deployment, paid AI provider, Bolt, Vercel or Lovable actions were performed.
@@ -31,22 +31,22 @@
 
 1. **PR #641 — supplier invoice three-way accounting PostgreSQL 17 acceptance.**
    - Synchronized branch head: `106f9862517087c6d700197af941ebf3745b8e6a`; safe two-parent merge from the source main at `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa`. Effective changes: existing P2 workflow plus `scripts/test-supplier-invoice-three-way-accounting.mjs`; no production schema/RPC/RLS/UI changes.
-   - Exact-head P1 `46053429683`: **SUCCESS**. Exact-head P2 `46053429870`: **IN_PROGRESS**. Local PG17 supplier invoice three-way runner passed at step 36; current P2 run is continuing the local Chromium journeys (47/70 steps passed at last inspection). Hosted authenticated customer/order/tenant E2E: **SKIPPED**.
+   - Exact-head P1 `46053429683`: **SUCCESS**. Exact-head P2 `46053429870`: **IN_PROGRESS**. Local PG17 supplier invoice three-way runner passed at step 36; current P2 run is continuing the local Chromium journeys (50/70 steps passed at last inspection; finance-document/task print is running). Hosted authenticated customer/order/tenant E2E: **SKIPPED**.
    - Do not merge until the complete exact-head P2 run is terminal SUCCESS. No review/merge approval recorded.
 
 2. **PR #671 — dead-stock source clock integrity.**
    - Synchronized head: `bcff1a8320b0c4b105162fb5d125bee09ac86544`; only `src/lib/intelligence/dead-stock.ts` and its test changed. Safe two-parent sync; no SQL/RPC/RLS or production write.
-   - Exact-head P1 `46053493168`: **SUCCESS**. Exact-head P2 `46053493182`: **IN_PROGRESS**; local PostgreSQL 17/Supabase/Chromium journey had passed 43/69 steps at last inspection. Hosted authenticated E2E: **SKIPPED**.
+   - Exact-head P1 `46053493168`: **SUCCESS**. Exact-head P2 `46053493182`: **IN_PROGRESS**; local PostgreSQL 17/Supabase/Chromium journey had passed 49/69 steps at last inspection; finance-document/task print is running. Hosted authenticated E2E: **SKIPPED**.
    - P3 retains ownership. Do not merge until the exact-head P2 run is terminal SUCCESS.
 
 3. **PR #668 — system-health evidence integrity.**
    - Synchronized head: `2bcafea26e10e522696a025b43e2cce773781129`. Only three source/test files are carried forward: `SystemHealthEngine.test.ts`, `P4AdminOperationsScreens.test.tsx`, and `system-health.ts`. The branch's extra checkpoint document was deliberately excluded to keep the single canonical execution pointer.
-   - Exact-head P1 `46054027345` and P2 `46054027347`: **IN_PROGRESS** at last inspection. P4 strict TypeScript and production build steps had succeeded; full Vitest/P2 runs were not yet terminal.
+   - Exact-head P1 `46054027345` and P2 `46054027347`: **IN_PROGRESS** at last inspection. P1 Vitest, P4 strict TypeScript and production build completed SUCCESS. P2 reached local repository-migration application (15/69 steps); no failed steps.
    - P3 retains ownership. No old-head acceptance transfers.
 
 4. **PR #670 — verified customer-retention decisions integrated into daily decisions.**
    - Synchronized head: `81f39f76ef7040b5ec5e243dc9fd3768e042b327`; six component/engine source and test paths only. The change keeps monetary ranking within a verified currency, only publishes customer actions from a VERIFIED same-snapshot queue, and withholds unverified customer financial impact.
-   - Exact-head P1 `46054061909` and P2 `46054061889`: **IN_PROGRESS**. Vitest and public UI smoke were running at last inspection; hosted authenticated E2E is not a pass.
+   - Exact-head P1 `46054061909` and P2 `46054061889`: **IN_PROGRESS**. P1 Vitest/strict TypeScript completed SUCCESS. P2 public UI smoke completed SUCCESS and local PostgreSQL 17/Supabase bootstrap started (14/69 steps); hosted authenticated E2E remains SKIPPED.
    - P3 retains ownership. No old-head acceptance transfers.
 
 5. **PR #585 — reconciled; do not merge wholesale or rebuild its accepted work.**
