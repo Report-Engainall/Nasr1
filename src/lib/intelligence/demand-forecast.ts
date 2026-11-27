@@ -1,4 +1,5 @@
 import { buildEvidencePassport } from "./evidence-passport";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import { decimalToMinorUnits, minorUnitsToNumber, roundedPercentageHundredths } from "./financial-precision";
 import type { GrowthOpportunitySignal } from "./growth-opportunities";
 import type { EvidencePeriod, EvidenceRecord, EvidenceStatus, MetricSnapshot } from "./types";
@@ -65,12 +66,7 @@ const MIN_SAMPLE = 5;
 const TREND_THRESHOLD_HUNDREDTHS = 2_000;
 
 function validInstant(value: string): boolean {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)) return false;
-  const day = value.slice(0, 10);
-  const millis = Date.parse(day + "T00:00:00.000Z");
-  return Number.isFinite(Date.parse(value)) && Number.isFinite(millis) &&
-    new Date(millis).toISOString().slice(0, 10) === day;
+  return timestampMicroseconds(value) !== null;
 }
 
 function validDay(value: string): boolean {
@@ -106,7 +102,7 @@ function metricRead(id: string, index: Map<string, MetricSnapshot[]>):
   if (!metric.period || !validInstant(metric.asOf) ||
       !metric.lineage?.evidenceIds?.length || !metric.lineage.formulaId?.trim() ||
       !metric.lineage.formulaVersion?.trim() || !validInstant(metric.lineage.calculatedAt) ||
-      Date.parse(metric.lineage.calculatedAt) > Date.parse(metric.asOf)) {
+      timestampMicroseconds(metric.lineage.calculatedAt)! > timestampMicroseconds(metric.asOf)!) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   // Demand inputs must be measured quantities and sample counts; numeric-looking TEXT is not evidence.
@@ -254,6 +250,11 @@ export function buildProductDemandForecast(input: {
 
     const currentOrders = currentSample.minorUnits / SCALE;
     const baselineOrders = baselineSample.minorUnits / SCALE;
+    if (currentOrders > BigInt(Number.MAX_SAFE_INTEGER) ||
+        baselineOrders > BigInt(Number.MAX_SAFE_INTEGER)) {
+      withheld.push({ signalId: signal.id, productRef: signal.subjectRef, reason: "UNSUPPORTED_PRECISION" });
+      continue;
+    }
     if ((current.minorUnits === 0n) !== (currentOrders === 0n) ||
         (baseline.minorUnits === 0n) !== (baselineOrders === 0n) ||
         (currentOrders > 0n && currentOrders < BigInt(MIN_SAMPLE)) ||

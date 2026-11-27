@@ -234,3 +234,100 @@ describe("approved cash opening balance forecast source", () => {
     expect(result.warnings[0]).toContain("لا يطابق تاريخ التدفق النقدي");
   });
 });
+
+describe("approved opening balance timestamp contract", () => {
+  it.each([
+    ["+14:00", "2026-11-13T23:00:00.000+14:00", "2026-11-13T22:00:00.000+14:00", "2026-11-13T23:00:00.000+14:00"],
+    ["-14:00", "2026-11-12T19:00:00.000-14:00", "2026-11-12T18:00:00.000-14:00", "2026-11-12T19:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s through the opening evidence chain", (_label, submittedAt, createdAt, reviewedAt) => {
+    const source = workspace({
+      evidence: [
+        { ...document(IDS.evidenceA, IDS.mappingA), createdAt },
+        { ...document(IDS.evidenceB, IDS.mappingB), createdAt },
+      ],
+      openingBalances: [
+        proposal({ id: IDS.proposalA, mappingId: IDS.mappingA, evidenceId: IDS.evidenceA, amount: "0.10", submittedAt, reviewedAt }),
+        proposal({ id: IDS.proposalB, mappingId: IDS.mappingB, evidenceId: IDS.evidenceB, amount: "0.20", submittedAt, reviewedAt }),
+      ],
+    });
+    expect(buildApprovedCashOpeningBalances(source, AS_OF).metrics).toHaveLength(1);
+  });
+
+  it.each([
+    "2026-11-13T09:00:00.000",
+    "2026-11-13T23:01:00.000+14:01",
+    "2026-11-12T18:59:00.000-14:01",
+    "2026-11-13T23:59:00.000+23:59",
+    "2026-02-30T09:00:00.000Z",
+  ])("rejects an invalid requested opening-balance clock: %s", requestedAsOf => {
+    expect(buildApprovedCashOpeningBalances(workspace(), requestedAsOf).metrics).toEqual([]);
+  });
+
+  it.each([
+    ["submittedAt", proposal({
+      id: IDS.proposalA, mappingId: IDS.mappingA, evidenceId: IDS.evidenceA,
+      amount: "0.10", submittedAt: "2026-11-13T08:10:00.000",
+    })],
+    ["reviewedAt", proposal({
+      id: IDS.proposalA, mappingId: IDS.mappingA, evidenceId: IDS.evidenceA,
+      amount: "0.10", reviewedAt: "2026-11-13T23:20:00.000+14:01",
+    })],
+  ])("withholds an opening balance with invalid %s", (_label, invalidProposal) => {
+    const source = workspace({
+      openingBalances: [
+        invalidProposal,
+        proposal({ id: IDS.proposalB, mappingId: IDS.mappingB, evidenceId: IDS.evidenceB, amount: "0.20" }),
+      ],
+    });
+    expect(buildApprovedCashOpeningBalances(source, AS_OF).metrics).toEqual([]);
+  });
+
+  it("withholds an opening balance with an invalid document timestamp", () => {
+    const source = workspace({
+      evidence: [
+        { ...document(IDS.evidenceA, IDS.mappingA), createdAt: "2026-11-13T22:01:00.000+14:01" },
+        document(IDS.evidenceB, IDS.mappingB),
+      ],
+    });
+    expect(buildApprovedCashOpeningBalances(source, AS_OF).metrics).toEqual([]);
+  });
+
+  it("preserves exact PostgreSQL microseconds for approved opening evidence", () => {
+    const original = workspace();
+    const precise = "2026-11-13T09:00:00.123456Z";
+    const preciseWorkspace = workspace({
+      asOf: precise,
+      evidence: original.evidence.map(item => ({
+        ...item,
+        createdAt: "2026-11-13T08:00:00.123456Z",
+      })),
+      openingBalances: original.openingBalances.map(item => ({
+        ...item,
+        submittedAt: "2026-11-13T08:10:00.123456Z",
+        reviewedAt: "2026-11-13T08:20:00.123456Z",
+      })),
+    });
+    const result = buildApprovedCashOpeningBalances(preciseWorkspace, precise);
+    expect(result.metrics).toHaveLength(1);
+    expect(result.metrics[0].asOf).toBe(precise);
+  });
+
+  it("rejects requested, workspace and approval clocks finer than PostgreSQL microseconds", () => {
+    expect(buildApprovedCashOpeningBalances(workspace(), "2026-11-13T09:00:00.1234567Z").metrics).toEqual([]);
+    const invalidWorkspace = workspace({ asOf: "2026-11-13T09:00:00.1234567Z" });
+    expect(buildApprovedCashOpeningBalances(invalidWorkspace, AS_OF).metrics).toEqual([]);
+
+    const invalidApproval = workspace({
+      openingBalances: workspace().openingBalances.map(proposal => ({
+        ...proposal,
+        reviewedAt: "2026-11-13T09:00:00.1234567Z",
+      })),
+    });
+    expect(buildApprovedCashOpeningBalances(invalidApproval, AS_OF).metrics).toEqual([]);
+  });
+
+  it("rejects an invalid reconciliation workspace as-of timestamp", () => {
+    const source = workspace({ asOf: "2026-11-13T09:00:00.000+14:01" });
+    expect(buildApprovedCashOpeningBalances(source, AS_OF).metrics).toEqual([]);
+  });
+});

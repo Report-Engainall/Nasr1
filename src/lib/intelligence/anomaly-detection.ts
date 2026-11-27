@@ -1,4 +1,5 @@
 import { buildEvidencePassport } from "./evidence-passport";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import { decimalToMinorUnits, minorUnitsToNumber, roundedPercentageHundredths } from "./financial-precision";
 import type { EvidencePeriod, EvidenceRecord, EvidenceStatus, MetricSnapshot, MetricUnit } from "./types";
 
@@ -64,6 +65,7 @@ export interface WithheldAnomaly {
     | "METRIC_AMBIGUOUS"
     | "METRIC_NOT_VERIFIED"
     | "METRIC_SCOPE_MISMATCH"
+    | "INVALID_CURRENCY_IDENTITY"
     | "SAMPLE_INSUFFICIENT"
     | "INVALID_COMPARISON"
     | "ZERO_OR_NEGATIVE_BASELINE"
@@ -94,15 +96,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 function validInstant(value: string): boolean {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)) {
-    return false;
-  }
-  const day = value.slice(0, 10);
-  const dayMillis = Date.parse(day + "T00:00:00.000Z");
-  return Number.isFinite(Date.parse(value)) &&
-    Number.isFinite(dayMillis) &&
-    new Date(dayMillis).toISOString().slice(0, 10) === day;
+  return timestampMicroseconds(value) !== null;
 }
 
 function validDay(value: string): boolean {
@@ -150,13 +144,16 @@ function validRule(rule: AnomalyRule): boolean {
 }
 
 function unitIdentity(metric: MetricSnapshot): string | null {
+  const currency = metric.currency ?? "";
   if (metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") {
-    if (!metric.currency?.trim()) return null;
+    // Financial comparisons require a canonical three-letter ISO-style currency identity.
+    // Do not normalize malformed or lowercase source values into a trusted monetary unit.
+    if (!/^[A-Z]{3}$/.test(currency)) return null;
   }
   if (metric.unit === "QUANTITY" || metric.unit === "CURRENCY_PER_UNIT") {
     if (!metric.unitOfMeasure?.trim()) return null;
   }
-  return metric.unit + "|" + (metric.currency?.trim().toUpperCase() ?? "") + "|" +
+  return metric.unit + "|" + currency + "|" +
     (metric.unitOfMeasure?.trim().toUpperCase() ?? "");
 }
 
@@ -173,7 +170,7 @@ function readMetric(
   }
   if (!metric.period || !metric.lineage?.evidenceIds?.length ||
       !metric.lineage.formulaId?.trim() || !metric.lineage.formulaVersion?.trim() ||
-      !validInstant(metric.lineage.calculatedAt) || Date.parse(metric.lineage.calculatedAt) > Date.parse(metric.asOf)) {
+      !validInstant(metric.lineage.calculatedAt) || timestampMicroseconds(metric.lineage.calculatedAt)! > timestampMicroseconds(metric.asOf)!) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   // Anomaly comparisons are numeric only. A numeric-looking TEXT payload must never be treated as a measured quantity.
@@ -187,6 +184,10 @@ function readMetric(
   }
   if (metric.unit === "COUNT" && (scaled % 1_000_000n !== 0n || scaled / 1_000_000n > BigInt(Number.MAX_SAFE_INTEGER))) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
+  }
+  if ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") &&
+      !/^[A-Z]{3}$/.test(metric.currency ?? "")) {
+    return { read: null, reason: "INVALID_CURRENCY_IDENTITY" };
   }
   if (!unitIdentity(metric)) return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   return { read: { metric, minorUnits: scaled }, reason: null };
@@ -227,7 +228,7 @@ export function buildAnomalyDetection(input: {
 }): AnomalyDetectionResult {
   if (!input.id.trim() || input.id.length > 160 ||
       !validInstant(input.generatedAt) || !validInstant(input.asOf) ||
-      Date.parse(input.generatedAt) < Date.parse(input.asOf)) {
+      timestampMicroseconds(input.generatedAt)! < timestampMicroseconds(input.asOf)!) {
     throw new Error("anomaly_detection_timestamp_or_id_invalid");
   }
   if (!Array.isArray(input.evidenceRecords) || !Array.isArray(input.metrics) ||

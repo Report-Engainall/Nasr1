@@ -20,6 +20,8 @@ import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggrega
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
 import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
+import { fetchProductRevenueConcentration, type ProductRevenueConcentrationFetchResult } from "@/lib/intelligence/product-revenue-concentration-client";
+import { fetchSupplierPostedPayableActivity, type SupplierPostedPayableActivityFetchResult } from "@/lib/intelligence/supplier-posted-payable-activity-client";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -422,7 +424,15 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [demandForecastResult, setDemandForecastResult] = useState<DemandForecastResult | null>(null);
   const [productGrossMarginResult, setProductGrossMarginResult] = useState<ProductGrossMarginFetchResult | null>(null);
   const [productGrossMarginLoading, setProductGrossMarginLoading] = useState(true);
+  const [businessHealthSources, setBusinessHealthSources] = useState<{
+    asOf: string;
+    productRevenueConcentration: ProductRevenueConcentrationFetchResult;
+    supplierCurrent: SupplierPostedPayableActivityFetchResult;
+    supplierBaseline: SupplierPostedPayableActivityFetchResult;
+  } | null>(null);
+  const [businessHealthSourcesLoading, setBusinessHealthSourcesLoading] = useState(true);
   const productGrossMarginRequestGeneration = useRef(0);
+  const businessHealthSourceRequestGeneration = useRef(0);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
@@ -924,6 +934,94 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const data = result?.ok ? result.data : null;
   const cashflowDenied = Boolean(result && !result.ok && result.status === "DENIED");
   const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
+  useEffect(() => {
+    let active = true;
+    const generation = ++businessHealthSourceRequestGeneration.current;
+    if (!canManage || !inventoryData) {
+      setBusinessHealthSources(null);
+      setBusinessHealthSourcesLoading(false);
+      return () => {
+        active = false;
+        businessHealthSourceRequestGeneration.current += 1;
+      };
+    }
+
+    const fromTime = Date.parse(inventoryData.period.from + "T00:00:00.000Z");
+    const toTime = Date.parse(inventoryData.period.to + "T00:00:00.000Z");
+    const windowDays = Math.round((toTime - fromTime) / 86_400_000) + 1;
+    if (!Number.isFinite(fromTime) || !Number.isFinite(toTime) || fromTime > toTime ||
+        !Number.isInteger(windowDays) || windowDays < 1 || windowDays > 365) {
+      const invalid = {
+        ok: false as const,
+        status: "ERROR" as const,
+        message: "فترة خريطة صحة الأعمال غير صالحة؛ لم تُطلب مؤشرات مالية بفترة بديلة.",
+      };
+      setBusinessHealthSources({
+        asOf: inventoryData.asOf,
+        productRevenueConcentration: invalid,
+        supplierCurrent: invalid,
+        supplierBaseline: invalid,
+      });
+      setBusinessHealthSourcesLoading(false);
+      return () => {
+        active = false;
+        businessHealthSourceRequestGeneration.current += 1;
+      };
+    }
+
+    const baselinePeriod = {
+      from: shiftUtcDay(inventoryData.period.from, -windowDays),
+      to: shiftUtcDay(inventoryData.period.to, -windowDays),
+    };
+    setBusinessHealthSourcesLoading(true);
+    void Promise.all([
+      fetchProductRevenueConcentration({
+        from: inventoryData.period.from,
+        to: inventoryData.period.to,
+        asOf: inventoryData.asOf,
+      }),
+      fetchSupplierPostedPayableActivity({
+        from: inventoryData.period.from,
+        to: inventoryData.period.to,
+        asOf: inventoryData.asOf,
+      }),
+      fetchSupplierPostedPayableActivity({
+        from: baselinePeriod.from,
+        to: baselinePeriod.to,
+        asOf: inventoryData.asOf,
+      }),
+    ]).then(([productRevenueConcentration, supplierCurrent, supplierBaseline]) => {
+      if (!active || generation !== businessHealthSourceRequestGeneration.current) return;
+      setBusinessHealthSources({
+        asOf: inventoryData.asOf,
+        productRevenueConcentration,
+        supplierCurrent,
+        supplierBaseline,
+      });
+    }).catch(() => {
+      if (!active || generation !== businessHealthSourceRequestGeneration.current) return;
+      const unavailable = {
+        ok: false as const,
+        status: "UNAVAILABLE" as const,
+        message: "تعذر تحميل أحد مصادر خريطة صحة الأعمال؛ لم تُستبدل البيانات بأصفار.",
+      };
+      setBusinessHealthSources({
+        asOf: inventoryData.asOf,
+        productRevenueConcentration: unavailable,
+        supplierCurrent: unavailable,
+        supplierBaseline: unavailable,
+      });
+    }).finally(() => {
+      if (active && generation === businessHealthSourceRequestGeneration.current) {
+        setBusinessHealthSourcesLoading(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      businessHealthSourceRequestGeneration.current += 1;
+    };
+  }, [canManage, inventoryData]);
   const customerRetention = retentionResult?.ok ? retentionResult.data : null;
   const shiftWorkspace = shiftResponse?.ok ? shiftResponse.data : null;
   const shiftViewState = shiftLoading ? "loading"
@@ -1309,7 +1407,8 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         : "error";
 
   const businessHealthMap = useMemo<BusinessHealthMapResult | null>(() => {
-    if (!inventoryData || !deadStockReport || !replenishmentReport) return null;
+    const sources = businessHealthSources?.asOf === inventoryData?.asOf ? businessHealthSources : null;
+    if (!inventoryData || !deadStockReport || !replenishmentReport || !sources) return null;
     try {
       return buildBusinessHealthMap({
         id: "business-health-map:" + inventoryData.asOf,
@@ -1325,13 +1424,26 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
           period: inventoryData.period,
           recommendations: replenishmentReport.recommendations,
         },
+        productRevenueConcentration: sources.productRevenueConcentration.ok
+          ? sources.productRevenueConcentration.snapshot : null,
+        productRevenueConcentrationUnavailableReason: sources.productRevenueConcentration.ok
+          ? undefined : sources.productRevenueConcentration.message,
+        supplierPostedPayableActivity: sources.supplierCurrent.ok
+          ? sources.supplierCurrent.snapshot : null,
+        supplierPostedPayableActivityUnavailableReason: sources.supplierCurrent.ok
+          ? undefined : sources.supplierCurrent.message,
+        supplierPostedPayableActivityPriorPeriod: sources.supplierBaseline.ok
+          ? sources.supplierBaseline.snapshot : null,
+        supplierPostedPayableActivityPriorPeriodUnavailableReason: sources.supplierBaseline.ok
+          ? undefined : sources.supplierBaseline.message,
       });
     } catch {
       return null;
     }
-  }, [inventoryData, deadStockReport, replenishmentReport, customerRetention, data, cashflowForecast]);
+  }, [inventoryData, deadStockReport, replenishmentReport, customerRetention, data, cashflowForecast, businessHealthSources]);
 
-  const businessHealthMapState = inventoryLoading
+  const businessHealthMapState = inventoryLoading || businessHealthSourcesLoading ||
+      (Boolean(inventoryData) && businessHealthSources?.asOf !== inventoryData?.asOf)
     ? "loading"
     : businessHealthMap
       ? "ready"

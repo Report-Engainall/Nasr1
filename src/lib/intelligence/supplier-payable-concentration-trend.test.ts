@@ -72,12 +72,31 @@ describe("supplier payable concentration trend", () => {
     ["timezone-less timestamp", "2026-11-17T12:00:00"],
     ["impossible calendar date", "2026-02-31T12:00:00.000Z"],
     ["date-only value", "2026-11-17"],
+    ["offset beyond ISO maximum", "2026-11-17T12:00:00.000+14:01"],
+    ["unsupported large timezone offset", "2026-11-17T12:00:00.000+23:59"],
+    ["fractional precision beyond PostgreSQL microseconds", "2026-11-17T12:00:00.1234567Z"],
   ])("rejects a %s before comparing financial periods", (_label, invalidAsOf) => {
     const current = { ...snapshot(currentPeriod), asOf: invalidAsOf };
     const result = buildSupplierPayableConcentrationTrend(current, snapshot(baselinePeriod));
     expect(result.status).toBe("NOT_COMPARABLE");
     expect(result.comparisons).toEqual([]);
     expect(result.warnings).toContain("SUPPLIER_TREND_AS_OF_MISMATCH");
+  });
+
+
+  it("rejects snapshots that differ by exactly one PostgreSQL microsecond", () => {
+    const current = { ...snapshot(currentPeriod), asOf: "2026-11-17T12:00:00.123456Z" };
+    const baseline = { ...snapshot(baselinePeriod), asOf: "2026-11-17T12:00:00.123457Z" };
+    const result = buildSupplierPayableConcentrationTrend(current, baseline);
+    expect(result.status).toBe("NOT_COMPARABLE");
+    expect(result.comparisons).toEqual([]);
+    expect(result.warnings).toContain("SUPPLIER_TREND_AS_OF_MISMATCH");
+  });
+
+  it("accepts identical instants expressed with different valid timezone offsets", () => {
+    const current = { ...snapshot(currentPeriod), asOf: "2026-11-17T12:00:00.123456Z" };
+    const baseline = { ...snapshot(baselinePeriod), asOf: "2026-11-17T15:00:00.123456+03:00" };
+    expect(buildSupplierPayableConcentrationTrend(current, baseline).status).toBe("VERIFIED");
   });
 
   it("keeps currencies separate and withholds a currency absent from one period", () => {

@@ -5,6 +5,7 @@ import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import type { CustomerRetentionReport } from "./customer-retention";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "./business-health-map";
 import { buildCashflowForecast } from "./cashflow-forecast";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildLiquiditySnapshot, type LiquidityCurrencyInput } from "./liquidity";
 import { buildReplenishmentRecommendations } from "./replenishment";
@@ -140,16 +141,9 @@ export function mapBusinessHealthRetentionSource(
       };
 }
 
-function verifiedSnapshotInstant(value: unknown): number | null {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
-    return null;
-  }
-  const day = value.slice(0, 10);
-  const dayMillis = Date.parse(day + "T00:00:00.000Z");
-  const instant = Date.parse(value);
-  return Number.isFinite(instant) && Number.isFinite(dayMillis) &&
-    new Date(dayMillis).toISOString().slice(0, 10) === day ? instant : null;
+function verifiedSnapshotInstant(value: unknown): bigint | null {
+  return timestampMicroseconds(value);
+
 }
 
 export function areBusinessHealthAssistantSourcesComplete(

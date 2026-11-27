@@ -1,4 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
+import {timestampMicroseconds} from "./product-revenue-concentration-client";
 import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
 import type {DataCompleteness,DataQuality,EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
@@ -15,17 +16,14 @@ export interface CashflowForecastPoint {
 }
 export interface CashflowForecast {id:string;generatedAt:string;asOf:string;points:CashflowForecastPoint[];warnings:string[]}
 const FORMULA_ID="cashflow.scheduled-net",FORMULA_VERSION="1.1.0";
+const ISO_CURRENCY=/^[A-Z]{3}$/;
 function addDays(day:string,days:number):string {const d=new Date(day+"T00:00:00.000Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)}
 function parseDay(day:string):string|null {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return null;
  const d=new Date(day+"T00:00:00.000Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===day?day:null;
 }
-function strictTimestamp(value:unknown):number|null {
- if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value))return null;
- const day=parseDay(value.slice(0,10));
- if(day===null)return null;
- const parsed=Date.parse(value);
- return Number.isFinite(parsed)?parsed:null;
+function strictTimestamp(value:unknown):bigint|null {
+ return timestampMicroseconds(value);
 }
 function statusOf(status:EvidenceStatus,completeness:DataCompleteness,quality:DataQuality):EvidenceStatus {
  if(status==="UNVERIFIED"||quality==="INVALID")return "UNVERIFIED";
@@ -56,10 +54,10 @@ function resolveCashflowPointStatus(
 
 /** Forecasts scheduled movements only; no probability, sales extrapolation or assumed collection rate. */
 export function buildCashflowForecast(input:BuildCashflowForecastInput):CashflowForecast {
- const generatedAtMs=strictTimestamp(input.generatedAt),asOfMs=strictTimestamp(input.asOf);
- if(generatedAtMs===null||asOfMs===null||asOfMs>generatedAtMs)
+ const generatedAtMicros=strictTimestamp(input.generatedAt),asOfMicros=strictTimestamp(input.asOf);
+ if(generatedAtMicros===null||asOfMicros===null||asOfMicros>generatedAtMicros)
   throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps and asOf cannot be after generatedAt");
- const day=new Date(asOfMs).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
+ const day=new Date(Date.parse(input.asOf)).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
  const metrics=[...input.openingBalances,...input.entries.map(e=>e.amount)];
  const passport=buildEvidencePassport({id:"cashflow:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const duplicates=new Set<string>(),metricCounts=new Map<string,number>();
@@ -68,16 +66,21 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  const byId=new Map<string,MetricSnapshot>();
  for(const m of passport.metrics)if(!duplicates.has(m.id))byId.set(m.id,m);
  const openingCurrencies=new Map<string,MetricSnapshot>(),duplicateOpening=new Set<string>();
+ const topWarnings:string[]=(input.openingBalanceWarnings??[]).filter(w=>typeof w==="string"&&w.trim().length>0&&w.length<=500);
  for(const raw of input.openingBalances){
-  if(!raw.currency)continue;
+  if(typeof raw.currency!=="string"||!ISO_CURRENCY.test(raw.currency)){
+   topWarnings.push("OPENING_BALANCE_CURRENCY_IDENTITY_INVALID");
+   continue;
+  }
   if(openingCurrencies.has(raw.currency))duplicateOpening.add(raw.currency);
   else openingCurrencies.set(raw.currency,byId.get(raw.id)??{...raw,status:"UNVERIFIED",warnings:[...raw.warnings,"METRIC_ID_AMBIGUOUS_OR_MISSING"]});
  }
  const validEntries=input.entries.map(entry=>{
   const metric=byId.get(entry.amount.id),dueDate=parseDay(entry.dueDate),amountMinor=metric?decimalToMinorUnits(metric.value,2):null;
-  const calculatedAtMs=metric?strictTimestamp(metric.lineage.calculatedAt):null;
-  const calculationClockValid=calculatedAtMs!==null&&calculatedAtMs<=generatedAtMs;
-  const valid=Boolean(metric&&calculationClockValid&&metric.status==="VERIFIED"&&metric.unit==="CURRENCY"&&metric.currency&&metric.asOf===input.asOf&&
+  const calculatedAtMicros=metric?strictTimestamp(metric.lineage.calculatedAt):null;
+  const calculationClockValid=calculatedAtMicros!==null&&calculatedAtMicros<=generatedAtMicros;
+  const valid=Boolean(metric&&calculationClockValid&&metric.status==="VERIFIED"&&metric.unit==="CURRENCY"&&
+    typeof metric.currency==="string"&&ISO_CURRENCY.test(metric.currency)&&metric.currency===entry.amount.currency&&metric.asOf===input.asOf&&
     metric.completeness==="COMPLETE"&&metric.quality==="ACCEPTABLE"&&metric.lineage.evidenceIds.length&&
     amountMinor!==null&&amountMinor>=0n&&dueDate&&(entry.direction==="INFLOW"||entry.direction==="OUTFLOW")&&entry.id.trim());
   return {entry,metric,dueDate,amountMinor,calculationClockValid,valid};
@@ -85,7 +88,7 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  const duplicateEntryIds=new Set<string>(),seen=new Set<string>();
  for(const entry of input.entries){if(seen.has(entry.id))duplicateEntryIds.add(entry.id);seen.add(entry.id)}
  const scheduleStatus=statusOf(input.scheduleStatus,input.scheduleCompleteness,input.scheduleQuality);
- const result:CashflowForecastPoint[]=[],topWarnings:string[]=(input.openingBalanceWarnings??[]).filter(w=>typeof w==="string"&&w.trim().length>0&&w.length<=500);
+ const result:CashflowForecastPoint[]=[];
  // Scheduled evidence may be displayed without a cash opening balance. The currency
  // is still sourced from a validated schedule metric; no opening or projected balance
  // is synthesized when the bank/cash source is absent.
@@ -93,13 +96,15 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  // downgraded. Hiding an unverified currency would hide a coverage gap from operators.
  const scheduledCurrencies=validEntries.flatMap(item=>{
   const currency=item.metric?.currency??item.entry.amount.currency;
-  return typeof currency==="string"&&/^[A-Z]{3}$/.test(currency)?[currency]:[];
+  return typeof currency==="string"&&ISO_CURRENCY.test(currency)?[currency]:[];
  });
+ const invalidScheduleCurrencyIdentity=input.entries.some(entry=>
+  typeof entry.amount.currency!=="string"||!ISO_CURRENCY.test(entry.amount.currency));
  const currencies=new Set<string>([...openingCurrencies.keys(),...scheduledCurrencies]);
  for(const currency of [...currencies].sort()){
   const opening=openingCurrencies.get(currency);
-  const openingCalculatedAtMs=opening?strictTimestamp(opening.lineage.calculatedAt):null;
-  const openingCalculationClockValid=openingCalculatedAtMs!==null&&openingCalculatedAtMs<=generatedAtMs;
+  const openingCalculatedAtMicros=opening?strictTimestamp(opening.lineage.calculatedAt):null;
+  const openingCalculationClockValid=openingCalculatedAtMicros!==null&&openingCalculatedAtMicros<=generatedAtMicros;
   const openingMinor=opening?decimalToMinorUnits(opening.value,2,true):null;
   const openingValue=openingMinor===null?null:minorUnitsToNumber(openingMinor,2);
   const openingValid=Boolean(opening&&!duplicateOpening.has(currency)&&opening.status==="VERIFIED"&&opening.unit==="CURRENCY"&&opening.currency===currency&&
@@ -109,7 +114,8 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
   const duplicateScoped=input.entries.some(e=>duplicateEntryIds.has(e.id)&&e.amount.currency===currency);
   const dateCoverageValid=!input.entries.some(e=>!parseDay(e.dueDate)&&(!e.amount.currency||e.amount.currency===currency));
   const hasUnclassifiedCurrency=input.entries.some(e=>!e.amount.currency?.trim());
-  const complete=scheduleStatus==="VERIFIED"&&!badScoped&&!duplicateScoped&&dateCoverageValid&&!hasUnclassifiedCurrency;
+  const complete=scheduleStatus==="VERIFIED"&&!badScoped&&!duplicateScoped&&dateCoverageValid&&
+   !hasUnclassifiedCurrency&&!invalidScheduleCurrencyIdentity;
   const baseWarnings=[
    ...(openingValid?[]:["OPENING_BALANCE_NOT_VERIFIED"]),
    ...(opening&&!openingCalculationClockValid?["OPENING_BALANCE_CALCULATION_CLOCK_INVALID"]:[]),
@@ -119,6 +125,7 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
    ...(duplicateScoped?["DUPLICATE_SCHEDULE_ENTRY_ID"]:[]),
    ...(!dateCoverageValid?["INVALID_DUE_DATE"]:[]),
    ...(hasUnclassifiedCurrency?["UNSCOPED_SCHEDULE_CURRENCY"]:[]),
+   ...(invalidScheduleCurrencyIdentity?["INVALID_SCHEDULE_CURRENCY_IDENTITY"]:[]),
   ];
   for(const horizon of [7,30,90] as const){
    const end=addDays(day,horizon),window=scoped.filter(x=>x.dueDate!==null&&x.dueDate>=day&&x.dueDate<end);

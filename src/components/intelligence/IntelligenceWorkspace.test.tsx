@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   fetchShiftWorkspace: vi.fn(),
   fetchProcessBottlenecks: vi.fn(),
   fetchProductGrossMargin: vi.fn(),
+  fetchProductRevenueConcentration: vi.fn(),
+  fetchSupplierPostedPayableActivity: vi.fn(),
   fetchCustomerRetention: vi.fn(),
   startShift: vi.fn(),
   recordShiftCash: vi.fn(),
@@ -73,6 +75,12 @@ vi.mock("@/lib/intelligence/process-bottlenecks-client", () => ({
 }));
 vi.mock("@/lib/intelligence/product-gross-margin-client", () => ({
   fetchProductGrossMargin: mocks.fetchProductGrossMargin,
+}));
+vi.mock("@/lib/intelligence/product-revenue-concentration-client", () => ({
+  fetchProductRevenueConcentration: mocks.fetchProductRevenueConcentration,
+}));
+vi.mock("@/lib/intelligence/supplier-posted-payable-activity-client", () => ({
+  fetchSupplierPostedPayableActivity: mocks.fetchSupplierPostedPayableActivity,
 }));
 vi.mock("@/lib/intelligence/commerce-policy-governance-client", () => ({
   fetchCommercePolicyCatalog: mocks.fetchPolicyCatalog,
@@ -284,6 +292,71 @@ function inventoryFixture(): InventoryIntelligenceData {
   };
 }
 
+function productRevenueConcentrationFixture() {
+  return {
+    ok: true as const,
+    snapshot: {
+      status: "VERIFIED" as const,
+      asOf,
+      period,
+      completePopulation: true,
+      invoiceCount: 3,
+      invoiceWithoutLinesCount: 0,
+      currencyCount: 1,
+      currencies: [{
+        currency: "YER",
+        status: "VERIFIED" as const,
+        invoiceCount: 3,
+        invoiceLineCount: 10,
+        productCount: 5,
+        mappedLineCount: 10,
+        unmappedLineCount: 0,
+        invalidCreditLineCount: 0,
+        invoicesWithoutLines: 0,
+        grossInvoiceLineAmount: 1200,
+        netInvoiceLineAmount: 1000,
+        top5NetInvoiceLineAmount: 800,
+        top5ConcentrationPercent: 80,
+      }],
+      formulaId: "nasr1.invoice-line-product-concentration-net-posted-credit-memos" as const,
+      formulaVersion: "1" as const,
+      formulaDescription: "Product revenue concentration fixture from invoice lines.",
+    },
+  };
+}
+
+function supplierPayableActivityFixture(
+  sourcePeriod: EvidencePeriod,
+  top5Percent: number,
+) {
+  return {
+    ok: true as const,
+    snapshot: {
+      status: "VERIFIED" as const,
+      asOf,
+      period: sourcePeriod,
+      completeSourceAggregation: true,
+      sourceEntryCount: 8,
+      currencyCount: 1,
+      currencies: [{
+        currency: "YER",
+        status: "VERIFIED" as const,
+        supplierCount: 6,
+        sourceEntryCount: 8,
+        grossPayableCreditAmount: 1000,
+        postedSupplierCreditNoteDebitAmount: 125,
+        netPayableMovementAmount: 875,
+        top5GrossPayableCreditAmount: top5Percent === 85 ? 850 : 800,
+        top5GrossPayableCreditPercent: top5Percent,
+      }],
+      activityScope: "POSTED_SOURCE_LINKED_RECEIPT_AND_SUPPLIER_CREDIT_NOTE_JOURNALS" as const,
+      formulaId: "nasr1.posted-supplier-payable-credit-concentration" as const,
+      formulaVersion: "1" as const,
+      formulaDescription: "Posted supplier payable activity fixture.",
+    },
+  };
+}
+
 describe("production intelligence workspace inventory screens", () => {
   beforeEach(() => {
     mocks.user = { profileId: "admin-profile", name: "مدير المالية", roles: ["admin"] };
@@ -306,6 +379,12 @@ describe("production intelligence workspace inventory screens", () => {
     });
     mocks.fetchProductGrossMargin.mockReset().mockResolvedValue({
       ok: false, status: "DENIED", message: "gross margin finance source denied in workspace fixture",
+    });
+    mocks.fetchProductRevenueConcentration.mockReset().mockResolvedValue({
+      ok: false, status: "UNAVAILABLE", message: "product concentration source unavailable in fixture",
+    });
+    mocks.fetchSupplierPostedPayableActivity.mockReset().mockResolvedValue({
+      ok: false, status: "UNAVAILABLE", message: "supplier payable source unavailable in fixture",
     });
     mocks.startShift.mockReset().mockResolvedValue({ ok: true, data: { shiftId: "shift-1" } });
     mocks.recordShiftCash.mockReset().mockResolvedValue({ ok: true, data: {} });
@@ -518,6 +597,32 @@ describe("production intelligence workspace inventory screens", () => {
     expect(mocks.fetchOutcomes).toHaveBeenCalledTimes(1);
   });
 
+
+  it("passes exact current and adjacent prior-period sources into the existing business health map", async () => {
+    mocks.fetchProductRevenueConcentration.mockResolvedValue(productRevenueConcentrationFixture());
+    mocks.fetchSupplierPostedPayableActivity
+      .mockResolvedValueOnce(supplierPayableActivityFixture(period, 85))
+      .mockResolvedValueOnce(supplierPayableActivityFixture({ from: "2026-05-01", to: "2026-07-31" }, 80));
+
+    render(<IntelligenceWorkspace />);
+
+    const map = await screen.findByRole("region", { name: "خريطة صحة العمل ورأس المال المحجوز" });
+    expect(map).toHaveTextContent("تركيز قيمة سطور الفواتير حسب المنتج والعملة");
+    expect(map).toHaveTextContent("Product revenue concentration fixture from invoice lines.");
+    expect(map).toHaveTextContent("حركة الالتزامات المنشورة للموردين");
+    expect(map).toHaveTextContent("صافي حركة الالتزام ضمن النطاق");
+    expect(map).toHaveTextContent("ارتفع التركّز");
+
+    expect(mocks.fetchProductRevenueConcentration).toHaveBeenCalledWith({
+      from: period.from, to: period.to, asOf,
+    });
+    expect(mocks.fetchSupplierPostedPayableActivity).toHaveBeenNthCalledWith(1, {
+      from: period.from, to: period.to, asOf,
+    });
+    expect(mocks.fetchSupplierPostedPayableActivity).toHaveBeenNthCalledWith(2, {
+      from: "2026-05-01", to: "2026-07-31", asOf,
+    });
+  });
 
   it("renders the server evidence passport, scheduled cashflows and an actionable verified collection decision without inventing liquidity", async () => {
     mocks.fetchCashflow.mockResolvedValue(cashflowFixture());

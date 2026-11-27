@@ -32,24 +32,20 @@ function day(v:unknown):v is string {
  if(typeof v!=="string"||!DAY.test(v))return false;
  const d=new Date(v+"T00:00:00.000Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===v;
 }
-function timestampValue(value: unknown): number | null {
- if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value))return null;
- if(!day(value.slice(0,10)))return null;
- const parsed=Date.parse(value);
- return Number.isFinite(parsed)?parsed:null;
-}
-const timestamp=(value:unknown):value is string=>timestampValue(value)!==null;
 const DAY_NANOS=86_400_000_000_000n;
 function timestampNanos(value:unknown):bigint|null {
- if(typeof value!=="string")return null;
- const millis=timestampValue(value);
- if(millis===null)return null;
+ if(typeof value!=="string"||
+  !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value)||
+  !day(value.slice(0,10)))return null;
+ const millis=Date.parse(value);
+ if(!Number.isFinite(millis))return null;
  const fractionMatch=/T\d{2}:\d{2}:\d{2}(?:\.(\d+))?/.exec(value);
  const fraction=(fractionMatch?.[1]??"").padEnd(9,"0").slice(0,9);
  const nanosecondFraction=BigInt(fraction||"0");
  const millisecondFraction=BigInt(fraction.slice(0,3).padEnd(3,"0")||"0");
  return BigInt(millis)*1_000_000n+nanosecondFraction-millisecondFraction*1_000_000n;
 }
+const timestamp=(value:unknown):value is string=>timestampNanos(value)!==null;
 function recentOrderMeasuresReconcile(order:SupplierPerformanceOrder):boolean {
  const submitted=timestampNanos(order.submittedAt);
  if(submitted===null)return false;
@@ -81,7 +77,7 @@ function parseOrder(v:unknown):SupplierPerformanceOrder|null {
   !int(r.receiptCount)||!nullableNum(r.actualLeadDays)||
   (r.promisedDeliveryDays!==null&&!int(r.promisedDeliveryDays))||(r.onTime!==null&&typeof r.onTime!=="boolean"))return null;
  if((r.actualLeadDays!==null&&(r.status!=="received"||r.lastReceivedAt===null||r.receiptCount===0))||
-  (r.lastReceivedAt!==null&&((timestampValue(r.lastReceivedAt) as number)<(timestampValue(r.submittedAt) as number)||r.receiptCount===0))||
+  (r.lastReceivedAt!==null&&((timestampNanos(r.lastReceivedAt) as bigint)<(timestampNanos(r.submittedAt) as bigint)||r.receiptCount===0))||
   (r.onTime!==null&&(r.promisedDeliveryDays===null||r.actualLeadDays===null)))return null;
  return {purchaseOrderId:r.purchaseOrderId,purchaseOrderNumber:r.purchaseOrderNumber,
   status:r.status as SupplierPerformanceOrder["status"],submittedAt:r.submittedAt,lastReceivedAt:r.lastReceivedAt as string|null,
@@ -127,23 +123,25 @@ export function parseSupplierPerformanceSnapshot(value:unknown):SupplierPerforma
   (r.completePopulation&&r.returnedSupplierCount!==r.totalSupplierCount))return null;
  const values=r.suppliers.map(parseSupplier);
  if(values.some(x=>x===null)||new Set((values as SupplierPerformanceSupplier[]).map(x=>x.supplierId)).size!==values.length)return null;
- const asOfMs=timestampValue(r.asOf);
- if(asOfMs===null)return null;
- const periodStart=Date.parse(p.from+"T00:00:00.000Z");
- const periodEndExclusive=Date.parse(p.to+"T00:00:00.000Z")+86400000;
+ const asOfNanos=timestampNanos(r.asOf);
+ if(asOfNanos===null)return null;
+ const periodStartNanos=BigInt(Date.parse(p.from+"T00:00:00.000Z"))*1_000_000n;
+ const periodEndExclusiveNanos=(BigInt(Date.parse(p.to+"T00:00:00.000Z"))+86_400_000n)*1_000_000n;
  for(const supplier of values as SupplierPerformanceSupplier[]){
-  const submittedTimes=supplier.recentOrders.map(order=>timestampValue(order.submittedAt));
-  const latest=timestampValue(supplier.latestSubmittedAt);
-  if(latest===null||latest>asOfMs||latest<periodStart||latest>=periodEndExclusive||
-   submittedTimes.some((submitted,index)=>submitted===null||submitted<periodStart||
-    submitted>=periodEndExclusive||submitted>asOfMs||
+  const submittedTimes=supplier.recentOrders.map(order=>timestampNanos(order.submittedAt));
+  const latest=timestampNanos(supplier.latestSubmittedAt);
+  const latestIncludedSubmission=submittedTimes.reduce<bigint|null>(
+   (max,value)=>value===null?max:max===null||value>max?value:max,null);
+  if(latest===null||latestIncludedSubmission!==latest||latest>asOfNanos||
+   latest<periodStartNanos||latest>=periodEndExclusiveNanos||
+   submittedTimes.some((submitted,index)=>submitted===null||submitted<periodStartNanos||
+    submitted>=periodEndExclusiveNanos||submitted>asOfNanos||
     (index>0&&(submittedTimes[index-1]===null||submittedTimes[index-1]!<submitted))))return null;
-  if(Math.max(...submittedTimes as number[])!==latest)return null;
   for(const order of supplier.recentOrders){
    if(order.lastReceivedAt!==null){
-    const received=timestampValue(order.lastReceivedAt);
-    const submitted=timestampValue(order.submittedAt);
-    if(received===null||submitted===null||received<submitted||received>asOfMs)return null;
+    const received=timestampNanos(order.lastReceivedAt);
+    const submitted=timestampNanos(order.submittedAt);
+    if(received===null||submitted===null||received<submitted||received>asOfNanos)return null;
    }
   }
  }
