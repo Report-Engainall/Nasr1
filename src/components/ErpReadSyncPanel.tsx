@@ -14,6 +14,9 @@ const OBJECT_TYPES: Array<{ value: ErpReadSyncObject; label: string }> = [
   { value: "stock_balances", label: "كميات المخزون" },
   { value: "product_units", label: "الوحدات والتحويلات" },
   { value: "product_prices", label: "قوائم الأسعار" },
+  { value: "customer_financial_documents", label: "فواتير وإشعارات العملاء" },
+  { value: "customer_payment_receipts", label: "سندات قبض العملاء" },
+  { value: "customer_statement_entries", label: "حركات كشوف الحساب" },
 ];
 
 function formatDate(value: string | null): string {
@@ -66,7 +69,7 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
       <div className="panel-head">
         <div>
           <h2>مزامنة قراءة خادمية من ERP</h2>
-          <p>سحب تفاضلي محدود إلى منطقة تجهيز مع سجل استئناف ومطابقة؛ لا تُرحّل هذه العملية فواتير أو قيودًا أو حركات مخزون إلى النظام التشغيلي.</p>
+          <p>سحب تفاضلي محدود إلى منطقة تجهيز مع سجل استئناف ومطابقة. البيانات المالية تُحفظ معزولة ولا تُرحّل إلى دفتر الحساب أو المخزون تلقائيًا.</p>
         </div>
         <Activity size={23} />
       </div>
