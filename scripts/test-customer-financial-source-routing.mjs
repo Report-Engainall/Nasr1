@@ -296,7 +296,7 @@ async function main() {
   const receiptPrintFunctionDefinitions = await db.unsafe(
     "select " +
       "pg_catalog.pg_get_functiondef('public.get_my_customer_payment_receipt_print_data(uuid)'::regprocedure) as customer_print," +
-      "pg_catalog.pg_get_functiondef('public.get_staff_customer_payment_receipt_print_data(uuid)'::regprocedure) as staff_print",
+      "pg_catalog.pg_get_functiondef('public.get_staff_customer_payment_receipt_print_data(uuid)'::regprocedure) as staff_print," +
       "pg_catalog.pg_get_functiondef('public.get_customer_payment_receipt_print_options(integer,integer)'::regprocedure) as staff_options",
   );
   const customerPrintDefinition = receiptPrintFunctionDefinitions[0].customer_print.toLowerCase();
