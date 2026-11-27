@@ -470,7 +470,7 @@ describe("production intelligence workspace inventory screens", () => {
     });
     render(<IntelligenceWorkspace />);
 
-    const actionText = await screen.findByText(/إعادة تنشيط العميل · custome…ion-1/);
+    const actionText = await screen.findByRole("heading", { name: /إعادة تنشيط العميل · custome…ion-1/ });
     const card = actionText.closest("article");
     expect(card).not.toBeNull();
     expect(card).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
@@ -551,7 +551,11 @@ describe("production intelligence workspace inventory screens", () => {
     expect(forecast).toHaveTextContent("غير متاح");
     expect(forecast).toHaveTextContent("غير متاح"); // No verified opening balance: projection remains withheld.
 
-    const actionSummary = await screen.findByText(/يعرض المركز 1 من 1/);
+    const actionSummary = await screen.findByText((_, element) =>
+      element?.tagName === "P" &&
+      element.getAttribute("role") === "status" &&
+      Boolean(element.textContent?.includes("يعرض المركز 1 من 1")),
+    );
     expect(actionSummary).toHaveTextContent("يعرض المركز 1 من 1 إجراءً مرتباً حسب الأولوية");
     expect(actionSummary).toHaveTextContent("جميع الإجراءات المستحقة ظاهرة.");
 
