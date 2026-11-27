@@ -152,14 +152,24 @@ async function main() {
     "select has_table_privilege('authenticated','public.customer_financial_source_bindings','SELECT') as binding_read," +
       "has_table_privilege('authenticated','public.customer_financial_source_change_requests','SELECT') as request_read," +
       "has_table_privilege('authenticated','public.customer_financial_source_sync_evidence','SELECT') as sync_read," +
+      "has_table_privilege('service_role','public.customer_financial_source_bindings','UPDATE') as service_binding_update," +
+      "has_table_privilege('service_role','public.customer_financial_source_change_requests','UPDATE') as service_request_update," +
+      "has_table_privilege('service_role','public.customer_financial_source_reconciliation_evidence','INSERT') as service_evidence_insert," +
+      "has_table_privilege('service_role','public.customer_financial_source_sync_evidence','INSERT') as service_sync_insert," +
       "has_function_privilege('authenticated','public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text)','EXECUTE') as sync_execute," +
-      "has_function_privilege('authenticated','public.record_customer_financial_source_reconciliation_evidence(uuid,timestamp with time zone,text,text,text[],jsonb,text)','EXECUTE') as evidence_execute",
+      "has_function_privilege('authenticated','public.record_customer_financial_source_reconciliation_evidence(uuid,timestamp with time zone,text,text,text[],jsonb,text)','EXECUTE') as evidence_execute," +
+      "has_function_privilege('service_role','public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text)','EXECUTE') as service_sync_execute",
   );
   assert.equal(directPrivileges[0].binding_read, false, "authenticated roles cannot read source bindings directly");
   assert.equal(directPrivileges[0].request_read, false, "authenticated roles cannot read source requests directly");
   assert.equal(directPrivileges[0].sync_read, false, "authenticated roles cannot read provider sync evidence directly");
+  assert.equal(directPrivileges[0].service_binding_update, false, "service role cannot directly mutate customer source bindings");
+  assert.equal(directPrivileges[0].service_request_update, false, "service role cannot directly mutate source change requests");
+  assert.equal(directPrivileges[0].service_evidence_insert, false, "service role cannot directly insert reconciliation evidence");
+  assert.equal(directPrivileges[0].service_sync_insert, false, "service role cannot directly insert sync evidence");
   assert.equal(directPrivileges[0].sync_execute, false, "authenticated roles cannot call provider sync writer");
   assert.equal(directPrivileges[0].evidence_execute, false, "authenticated roles cannot call provider evidence writer");
+  assert.equal(directPrivileges[0].service_sync_execute, true, "service role can use the scoped sync RPC");
 
   const idempotencyKey = randomUUID() + randomUUID();
   const requestArgs = [customerId, "ONYX", "ONYX-CUST-0001", "Verified migration to Onyx customer ledger", idempotencyKey, 1];
