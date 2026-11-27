@@ -113,9 +113,6 @@ AS $function$
 DECLARE
   v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
 BEGIN
-  IF coalesce(auth.role(),'')<>'service_role' THEN
-    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP checkpoint access required';
-  END IF;
   IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
      OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
      OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
@@ -206,9 +203,6 @@ DECLARE
   v_conflicted integer:=0;
 
 BEGIN
-  IF coalesce(auth.role(),'')<>'service_role' THEN
-    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP staging writer required';
-  END IF;
   IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
      OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
      OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
@@ -486,9 +480,6 @@ AS $function$
 DECLARE
   v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
 BEGIN
-  IF coalesce(auth.role(),'')<>'service_role' THEN
-    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP checkpoint reset required';
-  END IF;
   IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
      OR p_expected_version IS NULL OR p_expected_version<0
   THEN

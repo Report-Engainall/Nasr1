@@ -67,6 +67,18 @@ Every RPC/Edge/worker command needs evidence for:
 - Company membership/invitations, customer service/Customer 360, operational tasks and device-session revocation.
 - AI quota/privacy telemetry and deterministic intelligence engines; paid AI spend remains zero.
 
+
+## ERP durable checkpoint / staging contract — P2
+
+The existing P4 read-only connector consumes three server-only PostgreSQL RPCs. Their execution ACL is restricted to `service_role`; `anon` and `authenticated` receive no execution and all three staging tables deny direct table privileges. The Edge Function must derive the organization from the authenticated active profile, then pass only the approved server-owned ERP company/branch/warehouse/currency/object scope.
+
+| RPC | Allowed caller | Transaction contract |
+|---|---|---|
+| `load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text)` | `service_role` | Idempotently initializes and locks the exact organization + hashed provider/company/branch/warehouse/currency/object scope; a key bound to different scope metadata fails. |
+| `persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean)` | `service_role` | Validates the full allowlisted projection, locks the checkpoint, returns an exact prior page receipt before expected-version CAS, stages source rows, advances cursor/watermarks and writes the source receipt within one PostgreSQL transaction. Any error rolls back all page effects. |
+| `reset_erp_sync_expired_cursor(uuid,text,bigint)` | `service_role` | Locks the exact scoped checkpoint, applies expected-version CAS, clears only the expired cursor/pending watermark and preserves completed watermark. |
+
+The store is a staging/read-model boundary only. It must not post stock, orders, invoices, receipts, bank activity or general-ledger entries. Cursor ciphertext is stored only after server-side AES-256-GCM encryption; plaintext cursor/key never enters PostgreSQL. Exact PostgreSQL 17 acceptance is `scripts/test-erp-sync-checkpoint-store.mjs`, run by the existing P2 critical-path workflow.
 ## Open API-OPS acceptance
 
 - A current-main source-generated semantic inventory for the 349 cached RPCs is not yet checked into main.
