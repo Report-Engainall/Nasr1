@@ -112,6 +112,36 @@ describe("executive liquidity response evidence contract", () => {
     });
   });
 
+  it.each([
+    ["seven fractional digits", "2026-11-27T12:30:00.1234567Z"],
+    ["nine fractional digits", "2026-11-27T12:30:00.123456789Z"],
+  ])("rejects %s because PostgreSQL cannot preserve that timestamp precision", (_label, invalidAsOf) => {
+    expect(parseExecutiveLiquidityResponse(response({ asOf: invalidAsOf }))).toMatchObject({
+      ok: false,
+      status: "ERROR",
+    });
+    expect(parseExecutiveLiquidityResponse(response({
+      cashMovementCoverage: { ...response().cashMovementCoverage, calculatedAt: invalidAsOf },
+    }))).toMatchObject({ ok: false, status: "ERROR" });
+    expect(parseExecutiveLiquidityResponse(response({
+      cashMovements: [movement({ last_movement_at: invalidAsOf })],
+    }))).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("accepts the full six-digit PostgreSQL microsecond precision across liquidity evidence clocks", () => {
+    const microsecondAsOf = "2026-11-27T12:30:00.123456Z";
+    const parsed = parseExecutiveLiquidityResponse(response({
+      asOf: microsecondAsOf,
+      cashMovementCoverage: { ...response().cashMovementCoverage, calculatedAt: microsecondAsOf },
+      cashMovements: [movement({
+        as_of: microsecondAsOf,
+        last_movement_at: microsecondAsOf,
+        calculated_at: microsecondAsOf,
+      })],
+    }));
+    expect(parsed).toMatchObject({ ok: true, data: { asOf: microsecondAsOf } });
+  });
+
   it("rejects a movement net that differs from inflows less outflows by one cent", () => {
     expect(parseExecutiveLiquidityResponse(response({
       cashMovements: [movement({ net_movement: "89.99" })],
