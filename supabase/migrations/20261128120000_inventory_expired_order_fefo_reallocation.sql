@@ -733,7 +733,18 @@ BEGIN
     'ordered_quantity',g.ordered_qty::text,'reserved_quantity',g.reserved_qty::text,
     'missing_quantity',g.missing_qty::text,'excess_quantity',g.excess_qty::text,
     'reservation_status',CASE WHEN g.missing_qty>0 THEN 'short' WHEN g.excess_qty>0 THEN 'excess' ELSE 'matched' END,
-    'reservation_batch_ledger_matches',NOT EXISTS(
+    'reservation_batch_ledger_matches',
+    NOT EXISTS(
+      SELECT 1 FROM public.inventory_movements unbatched
+       JOIN public.orders active_order
+         ON active_order.id=unbatched.reference_id AND active_order.organization_id=v_org
+       WHERE unbatched.reference_type='order' AND unbatched.product_id=g.product_id
+         AND unbatched.movement_type='reserve' AND unbatched.inventory_batch_id IS NULL
+         AND active_order.status IN ('confirmed','processing')
+         AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
+           WHERE sale.reference_type='order' AND sale.reference_id=active_order.id AND sale.movement_type='sale')
+    )
+    AND NOT EXISTS(
       SELECT 1 FROM public.inventory_batches batch
        WHERE batch.organization_id=v_org AND batch.product_id=g.product_id
          AND batch.quantity_reserved < coalesce((
@@ -754,7 +765,31 @@ BEGIN
              ) active_batch_reservations
          ),0)
     ),
-    'reservation_balance_ledger_matches',NOT EXISTS(
+    'reservation_balance_ledger_matches',
+    NOT EXISTS(
+      SELECT 1
+        FROM (
+          SELECT unbatched_ledger.warehouse_id
+            FROM public.inventory_movements unbatched_ledger
+            JOIN public.orders active_order
+              ON active_order.id=unbatched_ledger.reference_id AND active_order.organization_id=v_org
+           WHERE unbatched_ledger.reference_type='order'
+             AND unbatched_ledger.product_id=g.product_id
+             AND unbatched_ledger.inventory_batch_id IS NOT NULL
+             AND unbatched_ledger.movement_type IN ('reserve','release_reservation')
+             AND active_order.status IN ('confirmed','processing')
+             AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
+               WHERE sale.reference_type='order' AND sale.reference_id=active_order.id AND sale.movement_type='sale')
+           GROUP BY unbatched_ledger.warehouse_id
+          HAVING pg_catalog.sum(unbatched_ledger.quantity)>0
+        ) active_warehouses
+       WHERE NOT EXISTS(
+         SELECT 1 FROM public.inventory_balances present
+          WHERE present.product_id=g.product_id
+            AND present.warehouse_id=active_warehouses.warehouse_id
+       )
+    )
+    AND NOT EXISTS(
       SELECT 1 FROM public.inventory_balances balance
        WHERE balance.product_id=g.product_id
          AND balance.quantity_reserved < coalesce((
