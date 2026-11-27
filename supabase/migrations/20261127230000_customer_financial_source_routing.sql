@@ -1583,7 +1583,6 @@ BEGIN
       FROM public.customers c
      WHERE c.id=v_customer
        AND c.organization_id=v_org
-       AND c.profile_id=v_profile
        AND c.status='approved'
   ) THEN
     RAISE EXCEPTION USING ERRCODE='42501',
@@ -1746,7 +1745,6 @@ BEGIN
       FROM public.customers c
      WHERE c.id=v_customer
        AND c.organization_id=v_org
-       AND c.profile_id=v_profile
        AND c.status='approved'
   ) THEN
     RAISE EXCEPTION USING ERRCODE='42501',
