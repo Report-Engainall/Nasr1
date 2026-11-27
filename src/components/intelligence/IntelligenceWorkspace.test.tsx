@@ -470,7 +470,7 @@ describe("production intelligence workspace inventory screens", () => {
     });
     render(<IntelligenceWorkspace />);
 
-    const actionText = await screen.findByText(/إعادة تنشيط العميل · customer-retention-1/);
+    const actionText = await screen.findByText(/إعادة تنشيط العميل · custome…ion-1/);
     const card = actionText.closest("article");
     expect(card).not.toBeNull();
     expect(card).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
