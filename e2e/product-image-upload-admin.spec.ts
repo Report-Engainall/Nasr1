@@ -208,7 +208,14 @@ function createUploadHarness() {
     });
     await page.route("https://storage.local.test/**", async (route: Route) => {
       const objectPath = new URL(route.request().url()).pathname;
-      await route.continue({ url: SUPABASE_URL + objectPath });
+      // Playwright route.continue rejects a protocol change from the HTTPS
+      // public URL to disposable local HTTP Supabase. Fetch the real local
+      // Storage response server-side, then fulfill the original HTTPS request.
+      const storageResponse = await route.fetch({
+        url: SUPABASE_URL + objectPath,
+        timeout: 20_000,
+      });
+      await route.fulfill({ response: storageResponse });
     });
   }
 
