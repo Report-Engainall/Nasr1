@@ -626,8 +626,8 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
       const reserved = fields.quantity_reserved;
       const available = fields.quantity_available;
       if ([onHand, reserved, available].some((value) => typeof value !== "number" || value < 0) ||
-          Math.abs((onHand as number) - (reserved as number) - (available as number)) > 0.001) {
-        throw new ErpConnectorError("INVALID_ERP_STOCK_BALANCE", "رصيد ERP لا يحقق الموجود = المحجوز + المتاح.");
+          (reserved as number) + (available as number) > (onHand as number) + 0.001) {
+        throw new ErpConnectorError("INVALID_ERP_STOCK_BALANCE", "المحجوز والمتاح يتجاوزان الرصيد الفعلي في ERP.");
       }
     }
     if (this.contract.objectType === "product_units") {
@@ -775,8 +775,8 @@ function validateCanonicalCandidate(record: ErpCanonicalRecord, scope: ErpSyncSc
     const available = fields.quantity_available;
     if ([onHand, reserved, available].some((value) =>
       typeof value !== "number" || value < 0 || Math.round(value * 1000) / 1000 !== value
-    ) || Math.abs((onHand as number) - (reserved as number) - (available as number)) > 0.001) {
-      throw new ErpConnectorError("INVALID_ERP_STOCK_BALANCE", "رصيد ERP لا يحقق الموجود = المحجوز + المتاح بدقة ثلاث منازل عشرية.");
+    ) || (reserved as number) + (available as number) > (onHand as number) + 0.001) {
+      throw new ErpConnectorError("INVALID_ERP_STOCK_BALANCE", "المحجوز والمتاح يتجاوزان الرصيد الفعلي في ERP.");
     }
   }
   if (scope.objectType === "product_units") {
