@@ -207,6 +207,12 @@ async function main() {
   assert.deepEqual(replay.counts, { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 });
 
   await expectSql(
+    "reusing a page fingerprint with changed pending watermark is rejected",
+    () => persistPage({ ...first, pendingWatermark: timestamp2 }),
+    "23505",
+  );
+
+  await expectSql(
     "reusing a page fingerprint with changed response evidence is rejected",
     () => persistPage({ ...first, responseSha256: sha256("tampered-response") }),
     "23505",
