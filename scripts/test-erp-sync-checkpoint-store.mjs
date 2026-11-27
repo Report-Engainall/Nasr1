@@ -119,6 +119,20 @@ async function previewStagedRecords(scope, client = db) {
   return asJson(rows[0].result);
 }
 
+async function previewPageReceipts(scope, limit = 10, offset = 0, client = db) {
+  const rows = await client.unsafe(
+    "select public.list_erp_sync_page_receipts(" +
+      "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::integer) as result",
+    [
+      scope.organizationId, scopeKey(scope), scope.provider, scope.companyExternalId,
+      scope.branchExternalId, scope.warehouseExternalId, scope.currencyCode,
+      scope.objectType, limit, offset,
+    ],
+  );
+  assert.equal(rows.length, 1);
+  return asJson(rows[0].result);
+}
+
 async function persistPage(input, client = db) {
   const nextCursor = input.nextCursor ?? null;
   const rows = await client.unsafe(
@@ -218,13 +232,16 @@ async function main() {
       "has_function_privilege('anon','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as anon_preview," +
       "has_function_privilege('authenticated','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as auth_preview," +
       "has_function_privilege('service_role','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as service_preview," +
+      "has_function_privilege('anon','public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as anon_receipts," +
+      "has_function_privilege('authenticated','public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as auth_receipts," +
+      "has_function_privilege('service_role','public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as service_receipts," +
       "has_table_privilege('anon','public.erp_sync_page_record_outcomes','SELECT') as anon_outcomes_read," +
       "has_table_privilege('authenticated','public.erp_sync_page_record_outcomes','SELECT') as auth_outcomes_read," +
       "has_table_privilege('service_role','public.erp_sync_page_record_outcomes','SELECT') as service_outcomes_read",
   );
   assert.deepEqual(
     Object.values(rpcPrivileges[0]),
-    [false,false,true,false,false,true,false,false,true,false,false,true,false,false,false],
+    [false,false,true,false,false,true,false,false,true,false,false,true,false,false,true,false,false,false],
     "ERP checkpoint RPC ACLs must grant EXECUTE only to service_role",
   );
   const initialized = await loadCheckpoint(baseScope);
@@ -748,6 +765,26 @@ async function main() {
     scope: statementScope,
   });
   assert.equal(statementSaved.counts.created, 1);
+  const statementReceiptHistory = await previewPageReceipts(statementScope);
+  assert.equal(statementReceiptHistory.total, 1);
+  assert.equal(statementReceiptHistory.records.length, 1);
+  assert.equal(statementReceiptHistory.records[0].http_status, 200);
+  assert.equal(statementReceiptHistory.records[0].records_received, 1);
+  assert.equal(statementReceiptHistory.records[0].counts.created, 1);
+  assert.equal(statementReceiptHistory.records[0].completed, true);
+  assert.equal(statementReceiptHistory.records[0].has_next_cursor, false);
+  assert.equal(statementReceiptHistory.records[0].committed_version, 1);
+  assert.equal(statementReceiptHistory.has_cursor, false);
+  await expectSql(
+    "ERP receipt history rejects changed scope metadata",
+    () => previewPageReceipts({ ...statementScope, companyExternalId: "other-company" }),
+    "23505",
+  );
+  await expectSql(
+    "ERP receipt history rejects unbounded page limits",
+    () => previewPageReceipts(statementScope, 51, 0),
+    "22023",
+  );
   await expectSql(
     "financial statement entry rejects an impossible calendar date",
     () => persistPage({
@@ -868,6 +905,20 @@ async function main() {
     ),
     "42501",
   );
+  await expectSql(
+    "authenticated users cannot invoke the service-role ERP page receipt history RPC",
+    () => db.unsafe(
+      "select public.list_erp_sync_page_receipts(" +
+        "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::integer)",
+      [
+        statementScope.organizationId, scopeKey(statementScope), statementScope.provider,
+        statementScope.companyExternalId, statementScope.branchExternalId,
+        statementScope.warehouseExternalId, statementScope.currencyCode,
+        statementScope.objectType, 10, 0,
+      ],
+    ),
+    "42501",
+  );
   await setRole("service_role");
 
   await db.unsafe("reset role");
@@ -897,7 +948,7 @@ async function main() {
     "delete from public.erp_sync_checkpoints where organization_id in ($1::uuid,$2::uuid)",
     [organizationA, organizationB],
   );
-  console.log("ERP_SYNC_CHECKPOINT_POSTGRES17_PASS: service-role-only RPC ACLs, RLS, tenant/company/branch/warehouse/currency/object/provider isolation, encrypted cursor storage, immutable receipts, concurrent duplicate replay, competing-version CAS, injected post-staging receipt failure with full rollback, row idempotency, stale/conflict ordering, completed watermark preservation, all five per-record dispositions, invoice/receipt/statement staging, exact decimal-string validation and financial debit-credit exclusivity.");
+  console.log("ERP_SYNC_CHECKPOINT_POSTGRES17_PASS: service-role-only checkpoint/staged-preview/page-receipt RPC ACLs, RLS, tenant/company/branch/warehouse/currency/object/provider isolation, encrypted cursor storage, immutable and paged receipt history, concurrent duplicate replay, competing-version CAS, injected post-staging receipt failure with full rollback, row idempotency, stale/conflict ordering, completed watermark preservation, all five per-record dispositions, invoice/receipt/statement staging, exact decimal-string validation and financial debit-credit exclusivity.");
 }
 
 try {

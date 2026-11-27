@@ -10,6 +10,8 @@ import {
   type ErpReadContract,
   type ErpStagedPreview,
   type ErpStagedRecordReader,
+  type ErpSyncPageReceiptHistory,
+  type ErpSyncPageReceiptReader,
   type ErpSyncCheckpointStore,
   type ErpSyncScope,
 } from "../_shared/erp-connectors/readonly-sync.ts";
@@ -33,7 +35,7 @@ export type ErpReadSyncHandlerDependencies = {
     supabaseUrl: string;
     serviceRoleKey: string;
     cursorEncryptionKey: string;
-  }): ErpSyncCheckpointStore & ErpStagedRecordReader;
+  }): ErpSyncCheckpointStore & ErpStagedRecordReader & ErpSyncPageReceiptReader;
   createConnector(connection: ErpConnection, contract: ErpReadContract): ErpReadConnector;
   logError(message: string, context: Record<string, unknown>): void;
 };
@@ -399,6 +401,16 @@ export function createErpReadSyncHandler(
           limit: input.previewLimit,
           offset: input.previewOffset,
         });
+        let receipts: ErpSyncPageReceiptHistory | null = null;
+        let receiptsError: string | null = null;
+        try {
+          receipts = await store.listRecentPageReceipts({ scope: syncScope, limit: 10, offset: 0 });
+        } catch (receiptFailure) {
+          receiptsError = receiptFailure instanceof ErpConnectorError
+            ? receiptFailure.code
+            : "ERP_PAGE_RECEIPT_HISTORY_FAILED";
+          dependencies.logError("ERP page receipt history failed during preview", { code: receiptsError });
+        }
         return json({
           status: "complete",
           pages_committed: 0,
@@ -406,6 +418,8 @@ export function createErpReadSyncHandler(
           counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
           preview,
           preview_error: null,
+          receipts,
+          receipts_error: receiptsError,
           checkpoint: {
             version: preview.checkpointVersion,
             has_cursor: preview.hasCursor,
@@ -443,6 +457,17 @@ export function createErpReadSyncHandler(
         dependencies.logError("ERP staged preview failed after sync", { code: previewError });
       }
 
+      let receipts: ErpSyncPageReceiptHistory | null = null;
+      let receiptsError: string | null = null;
+      try {
+        receipts = await store.listRecentPageReceipts({ scope: syncScope, limit: 10, offset: 0 });
+      } catch (receiptFailure) {
+        receiptsError = receiptFailure instanceof ErpConnectorError
+          ? receiptFailure.code
+          : "ERP_PAGE_RECEIPT_HISTORY_FAILED";
+        dependencies.logError("ERP page receipt history failed after sync", { code: receiptsError });
+      }
+
       return json({
         status: result.status,
         pages_committed: result.pagesCommitted,
@@ -450,6 +475,8 @@ export function createErpReadSyncHandler(
         counts: result.counts,
         preview,
         preview_error: previewError,
+        receipts,
+        receipts_error: receiptsError,
         checkpoint: {
           version: result.checkpoint.version,
           has_cursor: result.checkpoint.cursor !== null,

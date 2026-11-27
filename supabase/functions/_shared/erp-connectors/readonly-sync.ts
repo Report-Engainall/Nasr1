@@ -219,6 +219,36 @@ export interface ErpStagedRecordReader {
   }): Promise<ErpStagedPreview>;
 }
 
+export type ErpSyncPageReceipt = {
+  pageNumber: number;
+  httpStatus: number;
+  hasNextCursor: boolean;
+  recordsReceived: number;
+  counts: ErpPersistCounts;
+  completed: boolean;
+  committedVersion: number;
+  recordedAt: string;
+  pendingWatermark: string | null;
+  completedWatermark: string | null;
+};
+
+export type ErpSyncPageReceiptHistory = {
+  records: ErpSyncPageReceipt[];
+  total: number;
+  limit: number;
+  offset: number;
+  checkpointVersion: number;
+  hasCursor: boolean;
+};
+
+export interface ErpSyncPageReceiptReader {
+  listRecentPageReceipts(input: {
+    scope: ErpSyncScope;
+    limit?: number;
+    offset?: number;
+  }): Promise<ErpSyncPageReceiptHistory>;
+}
+
 
 /**
  * P2 implements this boundary with the canonical tenant-scoped staging RPC/table.

@@ -10,6 +10,9 @@ import {
   type ErpStagedRecordDisposition,
   type ErpStagedRecordDispositionReason,
   type ErpStagedRecordReader,
+  type ErpSyncPageReceiptReader,
+  type ErpSyncPageReceiptHistory,
+  type ErpSyncPageReceipt,
   type ErpPersistResult,
   type ErpSourceReceipt,
   type ErpSyncCheckpointStore,
@@ -215,6 +218,61 @@ function parseStagedPreview(
   };
 }
 
+function parsePageReceiptHistory(
+  value: unknown,
+  requestedLimit: number,
+  requestedOffset: number,
+): ErpSyncPageReceiptHistory {
+  if (!isRecord(value) || !Array.isArray(value.records) ||
+      !Number.isSafeInteger(value.total) || Number(value.total) < 0 ||
+      value.limit !== requestedLimit || value.offset !== requestedOffset ||
+      !Number.isSafeInteger(value.checkpoint_version) || Number(value.checkpoint_version) < 0 ||
+      typeof value.has_cursor !== "boolean" ||
+      value.records.length > requestedLimit || value.records.length > Number(value.total)) {
+    throw new ErpConnectorError("ERP_PAGE_RECEIPT_HISTORY_INVALID", "استجابة سجل صفحات ERP لا تطابق حدود النطاق والصفحات.");
+  }
+  const records: ErpSyncPageReceipt[] = value.records.map((raw): ErpSyncPageReceipt => {
+    if (!isRecord(raw) ||
+        !Number.isSafeInteger(raw.page_number) || Number(raw.page_number) < 1 ||
+        !Number.isInteger(raw.http_status) || Number(raw.http_status) < 200 || Number(raw.http_status) > 299 ||
+        typeof raw.has_next_cursor !== "boolean" ||
+        !Number.isSafeInteger(raw.records_received) || Number(raw.records_received) < 0 || Number(raw.records_received) > 1000 ||
+        typeof raw.completed !== "boolean" ||
+        !Number.isSafeInteger(raw.committed_version) || Number(raw.committed_version) < 1) {
+      throw new ErpConnectorError("ERP_PAGE_RECEIPT_HISTORY_INVALID", "أحد إيصالات صفحات ERP يحتوي بيانات خارج العقد الآمن.");
+    }
+    const counts = parseCounts(raw.counts);
+    const dispositionCount = counts.created + counts.updated + counts.unchanged + counts.rejected + counts.conflicted;
+    if (dispositionCount !== Number(raw.records_received)) {
+      throw new ErpConnectorError("ERP_PAGE_RECEIPT_HISTORY_INVALID", "عدادات إيصال صفحة ERP لا تتطابق مع عدد السجلات الواردة.");
+    }
+    const recordedAt = timestampOrNull(raw.recorded_at, "receipt.recorded_at");
+    if (!recordedAt) {
+      throw new ErpConnectorError("ERP_PAGE_RECEIPT_HISTORY_INVALID", "وقت تسجيل إيصال ERP مطلوب.");
+    }
+    return {
+      pageNumber: Number(raw.page_number),
+      httpStatus: Number(raw.http_status),
+      hasNextCursor: raw.has_next_cursor,
+      recordsReceived: Number(raw.records_received),
+      counts,
+      completed: raw.completed,
+      committedVersion: Number(raw.committed_version),
+      recordedAt,
+      pendingWatermark: timestampOrNull(raw.pending_watermark, "receipt.pending_watermark"),
+      completedWatermark: timestampOrNull(raw.completed_watermark, "receipt.completed_watermark"),
+    };
+  });
+  return {
+    records,
+    total: Number(value.total),
+    limit: requestedLimit,
+    offset: requestedOffset,
+    checkpointVersion: Number(value.checkpoint_version),
+    hasCursor: value.has_cursor,
+  };
+}
+
 function parseCounts(value: unknown): ErpPersistResult["counts"] {
   if (!isRecord(value)) {
     throw new ErpConnectorError("ERP_PERSIST_RESPONSE_INVALID", "استجابة حفظ صفحة ERP لا تحتوي عدادات قبول.");
@@ -240,7 +298,7 @@ function parseCounts(value: unknown): ErpPersistResult["counts"] {
  * PostgreSQL RPCs whose transaction commits staging rows, page receipts and checkpoint
  * advancement atomically.
  */
-export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore, ErpStagedRecordReader {
+export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore, ErpStagedRecordReader, ErpSyncPageReceiptReader {
   private readonly baseUrl: URL;
   private readonly fetcher: typeof fetch;
   private readonly serviceRoleKey: string;
@@ -478,6 +536,26 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore, E
       p_offset: offset,
     });
     return parseStagedPreview(result, input.scope.objectType, limit, offset);
+  }
+
+  async listRecentPageReceipts(input: {
+    scope: ErpSyncScope;
+    limit?: number;
+    offset?: number;
+  }): Promise<ErpSyncPageReceiptHistory> {
+    const limit = input.limit ?? 10;
+    const offset = input.offset ?? 0;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50 ||
+        !Number.isInteger(offset) || offset < 0 || offset > 5000) {
+      throw new ErpConnectorError("INVALID_ERP_RECEIPT_LIMIT", "حدود سجل إيصالات ERP يجب أن تكون بين 1 و50 سجلًا وبداية لا تتجاوز 5000.");
+    }
+    const args = await this.scopeArguments(input.scope);
+    const result = await this.rpc("list_erp_sync_page_receipts", {
+      ...args,
+      p_limit: limit,
+      p_offset: offset,
+    });
+    return parsePageReceiptHistory(result, limit, offset);
   }
 
   async resetExpiredCursor(input: {

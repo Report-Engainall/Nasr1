@@ -772,13 +772,98 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION public.list_erp_sync_page_receipts(
+ p_organization_id uuid,p_scope_key text,p_provider text,p_company_external_id text,
+ p_branch_external_id text,p_warehouse_external_id text,p_currency_code text,p_object_type text,
+ p_limit integer DEFAULT 10,p_offset integer DEFAULT 0
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+ v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+ v_total bigint;
+ v_records jsonb;
+BEGIN
+ IF coalesce(auth.role(),'')<>'service_role' THEN
+  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP page receipt history required';
+ END IF;
+ IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+    OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
+    OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
+    OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
+    OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
+    OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
+    OR p_object_type IS NULL OR p_object_type NOT IN (
+      'products','customers','warehouses','stock_balances','product_units','product_prices',
+      'customer_financial_documents','customer_payment_receipts','customer_statement_entries')
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+    OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 5000
+ THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid bounded ERP page receipt scope is required';
+ END IF;
+ SELECT checkpoint.* INTO v_checkpoint
+   FROM public.erp_sync_checkpoints checkpoint
+  WHERE checkpoint.organization_id=p_organization_id AND checkpoint.scope_key=p_scope_key
+  FOR SHARE;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP page receipt scope has no checkpoint';
+ END IF;
+ IF v_checkpoint.provider IS DISTINCT FROM p_provider
+    OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+    OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+    OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+    OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+    OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+ THEN
+  RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP page receipt scope hash is bound to different scope metadata';
+ END IF;
+ SELECT count(*) INTO v_total
+   FROM public.erp_sync_page_receipts receipt
+  WHERE receipt.organization_id=p_organization_id AND receipt.scope_key=p_scope_key;
+ SELECT coalesce(pg_catalog.jsonb_agg(
+   pg_catalog.jsonb_build_object(
+     'page_number',page.page_number,
+     'http_status',page.http_status,
+     'has_next_cursor',page.next_cursor_present,
+     'records_received',page.records_received,
+     'counts',pg_catalog.jsonb_build_object(
+       'created',page.created_count,'updated',page.updated_count,'unchanged',page.unchanged_count,
+       'rejected',page.rejected_count,'conflicted',page.conflicted_count
+     ),
+     'completed',page.completed,
+     'committed_version',page.committed_version,
+     'recorded_at',page.recorded_at,
+     'pending_watermark',page.pending_watermark,
+     'completed_watermark',page.completed_watermark
+   ) ORDER BY page.recorded_at DESC,page.committed_version DESC
+ ),'[]'::jsonb)
+ INTO v_records
+ FROM (
+   SELECT receipt.*,
+          pg_catalog.row_number() OVER (ORDER BY receipt.recorded_at DESC,receipt.committed_version DESC)::bigint AS page_number
+     FROM public.erp_sync_page_receipts receipt
+    WHERE receipt.organization_id=p_organization_id AND receipt.scope_key=p_scope_key
+    ORDER BY receipt.recorded_at DESC,receipt.committed_version DESC
+    LIMIT p_limit OFFSET p_offset
+ ) page;
+ RETURN pg_catalog.jsonb_build_object(
+   'records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
+   'checkpoint_version',v_checkpoint.version,'has_cursor',v_checkpoint.cursor_ciphertext IS NOT NULL
+ );
+END
+$function$;
+
 REVOKE ALL ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) TO service_role;
 GRANT EXECUTE ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) TO service_role;
 GRANT EXECUTE ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) TO service_role;
+GRANT EXECUTE ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) TO service_role;
+COMMENT ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) IS
+  'Service-role-only bounded ERP page receipt history. Exposes disposition counts and watermarks without cursors, response hashes or provider request IDs.';
 
 COMMIT;

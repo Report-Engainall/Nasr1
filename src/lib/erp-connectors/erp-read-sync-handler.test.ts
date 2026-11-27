@@ -5,6 +5,7 @@ import type {
   ErpReadContract,
   ErpSyncCheckpointStore,
   ErpSyncScope,
+  ErpSyncPageReceiptReader,
 } from "../../../supabase/functions/_shared/erp-connectors/readonly-sync";
 
 const organizationId = "c87c10f5-2e7d-4d67-95f6-e15b37a2e6b0";
@@ -80,7 +81,7 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
       responseSha256: "ab".repeat(32),
     })),
   }));
-  const store: ErpSyncCheckpointStore & ErpStagedRecordReader = {
+  const store: ErpSyncCheckpointStore & ErpStagedRecordReader & ErpSyncPageReceiptReader = {
     loadCheckpoint: vi.fn(async (scope: ErpSyncScope) => {
       loadedScopes.push(scope);
       return {
@@ -105,6 +106,25 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
       cursor: null,
       pendingWatermark: null,
       completedWatermark: null,
+    })),
+    listRecentPageReceipts: vi.fn(async () => ({
+      records: [{
+        pageNumber: 1,
+        httpStatus: 200,
+        hasNextCursor: false,
+        recordsReceived: 0,
+        counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+        completed: true,
+        committedVersion: 1,
+        recordedAt: "2026-11-28T00:30:00Z",
+        pendingWatermark: null,
+        completedWatermark: "2026-11-28T00:30:00Z",
+      }],
+      total: 1,
+      limit: 10,
+      offset: 0,
+      checkpointVersion: 1,
+      hasCursor: false,
     })),
     listStagedRecords: vi.fn(async (input) => ({
       records: [{
@@ -176,6 +196,11 @@ describe("ERP read-only Edge Function handler", () => {
     expect(payload.preview).toMatchObject({ total: 1, limit: 20, hasCursor: true, records: [{ externalId: "ERP-PRODUCT-001", fields: { item_code: "000125" } }] });
     expect(payload.checkpoint).toMatchObject({ has_cursor: true });
     expect(payload.preview_error).toBeNull();
+    expect(payload.receipts).toMatchObject({
+      total: 1,
+      records: [{ pageNumber: 1, httpStatus: 200, completed: true, hasNextCursor: false }],
+    });
+    expect(payload.receipts_error).toBeNull();
     expect(payload.counts).toEqual({
       created: 0,
       updated: 0,
@@ -364,6 +389,11 @@ describe("ERP read-only Edge Function handler", () => {
       offset: 20,
       scope: expect.objectContaining({ organizationId, companyExternalId: "company-01", branchExternalId: "branch-01" }),
     }));
+    expect(context.store.listRecentPageReceipts).toHaveBeenCalledWith({
+      scope: expect.objectContaining({ organizationId, companyExternalId: "company-01", branchExternalId: "branch-01" }),
+      limit: 10,
+      offset: 0,
+    });
   });
 
   it("rejects malformed preview pagination before authentication or storage access", async () => {
