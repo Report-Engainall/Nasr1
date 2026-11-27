@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
-import { buildDecisionPolicyReviewSuggestions, buildDecisionReviewQueue, filterDecisionMemoryRecords, searchSimilarDecisionMemory, type DecisionReviewQueueKind } from "@/lib/intelligence/decision-memory";
+import { buildDecisionMemoryCsv, buildDecisionPolicyReviewSuggestions, buildDecisionReviewQueue, filterDecisionMemoryRecords, searchSimilarDecisionMemory, type DecisionReviewQueueKind } from "@/lib/intelligence/decision-memory";
 import {
   commandDecisionPolicyLearningCandidate,
   createDecisionPolicyLearningCandidate,
@@ -47,6 +47,20 @@ function metricLine(title:string,metric:NonNullable<DecisionMemoryRecord["metric
     <p className="text-xs">الإثبات: <EvidenceReferences ids={metric.evidenceIds}/></p></div>;
 }
 
+
+function downloadDecisionMemoryCsv(records:DecisionMemoryRecord[]):void {
+  if(!records.length)return;
+  const blob=new Blob([buildDecisionMemoryCsv(records)],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;
+  link.download="aghbari-decision-memory-"+new Date().toISOString().slice(0,10)+".csv";
+  link.hidden=true;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),0);
+}
 function browserLocalDay():string {
   try {
     const timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Aden";
@@ -822,9 +836,11 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           <option value="UNVERIFIED">غير موثقة</option>
         </select>
       </label>
-      <div className="flex items-end">
-        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"&&recordMemoryFilter==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordMemoryFilter("ALL");setSelectedReviewKind("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
+      <div className="flex flex-wrap items-end gap-2">
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"&&recordMemoryFilter==="ALL"&&selectedReviewKind==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordMemoryFilter("ALL");setSelectedReviewKind("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={filteredRecords.length===0} onClick={()=>downloadDecisionMemoryCsv(filteredRecords)}>تصدير CSV ({filteredRecords.length})</button>
       </div>
+      {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700 sm:col-span-4">التصدير يضم النتائج المطابقة من {result.loadedCount} قراراً محمّلاً فقط من أصل {result.totalCount}؛ السجلات غير المحمّلة غير مشمولة.</p>:null}
       <p className="text-xs text-muted-foreground sm:col-span-4" role="status">{selectedReviewKind!=="ALL"?"فئة طابور المراجعة: "+reviewQueueLabels[selectedReviewKind]+" · ":""}نتائج البحث: {filteredRecords.length} من {result.loadedCount} قراراً محمّلاً · البحث لا يشمل صفحات لم تُحمّل من الخادم.</p>
     </section>:null}
     {result.records.length?<>

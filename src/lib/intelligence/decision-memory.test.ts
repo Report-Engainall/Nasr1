@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDecisionMemoryBook, buildDecisionPolicyReviewSuggestions, buildDecisionReviewQueue, filterDecisionMemoryRecords, searchSimilarDecisionMemory } from "./decision-memory";
+import { buildDecisionMemoryBook, buildDecisionMemoryCsv, buildDecisionPolicyReviewSuggestions, buildDecisionReviewQueue, filterDecisionMemoryRecords, searchSimilarDecisionMemory } from "./decision-memory";
 import type { DecisionMemorySnapshot } from "./decision-memory";
 import type { DecisionOutcomeView } from "./decision-outcome-client";
 import type { EvidenceRecord, MetricSnapshot } from "./types";
@@ -501,6 +501,30 @@ describe("decision review queue and memory filtering", () => {
     expect(queue.invalidScheduleCount).toBe(1);
     expect(() => buildDecisionReviewQueue([], "2026-02-31", 30)).toThrow("decision_review_queue_input_invalid");
     expect(() => buildDecisionReviewQueue([], "2026-10-06", 91)).toThrow("decision_review_queue_input_invalid");
+  });
+
+
+  it("exports the filtered source records as safe UTF-8 CSV with evidence and verification context", () => {
+    const record = queueRecord("csv-export", "MEASURED", "NOT_REQUIRED", null, true);
+    record.proposedResult = "=HYPERLINK(\"https://example.invalid\",\"click\")";
+    record.problem = "سطر أول, \"مقتبس\"\\nسطر ثان";
+    record.facts = [{
+      id: "fact-csv",
+      kind: "FACT",
+      text: "فاتورة مثبتة",
+      actorRole: "manager",
+      recordedAt: generatedAt,
+      evidenceIds: ["invoice:00000000-0000-4000-8000-000000000001"],
+    }];
+
+    const csv = buildDecisionMemoryCsv([record]);
+    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv).toContain("\"معرف القرار\",\"القرار\"");
+    expect(csv).toContain("'=HYPERLINK(");
+    expect(csv).toContain("\"سطر أول, \"\"مقتبس\"\"\\nسطر ثان\"");
+    expect(csv).toContain("invoice:00000000-0000-4000-8000-000000000001");
+    expect(csv).toContain("\"مكتملة\"");
+    expect(buildDecisionMemoryCsv([])).toBe("\\uFEFF");
   });
 
   it("filters by normalized Arabic terms and exact decision state without changing source records", () => {

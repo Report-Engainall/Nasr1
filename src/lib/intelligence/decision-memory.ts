@@ -227,6 +227,89 @@ export function buildDecisionReviewQueue(
   return { referenceDay, horizonDays, items, counts, invalidScheduleCount };
 }
 
+
+const decisionMemoryCsvStateLabels: Record<DecisionMemoryRecord["state"], string> = {
+  PROPOSED: "مقترح",
+  IN_REVIEW: "قيد المراجعة",
+  APPROVED: "معتمد",
+  REJECTED: "مرفوض",
+  DEFERRED: "مؤجل",
+  ASSIGNED: "مُعيّن",
+  EXECUTING: "قيد التنفيذ",
+  EXECUTED: "بانتظار القياس",
+  MEASURED: "مقاس",
+};
+
+function csvCell(value: string | number | null | undefined): string {
+  const raw = value === null || value === undefined ? "" : String(value);
+  const safe = /^[\\u0000-\\u0020]*[=+\\-@]/.test(raw) ? "'" + raw : raw;
+  return '"' + safe.replace(/"/g, '""') + '"';
+}
+
+function exportMetric(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.value,
+    metric.currency ?? metric.unitOfMeasure ?? metric.unit,
+    metric.period.from + " — " + metric.period.to,
+    metric.asOf,
+    metric.formulaId + "@" + metric.formulaVersion,
+  ].join(" | ");
+}
+
+/** Exports only the records supplied by the caller, preserving their source and verification scope. */
+export function buildDecisionMemoryCsv(records: DecisionMemoryRecord[]): string {
+  const headers = [
+    "معرف القرار", "القرار", "قاعدة القرار", "حالة القرار", "إصدار القرار",
+    "المسؤول", "حالة توثيق الذاكرة", "المشكلة", "الوقائع المثبتة",
+    "مراجع الأدلة", "آراء الإدارة", "فرضيات قيد التحقق", "الافتراضات",
+    "البدائل", "البديل المختار", "الإجراء التنفيذي", "حالة المراجعة",
+    "موعد المراجعة", "المتوقع", "الفعلي", "الفرق", "الدروس المستفادة",
+    "مراجعة الدروس", "عدد أحداث التدقيق", "آخر تحديث",
+  ];
+  const rows = records.map(record => {
+    const evidenceIds = [
+      ...record.facts.flatMap(fact => fact.evidenceIds),
+      ...(record.metricComparison.expected?.evidenceIds ?? []),
+      ...(record.metricComparison.actual?.evidenceIds ?? []),
+      ...record.alternatives.flatMap(option => option.evidenceIds),
+    ];
+    const reviewLabel = record.reviewDisposition === "SCHEDULED" ? "مجدولة"
+      : record.reviewDisposition === "NOT_REQUIRED" ? "غير مطلوبة"
+        : record.reviewDisposition === "NOT_SCHEDULED" ? "غير مجدولة" : "غير موثقة";
+    const memoryLabel = record.memoryStatus === "VERIFIED" ? "مكتملة"
+      : record.memoryStatus === "PARTIAL" ? "جزئية" : "غير موثقة";
+    return [
+      record.decisionId,
+      record.proposedResult,
+      record.ruleId + "@" + record.ruleVersion,
+      decisionMemoryCsvStateLabels[record.state],
+      record.version,
+      record.owner,
+      memoryLabel,
+      record.problem,
+      record.facts.map(fact => fact.text).join(" ؛ "),
+      [...new Set(evidenceIds)].join(" ; "),
+      record.opinions.map(item => item.text).join(" ؛ "),
+      record.hypotheses.map(item => item.text).join(" ؛ "),
+      record.assumptions.join(" ؛ "),
+      record.alternatives.map(item => item.label + (item.rationale ? " — " + item.rationale : "")).join(" ؛ "),
+      record.chosenAlternative?.label ?? "",
+      record.actionTaken,
+      reviewLabel,
+      record.reviewAt,
+      exportMetric(record.metricComparison.expected),
+      exportMetric(record.metricComparison.actual),
+      record.metricComparison.difference,
+      record.lessons.join(" ؛ "),
+      record.lessonsReviewed ? "نعم" : "لا",
+      record.eventCount,
+      record.updatedAt,
+    ];
+  });
+  return "\\uFEFF" + [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\\r\\n");
+}
+
 export interface DecisionMemoryRecordFilter {
   query?: string;
   state?: DecisionMemoryRecord["state"] | "ALL";
