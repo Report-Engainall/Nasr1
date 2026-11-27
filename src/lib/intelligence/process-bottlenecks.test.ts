@@ -210,6 +210,20 @@ describe("process bottleneck before/after comparison windows", () => {
     expect(parseProcessBottleneckSnapshot(invalidMetricClock)).toBeNull();
   });
 
+  it("rejects a queue opened one microsecond after its source snapshot", () => {
+    const future = snapshot(equalBaselinePeriod);
+    future.queues = [{
+      processKey: "ORDERS",
+      openCount: 1,
+      oldestOpenedAt: "2026-11-30T23:59:59.123457Z",
+      oldestAgeMinutes: 0,
+      asOf: "2026-11-30T23:59:59.123456Z",
+    }];
+    future.asOf = "2026-11-30T23:59:59.123456Z";
+    future.sourceCoverage = future.sourceCoverage.map(item => ({ ...item, asOf: future.asOf }));
+    expect(parseProcessBottleneckSnapshot(future)).toBeNull();
+  });
+
   it("accepts exact six-digit PostgreSQL microseconds in bottleneck evidence", () => {
     const valid = snapshot(equalBaselinePeriod);
     valid.asOf = "2026-11-30T23:59:59.123456Z";
