@@ -743,6 +743,12 @@ jobs:
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
           E2E_PROOF_PATH: ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-product-price-edit.spec.ts"
+      - name: Prove manager product-image primary/gallery upload, retry, limits and tenant isolation in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          PRODUCT_IMAGE_UI_PROOF_PATH: ${{ runner.temp }}/product-image-ui-browser-proof.json
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/product-image-upload-admin.spec.ts"
       - name: Test admin access matrix responsive coverage and admin-only visibility
         timeout-minutes: 8
         env:
@@ -922,5 +928,6 @@ jobs:
             ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
             ${{ runner.temp }}/admin-category-tree-browser-proof.json
             ${{ runner.temp }}/product-image-storage-proof.json
+            ${{ runner.temp }}/product-image-ui-browser-proof.json
             ${{ runner.temp }}/p2-local-supabase-diagnostics.log
           if-no-files-found: ignore
