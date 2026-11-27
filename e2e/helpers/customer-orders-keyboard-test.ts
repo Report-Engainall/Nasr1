@@ -164,7 +164,8 @@ async function handleCustomerOrdersFixtureRequest(
         const matchesStatus = !statusFilter || !statusFilter.startsWith("eq.") || row.status === statusFilter.slice(3);
         return matchesNumber && matchesStatus;
       });
-      const range = request.headers()["range"] ?? "0-24";
+      const allHeaders = await request.allHeaders();
+      const range = allHeaders.range ?? allHeaders.Range ?? "0-24";
       const [rangeStart, rangeEnd] = range.split("-").map(Number);
       const from = Number.isSafeInteger(rangeStart) && rangeStart >= 0 ? rangeStart : 0;
       const to = Number.isSafeInteger(rangeEnd) && rangeEnd >= from ? rangeEnd : from + 24;
@@ -172,8 +173,8 @@ async function handleCustomerOrdersFixtureRequest(
       searchFixture.requests.push({
         orderNumberFilter,
         statusFilter,
-        range: request.headers()["range"] ?? null,
-        prefer: request.headers().prefer ?? null,
+        range: allHeaders.range ?? allHeaders.Range ?? null,
+        prefer: allHeaders.prefer ?? allHeaders.Prefer ?? null,
       });
       const contentRange = visibleRows.length === 0
         ? "*/0"
