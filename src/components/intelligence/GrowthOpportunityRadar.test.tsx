@@ -3,7 +3,12 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
-import { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
+import {
+  filterAndSortGrowthOpportunities,
+  GrowthOpportunityRadar,
+  normalizeGrowthOpportunitySearch,
+  paginateGrowthOpportunities,
+} from "./GrowthOpportunityRadar";
 
 const mocks = vi.hoisted(() => ({
   user: {
@@ -118,6 +123,69 @@ const verifiedRadar: GrowthOpportunityRadarResult = {
     PRODUCT_PERFORMANCE_CHANGE: 0,
   },
 };
+
+describe("GrowthOpportunityRadar triage helpers", () => {
+  it("normalizes Arabic diacritics, alef variants and whitespace for search", () => {
+    expect(normalizeGrowthOpportunitySearch("إِعادة  الشِّراء")).toBe("اعاده الشراء");
+  });
+
+  it("filters by kind and priority, then sorts P1 before P2 and P3", () => {
+    const opportunities = [
+      {
+        ...verifiedOpportunity,
+        id: "low",
+        kind: "REPEAT_PURCHASE" as const,
+        priority: "P3" as const,
+        title: "إعادة الشراء",
+      },
+      {
+        ...verifiedOpportunity,
+        id: "medium",
+        kind: "PRODUCT_UNAVAILABLE_DEMAND" as const,
+        priority: "P2" as const,
+        title: "طلب منتج غير متاح",
+      },
+      {
+        ...verifiedOpportunity,
+        id: "high",
+        kind: "CUSTOMER_ACTIVITY_DECLINE" as const,
+        priority: "P1" as const,
+        title: "تراجع نشاط العميل",
+      },
+    ];
+
+    expect(filterAndSortGrowthOpportunities(opportunities, {
+      searchText: "",
+      priority: "ALL",
+      kind: "ALL",
+    }).map(item => item.id)).toEqual(["high", "medium", "low"]);
+
+    expect(filterAndSortGrowthOpportunities(opportunities, {
+      searchText: "إِعَادَة الشراء",
+      priority: "P3",
+      kind: "REPEAT_PURCHASE",
+    }).map(item => item.id)).toEqual(["low"]);
+  });
+
+  it("clamps pagination and returns the final partial page without dropping records", () => {
+    const opportunities = Array.from({ length: 12 }, (_, index) => ({
+      ...verifiedOpportunity,
+      id: "opportunity-" + index,
+    }));
+    const middle = paginateGrowthOpportunities(opportunities, 1, 5);
+    expect(middle.items.map(item => item.id)).toEqual([
+      "opportunity-5",
+      "opportunity-6",
+      "opportunity-7",
+      "opportunity-8",
+      "opportunity-9",
+    ]);
+    const final = paginateGrowthOpportunities(opportunities, 99, 5);
+    expect(final.page).toBe(2);
+    expect(final.items.map(item => item.id)).toEqual(["opportunity-10", "opportunity-11"]);
+    expect(final.totalCount).toBe(12);
+  });
+});
 
 describe("GrowthOpportunityRadar", () => {
   beforeEach(() => {
