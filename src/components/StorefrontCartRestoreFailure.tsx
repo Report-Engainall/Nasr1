@@ -39,7 +39,7 @@ export function StorefrontCartRestoreFailure({
       {items.length > 0 && (
         <div className="sf-cart-list" role="group" aria-label="الأصناف المحفوظة محليًا">
           {items.map((item) => {
-            const shortId = item.productId.slice(0, 8);
+            const shortId = item.productId.slice(-8);
             return (
               <div className="sf-cart-row" key={item.productId}>
                 <div className="sf-cart-info">
