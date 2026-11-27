@@ -70,6 +70,10 @@ function fixture(options: {
   baselineQuantity?: number | string;
   currentOrders?: number;
   baselineOrders?: number;
+  currentQuantityUnit?: MetricUnit;
+  baselineQuantityUnit?: MetricUnit;
+  currentOrdersUnit?: MetricUnit;
+  baselineOrdersUnit?: MetricUnit;
   currentUnit?: string;
   baselineUnit?: string;
   completePopulation?: boolean;
@@ -82,24 +86,24 @@ function fixture(options: {
   const metrics = [
     metric({
       id: "current-quantity", key: "product.order_items.quantity",
-      value: options.currentQuantity ?? "120.000000", unit: "QUANTITY",
+      value: options.currentQuantity ?? "120.000000", unit: options.currentQuantityUnit ?? "QUANTITY",
       unitOfMeasure: options.currentUnit ?? "EA", period: currentPeriod, evidenceId: "current-evidence",
       formulaId: "nasr1.product-order-quantity",
     }),
     metric({
       id: "current-orders", key: "product.orders.sample_count",
-      value: options.currentOrders ?? 10, unit: "COUNT", period: currentPeriod,
+      value: options.currentOrders ?? 10, unit: options.currentOrdersUnit ?? "COUNT", period: currentPeriod,
       evidenceId: "current-evidence", formulaId: "nasr1.product-order-sample-count",
     }),
     metric({
       id: "baseline-quantity", key: "product.order_items.quantity",
-      value: options.baselineQuantity ?? "90.000000", unit: "QUANTITY",
+      value: options.baselineQuantity ?? "90.000000", unit: options.baselineQuantityUnit ?? "QUANTITY",
       unitOfMeasure: options.baselineUnit ?? "EA", period: baselinePeriod, evidenceId: "baseline-evidence",
       formulaId: "nasr1.product-order-quantity",
     }),
     metric({
       id: "baseline-orders", key: "product.orders.sample_count",
-      value: options.baselineOrders ?? 10, unit: "COUNT", period: baselinePeriod,
+      value: options.baselineOrders ?? 10, unit: options.baselineOrdersUnit ?? "COUNT", period: baselinePeriod,
       evidenceId: "baseline-evidence", formulaId: "nasr1.product-order-sample-count",
     }),
   ];
@@ -175,6 +179,18 @@ describe("evidence-backed product demand forecast", () => {
     const result = fixture({ currentOrders: 4 });
     expect(result.forecasts).toHaveLength(0);
     expect(result.withheld).toMatchObject([{ reason: "SAMPLE_INSUFFICIENT" }]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+
+  it.each([
+    ["current quantity", { currentQuantityUnit: "TEXT" as const }],
+    ["baseline quantity", { baselineQuantityUnit: "TEXT" as const }],
+    ["current sample count", { currentOrdersUnit: "TEXT" as const }],
+    ["baseline sample count", { baselineOrdersUnit: "TEXT" as const }],
+  ])("withholds numeric-looking TEXT %s before forecast classification", (_label, options) => {
+    const result = fixture(options);
+    expect(result.forecasts).toHaveLength(0);
+    expect(result.withheld).toMatchObject([{ reason: "METRIC_SCOPE_MISMATCH" }]);
     expect(result.status).toBe("NEEDS_REVIEW");
   });
 
