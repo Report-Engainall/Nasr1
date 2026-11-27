@@ -297,6 +297,113 @@ async function main(){
  const cancelledStatus=(await db.unsafe("select status from public.orders where id=$1::uuid",[cancelOrder]))[0];
  assert.equal(cancelledStatus.status,"cancelled");
 
+ // Shipment must not finalize an order when its net lot reservations are
+ // smaller than the commercial order quantities, even if every remaining
+ // reserved lot is still in date.
+ const shortShipmentExpiry=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+8,'YYYY-MM-DD') d",
+ ))[0].d;
+ const shortShipmentReceipt=await receipt(
+  manager,"FEFO-SHORT-SHIP-"+suffix,shortShipmentExpiry,2,
+ );
+ assert.ok(shortShipmentReceipt.receiptId);
+ await as(manager);
+ const shortShipmentOrder=(await rpc(
+  "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
+  [cust.id,db.json([{product_id:product,quantity:2}]),"FEFO shipment completeness guard",randomUUID().replaceAll("-",""),"cash_on_delivery"],
+ )).id;
+ assert.ok(shortShipmentOrder);
+ await status(manager,shortShipmentOrder,"confirmed");
+ await status(manager,shortShipmentOrder,"processing");
+ const shortShipmentReserves=await db.unsafe(
+  "select im.inventory_batch_id::text batch_id,im.product_id::text product_id,im.warehouse_id::text warehouse_id,im.quantity::text quantity " +
+  "from public.inventory_movements im " +
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve' " +
+  "order by im.inventory_batch_id",
+  [shortShipmentOrder],
+ );
+ assert.ok(shortShipmentReserves.length>=1);
+ assert.equal(shortShipmentReserves.reduce((sum,row)=>sum+Number(row.quantity),0),2,
+  "a new two-unit order must begin with complete lot reservation");
+
+ const partialSource=shortShipmentReserves[0];
+ const partialReleaseQuantity=Math.min(1,Number(partialSource.quantity));
+ assert.ok(partialReleaseQuantity>0);
+ await db.unsafe(
+  "update public.inventory_batches set quantity_reserved=quantity_reserved-$2::numeric " +
+  "where id=$1::uuid and quantity_reserved>=$2::numeric",
+  [partialSource.batch_id,partialReleaseQuantity],
+ );
+ const partialBalanceAfter=(await db.unsafe(
+  "update public.inventory_balances set quantity_reserved=quantity_reserved-$3::numeric," +
+  "last_movement_at=now(),updated_at=now() " +
+  "where product_id=$1::uuid and warehouse_id=$2::uuid and quantity_reserved>=$3::numeric " +
+  "returning quantity_available",
+  [partialSource.product_id,partialSource.warehouse_id,partialReleaseQuantity],
+ ))[0];
+ assert.ok(partialBalanceAfter);
+ await db.unsafe(
+  "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) " +
+  "values($1::uuid,$2::uuid,'release_reservation',$3::numeric,$4,'order',$5::uuid," +
+  "'Local acceptance fixture: simulate one released unit before shipment',$6::uuid,$7::uuid)",
+  [partialSource.product_id,partialSource.warehouse_id,partialReleaseQuantity,
+   partialBalanceAfter.quantity_available,shortShipmentOrder,manager.id,partialSource.batch_id],
+ );
+
+ const orderedAndReservedBeforeShipment=(await db.unsafe(
+  "select " +
+  "(select pg_catalog.sum(oi.quantity)::numeric(15,3) from public.order_items oi where oi.order_id=$1::uuid)::text ordered_quantity,"+
+  "(select pg_catalog.sum(case when im.movement_type='reserve' then im.quantity else -im.quantity end)::numeric(15,3) " +
+  " from public.inventory_movements im where im.reference_type='order' and im.reference_id=$1::uuid " +
+  " and im.movement_type in ('reserve','release_reservation'))::text net_reserved_quantity",
+  [shortShipmentOrder],
+ ))[0];
+ assert.equal(Number(orderedAndReservedBeforeShipment.ordered_quantity),2);
+ assert.equal(Number(orderedAndReservedBeforeShipment.net_reserved_quantity),1,
+  "the fixture must represent a real one-unit short reservation against a two-unit order");
+ const reservedLotBeforeShipment=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved " +
+  "from public.inventory_batches where id=$1::uuid",
+  [partialSource.batch_id],
+ ))[0];
+ const aggregateBeforeShortShipment=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved " +
+  "from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [partialSource.product_id,partialSource.warehouse_id],
+ ))[0];
+ await assert.rejects(
+  () => status(manager,shortShipmentOrder,"shipped"),
+  error => String(error?.code)==="55000" &&
+    String(error?.message).includes("net reservation quantity does not match ordered quantity"),
+  "a partially reserved order must not be marked shipped or create a partial sale movement",
+ );
+ const shortShipmentStatus=(await db.unsafe(
+  "select status from public.orders where id=$1::uuid",
+  [shortShipmentOrder],
+ ))[0];
+ assert.equal(shortShipmentStatus.status,"processing");
+ const shortShipmentSales=await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements " +
+  "where reference_type='order' and reference_id=$1::uuid and movement_type='sale'",
+  [shortShipmentOrder],
+ );
+ assert.equal(shortShipmentSales[0].count,0,
+  "shipment completeness rejection must not create any sale movement");
+ const reservedLotAfterShipment=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved " +
+  "from public.inventory_batches where id=$1::uuid",
+  [partialSource.batch_id],
+ ))[0];
+ const aggregateAfterShortShipment=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved " +
+  "from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [partialSource.product_id,partialSource.warehouse_id],
+ ))[0];
+ assert.deepEqual(reservedLotAfterShipment,reservedLotBeforeShipment,
+  "rejected partial shipment must preserve the affected lot counters");
+ assert.deepEqual(aggregateAfterShortShipment,aggregateBeforeShortShipment,
+  "rejected partial shipment must preserve aggregate stock counters");
+
  const finalParity=(await db.unsafe(
   "select ib.quantity_on_hand::text h,ib.quantity_reserved::text r,"+
   "coalesce(pg_catalog.sum(b.quantity_on_hand),0)::text bh,"+
