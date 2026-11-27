@@ -733,7 +733,7 @@ BEGIN
      LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
     WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
    UNION ALL
-   SELECT latest.external_id,latest.source_updated_at,'{}'::jsonb,latest.disposition
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition
      FROM latest_outcomes latest
     WHERE latest.disposition IN ('rejected','conflicted')
       AND NOT EXISTS (
