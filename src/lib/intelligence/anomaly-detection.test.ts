@@ -433,4 +433,11 @@ describe("anomaly detection ISO timestamp offset contract", () => {
       expect(() => resultAt(timestamp)).toThrow("anomaly_detection_timestamp_or_id_invalid");
     });
   }
+  it("accepts PostgreSQL microseconds and rejects finer timestamp precision", () => {
+    const valid = "2026-11-26T02:45:47.123456Z";
+    expect(resultAt(valid).asOf).toBe(valid);
+    expect(() => resultAt("2026-11-26T02:45:47.1234567Z"))
+      .toThrow("anomaly_detection_timestamp_or_id_invalid");
+  });
+
 });
