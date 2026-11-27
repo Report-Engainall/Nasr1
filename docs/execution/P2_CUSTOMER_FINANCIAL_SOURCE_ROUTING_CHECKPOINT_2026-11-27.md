@@ -5,9 +5,9 @@ Owner: P2 — PostgreSQL 17, RLS/RBAC, customer financial identity, audit and tr
 Branch: `p2/customer-financial-source-routing-pg17-20261127`
 
 ## Current source pointers
-- Latest synchronized `main` at this checkpoint update: `f71cc0eeed05a966083f4a4e647021af60733468` (documentation-only execution-state refresh).
-- Latest code-bearing `main` SHA recorded in the shared state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
-- P2 branch SHA before this checkpoint edit: `fe894f5354aee1cac2bd8a197d5f0179e0af01dd`; this commit has `main` as first parent and the complete P2 branch as second parent. The branch is not behind `main`.
+- Latest observed main HEAD: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only execution directive refresh).
+- Latest code-bearing main SHA recorded in the shared execution state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
+- Latest P2 code/test head before this checkpoint update: `181acdf7410f4b57557b2f2b7a2afa5b3d2b1458`. Do not describe CI as accepted until the exact-head jobs below become terminal SUCCESS.
 - PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
 - No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
 
@@ -37,10 +37,13 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 - The dedicated P2 workflow invokes `node scripts/test-customer-financial-source-routing.mjs` after isolated local seeding.
 
 ## Exact-SHA status
-- Last reviewed code-bearing head before this checkpoint update: `fe894f5354aee1cac2bd8a197d5f0179e0af01dd`.
-- Static preflight on that head: migration 1,079 lines, one `COMMIT`, one evidence-writer function, two `jsonb_object_keys` usages, exact numeric comparison present, hash comparison includes balances, and no `jsonb_object_length`/stubbed `THEN false`.
-- The test script contains the missing/mismatch/incomplete-currency/hash-replay assertions and calls the updated eight-argument service-role writer.
-- No PostgreSQL 17 result is yet accepted for the synchronized code head. CI results from earlier intermediate/corrupted heads are superseded and must not be reused. The next workflow head is the commit produced by this checkpoint update; treat all triggered checks as QUEUED/IN_PROGRESS until terminal status is fetched.
+- Exact code/test head: `181acdf7410f4b57557b2f2b7a2afa5b3d2b1458`.
+- The former compound reconciliation-validation expression has been replaced in the current branch history by ordered envelope checks, currency-key coverage checks, a bounded per-currency loop, decimal validation before numeric casts, and exact numeric equality for matched results. Evidence hash replay still compares the full balance payload and metadata.
+- The existing invoice security is retained: boolean-only customer_app_only_invoice_read_allowed, restrictive RLS on invoice headers/items, and a source-binding FOR SHARE lock in get_customer_invoice_pdf; no duplicate invoice service was introduced.
+- This execution additionally source-binds the existing customer receipt paths: receipt list count/page only include active APP_ONLY bindings; a boolean-only customer_app_only_receipt_read_allowed protects direct table RLS; the existing print-data RPC is VOLATILE and takes FOR SHARE on the source binding before returning the saved receipt/allocation snapshot.
+- The P2 acceptance script now creates a real two-invoice receipt through record_customer_payment_allocation, proves it appears and prints under APP_ONLY, is hidden/denied after ONYX and MUTAKAMEL cutovers, and becomes printable again only after the approved APP_ONLY return. Statement-summary comparison is taken after the fixture receipt is posted.
+- Exact-head workflows for 181acdf7410f4b57557b2f2b7a2afa5b3d2b1458: PG17 run 46075109090 QUEUED; P2 critical paths 46075109143 QUEUED; P1 admin context verification 46075109144 QUEUED. No PASS is claimed yet.
+- Earlier failed PG17 run 46072628890 on superseded head e378f4d3e3a08db8d57669f029a037040c5a1494 is retained as the original syntax-failure evidence only; do not reuse its result for the repaired head.
 - Hosted customer/order/tenant E2E remains outside this local P2 proof; if SKIPPED it is not PASS.
 
 ## Superseded/failed intermediate attempts — do not reuse
@@ -56,9 +59,12 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 - Release remains NO-GO until the complete business path, authorized external transport, required security/finance/inventory gates, post-merge checks and runtime verification are proven.
 
 ## Immediate next action
-Fetch the workflow run created by this checkpoint commit and require:
-1. isolated PostgreSQL 17 migration + `Customer financial source routing PostgreSQL 17 acceptance: PASS`;
-2. P2 Playwright critical paths PASS on the exact same commit;
-3. public Chromium/infrastructure required jobs PASS;
-4. report hosted tenant/customer E2E as SKIPPED unless it actually executes.
-Fix only failures reproduced on the new exact SHA, then update this P2 checkpoint with the terminal evidence and rerun on the resulting SHA if any source/test file changes.
+Fetch the exact-head workflow runs for 181acdf7410f4b57557b2f2b7a2afa5b3d2b1458; treat every queued, running or skipped job as non-success. Require isolated PostgreSQL 17 migration plus Customer financial source routing PostgreSQL 17 acceptance PASS, P2 critical paths, P1/admin verification, public Chromium and infrastructure checks. Fix only failures reproduced on the current head; after any migration/test change, rerun acceptance on the resulting exact SHA. P1 owns final integration and merge; P2 must not merge or deploy.
+
+## Latest result-first execution — 2026-11-28
+
+- Implemented on existing PR #697; no parallel PR or duplicate screen/service was created.
+- Receipt read boundary is now part of the same financial-source contract. Direct receipt reads, paged selector totals/results, and printable receipt snapshots all follow the server-owned APP_ONLY/ONYX/MUTAKAMEL binding. The printer holds a shared binding lock for the read, so a concurrent source cutover cannot race the snapshot.
+- Receipt test uses a persisted two-invoice receipt and the existing allocation RPC. It verifies the saved receipt identity and allocation count; it does not fabricate balances or mutate a live environment.
+- Commits in this execution: migration/source reader 654452cc60bda041f678c1f034bd98385ffd60b9; matching exact-source acceptance 181acdf7410f4b57557b2f2b7a2afa5b3d2b1458.
+- All test claims remain pending until the three exact-head workflow runs above finish. No production Supabase write, remote migration, live ERP request, deployment, or paid service was used.
