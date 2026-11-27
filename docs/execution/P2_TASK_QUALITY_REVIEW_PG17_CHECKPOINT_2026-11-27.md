@@ -5,20 +5,20 @@ Role: P2 — PostgreSQL, RPC authorization, tenant isolation, idempotency and au
 PR: https://github.com/Report-Engainall/Nasr1/pull/633
 Branch: `p2/task-quality-review-pg17-20261127`
 
-## Latest session result — exact source SHA accepted locally
-- **Code-bearing source SHA tested:** `3a5e5cdc1de8ca65c3ca7481417739f99405a8ac`.
-- **P1 run:** [45920385288](https://github.com/Report-Engainall/Nasr1/actions/runs/45920385288) — SUCCESS. Vitest, P1 strict TypeScript, P4 strict TypeScript and production build all completed successfully.
-- **P2 run:** [45920385291](https://github.com/Report-Engainall/Nasr1/actions/runs/45920385291) — SUCCESS.
-- **Exact local PostgreSQL 17/Supabase job:** [140250484277](https://github.com/Report-Engainall/Nasr1/actions/runs/45920385291/job/140250484277) — SUCCESS. The dedicated step “Test task-quality review manager/admin authorization, tenant isolation, idempotency and append-only audit on PostgreSQL 17” completed successfully.
-- **Public Chromium read-only smoke:** SUCCESS. The dedicated authenticated local job also completed the existing order/tenant, finance, inventory, FEFO, Onyx, exports, print and privacy assertions.
-- **Hosted customer/order/tenant E2E:** SKIPPED because authorized external hosted test infrastructure is not configured. This is not PASS and is not inferred from local acceptance.
-- The P1/P2 runs above are bound to code SHA `3a5e5cdc1de8ca65c3ca7481417739f99405a8ac`. This checkpoint update is evidence-only and does not change application code or transfer test results to a different code SHA.
+## Latest session result — exact PR head accepted
+- **Exact tested branch head:** `74682caa09b27fc3ea49bf3996725dd12c0862ae`. This head adds only the P2 evidence checkpoint after code-bearing SHA `3a5e5cdc1de8ca65c3ca7481417739f99405a8ac`; application, SQL, RPC and acceptance source are unchanged between those two commits.
+- **P1 run:** [45926186975](https://github.com/Report-Engainall/Nasr1/actions/runs/45926186975) — **SUCCESS**. Vitest, P1 strict TypeScript, P4 strict TypeScript and production build all completed successfully on the exact PR head.
+- **P2 run:** [45926187004](https://github.com/Report-Engainall/Nasr1/actions/runs/45926187004) — **SUCCESS**.
+- **Exact local PostgreSQL 17/Supabase job:** [140268658098](https://github.com/Report-Engainall/Nasr1/actions/runs/45926187004/job/140268658098) — **SUCCESS**. Full local migration replay and authenticated P2 acceptance completed with zero failed steps; the dedicated task-quality review authorization/tenant/idempotency/append-only test step was SUCCESS on this exact head.
+- **Public Chromium read-only smoke:** SUCCESS on the exact head. The local authenticated Chromium suite also passed the existing order/tenant, finance, inventory, FEFO, Onyx, exports, print and privacy checks.
+- **Hosted customer/order/tenant E2E:** **SKIPPED**, because authorized external hosted test infrastructure is not configured. This is not PASS and is not inferred from local acceptance.
+- This is source/local acceptance only. It does not establish hosted database identity, live data behavior or release readiness.
 
 ## Current integration boundary
-- Live `main` is now `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`; the previous synchronized base was `317ebca76c4d236a1d0efe0fd5934b028598c72b`.
-- PR #633 remains open and mergeable. It is **16 commits ahead / 2 commits behind** current `main`; the current compare shows four unique paths in this P2 change: the P2 workflow, this checkpoint, `e2e/finance-task-print.spec.ts`, and `scripts/test-task-quality-review-authorization.mjs`.
-- **Next integration action belongs to P1:** synchronize #633 with current `main`, inspect the four-file scoped diff, rerun required P1/P2 acceptance on the resulting exact head, then make the merge decision. P2 does not merge to `main`.
-- P2 implementation/acceptance is ready for that scoped integration handoff; no application behavior or production migration was modified by the test-only acceptance.
+- Live `main` at latest check: `85331656b51825e0e1316f31faff644a09c58602`.
+- PR #633 remains open and GitHub reports it mergeable. It is **17 commits ahead / 3 commits behind** current `main`; scoped changed paths remain the P2 workflow, this checkpoint, `e2e/finance-task-print.spec.ts`, and `scripts/test-task-quality-review-authorization.mjs`.
+- **Next integration action belongs to P1:** synchronize #633 with current `main`, inspect the same four-path diff for duplicate/overlapping ownership, rerun the required P1/P2 checks on the resulting exact head, and then make the merge decision. P2 does not merge to `main`.
+- P2 implementation and its exact-head local acceptance are ready for that integration handoff. No production behavior or migration was changed in this test-only PR.
 
 ## Implemented acceptance contract
 - Manager/admin review authorization; staff/customer denial; cross-tenant isolation.
