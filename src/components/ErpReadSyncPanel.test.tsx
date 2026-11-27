@@ -19,6 +19,20 @@ const result = {
     pending_watermark: "2026-11-28T00:30:00Z",
     completed_watermark: "2026-11-27T22:00:00Z",
   },
+  preview: {
+    records: [{
+      externalId: "ERP-PRODUCT-001",
+      sourceUpdatedAt: "2026-11-28T00:30:00Z",
+      fields: { item_code: "000125", name: "منتج مرحلي", barcode: null },
+    }],
+    total: 42,
+    limit: 20,
+    offset: 0,
+    checkpointVersion: 8,
+    pendingWatermark: "2026-11-28T00:30:00Z",
+    completedWatermark: "2026-11-27T22:00:00Z",
+  },
+  preview_error: null,
 };
 
 describe("ErpReadSyncPanel", () => {
@@ -62,6 +76,10 @@ describe("ErpReadSyncPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("إصدار نقطة الاستئناف: 8");
     expect(screen.getByRole("status")).toHaveTextContent("يوجد مؤشر متابعة محمي");
     expect(screen.getByRole("status")).toHaveTextContent("2026");
+    expect(screen.getByRole("status")).toHaveTextContent("معاينة البيانات المرحلية");
+    expect(screen.getByRole("status")).toHaveTextContent("ERP-PRODUCT-001");
+    expect(screen.getByRole("status")).toHaveTextContent("اسم الصنف");
+    expect(screen.getByRole("status")).toHaveTextContent("42");
   });
 
   it("supports staging customer invoices, payment receipts and statement entries without posting them", async () => {
