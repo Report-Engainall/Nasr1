@@ -116,8 +116,11 @@ describe("customer service intelligence strict source contract", () => {
     });
   });
 
-  it("maps transport rejection to unavailable without leaking or fabricating counts", async () => {
-    mocks.rpc.mockRejectedValue(new Error("network unavailable"));
+  it("maps an unavailable transport result to UNAVAILABLE without leaking or fabricating counts", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "FETCH_ERROR", message: "network unavailable" },
+    });
 
     await expect(fetchCustomerServiceIntelligenceSummary()).resolves.toMatchObject({
       ok: false,
