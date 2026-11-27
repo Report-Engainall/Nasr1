@@ -631,6 +631,150 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   const accountant=actors.get("accountant");
   const customer=actors.get("customer");
 
+  // /profile RPC authorization is enforced server-side, not inferred from a hidden UI.
+  // Simulate role reassignment while retaining the stale customer.profile_id link that
+  // the owner-bound account row naturally keeps after an identity changes roles.
+  const customerProfileFixtureRows=await db.unsafe(
+    "select c.id::text as customer_id,c.profile_id::text as profile_id,c.organization_id::text as organization_id,"+
+    "c.customer_code,c.business_name,c.contact_name,c.phone,c.email,c.updated_at::text as updated_at "+
+    "from public.customers c where c.profile_id=$1::uuid and c.organization_id=$2::uuid order by c.created_at,c.id",
+    [customer.profile_id,customer.organization_id]
+  );
+  assert.equal(customerProfileFixtureRows.length,1,
+    "the local customer Auth actor must own exactly one direct customer-account profile fixture");
+  const customerProfileFixture=customerProfileFixtureRows[0];
+  const customerProfileOriginalAudit=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and actor_id=$2::uuid and action='customer.account_profile.updated' "+
+    "and entity_type='customer' and entity_id=$3::uuid",
+    [customer.organization_id,customer.profile_id,customerProfileFixture.customer_id]
+  );
+  const profileGuardExecute=await db.unsafe(
+    "select has_function_privilege('authenticated','public.assert_customer_account_profile_actor()','EXECUTE') as allowed"
+  );
+  assert.equal(profileGuardExecute[0].allowed,false,
+    "the internal customer-profile role assertion must not be directly executable by authenticated clients");
+
+  const profileRollbackMarker="ROLLBACK_P2_CUSTOMER_PROFILE_ROLE_FIXTURE";
+  async function withCustomerProfileRoles(roles,exercise) {
+    let failure;
+    try {
+      await db.begin(async(tx)=>{
+        await tx.unsafe("delete from public.user_roles where profile_id=$1::uuid",[customer.profile_id]);
+        for(const role of roles) {
+          await tx.unsafe("insert into public.user_roles(profile_id,role) values($1::uuid,$2::text)",[customer.profile_id,role]);
+        }
+        await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[customer.auth_user_id]);
+        await tx.unsafe(
+          "select set_config('request.jwt.claims',$1,true)",
+          [JSON.stringify({...customer.jwtClaims,role:"authenticated"})]
+        );
+        await tx.unsafe("set local role authenticated");
+        await exercise(tx);
+        throw new Error(profileRollbackMarker);
+      });
+    } catch(cause) {
+      failure=cause;
+    }
+    if(failure?.message!==profileRollbackMarker) {
+      throw new Error(
+        "customer-profile role fixture failed before its planned rollback: "+
+        String(failure?.message??failure??"transaction unexpectedly committed")+
+        (failure?.code?" [SQLSTATE "+failure.code+"]":""),
+        {cause:failure}
+      );
+    }
+  }
+  async function assertProfileRpcDenied(tx,label,sql,params=[]) {
+    let denied;
+    try {
+      await tx.unsafe(sql,params);
+    } catch(cause) {
+      denied=cause;
+    }
+    assert.ok(denied,label+" must be denied by the PostgreSQL function");
+    assert.equal(String(denied.code),"42501",label+" must fail with SQLSTATE 42501");
+  }
+
+  const validProfileRpc=await withActor(db,customer,async(tx)=>{
+    const rows=await tx.unsafe("select public.get_my_customer_account_profile() as profile");
+    const profile=typeof rows[0]?.profile==="string"?JSON.parse(rows[0].profile):rows[0]?.profile;
+    assert.ok(profile&&typeof profile==="object","the customer profile read RPC must return its owner-bound profile");
+    assert.equal(profile.customer_code,customerProfileFixture.customer_code);
+    assert.equal(profile.business_name,customerProfileFixture.business_name);
+    assert.deepEqual(
+      Object.keys(profile).sort(),
+      ["business_name","contact_name","customer_code","email","phone","status","updated_at"].sort(),
+      "the self-service profile projection must not expose balances, credit limits, price tiers or internal finance fields"
+    );
+    return profile;
+  });
+  assert.equal(validProfileRpc.customer_code,customerProfileFixture.customer_code);
+
+  const rollbackBusinessName=customerProfileFixture.business_name.slice(0,145)+" P2 rollback "+randomUUID().slice(0,8);
+  await withCustomerProfileRoles(["customer"],async(tx)=>{
+    const rows=await tx.unsafe(
+      "select public.update_my_customer_account_profile($1::text,$2::text,$3::text,$4::text,$5::timestamptz) as profile",
+      [rollbackBusinessName,customerProfileFixture.contact_name,customerProfileFixture.phone,
+       customerProfileFixture.email,customerProfileFixture.updated_at]
+    );
+    const updated=typeof rows[0]?.profile==="string"?JSON.parse(rows[0].profile):rows[0]?.profile;
+    assert.equal(updated?.business_name,rollbackBusinessName,
+      "a valid customer-role identity must retain the real server-side profile update path");
+    assert.equal(updated?.customer_code,customerProfileFixture.customer_code);
+  });
+
+  const profileRoleDenialCases=[
+    {label:"admin",roles:["admin"]},
+    {label:"manager",roles:["manager"]},
+    {label:"staff",roles:["staff"]},
+    {label:"accountant",roles:["accountant"]},
+    {label:"customer_manager",roles:["customer_manager"]},
+    {label:"restricted/no role",roles:[]}
+  ];
+  for(const roleCase of profileRoleDenialCases) {
+    await withCustomerProfileRoles(roleCase.roles,async(tx)=>{
+      await assertProfileRpcDenied(
+        tx,"get_my_customer_account_profile for "+roleCase.label,
+        "select public.get_my_customer_account_profile()"
+      );
+    });
+    await withCustomerProfileRoles(roleCase.roles,async(tx)=>{
+      await assertProfileRpcDenied(
+        tx,"update_my_customer_account_profile for "+roleCase.label,
+        "select public.update_my_customer_account_profile($1::text,$2::text,$3::text,$4::text,$5::timestamptz)",
+        [customerProfileFixture.business_name.slice(0,145)+" forbidden "+roleCase.label,
+         customerProfileFixture.contact_name,customerProfileFixture.phone,
+         customerProfileFixture.email,customerProfileFixture.updated_at]
+      );
+    });
+  }
+
+  const customerProfileAfter=await db.unsafe(
+    "select c.business_name,c.contact_name,c.phone,c.email,c.updated_at::text as updated_at "+
+    "from public.customers c where c.id=$1::uuid and c.organization_id=$2::uuid and c.profile_id=$3::uuid",
+    [customerProfileFixture.customer_id,customer.organization_id,customer.profile_id]
+  );
+  assert.equal(customerProfileAfter.length,1,"the owner-bound customer profile row must remain present");
+  assert.deepEqual(customerProfileAfter[0],{
+    business_name:customerProfileFixture.business_name,
+    contact_name:customerProfileFixture.contact_name,
+    phone:customerProfileFixture.phone,
+    email:customerProfileFixture.email,
+    updated_at:customerProfileFixture.updated_at
+  },"authorized rollback and denied former-customer requests must leave every profile field unchanged");
+  const customerProfileAuditAfter=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and actor_id=$2::uuid and action='customer.account_profile.updated' "+
+    "and entity_type='customer' and entity_id=$3::uuid",
+    [customer.organization_id,customer.profile_id,customerProfileFixture.customer_id]
+  );
+  assert.equal(customerProfileAuditAfter[0].count,customerProfileOriginalAudit[0].count,
+    "rollback-only allowed write and all rejected writes must leave no profile audit side effect");
+  process.stdout.write(
+    "P2 customer account profile role boundary PASS: customer read/write allowed; admin, manager, staff, accountant, customer_manager and restricted identities denied both RPCs; no data or audit side effects.\\n"
+  );
+
   // Same-tenant warehouse A/B authorization, real stock-count RPC writes, and row-trigger denial.
   const unassignedWarehouseRows=await db.unsafe(
     "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code='P2-LOCAL-RLS-A'",
