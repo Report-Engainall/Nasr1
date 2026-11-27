@@ -322,20 +322,28 @@ export function GrowthOpportunityRadar({
     if (!canCreateFollowUpTask || opportunity.kind !== "PRODUCT_UNAVAILABLE_DEMAND" || busyOpportunityId) return;
     setBusyOpportunityId(opportunity.id);
     setFollowUpMessages(current => ({ ...current, [opportunity.id]: "" }));
-    const result = await createUnavailableProductDemandFollowUpTask({
-      productId: opportunity.subjectRef,
-      period: opportunity.period,
-      asOf: opportunity.asOf,
-    });
-    setBusyOpportunityId(null);
-    setFollowUpMessages(current => ({
-      ...current,
-      [opportunity.id]: result.ok
-        ? result.reused
-          ? "المهمة موجودة مسبقاً للفترة نفسها؛ أُعيد استخدام المهمة دون إنشاء نسخة."
-          : "أُنشئت مهمة مراجعة المشتريات في قائمة المهام."
-        : result.message,
-    }));
+    try {
+      const result = await createUnavailableProductDemandFollowUpTask({
+        productId: opportunity.subjectRef,
+        period: opportunity.period,
+        asOf: opportunity.asOf,
+      });
+      setFollowUpMessages(current => ({
+        ...current,
+        [opportunity.id]: result.ok
+          ? result.reused
+            ? "المهمة موجودة مسبقاً للفترة نفسها؛ أُعيد استخدام المهمة دون إنشاء نسخة."
+            : "أُنشئت مهمة مراجعة المشتريات في قائمة المهام."
+          : result.message,
+      }));
+    } catch {
+      setFollowUpMessages(current => ({
+        ...current,
+        [opportunity.id]: "تعذر تأكيد إنشاء مهمة المراجعة من الخادم؛ لم تُعرض نتيجة نجاح غير مؤكدة. أعد المحاولة.",
+      }));
+    } finally {
+      setBusyOpportunityId(null);
+    }
   }
 
   async function createDecisionProposal(opportunity: GrowthOpportunity) {
