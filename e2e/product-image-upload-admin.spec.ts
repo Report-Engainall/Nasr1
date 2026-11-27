@@ -28,11 +28,14 @@ if (
   throw new Error("Product-image browser acceptance is restricted to disposable local Supabase at 127.0.0.1:54321.");
 }
 
-const WEBP_FIXTURE = new Uint8Array([
+const WEBP_BYTES = [
   0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00,
   0x57, 0x45, 0x42, 0x50,
-]);
-const WEBP_BLOB = new Blob([WEBP_FIXTURE.buffer.slice(0)], { type: "image/webp" });
+] as const;
+const WEBP_FIXTURE = new Uint8Array(WEBP_BYTES);
+const WEBP_ARRAY_BUFFER = new ArrayBuffer(WEBP_BYTES.length);
+new Uint8Array(WEBP_ARRAY_BUFFER).set(WEBP_BYTES);
+const WEBP_BLOB = new Blob([WEBP_ARRAY_BUFFER], { type: "image/webp" });
 const PNG_FIXTURE = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j9ioAAAAASUVORK5CYII=",
   "base64",
@@ -413,20 +416,26 @@ test("manager completes the real admin image-upload journey against local Storag
       mimeType: "image/png",
       buffer: PNG_FIXTURE,
     });
-    await manager.getByRole("button", { name: "رفع الصور المطابقة", exact: true }).click();
-    const capRegion = manager.getByRole("region", { name: "نتائج رفع الصور", exact: true });
-    await expect(capRegion.getByRole("status")).toContainText("تعذر 1", { timeout: 45_000 });
-    await expect(capRegion.getByRole("alert")).toBeVisible();
-    const limitResponse = harness.calls.findLast((call) =>
+    const galleryLimitMessage = "وصل معرض هذا الصنف إلى الحد الأقصى؛ لم تُرفع هذه الصورة.";
+    await expect(manager.getByText(galleryLimitMessage, { exact: true })).toBeVisible();
+    const blockedUploadButton = manager.getByRole("button", { name: "رفع الصور المطابقة", exact: true });
+    await expect(blockedUploadButton).toBeDisabled();
+
+    // The UI blocks a ninth file before upload. Independently call the same shared
+    // handler once to prove PostgreSQL rejects a bypass attempt and its object rolls back.
+    const limitResult = await harness.directGalleryUpload(managerToken, PRODUCT_ID);
+    expect(limitResult.status).toBe(409);
+    expect(limitResult.body.error).toBe("gallery_limit_reached");
+    const limitResponse = harness.calls.filter((call) =>
       call.productId === PRODUCT_ID &&
       call.mode === "gallery" &&
       call.status === 409 &&
       call.body?.error === "gallery_limit_reached",
-    );
+    ).slice(-1)[0];
     expect(limitResponse).toBeTruthy();
     const afterLimitAttempt = await readProductMedia(harness.service);
     expect(afterLimitAttempt.media.filter((item) => !item.is_primary)).toHaveLength(8);
-    const rejectedObjectPath = harness.uploadedObjectPaths.at(-1);
+    const rejectedObjectPath = harness.uploadedObjectPaths[harness.uploadedObjectPaths.length - 1];
     expect(rejectedObjectPath).toBeTruthy();
     expect(await harness.objectExists(rejectedObjectPath!)).toBe(false);
 
@@ -449,12 +458,15 @@ test("manager completes the real admin image-upload journey against local Storag
 
     expect(browserErrors).toEqual([]);
     proof.result = "PASS";
+    proof.browserResult = "BROWSER_PROVEN";
+    proof.noProductionWrites = true;
     proof.checks = {
       managerAuthenticatedBrowserJourney: true,
       primaryAndGalleryPlacement: true,
       failedGalleryRetryOnly: true,
       successfulPrimaryWasNotUploadedAgain: true,
       persistedMediaSurvivedBrowserReload: true,
+      galleryLimitVisibleAndBlockedInUi: true,
       galleryLimitEightEnforcedByPostgresAndHandler: true,
       ninthGalleryObjectCleanedAfterDenial: true,
       crossTenantProductUploadDenied: true,
