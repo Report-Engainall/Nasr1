@@ -101,6 +101,7 @@ describe("shift operations strict timestamp contract", () => {
     const asOf = "2026-11-27T12:00:00.123456Z";
     const futureProof = "2026-11-27T12:00:00.123457Z";
     const parsed = parseShiftOperationsSnapshot(snapshot({
+      previousShiftId: "shift-previous",
       asOf,
       generatedAt: "2026-11-27T12:01:00.123456Z",
       sourceCoverage: [sourceCoverage("CASH", asOf)],
