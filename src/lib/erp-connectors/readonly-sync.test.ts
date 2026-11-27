@@ -210,6 +210,15 @@ describe("server-side ERP read connector contract", () => {
     })).toThrowError(/cursor أو modified-since/);
   });
 
+  it("refuses sensitive response headers as external request receipts", () => {
+    for (const requestIdHeader of ["set-cookie", "authorization", "x-api-key"]) {
+      expect(() => new OfficialJsonErpReadConnector(connection, {
+        ...productContract,
+        requestIdHeader,
+      })).toThrowError(/ترويسة تتبع طلب ERP غير مسموح/);
+    }
+  });
+
   it("rejects percent-encoded path traversal and encoded separators", () => {
     for (const path of ["items/%2e%2e/admin", "items/%2fadmin", "items/%5cadmin"]) {
       expect(() => new OfficialJsonErpReadConnector(connection, {
