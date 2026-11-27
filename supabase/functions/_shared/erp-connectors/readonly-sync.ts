@@ -188,10 +188,15 @@ export type ErpStagedRecordDisposition =
   | "rejected"
   | "conflicted";
 
+export type ErpStagedRecordDispositionReason =
+  | "source_timestamp_older"
+  | "same_timestamp_payload_mismatch";
+
 export type ErpStagedPreviewRecord = {
   externalId: string;
   sourceUpdatedAt: string;
   lastDisposition: ErpStagedRecordDisposition | null;
+  lastDispositionReason: ErpStagedRecordDispositionReason | null;
   fields: Partial<Record<ErpCanonicalField, ErpScalar>>;
 };
 
