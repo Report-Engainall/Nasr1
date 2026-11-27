@@ -131,6 +131,7 @@ async function main(){
   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
   [order3,reallocationKey,reallocationReason],
  );
+ assert.equal(reallocated.reallocation_status,"reallocated");
  assert.equal(Number(reallocated.reallocated_quantity),1);
  assert.equal(reallocated.released_lot_count,1);
  assert.equal(reallocated.replacement_lot_count,1);
@@ -153,6 +154,13 @@ async function main(){
  assert.equal(reallocationReplay.reallocation_id,reallocated.reallocation_id);
  assert.equal(reallocationReplay.replacement_allocations.length,1,
   "replayed reallocation returns the original saved replacement evidence without rebooking stock");
+ const noExpiredRemainder=await rpc(
+  "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+  [order3,"fefo-noop-"+randomUUID().replaceAll("-",""),"Verify all active reservations are valid"],
+ );
+ assert.equal(noExpiredRemainder.reallocation_status,"no_expired_reservations");
+ assert.equal(Number(noExpiredRemainder.reallocated_quantity),0,
+  "the server must report an explicit no-op when the order has no expired outstanding reservation");
  await assert.rejects(
   () => rpc(
    "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
