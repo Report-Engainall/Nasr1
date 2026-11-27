@@ -314,6 +314,108 @@ async function main(){
  assert.equal(Number(failureParity.r),Number(failureParity.br),
   "failed replacement must preserve aggregate-to-batch reservation parity");
 
+ // Detect a cross-order ledger mismatch: two active orders share one expired
+ // lot, while the physical lot and aggregate reserved counters under-report
+ // their combined immutable reserve movements by one unit.
+ const ledgerBatchId=randomUUID();
+ const ledgerBatchNumber="FEFO-LEDGER-MISMATCH-"+suffix;
+ const ledgerFutureDate=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+3,'YYYY-MM-DD') d",
+ ))[0].d;
+ await db.unsafe(
+  "insert into public.inventory_batches(id,organization_id,product_id,warehouse_id,batch_number,expiry_date,received_at,quantity_on_hand,quantity_reserved,source_type,source_reference_type) " +
+  "values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6::date,now(),2,0,'unattributed_balance_increase','fefo_acceptance_ledger_fixture')",
+  [ledgerBatchId,org,product,warehouse,ledgerBatchNumber,ledgerFutureDate],
+ );
+ const ledgerBalanceAfterReceipt=(await db.unsafe(
+  "update public.inventory_balances set quantity_on_hand=quantity_on_hand+2,last_movement_at=now(),updated_at=now() " +
+  "where product_id=$1::uuid and warehouse_id=$2::uuid returning quantity_available",
+  [product,warehouse],
+ ))[0];
+ assert.ok(ledgerBalanceAfterReceipt);
+ await db.unsafe(
+  "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) " +
+  "values($1::uuid,$2::uuid,'inventory_adjustment',2,$3,'inventory_adjustment',$5::uuid,'Temporary shared-lot ledger fixture for PostgreSQL 17 acceptance',$4::uuid,$5::uuid)",
+  [product,warehouse,ledgerBalanceAfterReceipt.quantity_available,manager.id,ledgerBatchId],
+ );
+
+ async function createSharedLotOrder(label){
+  await as(manager);
+  const id=(await rpc(
+   "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
+   [cust.id,db.json([{product_id:product,quantity:1}]),label,randomUUID().replaceAll("-",""),"cash_on_delivery"],
+  )).id;
+  assert.ok(id);
+  await status(manager,id,"confirmed");
+  await status(manager,id,"processing");
+  return id;
+ }
+ const ledgerOrderA=await createSharedLotOrder("FEFO shared-lot ledger A");
+ const ledgerOrderB=await createSharedLotOrder("FEFO shared-lot ledger B");
+ const sharedLotReservations=await db.unsafe(
+  "select reference_id::text order_id,inventory_batch_id::text batch_id,quantity::text " +
+  "from public.inventory_movements where reference_type='order' and reference_id=ANY($1::uuid[]) " +
+  "and movement_type='reserve' order by reference_id",
+  [[ledgerOrderA,ledgerOrderB]],
+ );
+ assert.equal(sharedLotReservations.length,2);
+ assert.ok(sharedLotReservations.every(row=>row.batch_id===ledgerBatchId),
+  "both active orders must reserve the same dedicated acceptance lot");
+ await db.unsafe(
+  "update public.inventory_batches set expiry_date=$2::date,quantity_reserved=quantity_reserved-1 where id=$1::uuid",
+  [ledgerBatchId,expiredDate],
+ );
+ await db.unsafe(
+  "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() " +
+  "where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ );
+
+ await as(manager);
+ const ledgerMismatchWorklist=await rpc(
+  "select public.list_orders_with_expired_fefo_reservations(50,0) result",
+ );
+ for(const ledgerOrderId of [ledgerOrderA,ledgerOrderB]){
+  const entry=ledgerMismatchWorklist.orders.find(value=>value.order_id===ledgerOrderId);
+  assert.ok(entry,"both active shared-lot orders must remain visible in the expired FEFO worklist");
+  assert.equal(entry.expired_lots[0].reservation_matches_batch,false,
+   "the lot match flag must compare its reserved counter with all active orders, not only the current order");
+ }
+ const batchReservedBeforeLedgerGuard=(await db.unsafe(
+  "select quantity_reserved::text from public.inventory_batches where id=$1::uuid",
+  [ledgerBatchId],
+ ))[0];
+ const aggregateReservedBeforeLedgerGuard=(await db.unsafe(
+  "select quantity_reserved::text from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ await assert.rejects(
+  () => rpc(
+   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [ledgerOrderA,"fefo-ledger-mismatch-"+randomUUID().replaceAll("-",""),"Reject an under-reported shared batch reservation ledger"],
+  ),
+  error => String(error?.code)==="40001" && String(error?.message).includes("active order reservation movement ledger"),
+  "reallocation must fail closed when aggregate active-order reserve movements exceed the batch subledger",
+ );
+ const batchReservedAfterLedgerGuard=(await db.unsafe(
+  "select quantity_reserved::text from public.inventory_batches where id=$1::uuid",
+  [ledgerBatchId],
+ ))[0];
+ const aggregateReservedAfterLedgerGuard=(await db.unsafe(
+  "select quantity_reserved::text from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ assert.equal(batchReservedAfterLedgerGuard.quantity_reserved,batchReservedBeforeLedgerGuard.quantity_reserved,
+  "ledger mismatch rejection must not change the batch reserved counter");
+ assert.equal(aggregateReservedAfterLedgerGuard.quantity_reserved,aggregateReservedBeforeLedgerGuard.quantity_reserved,
+  "ledger mismatch rejection must not change the aggregate reserved counter");
+ const ledgerMismatchReleaseCount=await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='release_reservation'",
+  [ledgerOrderA],
+ );
+ assert.equal(ledgerMismatchReleaseCount[0].count,0,
+  "ledger mismatch rejection must not append a partial release movement");
+
  await as(customer);
  await assert.rejects(
   () => rpc(
