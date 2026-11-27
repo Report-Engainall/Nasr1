@@ -550,6 +550,7 @@ async function main() {
     "E2E_PASSWORD=" + passwordA,
     "E2E_EMAIL_B=" + emailB,
     "E2E_PASSWORD_B=" + passwordB,
+    "E2E_PROFILE_SESSION_ISOLATION=1",
     "E2E_PHONE=771234567",
     "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_MANAGER_EMAIL=" + managerEmail,

@@ -716,6 +716,11 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/onyx-order-export.spec.ts"
+      - name: Prove profile Auth A-to-B session and tenant isolation in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/profile-session-isolation.spec.ts"
       - name: Run finance document and operational-task print acceptance in Chromium
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
