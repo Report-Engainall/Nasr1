@@ -1,30 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { expect, test, type Route } from "@playwright/test";
 
-type CustomerOrdersFixtureRow = typeof orderRows[number];
-type CustomerOrdersSearchFixture = {
-  rows: CustomerOrdersFixtureRow[];
-  requests: Array<{
-    orderNumberFilter: string | null;
-    statusFilter: string | null;
-    range: string | null;
-    prefer: string | null;
-  }>;
-};
-
-const searchableOrderRows: CustomerOrdersFixtureRow[] = Array.from({ length: 30 }, (_, index) => {
-  const ordinal = 30 - index;
-  const suffix = String(ordinal).padStart(4, "0");
-  return {
-    ...orderRows[0],
-    id: "a3000000-0000-4000-8000-" + String(ordinal).padStart(12, "0"),
-    order_number: "SO-2026-" + suffix,
-    status: ordinal % 2 === 0 ? "pending" : "confirmed",
-    total_items: ordinal,
-    created_at: new Date(Date.UTC(2026, 0, ordinal)).toISOString(),
-  };
-});
-
 const orderRows = [
   {
     id: "a2000000-0000-0000-0000-000000000001",
@@ -49,6 +25,30 @@ const orderRows = [
     payment_request_status: null,
   },
 ];
+
+type CustomerOrdersFixtureRow = typeof orderRows[number];
+type CustomerOrdersSearchFixture = {
+  rows: CustomerOrdersFixtureRow[];
+  requests: Array<{
+    orderNumberFilter: string | null;
+    statusFilter: string | null;
+    range: string | null;
+    prefer: string | null;
+  }>;
+};
+
+const searchableOrderRows: CustomerOrdersFixtureRow[] = Array.from({ length: 30 }, (_, index) => {
+  const ordinal = 30 - index;
+  const suffix = String(ordinal).padStart(4, "0");
+  return {
+    ...orderRows[0],
+    id: "a3000000-0000-4000-8000-" + String(ordinal).padStart(12, "0"),
+    order_number: "SO-2026-" + suffix,
+    status: ordinal % 2 === 0 ? "pending" : "confirmed",
+    total_items: ordinal,
+    created_at: new Date(Date.UTC(2026, 0, ordinal)).toISOString(),
+  };
+});
 
 function signedInCustomerFixtureSession() {
   const now = Math.floor(Date.now() / 1000);
