@@ -179,3 +179,14 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Reconstructed the migration around its first transaction boundary. Removed the appended duplicate migration body that caused an unterminated evidence-hash CHECK and a second COMMIT.
 - Preserved the new external-source invariant requiring evidence SHA-256, source watermark, last sync time and verification time. The resulting file contains one transaction, one bindings table, one sync-evidence table and one provider sync writer.
 - This is a source repair. PostgreSQL 17 reset and exact-head customer financial source acceptance are still required; no production migration was run.
+
+
+## 2026-11-28 — ERP customer identity constrained by company and branch
+
+- Customer financial source bindings persist the ERP customer account, company and branch as one identity tuple. APP_ONLY requires all external identifiers to be NULL; ONYX/MUTAKAMEL requires all three safe references.
+- Source-change requests validate, fingerprint and audit company/branch with the account reference. Reconciliation evidence stores the exact request scope; Maker/Checker approval verifies the evidence scope before activating the new source.
+- A tenant/provider/company/branch/account unique index prevents one ERP customer identity from being assigned to multiple customers within the same ERP scope.
+- The service-role sync writer requires company and branch, verifies all identifiers against the active binding and records them in sync evidence. Replay comparisons include exact scope; the prior unscoped sync writer signature is removed.
+- Only the finance-capability-gated staff resolver returns company/branch. Customer source resolution continues to omit every ERP identifier.
+- PG17 acceptance includes APP_ONLY null fields, reconciliation/sync identity persistence, wrong company/branch rejection, identity unique index, and customer/staff separation. Exact-head CI is mandatory; no PASS is claimed in this commit.
+- No production DB write, live ERP request, accounting posting, inventory write, deployment or secret update was performed.

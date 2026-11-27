@@ -86,12 +86,12 @@ async function recordReconciliation(requestId, result, asOf, evidenceHash, refer
       JSON.stringify(balancesByCurrency), reference],
   );
 }
-async function requestSource(client, customerId, mode, externalRef, reason, key, revision) {
+async function requestSource(client, customerId, mode, externalRef, reason, key, revision, companyRef = null, branchRef = null) {
   return rpc(
     client,
     "select public.request_customer_financial_source_change(" +
-      "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::integer) as result",
-    [customerId, mode, externalRef, reason, key, revision],
+      "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::integer,$7::text,$8::text) as result",
+    [customerId, mode, externalRef, reason, key, revision, companyRef, branchRef],
   );
 }
 async function reviewSource(client, requestId, decision, reason) {
@@ -219,13 +219,15 @@ async function main() {
   ]);
 
   const initialBinding = await db.unsafe(
-    "select source_mode,source_status,revision,external_account_ref from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
+    "select source_mode,source_status,revision,external_account_ref,company_external_ref,branch_external_ref from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
     [orgId, customerId],
   );
   assert.equal(initialBinding.length, 1, "all existing customers must be backfilled to one source binding");
   assert.equal(initialBinding[0].source_mode, "APP_ONLY", "legacy customers stay APP_ONLY until approved cutover");
   assert.equal(initialBinding[0].source_status, "active");
   assert.equal(initialBinding[0].external_account_ref, null);
+  assert.equal(initialBinding[0].company_external_ref, null);
+  assert.equal(initialBinding[0].branch_external_ref, null);
 
   // A provider-backed binding cannot be represented as valid until the source
   // reconciliation has a recorded sync timestamp. A failed cutover-shaped write
@@ -688,9 +690,9 @@ async function main() {
       "has_table_privilege('service_role','public.customer_financial_source_change_requests','UPDATE') as service_request_update," +
       "has_table_privilege('service_role','public.customer_financial_source_reconciliation_evidence','INSERT') as service_evidence_insert," +
       "has_table_privilege('service_role','public.customer_financial_source_sync_evidence','INSERT') as service_sync_insert," +
-      "has_function_privilege('authenticated','public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text)','EXECUTE') as sync_execute," +
+      "has_function_privilege('authenticated','public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text,text,text)','EXECUTE') as sync_execute," +
       "has_function_privilege('authenticated','public.record_customer_financial_source_reconciliation_evidence(uuid,timestamp with time zone,text,text,text[],jsonb,text)','EXECUTE') as evidence_execute," +
-      "has_function_privilege('service_role','public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text)','EXECUTE') as service_sync_execute",
+      "has_function_privilege('service_role','public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text,text,text)','EXECUTE') as service_sync_execute",
   );
   assert.equal(directPrivileges[0].binding_read, false, "authenticated roles cannot read source bindings directly");
   assert.equal(directPrivileges[0].request_read, false, "authenticated roles cannot read source requests directly");
@@ -702,6 +704,8 @@ async function main() {
   assert.equal(directPrivileges[0].sync_execute, false, "authenticated roles cannot call provider sync writer");
   assert.equal(directPrivileges[0].evidence_execute, false, "authenticated roles cannot call provider evidence writer");
   assert.equal(directPrivileges[0].service_sync_execute, true, "service role can use the scoped sync RPC");
+  const oldSyncSignature = await managerDb.unsafe("select to_regprocedure('public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamp with time zone,text,integer,text[],text)') is null as absent");
+  assert.equal(oldSyncSignature[0].absent, true, "legacy unscoped sync signature is absent");
   const invoiceGuardPrivileges = await managerDb.unsafe(
     "select has_function_privilege('authenticated','public.customer_app_only_invoice_read_allowed(uuid,uuid)','EXECUTE') as helper_execute",
   );
@@ -721,7 +725,7 @@ async function main() {
   assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("current_organization_id()")), "staff invoice read exception must remain scoped to the active organization");
 
   const idempotencyKey = randomUUID() + randomUUID();
-  const requestArgs = [customerId, "ONYX", "ONYX-CUST-0001", "Verified migration to Onyx customer ledger", idempotencyKey, 1];
+  const requestArgs = [customerId, "ONYX", "ONYX-CUST-0001", "Verified migration to Onyx customer ledger", idempotencyKey, 1, "ONYX-COMPANY-01", "ONYX-BRANCH-01"];
   const concurrentRequests = await Promise.all([
     requestSource(managerDb, ...requestArgs),
     requestSource(managerRetryDb, ...requestArgs),
@@ -734,19 +738,19 @@ async function main() {
 
   await expectFailure(
     "same idempotency key with a different request payload",
-    requestSource(managerDb, customerId, "ONYX", "ONYX-CUST-0001", "Different reason must not reuse key", idempotencyKey, 1),
+    requestSource(managerDb, customerId, "ONYX", "ONYX-CUST-0001", "Different reason must not reuse key", idempotencyKey, 1, "ONYX-COMPANY-01", "ONYX-BRANCH-01"),
     "22023",
     "idempotency key",
   );
   await expectFailure(
     "finance request against a foreign-tenant customer",
-    requestSource(managerDb, foreignCustomerId, "ONYX", "FOREIGN-CUST-0001", "cross tenant attempt", randomUUID() + randomUUID(), 1),
+    requestSource(managerDb, foreignCustomerId, "ONYX", "FOREIGN-CUST-0001", "cross tenant attempt", randomUUID() + randomUUID(), 1, "ONYX-COMPANY-01", "ONYX-BRANCH-01"),
     "42501",
     "outside the active finance organization",
   );
   await expectFailure(
     "customer attempting to change the source",
-    requestSource(customerDb, customerId, "MUTAKAMEL", "MUT-CUST-0001", "customer cannot control ledger source", randomUUID() + randomUUID(), 1),
+    requestSource(customerDb, customerId, "MUTAKAMEL", "MUT-CUST-0001", "customer cannot control ledger source", randomUUID() + randomUUID(), 1, "MUT-COMPANY-01", "MUT-BRANCH-01"),
     "42501",
     "capability required",
   );
@@ -859,6 +863,10 @@ async function main() {
   assert.equal(approved.revision, 2);
   const approvalReplay = await reviewSource(accountantDb, requestId, "approve", "verified opening ledger and currency totals match");
   assert.equal(approvalReplay.replayed, true);
+  const reconciliationIdentity = await serviceDb.unsafe("select company_external_ref,branch_external_ref from public.customer_financial_source_reconciliation_evidence where request_id=$1::uuid and reconciliation_result='matched'", [requestId]);
+  assert.ok(reconciliationIdentity.length > 0);
+  assert.equal(reconciliationIdentity[0].company_external_ref, "ONYX-COMPANY-01");
+  assert.equal(reconciliationIdentity[0].branch_external_ref, "ONYX-BRANCH-01");
 
   const resolverOnyx = await rpc(customerDb, "select public.get_my_customer_financial_source() as result");
   assert.equal(resolverOnyx.source_mode, "ONYX");
@@ -870,9 +878,13 @@ async function main() {
   );
   assert.equal(externalInvoiceRead, false, "ONYX customer cannot read app-ledger invoice rows");
   assert.equal(Object.hasOwn(resolverOnyx, "external_account_ref"), false, "customer resolver does not expose ERP account references");
+  assert.equal(Object.hasOwn(resolverOnyx, "company_external_ref"), false, "customer resolver does not disclose ERP company identity");
+  assert.equal(Object.hasOwn(resolverOnyx, "branch_external_ref"), false, "customer resolver does not disclose ERP branch identity");
   const staffSource = await rpc(accountantDb, "select public.get_customer_financial_source_for_staff($1::uuid) as result", [customerId]);
   assert.equal(staffSource.source_mode, "ONYX");
   assert.equal(staffSource.external_account_ref, "ONYX-CUST-0001");
+  assert.equal(staffSource.company_external_ref, "ONYX-COMPANY-01");
+  assert.equal(staffSource.branch_external_ref, "ONYX-BRANCH-01");
   await expectFailure(
     "external statement must fail closed instead of using APP_ONLY ledger",
     rpc(customerDb, "select public.get_customer_account_statement() as result"),
@@ -959,19 +971,23 @@ async function main() {
   await expectFailure(
     "authenticated customer cannot execute the service-role sync writer",
     rpc(customerDb,
-      "select public.record_customer_financial_source_sync($1::uuid,$2::uuid,'ONYX','ONYX-CUST-0001',now(),$3::text,1,ARRAY['YER'],'AUTH-REF') as result",
+      "select public.record_customer_financial_source_sync($1::uuid,$2::uuid,'ONYX','ONYX-CUST-0001',now(),$3::text,1,ARRAY['YER'],'ONYX-COMPANY-01','ONYX-BRANCH-01','AUTH-REF') as result",
       [orgId, customerId, deniedHash]),
     "42501",
     "service-role",
   );
   const syncTime = await serviceDb.unsafe("select statement_timestamp()-interval '1 minute' as as_of");
   const syncHash = hash("sync-onyx");
-  const syncArgs = [orgId, customerId, "ONYX", "ONYX-CUST-0001", syncTime[0].as_of, syncHash, 3, ["YER", "USD"], "ONYX-SNAPSHOT-0001"];
-  const syncSql = "select public.record_customer_financial_source_sync($1::uuid,$2::uuid,$3::text,$4::text,$5::timestamptz,$6::text,$7::integer,$8::text[],$9::text) as result";
+  const syncArgs = [orgId, customerId, "ONYX", "ONYX-CUST-0001", syncTime[0].as_of, syncHash, 3, ["YER", "USD"], "ONYX-COMPANY-01", "ONYX-BRANCH-01", "ONYX-SNAPSHOT-0001"];
+  const syncSql = "select public.record_customer_financial_source_sync($1::uuid,$2::uuid,$3::text,$4::text,$5::timestamptz,$6::text,$7::integer,$8::text[],$9::text,$10::text,$11::text) as result";
   const syncResult = await rpc(serviceDb, syncSql, syncArgs);
   assert.equal(syncResult.replayed, false);
   const syncReplay = await rpc(serviceDb, syncSql, syncArgs);
   assert.equal(syncReplay.replayed, true, "same evidence hash replays without duplicate sync row");
+  const syncIdentity = await serviceDb.unsafe("select company_external_ref,branch_external_ref from public.customer_financial_source_sync_evidence where organization_id=$1::uuid and customer_id=$2::uuid and evidence_sha256=$3::text", [orgId, customerId, syncHash]);
+  assert.equal(syncIdentity.length, 1);
+  assert.equal(syncIdentity[0].company_external_ref, "ONYX-COMPANY-01");
+  assert.equal(syncIdentity[0].branch_external_ref, "ONYX-BRANCH-01");
 
   const syncStateBeforeFuture = await serviceDb.unsafe(
     "select source_as_of,last_synced_at,source_evidence_sha256 " +
@@ -988,7 +1004,7 @@ async function main() {
     "provider sync rejects a future source watermark",
     rpc(serviceDb, syncSql, [
       orgId, customerId, "ONYX", "ONYX-CUST-0001", futureSyncTime[0].as_of,
-      hash("future-source-watermark"), 1, ["YER"], "FUTURE-SNAPSHOT",
+      hash("future-source-watermark"), 1, ["YER"], "ONYX-COMPANY-01", "ONYX-BRANCH-01", "FUTURE-SNAPSHOT",
     ]),
     "22023",
     "valid ERP source sync evidence metadata",
@@ -1012,20 +1028,26 @@ async function main() {
 
   await expectFailure(
     "same provider evidence hash with changed metadata",
-    rpc(serviceDb, syncSql, [...syncArgs.slice(0, 6), 4, syncArgs[7], syncArgs[8]]),
+    rpc(serviceDb, syncSql, [...syncArgs.slice(0, 6), 4, syncArgs[7], syncArgs[8], syncArgs[9], syncArgs[10]]),
     "22023",
     "replayed with different metadata",
   );
   const staleTime = await serviceDb.unsafe("select statement_timestamp()-interval '10 minutes' as as_of");
   await expectFailure(
     "source watermark cannot move backwards",
-    rpc(serviceDb, syncSql, [orgId, customerId, "ONYX", "ONYX-CUST-0001", staleTime[0].as_of, hash("old-snapshot"), 1, ["YER"], "OLD-SNAPSHOT"]),
+    rpc(serviceDb, syncSql, [orgId, customerId, "ONYX", "ONYX-CUST-0001", staleTime[0].as_of, hash("old-snapshot"), 1, ["YER"], "ONYX-COMPANY-01", "ONYX-BRANCH-01", "OLD-SNAPSHOT"]),
     "40001",
     "move the customer statement watermark backwards",
   );
   await expectFailure(
     "sync cannot write another external customer account reference",
-    rpc(serviceDb, syncSql, [orgId, customerId, "ONYX", "ONYX-CUST-OTHER", syncTime[0].as_of, hash("wrong-account"), 1, ["YER"], "WRONG-ACCOUNT"]),
+    rpc(serviceDb, syncSql, [orgId, customerId, "ONYX", "ONYX-CUST-OTHER", syncTime[0].as_of, hash("wrong-account"), 1, ["YER"], "ONYX-COMPANY-01", "ONYX-BRANCH-01", "WRONG-ACCOUNT"]),
+    "42501",
+    "does not match the active customer financial source binding",
+  );
+  await expectFailure(
+    "matching customer account cannot be synced across an incorrect ERP company or branch",
+    rpc(serviceDb, syncSql, [orgId, customerId, "ONYX", "ONYX-CUST-0001", syncTime[0].as_of, hash("wrong-company-branch"), 1, ["YER"], "ONYX-COMPANY-OTHER", "ONYX-BRANCH-OTHER", "WRONG-SCOPE"]),
     "42501",
     "does not match the active customer financial source binding",
   );
@@ -1033,6 +1055,7 @@ async function main() {
   const mutakamelRequest = await requestSource(
     accountantDb, customerId, "MUTAKAMEL", "MUT-CUST-0001",
     "cutover from Onyx to Mutakamel after full reconciliation", randomUUID() + randomUUID(), 2,
+    "MUT-COMPANY-01", "MUT-BRANCH-01",
   );
   assert.equal(mutakamelRequest.status, "pending_reconciliation");
   const mutakamelTime = await serviceDb.unsafe("select statement_timestamp()-interval '2 minutes' as as_of");
@@ -1123,6 +1146,9 @@ async function main() {
   }
 
 
+  const identityIndex = await db.unsafe("select indexdef from pg_catalog.pg_indexes where schemaname='public' and indexname='customer_financial_source_external_identity_uniq'");
+  assert.equal(identityIndex.length, 1, "ERP account identity unique index is installed");
+  assert.ok(identityIndex[0].indexdef.includes("organization_id") && identityIndex[0].indexdef.includes("company_external_ref") && identityIndex[0].indexdef.includes("branch_external_ref") && identityIndex[0].indexdef.includes("external_account_ref"));
   const finalResolver = await rpc(customerDb, "select public.get_my_customer_financial_source() as result");
   assert.equal(finalResolver.source_mode, "APP_ONLY");
   assert.equal(finalResolver.can_read_app_ledger, true);
@@ -1182,11 +1208,13 @@ async function main() {
   ]) assert.ok(auditActions.has(expected), "missing financial-source audit action " + expected);
 
   const finalBinding = await db.unsafe(
-    "select source_mode,source_status,external_account_ref,revision from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
+    "select source_mode,source_status,external_account_ref,company_external_ref,branch_external_ref,revision from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
     [orgId, customerId],
   );
   assert.equal(finalBinding[0].source_mode, "APP_ONLY");
   assert.equal(finalBinding[0].external_account_ref, null);
+  assert.equal(finalBinding[0].company_external_ref, null);
+  assert.equal(finalBinding[0].branch_external_ref, null);
   assert.equal(finalBinding[0].revision, 4);
   process.stdout.write(
     "Customer financial source routing PostgreSQL 17 acceptance: PASS " +

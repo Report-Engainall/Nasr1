@@ -30,6 +30,8 @@ CREATE TABLE public.customer_financial_source_bindings (
   source_status text NOT NULL DEFAULT 'active'
     CHECK (source_status IN ('active','suspended')),
   external_account_ref text,
+  company_external_ref text,
+  branch_external_ref text,
   source_as_of timestamptz,
   last_synced_at timestamptz,
   source_evidence_sha256 text,
@@ -44,12 +46,14 @@ CREATE TABLE public.customer_financial_source_bindings (
     FOREIGN KEY (customer_id,organization_id)
     REFERENCES public.customers(id,organization_id) ON DELETE RESTRICT,
   CONSTRAINT customer_financial_source_external_reference_ck CHECK (
-    (source_mode='APP_ONLY' AND external_account_ref IS NULL)
+    (source_mode='APP_ONLY' AND external_account_ref IS NULL AND company_external_ref IS NULL AND branch_external_ref IS NULL)
     OR (source_mode IN ('ONYX','MUTAKAMEL')
-        AND external_account_ref IS NOT NULL
-        AND length(btrim(external_account_ref)) BETWEEN 1 AND 160
-        AND external_account_ref !~ '://'
-        AND position('@' in external_account_ref)=0)
+        AND external_account_ref IS NOT NULL AND length(btrim(external_account_ref)) BETWEEN 1 AND 160
+        AND external_account_ref !~ '://' AND position('@' in external_account_ref)=0
+        AND company_external_ref IS NOT NULL AND length(btrim(company_external_ref)) BETWEEN 1 AND 256
+        AND company_external_ref !~ '://' AND position('@' in company_external_ref)=0
+        AND branch_external_ref IS NOT NULL AND length(btrim(branch_external_ref)) BETWEEN 1 AND 256
+        AND branch_external_ref !~ '://' AND position('@' in branch_external_ref)=0)
   ),
   CONSTRAINT customer_financial_source_external_evidence_ck CHECK (
     source_mode='APP_ONLY'
@@ -68,6 +72,11 @@ CREATE INDEX customer_financial_source_provider_lookup
   ON public.customer_financial_source_bindings(organization_id,source_mode,source_status)
   WHERE source_mode IN ('ONYX','MUTAKAMEL');
 
+CREATE UNIQUE INDEX customer_financial_source_external_identity_uniq
+  ON public.customer_financial_source_bindings
+    (organization_id,source_mode,company_external_ref,branch_external_ref,external_account_ref)
+  WHERE source_mode IN ('ONYX','MUTAKAMEL');
+
 CREATE TABLE public.customer_financial_source_change_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
@@ -75,6 +84,8 @@ CREATE TABLE public.customer_financial_source_change_requests (
   current_source_mode text NOT NULL CHECK (current_source_mode IN ('APP_ONLY','ONYX','MUTAKAMEL')),
   target_source_mode text NOT NULL CHECK (target_source_mode IN ('APP_ONLY','ONYX','MUTAKAMEL')),
   target_external_account_ref text,
+  target_company_external_ref text,
+  target_branch_external_ref text,
   expected_binding_revision integer NOT NULL CHECK (expected_binding_revision>=1),
   idempotency_key text NOT NULL CHECK (length(btrim(idempotency_key)) BETWEEN 16 AND 128),
   request_fingerprint text NOT NULL CHECK (request_fingerprint ~ '^[0-9a-f]{64}$'),
@@ -93,12 +104,15 @@ CREATE TABLE public.customer_financial_source_change_requests (
   FOREIGN KEY (customer_id,organization_id)
     REFERENCES public.customers(id,organization_id) ON DELETE RESTRICT,
   CONSTRAINT customer_source_request_target_ref_ck CHECK (
-    (target_source_mode='APP_ONLY' AND target_external_account_ref IS NULL)
+    (target_source_mode='APP_ONLY' AND target_external_account_ref IS NULL
+      AND target_company_external_ref IS NULL AND target_branch_external_ref IS NULL)
     OR (target_source_mode IN ('ONYX','MUTAKAMEL')
-        AND target_external_account_ref IS NOT NULL
-        AND length(btrim(target_external_account_ref)) BETWEEN 1 AND 160
-        AND target_external_account_ref !~ '://'
-        AND position('@' in target_external_account_ref)=0)
+        AND target_external_account_ref IS NOT NULL AND length(btrim(target_external_account_ref)) BETWEEN 1 AND 160
+        AND target_external_account_ref !~ '://' AND position('@' in target_external_account_ref)=0
+        AND target_company_external_ref IS NOT NULL AND length(btrim(target_company_external_ref)) BETWEEN 1 AND 256
+        AND target_company_external_ref !~ '://' AND position('@' in target_company_external_ref)=0
+        AND target_branch_external_ref IS NOT NULL AND length(btrim(target_branch_external_ref)) BETWEEN 1 AND 256
+        AND target_branch_external_ref !~ '://' AND position('@' in target_branch_external_ref)=0)
   ),
   CONSTRAINT customer_source_request_different_mode_ck CHECK (
     current_source_mode<>target_source_mode
@@ -117,6 +131,8 @@ CREATE TABLE public.customer_financial_source_reconciliation_evidence (
   request_id uuid NOT NULL,
   current_source_mode text NOT NULL CHECK (current_source_mode IN ('APP_ONLY','ONYX','MUTAKAMEL')),
   target_source_mode text NOT NULL CHECK (target_source_mode IN ('APP_ONLY','ONYX','MUTAKAMEL')),
+  company_external_ref text,
+  branch_external_ref text,
   reconciliation_result text NOT NULL CHECK (reconciliation_result IN ('matched','mismatch')),
   source_as_of timestamptz NOT NULL,
   evidence_sha256 text NOT NULL CHECK (evidence_sha256 ~ '^[0-9a-f]{64}$'),
@@ -136,7 +152,15 @@ CREATE TABLE public.customer_financial_source_reconciliation_evidence (
     REFERENCES public.customer_financial_source_change_requests(organization_id,id) ON DELETE RESTRICT,
   FOREIGN KEY (customer_id,organization_id)
     REFERENCES public.customers(id,organization_id) ON DELETE RESTRICT,
-  CHECK (source_as_of<=recorded_at)
+  CHECK (source_as_of<=recorded_at),
+  CHECK (
+    (target_source_mode='APP_ONLY' AND company_external_ref IS NULL AND branch_external_ref IS NULL)
+    OR (target_source_mode IN ('ONYX','MUTAKAMEL')
+      AND company_external_ref IS NOT NULL AND length(btrim(company_external_ref)) BETWEEN 1 AND 256
+      AND company_external_ref !~ '://' AND position('@' in company_external_ref)=0
+      AND branch_external_ref IS NOT NULL AND length(btrim(branch_external_ref)) BETWEEN 1 AND 256
+      AND branch_external_ref !~ '://' AND position('@' in branch_external_ref)=0)
+  )
 );
 
 ALTER TABLE public.customer_financial_source_change_requests
@@ -155,6 +179,8 @@ CREATE TABLE public.customer_financial_source_sync_evidence (
     AND external_account_ref !~ '://'
     AND position('@' in external_account_ref)=0
   ),
+  company_external_ref text NOT NULL CHECK (length(btrim(company_external_ref)) BETWEEN 1 AND 256 AND company_external_ref !~ '://' AND position('@' in company_external_ref)=0),
+  branch_external_ref text NOT NULL CHECK (length(btrim(branch_external_ref)) BETWEEN 1 AND 256 AND branch_external_ref !~ '://' AND position('@' in branch_external_ref)=0),
   source_as_of timestamptz NOT NULL,
   evidence_sha256 text NOT NULL CHECK (evidence_sha256 ~ '^[0-9a-f]{64}$'),
   record_count integer NOT NULL CHECK (record_count>=0),
@@ -222,7 +248,9 @@ CREATE OR REPLACE FUNCTION public.request_customer_financial_source_change(
   p_target_external_account_ref text,
   p_reason text,
   p_idempotency_key text,
-  p_expected_binding_revision integer
+  p_expected_binding_revision integer,
+  p_target_company_external_ref text,
+  p_target_branch_external_ref text
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -250,13 +278,18 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid customer, source, revision, reason and idempotency key are required';
   END IF;
   IF p_target_source_mode='APP_ONLY' THEN
-    IF nullif(btrim(coalesce(p_target_external_account_ref,'')),'') IS NOT NULL THEN
-      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='APP_ONLY source must not include an external account reference';
+    IF nullif(btrim(coalesce(p_target_external_account_ref,'')),'') IS NOT NULL
+       OR nullif(btrim(coalesce(p_target_company_external_ref,'')),'') IS NOT NULL
+       OR nullif(btrim(coalesce(p_target_branch_external_ref,'')),'') IS NOT NULL THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='APP_ONLY source must not include ERP company, branch or account references';
     END IF;
   ELSIF p_target_external_account_ref IS NULL OR length(btrim(p_target_external_account_ref)) NOT BETWEEN 1 AND 160
-     OR p_target_external_account_ref ~ '://'
-     OR position('@' in p_target_external_account_ref)>0 THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP source requires a safe external account reference, not a connection secret';
+     OR p_target_external_account_ref ~ '://' OR position('@' in p_target_external_account_ref)>0
+     OR p_target_company_external_ref IS NULL OR length(btrim(p_target_company_external_ref)) NOT BETWEEN 1 AND 256
+     OR p_target_company_external_ref ~ '://' OR position('@' in p_target_company_external_ref)>0
+     OR p_target_branch_external_ref IS NULL OR length(btrim(p_target_branch_external_ref)) NOT BETWEEN 1 AND 256
+     OR p_target_branch_external_ref ~ '://' OR position('@' in p_target_branch_external_ref)>0 THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP source requires safe company, branch and customer account references';
   END IF;
 
   SELECT p.organization_id INTO v_org
@@ -271,6 +304,8 @@ BEGIN
       'customer_id',p_customer_id,
       'target_source_mode',p_target_source_mode,
       'target_external_account_ref',nullif(btrim(coalesce(p_target_external_account_ref,'')),''),
+      'target_company_external_ref',nullif(btrim(coalesce(p_target_company_external_ref,'')),''),
+      'target_branch_external_ref',nullif(btrim(coalesce(p_target_branch_external_ref,'')),''),
       'reason',btrim(p_reason),
       'expected_binding_revision',p_expected_binding_revision
     )::text,'UTF8'),'sha256'),'hex');
@@ -311,7 +346,9 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='financial source revision changed; reload the customer binding before retrying';
   END IF;
   IF v_binding.source_mode=p_target_source_mode
-     AND v_binding.external_account_ref IS NOT DISTINCT FROM nullif(btrim(coalesce(p_target_external_account_ref,'')),'') THEN
+     AND v_binding.external_account_ref IS NOT DISTINCT FROM nullif(btrim(coalesce(p_target_external_account_ref,'')),'')
+     AND v_binding.company_external_ref IS NOT DISTINCT FROM nullif(btrim(coalesce(p_target_company_external_ref,'')),'')
+     AND v_binding.branch_external_ref IS NOT DISTINCT FROM nullif(btrim(coalesce(p_target_branch_external_ref,'')),'') THEN
     RETURN pg_catalog.jsonb_build_object('changed',false,'source_mode',v_binding.source_mode,'revision',v_binding.revision,'replayed',false);
   END IF;
   IF EXISTS(
@@ -324,10 +361,13 @@ BEGIN
 
   INSERT INTO public.customer_financial_source_change_requests(
     organization_id,customer_id,current_source_mode,target_source_mode,target_external_account_ref,
+    target_company_external_ref,target_branch_external_ref,
     expected_binding_revision,idempotency_key,request_fingerprint,reason,status,requested_by
   ) VALUES (
     v_org,p_customer_id,v_binding.source_mode,p_target_source_mode,
     nullif(btrim(coalesce(p_target_external_account_ref,'')),''),
+    nullif(btrim(coalesce(p_target_company_external_ref,'')),''),
+    nullif(btrim(coalesce(p_target_branch_external_ref,'')),''),
     v_binding.revision,btrim(p_idempotency_key),v_fingerprint,btrim(p_reason),'pending_reconciliation',v_actor
   ) RETURNING * INTO v_request;
 
@@ -335,15 +375,18 @@ BEGIN
   VALUES(v_org,v_actor,'customer.financial_source.change.requested','customer_financial_source_binding',p_customer_id,
     pg_catalog.jsonb_build_object('source_mode',v_binding.source_mode,'revision',v_binding.revision),
     pg_catalog.jsonb_build_object('request_id',v_request.id,'target_source_mode',v_request.target_source_mode,
-      'external_account_ref',v_request.target_external_account_ref,'status',v_request.status,'reason',v_request.reason));
+      'external_account_ref',v_request.target_external_account_ref,
+      'company_external_ref',v_request.target_company_external_ref,
+      'branch_external_ref',v_request.target_branch_external_ref,
+      'status',v_request.status,'reason',v_request.reason));
   RETURN pg_catalog.jsonb_build_object(
     'request_id',v_request.id,'status',v_request.status,'replayed',false,
     'current_source_mode',v_request.current_source_mode,'target_source_mode',v_request.target_source_mode,
     'expected_binding_revision',v_request.expected_binding_revision);
 END
 $function$;
-REVOKE ALL ON FUNCTION public.request_customer_financial_source_change(uuid,text,text,text,text,integer) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.request_customer_financial_source_change(uuid,text,text,text,text,integer) TO authenticated;
+REVOKE ALL ON FUNCTION public.request_customer_financial_source_change(uuid,text,text,text,text,integer,text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.request_customer_financial_source_change(uuid,text,text,text,text,integer,text,text) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.record_customer_financial_source_reconciliation_evidence(
   p_request_id uuid,
@@ -484,16 +527,20 @@ BEGIN
        OR v_existing.currency_codes<>p_currency_codes
        OR v_existing.record_counts<>p_record_counts
        OR v_existing.balances_by_currency<>p_balances_by_currency
-       OR v_existing.source_reference IS DISTINCT FROM p_source_reference THEN
+       OR v_existing.source_reference IS DISTINCT FROM p_source_reference
+       OR v_existing.company_external_ref IS DISTINCT FROM v_request.target_company_external_ref
+       OR v_existing.branch_external_ref IS DISTINCT FROM v_request.target_branch_external_ref THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reconciliation evidence hash was replayed with different metadata';
     END IF;
     RETURN pg_catalog.jsonb_build_object('evidence_id',v_existing.id,'status',v_request.status,'replayed',true);
   END IF;
   INSERT INTO public.customer_financial_source_reconciliation_evidence(
     organization_id,customer_id,request_id,current_source_mode,target_source_mode,
+    company_external_ref,branch_external_ref,
     reconciliation_result,source_as_of,evidence_sha256,currency_codes,record_counts,balances_by_currency,source_reference
   ) VALUES (
     v_request.organization_id,v_request.customer_id,v_request.id,v_request.current_source_mode,v_request.target_source_mode,
+    v_request.target_company_external_ref,v_request.target_branch_external_ref,
     p_reconciliation_result,p_source_as_of,p_evidence_sha256,p_currency_codes,p_record_counts,p_balances_by_currency,
     nullif(btrim(coalesce(p_source_reference,'')),'')
   ) RETURNING * INTO v_evidence;
@@ -599,6 +646,8 @@ BEGIN
      AND e.organization_id=v_org AND e.reconciliation_result='matched'
      AND e.current_source_mode=v_request.current_source_mode
      AND e.target_source_mode=v_request.target_source_mode
+     AND e.company_external_ref IS NOT DISTINCT FROM v_request.target_company_external_ref
+     AND e.branch_external_ref IS NOT DISTINCT FROM v_request.target_branch_external_ref
    FOR SHARE;
   IF NOT FOUND OR v_evidence.source_as_of<statement_timestamp()-interval '24 hours'
      OR v_evidence.source_as_of>statement_timestamp() THEN
@@ -610,6 +659,8 @@ BEGIN
      SET source_mode=v_request.target_source_mode,
          source_status='active',
          external_account_ref=v_request.target_external_account_ref,
+         company_external_ref=v_request.target_company_external_ref,
+         branch_external_ref=v_request.target_branch_external_ref,
          source_as_of=CASE WHEN v_request.target_source_mode='APP_ONLY' THEN NULL ELSE v_evidence.source_as_of END,
          last_synced_at=CASE WHEN v_request.target_source_mode='APP_ONLY' THEN NULL ELSE v_evidence.recorded_at END,
          source_evidence_sha256=CASE WHEN v_request.target_source_mode='APP_ONLY' THEN NULL ELSE v_evidence.evidence_sha256 END,
@@ -641,6 +692,8 @@ CREATE OR REPLACE FUNCTION public.record_customer_financial_source_sync(
   p_evidence_sha256 text,
   p_record_count integer,
   p_currency_codes text[],
+  p_company_external_ref text,
+  p_branch_external_ref text,
   p_source_reference text DEFAULT NULL
 )
 RETURNS jsonb
@@ -664,6 +717,10 @@ BEGIN
      OR p_evidence_sha256 IS NULL OR p_evidence_sha256 !~ '^[0-9a-f]{64}$'
      OR p_record_count IS NULL OR p_record_count<0
      OR p_currency_codes IS NULL OR cardinality(p_currency_codes) NOT BETWEEN 1 AND 10
+     OR p_company_external_ref IS NULL OR length(btrim(p_company_external_ref)) NOT BETWEEN 1 AND 256
+     OR p_company_external_ref ~ '://' OR position('@' in p_company_external_ref)>0
+     OR p_branch_external_ref IS NULL OR length(btrim(p_branch_external_ref)) NOT BETWEEN 1 AND 256
+     OR p_branch_external_ref ~ '://' OR position('@' in p_branch_external_ref)>0
      OR array_position(p_currency_codes,NULL) IS NOT NULL
      OR EXISTS(SELECT 1 FROM unnest(p_currency_codes) AS u(currency_code) WHERE u.currency_code !~ '^[A-Z]{3}$')
      OR cardinality(p_currency_codes)<>(SELECT count(DISTINCT u.currency_code) FROM unnest(p_currency_codes) AS u(currency_code))
@@ -677,7 +734,9 @@ BEGIN
    FOR UPDATE;
   IF NOT FOUND OR v_binding.source_status<>'active'
      OR v_binding.source_mode<>p_source_mode
-     OR v_binding.external_account_ref<>btrim(p_external_account_ref) THEN
+     OR v_binding.external_account_ref<>btrim(p_external_account_ref)
+     OR v_binding.company_external_ref<>btrim(p_company_external_ref)
+     OR v_binding.branch_external_ref<>btrim(p_branch_external_ref) THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ERP sync does not match the active customer financial source binding';
   END IF;
   SELECT e.* INTO v_existing
@@ -687,6 +746,8 @@ BEGIN
   IF FOUND THEN
     IF v_existing.source_as_of<>p_source_as_of OR v_existing.source_mode<>p_source_mode
        OR v_existing.external_account_ref<>btrim(p_external_account_ref)
+       OR v_existing.company_external_ref<>btrim(p_company_external_ref)
+       OR v_existing.branch_external_ref<>btrim(p_branch_external_ref)
        OR v_existing.record_count<>p_record_count OR v_existing.currency_codes<>p_currency_codes
        OR v_existing.source_reference IS DISTINCT FROM p_source_reference THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP sync evidence hash was replayed with different metadata';
@@ -697,10 +758,11 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='stale ERP source snapshot cannot move the customer statement watermark backwards';
   END IF;
   INSERT INTO public.customer_financial_source_sync_evidence(
-    organization_id,customer_id,source_mode,external_account_ref,source_as_of,evidence_sha256,
-    record_count,currency_codes,source_reference
+    organization_id,customer_id,source_mode,external_account_ref,company_external_ref,branch_external_ref,
+    source_as_of,evidence_sha256,record_count,currency_codes,source_reference
   ) VALUES (
-    p_organization_id,p_customer_id,p_source_mode,btrim(p_external_account_ref),p_source_as_of,
+    p_organization_id,p_customer_id,p_source_mode,btrim(p_external_account_ref),
+    btrim(p_company_external_ref),btrim(p_branch_external_ref),p_source_as_of,
     p_evidence_sha256,p_record_count,p_currency_codes,nullif(btrim(coalesce(p_source_reference,'')),'')
   ) RETURNING * INTO v_sync;
   UPDATE public.customer_financial_source_bindings
@@ -716,8 +778,8 @@ BEGIN
   RETURN pg_catalog.jsonb_build_object('sync_id',v_sync.id,'replayed',false,'source_as_of',v_sync.source_as_of);
 END
 $function$;
-REVOKE ALL ON FUNCTION public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamptz,text,integer,text[],text) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamptz,text,integer,text[],text) TO service_role;
+REVOKE ALL ON FUNCTION public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamptz,text,integer,text[],text,text,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.record_customer_financial_source_sync(uuid,uuid,text,text,timestamptz,text,integer,text[],text,text,text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.get_my_customer_financial_source()
 RETURNS jsonb
@@ -804,6 +866,7 @@ BEGIN
   RETURN pg_catalog.jsonb_build_object(
     'customer_id',v_binding.customer_id,'source_mode',v_binding.source_mode,
     'source_status',v_binding.source_status,'external_account_ref',v_binding.external_account_ref,
+    'company_external_ref',v_binding.company_external_ref,'branch_external_ref',v_binding.branch_external_ref,
     'source_as_of',v_binding.source_as_of,'last_synced_at',v_binding.last_synced_at,
     'verified_at',v_binding.verified_at,'revision',v_binding.revision,
     'is_stale',v_binding.source_mode<>'APP_ONLY'
