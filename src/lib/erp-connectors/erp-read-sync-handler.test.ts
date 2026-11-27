@@ -257,6 +257,30 @@ describe("ERP read-only Edge Function handler", () => {
     expect(context.store.loadCheckpoint).not.toHaveBeenCalled();
   });
 
+  it("rejects null warehouse or currency when the server restricts those dimensions", async () => {
+    const warehouseContext = buildDependencies();
+    const warehouseResponse = await createErpReadSyncHandler(warehouseContext.dependencies)(
+      request({ ...scopeInput, warehouse_external_id: null }),
+    );
+    expect(warehouseResponse.status).toBe(403);
+    expect(await warehouseResponse.json()).toEqual({
+      error: "ERP_PROVIDER_SCOPE_NOT_ALLOWED",
+      retryable: false,
+    });
+    expect(warehouseContext.createConnector).not.toHaveBeenCalled();
+
+    const currencyContext = buildDependencies();
+    const currencyResponse = await createErpReadSyncHandler(currencyContext.dependencies)(
+      request({ ...scopeInput, currency_code: null }),
+    );
+    expect(currencyResponse.status).toBe(403);
+    expect(await currencyResponse.json()).toEqual({
+      error: "ERP_PROVIDER_SCOPE_NOT_ALLOWED",
+      retryable: false,
+    });
+    expect(currencyContext.createConnector).not.toHaveBeenCalled();
+  });
+
   it("rejects an origin not explicitly allowed by the server", async () => {
     const context = buildDependencies();
     const response = await createErpReadSyncHandler(context.dependencies)(
