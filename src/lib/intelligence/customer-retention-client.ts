@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import { buildCustomerRetentionActionQueue, buildCustomerRetentionReport, type CustomerRetentionActionQueue, type CustomerRetentionCoverage, type CustomerRetentionRecord, type CustomerRetentionReport, type CustomerRetentionSaleRecord } from "./customer-retention";
 import { buildGrowthOpportunityRadar, type GrowthOpportunityRadarResult, type GrowthOpportunitySignal, type GrowthOpportunitySourceCoverage } from "./growth-opportunities";
 import { fetchUnavailableProductSearchDemand } from "./unavailable-product-search-demand-client";
@@ -40,7 +41,7 @@ function isoDay(value: unknown): value is string {
   return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
 }
 function isoTimestamp(value: unknown): value is string {
-  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+  return timestampMicroseconds(value) !== null;
 }
 function period(value: unknown): EvidencePeriod | null {
   const raw = record(value);
@@ -59,6 +60,8 @@ function snapshot(value: unknown, key: string, expectedPeriod: EvidencePeriod, a
   const numeric = typeof raw?.value === "number" ? raw.value
     : typeof raw?.value === "string" && raw.value.trim() ? Number(raw.value) : Number.NaN;
   const warnings = stringList(raw?.warnings, 100);
+  const calculatedAtMicros = timestampMicroseconds(lineage?.calculatedAt);
+  const asOfMicros = timestampMicroseconds(asOf);
   if (
     !raw || !lineage || !metricPeriod || metricPeriod.from !== expectedPeriod.from ||
     metricPeriod.to !== expectedPeriod.to || raw.key !== key ||
@@ -67,7 +70,7 @@ function snapshot(value: unknown, key: string, expectedPeriod: EvidencePeriod, a
     raw.completeness !== "COMPLETE" || raw.quality !== "ACCEPTABLE" ||
     raw.asOf !== asOf || !evidenceIds || evidenceIds.length !== 1 ||
     !nonEmpty(lineage.formulaId, 160) || !nonEmpty(lineage.formulaVersion, 80) ||
-    !isoTimestamp(lineage.calculatedAt) || Date.parse(lineage.calculatedAt) > Date.parse(asOf) ||
+    calculatedAtMicros === null || asOfMicros === null || calculatedAtMicros > asOfMicros ||
     !Array.isArray(lineage.transformations) ||
     lineage.transformations.some(item => !nonEmpty(item, 300)) || !warnings
   ) return null;
@@ -88,12 +91,14 @@ function evidence(value: unknown, asOf: string): EvidenceRecord | null {
   const source = record(raw?.source);
   const evidencePeriod = raw?.period === null ? null : period(raw?.period);
   const warnings = stringList(raw?.warnings, 100);
+  const sourceTimestampMicros = timestampMicroseconds(raw?.sourceTimestamp);
+  const asOfMicros = timestampMicroseconds(asOf);
   if (
     !raw || !source || !nonEmpty(raw.id, 500) ||
     !nonEmpty(source.name, 150) || !SOURCE_KINDS.has(String(source.kind)) ||
     (source.recordId !== undefined && !nonEmpty(source.recordId, 200)) ||
     (source.version !== undefined && !nonEmpty(source.version, 80)) ||
-    !isoTimestamp(raw.sourceTimestamp) || Date.parse(raw.sourceTimestamp) > Date.parse(asOf) ||
+    sourceTimestampMicros === null || asOfMicros === null || sourceTimestampMicros > asOfMicros ||
     raw.asOf !== asOf || (raw.period !== null && !evidencePeriod) ||
     !STATUS.has(String(raw.status)) || !COMPLETENESS.has(String(raw.completeness)) ||
     !QUALITY.has(String(raw.quality)) || !warnings
@@ -120,7 +125,7 @@ export async function fetchCustomerRetentionAggregate(
   periodDays: 30 | 60 | 90 | 180 | 365,
   asOf: string,
 ): Promise<CustomerRetentionAggregateResult> {
-  if (![30, 60, 90, 180, 365].includes(periodDays) || !isoTimestamp(asOf)) {
+  if (![30, 60, 90, 180, 365].includes(periodDays) || timestampMicroseconds(asOf) === null) {
     return { ok: false, status: "ERROR", message: "فترة لقطة الاحتفاظ بالعملاء أو توقيتها غير صالح." };
   }
   try {

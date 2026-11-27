@@ -208,6 +208,10 @@
     "src/lib/intelligence/executive-liquidity-client.test.ts",
     "src/lib/intelligence/executive-liquidity-client.ts",
     "src/lib/intelligence/business-health-map.test.ts",
-    "src/lib/intelligence/business-health-map.ts"
+    "src/lib/intelligence/business-health-map.ts",
+    "src/lib/intelligence/customer-retention-client.ts",
+    "src/lib/intelligence/customer-retention-client.test.ts",
+    "src/lib/intelligence/unavailable-product-search-demand-client.ts",
+    "src/lib/intelligence/unavailable-product-search-demand-client.test.ts"
   ]
 }

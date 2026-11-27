@@ -491,6 +491,8 @@ on:
       - "src/lib/customer-shopping-lists-xlsx.ts"
       - "src/lib/customer-shopping-lists-xlsx.test.ts"
 
+      - "src/lib/intelligence/customer-retention-client.test.ts"
+      - "src/lib/intelligence/unavailable-product-search-demand-client.test.ts"
   pull_request:
     branches:
       - main
@@ -913,6 +915,8 @@ on:
 permissions:
   contents: read
 
+      - "src/lib/intelligence/customer-retention-client.test.ts"
+      - "src/lib/intelligence/unavailable-product-search-demand-client.test.ts"
 concurrency:
   group: p1-admin-context-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 import type { GrowthOpportunitySignal } from "./growth-opportunities";
@@ -34,15 +35,7 @@ function day(value: unknown): value is string {
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
 }
 function timestamp(value: unknown): value is string {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)) {
-    return false;
-  }
-  const datePart = value.slice(0, 10);
-  const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
-  return Number.isFinite(Date.parse(value)) &&
-    Number.isFinite(dateMillis) &&
-    new Date(dateMillis).toISOString().slice(0, 10) === datePart;
+  return timestampMicroseconds(value) !== null;
 }
 function period(value: unknown): EvidencePeriod | null {
   const raw = object(value);
@@ -75,7 +68,8 @@ export async function fetchProductPerformanceGrowthContext(
   periodDays: 30 | 60 | 90 | 180 | 365,
   asOf: string,
 ): Promise<ProductPerformanceGrowthFetchResult> {
-  if (![30,60,90,180,365].includes(periodDays) || !timestamp(asOf)) {
+  const requestedAsOfMicros = timestampMicroseconds(asOf);
+  if (![30,60,90,180,365].includes(periodDays) || requestedAsOfMicros === null) {
     return { ok: false, status: "ERROR", message: "فترة أداء المنتجات أو وقت اللقطة غير صالح." };
   }
   try {
@@ -89,7 +83,7 @@ export async function fetchProductPerformanceGrowthContext(
     const sourceTables = raw?.sourceTables;
     const currentPeriod = period(raw?.period);
     const baselinePeriod = period(raw?.baselinePeriod);
-    if (!raw || !currentPeriod || !baselinePeriod || !timestamp(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(asOf) ||
+    if (!raw || !currentPeriod || !baselinePeriod || timestampMicroseconds(raw.asOf) !== requestedAsOfMicros ||
         currentPeriod.to !== new Date(Date.parse(asOf)).toISOString().slice(0,10) || baselinePeriod.to >= currentPeriod.from ||
         !count(raw.totalCount) || !count(raw.returnedCount) || !count(raw.uncomparableUnitCount) ||
         typeof raw.completePopulation !== "boolean" || !Array.isArray(raw.products) ||

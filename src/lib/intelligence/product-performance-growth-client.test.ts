@@ -188,3 +188,29 @@ describe("product performance growth evidence client", () => {
       .resolves.toMatchObject({ ok: false, status: "UNAVAILABLE" });
   });
 });
+
+
+describe("product performance growth exact PostgreSQL instant contract", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+
+  it.each([
+    ["positive offset beyond ISO maximum", "2026-11-26T02:45:47.000+14:01"],
+    ["negative offset beyond ISO maximum", "2026-11-26T02:45:47.000-14:01"],
+    ["precision finer than PostgreSQL microseconds", "2026-11-26T02:45:47.0000001Z"],
+  ])("rejects %s before querying the database", async (_label, invalidAsOf) => {
+    await expect(fetchProductPerformanceGrowthContext(30, invalidAsOf))
+      .resolves.toMatchObject({ ok: false, status: "ERROR" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("withholds a source snapshot that differs by one microsecond even when Date.parse collapses it", async () => {
+    const requestedAsOf = "2026-11-26T02:45:47.123456Z";
+    mocks.rpc.mockResolvedValue({
+      data: response({ asOf: "2026-11-26T02:45:47.123457Z" }),
+      error: null,
+    });
+
+    await expect(fetchProductPerformanceGrowthContext(30, requestedAsOf))
+      .resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+});
