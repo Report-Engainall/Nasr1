@@ -128,3 +128,5 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Staff receipt allocation count, distinct-invoice count, customer/tenant/currency checks, total reconciliation, and printable DTO now come from one `MATERIALIZED` SQL snapshot. Rows outside the active tenant/customer are counted as invalid rather than silently filtered away.
 - PG17 acceptance now checks staff DTO allocation totals and proves a concurrent receipt FK `FOR KEY SHARE NOWAIT` reference plus allocation mutation are rejected while the staff print transaction holds locks.
 - No payment/receipt/allocation/balance/journal writes were added. Staff and customer printing remain APP_ONLY-only and no fallback to ONYX/MUTAKAMEL was introduced.
+
+- Staff receipt-history pagination now derives the total count, ordered page and `has_more` from one pair of materialized CTEs in a single SQL statement, eliminating the previous separate-count/page snapshot race. PG17 acceptance inspects the installed function definition for both scoped and page materialization.
