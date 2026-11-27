@@ -5,21 +5,25 @@ Role: P2 — backend, PostgreSQL, data integrity and tenant authorization
 PR: #541
 Branch: `integrate/customer-asset-atomic-replacement-current-main-20261117`
 
-## Latest exact-head result — 2026-11-27
-- Current code/test head: `ff68e2eb14c62e9497f1d4f7eda1446389ea9d5c`.
-- The first local PG17 attempt on the earlier head failed in the **test harness** before reaching its business assertions: PostgreSQL SQLSTATE `42P18`, “could not determine data type of parameter $5”, in the duplicate-history preflight fixture's `jsonb_build_object('request_key',$5,...)`.
-- P2 fixed both key references to `$5::text` in `scripts/test-customer-asset-replacement.mjs` and committed `ff68e2eb14c62e9497f1d4f7eda1446389ea9d5c`. The production migration and RPC were not changed by this correction.
-- P2 [run 45928721865](https://github.com/Report-Engainall/Nasr1/actions/runs/45928721865), local PostgreSQL 17 job [140276982220](https://github.com/Report-Engainall/Nasr1/actions/runs/45928721865/job/140276982220): dedicated step 22 **SUCCESS** — atomic customer asset replacement, SHA-256 idempotency, exact concurrent replay, changed-payload conflict, cross-tenant denial and immutable-event guard all passed after repository migration replay.
-- Same P2 run: public read-only Chromium smoke **SUCCESS**; authenticated infrastructure gate **SUCCESS**; hosted customer/order/tenant E2E **SKIPPED**, not PASS. The broader authenticated Chromium job remains **IN_PROGRESS** at finance/task print step 50; do not claim overall P2 acceptance yet.
-- P1 [run 45928721781](https://github.com/Report-Engainall/Nasr1/actions/runs/45928721781): Vitest **FAIL** — 4 pre-existing `CustomerAssetsPanel.test.tsx` cases requiring real server pagination and the “عرض 50 من 50 أصل تم تحميلها” result label; 233 other files and 1,723 tests passed. P1/P4 strict TypeScript and production build steps succeeded. The new dedicated replacement suite `CustomerAssetsPanel.replacement.test.tsx` passed **6/6**, including stable idempotency key on ambiguous failure and confirmation only for the linked replacement.
-- P1 has been notified in PR #541 comment [7208206444](https://github.com/Report-Engainall/Nasr1/pull/541#issuecomment-7208206444) to implement asset/event pagination and keep replacement out of the generic service-event options. A follow-up P2 comment [7208289626](https://github.com/Report-Engainall/Nasr1/pull/541#issuecomment-7208289626) records the fixed PG17 runner and the 6 passing replacement UI tests.
-- Exact P2 test proof is **PASS on code head `ff68e2e...`**; full integration remains PENDING while Chromium finishes and P1 UI failures remain open.
+## Latest exact-head acceptance — 2026-11-27
+
+- **Exact tested source head:** `ff68e2eb14c62e9497f1d4f7eda1446389ea9d5c`.
+- **P2 workflow [45928721865](https://github.com/Report-Engainall/Nasr1/actions/runs/45928721865): SUCCESS** on the exact tested source head.
+- **Local isolated Supabase/PostgreSQL 17 and authenticated Chromium job [140276982220](https://github.com/Report-Engainall/Nasr1/actions/runs/45928721865/job/140276982220): SUCCESS**, 66 successful steps, zero failures. Two skips were non-acceptance steps only: Chromium install skipped because the pinned browser was already cached, and diagnostic capture skipped because the job had no failures.
+- Dedicated step 22 **PASS**: migration replay, atomic customer asset replacement, SHA-256 request fingerprint, exact concurrent replay, conflicting-payload concurrency, tenant isolation and immutable event guard. The earlier `42P18` test-harness failure is fixed by typing both duplicate-history request-key arguments as `$5::text`.
+- The same local job also passed the end-to-end order/tenant denial, stock-count and purchase-order Excel, checkout replay, customer return/credit memo, Onyx export, finance/task print, customer-manager financial privacy/audit, device-session revocation, all four price edit/reload, admin access matrix, category/price/stock privacy/search/history/archive, AI Maker/Checker/tenant/append-only acceptance, and final Chromium/Storage proof verification.
+- P2 public UI smoke [job 140276123206]: **SUCCESS** (20 successful steps; Chromium install skipped because cached). Authenticated infrastructure gate [job 140276122993]: **SUCCESS**.
+- Hosted customer/order/tenant E2E [job 140276168667]: **SKIPPED**, not PASS. No hosted/production database identity or live data acceptance is inferred.
+- **P1 run [45928721781](https://github.com/Report-Engainall/Nasr1/actions/runs/45928721781): FAIL** — 4 cases in existing `src/components/CustomerAssetsPanel.test.tsx` require server-side pagination and the “عرض 50 من 50 أصل تم تحميلها” progress label; 233 other test files and 1,723 tests passed. P1/P4 strict TypeScript and production build succeeded. The new replacement-specific suite `CustomerAssetsPanel.replacement.test.tsx` passed **6/6**, including same-key retry on ambiguous failure and success confirmation only for the linked replacement.
+- P1 UI ownership was notified in PR #541 comments [7208206444](https://github.com/Report-Engainall/Nasr1/pull/541#issuecomment-7208206444) and [7208289626](https://github.com/Report-Engainall/Nasr1/pull/541#issuecomment-7208289626). P1 must implement real asset/event pagination and keep replacement out of generic service events; do not delete or weaken the four tests.
+- **P2 backend/migration/PG17/integrated local P2 acceptance: PASS on `ff68e2e...`. Overall product integration remains BLOCKED by the four P1 UI failures and required synchronization with latest `main`.**
 
 ## Current main and integration boundary
 - Latest observed `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e`.
-- PR #541 head remains `ff68e2eb14c62e9497f1d4f7eda1446389ea9d5c`; compare is **6 ahead / 28 behind**, merge base `8144c30ae47977be053c06ea8bb512a2d0cbe9dc`, and seven unique paths remain: P2 workflow, P2 checkpoint, P2 runner, replacement component/test, migration, and P1 typecheck config.
-- P1 owns synchronization with current `main`, preserving newer UI changes while implementing pagination, exact-head P1/P2 reruns and UI integration. P2 does not merge to `main`; P3 retains merge authority.
-- No hosted or production database identity is confirmed. Hosted E2E remains SKIPPED; release remains NO-GO.
+- Current PR head: `72488cb74b61b972a1000bb2a5391eea01eadb63`; it is a checkpoint-only documentation update after tested source head `ff68e2e...`. No application, migration, transaction RPC, runner or workflow code changed after the tested source.
+- Latest compare is **7 commits ahead / 28 behind**, merge base `8144c30ae47977be053c06ea8bb512a2d0cbe9dc`, with exactly seven scoped paths: P2 workflow, checkpoint, runner, replacement component/test, migration, and P1 typecheck config.
+- P1 owns synchronization with current `main`, preserving newer UI work, implementing the pagination contract, then rerunning P1/P2 on the exact synchronized head. P2 does not merge to `main`; P3 retains sole merge authority.
+- Keep hosted E2E as SKIPPED and release NO-GO until the real application Supabase project ref is proven and approved hosted acceptance is authorized.
 
 ## Resume and synchronization
 - Latest `main` synchronized: `8144c30ae47977be053c06ea8bb512a2d0cbe9dc`.
