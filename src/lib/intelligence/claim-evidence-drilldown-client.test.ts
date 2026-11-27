@@ -54,6 +54,38 @@ describe("claim evidence drill-down source contract", () => {
     expect(parsed?.rows[0]).not.toHaveProperty("supplierId");
   });
 
+  it("rejects an as-of instant that differs by one PostgreSQL microsecond", () => {
+    const source = record("purchase_supplier_invoices");
+    const parsed = parseClaimEvidenceDrilldownResponse({
+      status: "OK",
+      sourceName: source.source.name,
+      asOf: "2026-11-17T00:10:00.000001Z",
+      period: source.period,
+      rows: [],
+      hasMore: false,
+      nextOffset: null,
+      authorization: auth,
+      sideEffects: "NONE",
+    }, source, 0);
+    expect(parsed).toBeNull();
+  });
+
+  it("rejects source snapshot clocks finer than PostgreSQL microseconds", () => {
+    const source = record("purchase_supplier_invoices");
+    const parsed = parseClaimEvidenceDrilldownResponse({
+      status: "OK",
+      sourceName: source.source.name,
+      asOf: "2026-11-17T00:10:00.0000007Z",
+      period: source.period,
+      rows: [],
+      hasMore: false,
+      nextOffset: null,
+      authorization: auth,
+      sideEffects: "NONE",
+    }, source, 0);
+    expect(parsed).toBeNull();
+  });
+
   it("rejects an invoice response that adds unapproved private or costing fields", () => {
     const source = record("purchase_supplier_invoices");
     const invalid = parseClaimEvidenceDrilldownResponse({
