@@ -10,7 +10,7 @@ CREATE TABLE public.erp_sync_checkpoints (
   branch_external_id text NOT NULL CHECK (length(btrim(branch_external_id)) BETWEEN 1 AND 256),
   warehouse_external_id text,
   currency_code text,
-  object_type text NOT NULL CHECK (object_type IN ('products','customers','warehouses','stock_balances','product_units','product_prices')),
+  object_type text NOT NULL CHECK (object_type IN ('products','customers','warehouses','stock_balances','product_units','product_prices','customer_financial_documents','customer_payment_receipts','customer_statement_entries')),
   version bigint NOT NULL DEFAULT 0 CHECK (version >= 0),
   cursor_ciphertext text,
   pending_watermark timestamptz,
@@ -27,7 +27,7 @@ CREATE TABLE public.erp_sync_staged_records (
   organization_id uuid NOT NULL,
   scope_key text NOT NULL,
   provider text NOT NULL CHECK (provider IN ('onyx_pro','al_mutakamel')),
-  object_type text NOT NULL CHECK (object_type IN ('products','customers','warehouses','stock_balances','product_units','product_prices')),
+  object_type text NOT NULL CHECK (object_type IN ('products','customers','warehouses','stock_balances','product_units','product_prices','customer_financial_documents','customer_payment_receipts','customer_statement_entries')),
   external_id text NOT NULL CHECK (length(btrim(external_id)) BETWEEN 1 AND 256),
   idempotency_key text NOT NULL CHECK (idempotency_key ~ '^[0-9a-f]{64}$'),
   source_updated_at timestamptz NOT NULL,
@@ -119,7 +119,7 @@ BEGIN
      OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
      OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
      OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
-     OR p_object_type IS NULL OR p_object_type NOT IN ('products','customers','warehouses','stock_balances','product_units','product_prices')
+     OR p_object_type IS NULL OR p_object_type NOT IN ('products','customers','warehouses','stock_balances','product_units','product_prices','customer_financial_documents','customer_payment_receipts','customer_statement_entries')
   THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid ERP checkpoint scope is required';
   END IF;
@@ -209,7 +209,7 @@ BEGIN
      OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
      OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
      OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
-     OR p_object_type IS NULL OR p_object_type NOT IN ('products','customers','warehouses','stock_balances','product_units','product_prices')
+     OR p_object_type IS NULL OR p_object_type NOT IN ('products','customers','warehouses','stock_balances','product_units','product_prices','customer_financial_documents','customer_payment_receipts','customer_statement_entries')
      OR p_expected_version IS NULL OR p_expected_version<0
      OR p_page_fingerprint IS NULL OR p_page_fingerprint !~ '^[0-9a-f]{64}$'
      OR p_http_status IS NULL OR p_http_status NOT BETWEEN 200 AND 299
@@ -243,6 +243,9 @@ BEGIN
     WHEN 'stock_balances' THEN ARRAY['item_code','warehouse_code','quantity_on_hand','quantity_reserved','quantity_available']
     WHEN 'product_units' THEN ARRAY['item_code','unit_code','base_unit_code','conversion_factor','is_base_unit','is_active']
     WHEN 'product_prices' THEN ARRAY['item_code','price_list_code','customer_tier','currency_code','unit_code','unit_price','minimum_quantity','discount_percent','is_active']
+    WHEN 'customer_financial_documents' THEN ARRAY['external_customer_id','document_number','document_type','document_status','issue_date','due_date','currency_code','total_amount','paid_amount','outstanding_amount','reference']
+    WHEN 'customer_payment_receipts' THEN ARRAY['external_customer_id','receipt_number','receipt_date','currency_code','amount','payment_status','payment_method','applied_document_number','reference']
+    WHEN 'customer_statement_entries' THEN ARRAY['external_customer_id','entry_reference','entry_date','due_date','currency_code','entry_type','debit_amount','credit_amount','source_document_number','description']
   END;
 
   -- Validate the entire source projection before acquiring the checkpoint lock or
@@ -303,11 +306,72 @@ BEGIN
           WHEN 'stock_balances' THEN ARRAY['item_code','warehouse_code','quantity_on_hand','quantity_reserved','quantity_available']
           WHEN 'product_units' THEN ARRAY['item_code','unit_code','base_unit_code','conversion_factor','is_base_unit']
           WHEN 'product_prices' THEN ARRAY['item_code','price_list_code','currency_code','unit_price']
+          WHEN 'customer_financial_documents' THEN ARRAY['external_customer_id','document_number','document_type','document_status','issue_date','currency_code','total_amount']
+          WHEN 'customer_payment_receipts' THEN ARRAY['external_customer_id','receipt_number','receipt_date','currency_code','amount','payment_status']
+          WHEN 'customer_statement_entries' THEN ARRAY['external_customer_id','entry_reference','entry_date','currency_code','entry_type','debit_amount','credit_amount']
         END
       ) AS required(field_name)
       WHERE NOT (v_fields ? required.field_name)
     ) THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP staged record is missing a required canonical field';
+    END IF;
+
+    IF p_object_type IN ('customer_financial_documents','customer_payment_receipts','customer_statement_entries') THEN
+      IF jsonb_typeof(v_fields->'external_customer_id') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'external_customer_id')) NOT BETWEEN 1 AND 160
+         OR (v_fields->>'external_customer_id') ~ '://'
+         OR position('@' in v_fields->>'external_customer_id')>0
+         OR jsonb_typeof(v_fields->'currency_code') IS DISTINCT FROM 'string'
+         OR (v_fields->>'currency_code') !~ '^[A-Z]{3}$'
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial projection customer identity or currency is invalid';
+      END IF;
+    END IF;
+
+    IF p_object_type='customer_financial_documents' THEN
+      IF jsonb_typeof(v_fields->'document_number') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'document_number')) NOT BETWEEN 1 AND 160
+         OR (v_fields->>'document_type') NOT IN ('invoice','credit_note','debit_note')
+         OR (v_fields->>'document_status') NOT IN ('draft','posted','partial','paid','overdue','voided','cancelled','reversed')
+         OR (v_fields->>'issue_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'total_amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'total_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' AND
+             (jsonb_typeof(v_fields->'due_date') IS DISTINCT FROM 'string' OR (v_fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+         OR (v_fields ? 'paid_amount' AND jsonb_typeof(v_fields->'paid_amount')<>'null' AND
+             (jsonb_typeof(v_fields->'paid_amount') IS DISTINCT FROM 'string' OR (v_fields->>'paid_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'))
+         OR (v_fields ? 'outstanding_amount' AND jsonb_typeof(v_fields->'outstanding_amount')<>'null' AND
+             (jsonb_typeof(v_fields->'outstanding_amount') IS DISTINCT FROM 'string' OR (v_fields->>'outstanding_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'))
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial document fields must use approved statuses, ISO dates and canonical decimal strings';
+      END IF;
+    ELSIF p_object_type='customer_payment_receipts' THEN
+      IF jsonb_typeof(v_fields->'receipt_number') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'receipt_number')) NOT BETWEEN 1 AND 160
+         OR (v_fields->>'payment_status') NOT IN ('confirmed','pending','voided','reversed')
+         OR (v_fields->>'receipt_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP receipt fields must use approved statuses, ISO dates and canonical decimal strings';
+      END IF;
+    ELSIF p_object_type='customer_statement_entries' THEN
+      IF jsonb_typeof(v_fields->'entry_reference') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'entry_reference')) NOT BETWEEN 1 AND 160
+         OR (v_fields->>'entry_type') NOT IN ('invoice','payment','credit_note','debit_note','opening_balance','adjustment')
+         OR (v_fields->>'entry_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'debit_amount') IS DISTINCT FROM 'string'
+         OR jsonb_typeof(v_fields->'credit_amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'debit_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields->>'credit_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' AND
+             (jsonb_typeof(v_fields->'due_date') IS DISTINCT FROM 'string' OR (v_fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry fields must use approved types, ISO dates and canonical decimal strings';
+      END IF;
+      IF (v_fields->>'debit_amount')::numeric>0 AND (v_fields->>'credit_amount')::numeric>0 THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry cannot contain debit and credit amounts simultaneously';
+      END IF;
     END IF;
   END LOOP;
 
