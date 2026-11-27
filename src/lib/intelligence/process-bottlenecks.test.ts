@@ -210,6 +210,34 @@ describe("process bottleneck before/after comparison windows", () => {
     expect(parseProcessBottleneckSnapshot(invalidMetricClock)).toBeNull();
   });
 
+  it("rounds queue age from exact PostgreSQL microseconds without a one-centi-minute tolerance", () => {
+    const exact = snapshot(equalBaselinePeriod);
+    exact.asOf = "2026-11-30T23:59:59.123456Z";
+    exact.sourceCoverage = exact.sourceCoverage.map(item => ({ ...item, asOf: exact.asOf }));
+    exact.queues = [{
+      processKey: "ORDERS",
+      openCount: 1,
+      oldestOpenedAt: "2026-11-30T23:54:59.123456Z",
+      oldestAgeMinutes: 5,
+      asOf: exact.asOf,
+    }];
+    expect(parseProcessBottleneckSnapshot(exact)).not.toBeNull();
+
+    const belowHalfCent = {
+      ...exact,
+      queues: [{
+        ...exact.queues[0],
+        oldestOpenedAt: "2026-11-30T23:54:59.423457Z",
+        oldestAgeMinutes: 4.99,
+      }],
+    };
+    expect(parseProcessBottleneckSnapshot(belowHalfCent)).not.toBeNull();
+    expect(parseProcessBottleneckSnapshot({
+      ...belowHalfCent,
+      queues: [{ ...belowHalfCent.queues[0], oldestAgeMinutes: 5 }],
+    })).toBeNull();
+  });
+
   it("rejects a queue opened one microsecond after its source snapshot", () => {
     const future = snapshot(equalBaselinePeriod);
     future.queues = [{
