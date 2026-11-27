@@ -558,6 +558,42 @@ BEGIN
                 )>0
               ) active_batch_reservations
           ),
+          'reservation_matches_balance',coalesce((
+            SELECT balance.quantity_reserved >= (
+              SELECT coalesce(pg_catalog.sum(active_balance_reservations.reserved_quantity),0)::numeric(15,3)
+                FROM (
+                  SELECT pg_catalog.sum(
+                    CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
+                         WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
+                         ELSE 0 END
+                  )::numeric(15,3) AS reserved_quantity
+                    FROM public.inventory_movements reservation_movement
+                    JOIN public.orders active_order
+                      ON active_order.id=reservation_movement.reference_id
+                     AND active_order.organization_id=v_org
+                   WHERE reservation_movement.reference_type='order'
+                     AND reservation_movement.product_id=l.product_id
+                     AND reservation_movement.warehouse_id=l.warehouse_id
+                     AND reservation_movement.inventory_batch_id IS NOT NULL
+                     AND reservation_movement.movement_type IN ('reserve','release_reservation')
+                     AND active_order.status IN ('confirmed','processing')
+                     AND NOT EXISTS (
+                       SELECT 1 FROM public.inventory_movements sale
+                        WHERE sale.reference_type='order'
+                          AND sale.reference_id=active_order.id
+                          AND sale.movement_type='sale'
+                     )
+                   GROUP BY reservation_movement.reference_id
+                  HAVING pg_catalog.sum(
+                    CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
+                         WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
+                         ELSE 0 END
+                  )>0
+                ) active_balance_reservations
+            )
+              FROM public.inventory_balances balance
+             WHERE balance.product_id=l.product_id AND balance.warehouse_id=l.warehouse_id
+          ),false),
           'product_id',p.id,
           'item_code',p.item_code,
           'product_name',p.name,
@@ -697,6 +733,49 @@ BEGIN
     'ordered_quantity',g.ordered_qty::text,'reserved_quantity',g.reserved_qty::text,
     'missing_quantity',g.missing_qty::text,'excess_quantity',g.excess_qty::text,
     'reservation_status',CASE WHEN g.missing_qty>0 THEN 'short' WHEN g.excess_qty>0 THEN 'excess' ELSE 'matched' END,
+    'reservation_batch_ledger_matches',NOT EXISTS(
+      SELECT 1 FROM public.inventory_batches batch
+       WHERE batch.organization_id=v_org AND batch.product_id=g.product_id
+         AND batch.quantity_reserved < coalesce((
+           SELECT pg_catalog.sum(active_batch_reservations.reserved_quantity)
+             FROM (
+               SELECT pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+                 WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) reserved_quantity
+                 FROM public.inventory_movements im JOIN public.orders ao
+                   ON ao.id=im.reference_id AND ao.organization_id=v_org
+                WHERE im.reference_type='order' AND im.inventory_batch_id=batch.id
+                  AND im.movement_type IN ('reserve','release_reservation')
+                  AND ao.status IN ('confirmed','processing')
+                  AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
+                    WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale')
+                GROUP BY im.reference_id
+               HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+                 WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
+             ) active_batch_reservations
+         ),0)
+    ),
+    'reservation_balance_ledger_matches',NOT EXISTS(
+      SELECT 1 FROM public.inventory_balances balance
+       WHERE balance.product_id=g.product_id
+         AND balance.quantity_reserved < coalesce((
+           SELECT pg_catalog.sum(active_balance_reservations.reserved_quantity)
+             FROM (
+               SELECT pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+                 WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) reserved_quantity
+                 FROM public.inventory_movements im JOIN public.orders ao
+                   ON ao.id=im.reference_id AND ao.organization_id=v_org
+                WHERE im.reference_type='order' AND im.product_id=balance.product_id
+                  AND im.warehouse_id=balance.warehouse_id AND im.inventory_batch_id IS NOT NULL
+                  AND im.movement_type IN ('reserve','release_reservation')
+                  AND ao.status IN ('confirmed','processing')
+                  AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
+                    WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale')
+                GROUP BY im.reference_id
+               HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+                 WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
+             ) active_balance_reservations
+         ),0)
+    ),
     'replacement_available_quantity',(
       SELECT coalesce(pg_catalog.sum(b.quantity_on_hand-b.quantity_reserved),0)::numeric(15,3)::text
        FROM public.inventory_batches b JOIN public.warehouses w ON w.id=b.warehouse_id AND w.organization_id=v_org AND w.is_active=true
@@ -1735,6 +1814,42 @@ BEGIN
                 )>0
               ) active_batch_reservations
           ),
+          'reservation_matches_balance',coalesce((
+            SELECT balance.quantity_reserved >= (
+              SELECT coalesce(pg_catalog.sum(active_balance_reservations.reserved_quantity),0)::numeric(15,3)
+                FROM (
+                  SELECT pg_catalog.sum(
+                    CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
+                         WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
+                         ELSE 0 END
+                  )::numeric(15,3) AS reserved_quantity
+                    FROM public.inventory_movements reservation_movement
+                    JOIN public.orders active_order
+                      ON active_order.id=reservation_movement.reference_id
+                     AND active_order.organization_id=v_org
+                   WHERE reservation_movement.reference_type='order'
+                     AND reservation_movement.product_id=l.product_id
+                     AND reservation_movement.warehouse_id=l.warehouse_id
+                     AND reservation_movement.inventory_batch_id IS NOT NULL
+                     AND reservation_movement.movement_type IN ('reserve','release_reservation')
+                     AND active_order.status IN ('confirmed','processing')
+                     AND NOT EXISTS (
+                       SELECT 1 FROM public.inventory_movements sale
+                        WHERE sale.reference_type='order'
+                          AND sale.reference_id=active_order.id
+                          AND sale.movement_type='sale'
+                     )
+                   GROUP BY reservation_movement.reference_id
+                  HAVING pg_catalog.sum(
+                    CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
+                         WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
+                         ELSE 0 END
+                  )>0
+                ) active_balance_reservations
+            )
+              FROM public.inventory_balances balance
+             WHERE balance.product_id=l.product_id AND balance.warehouse_id=l.warehouse_id
+          ),false),
           'product_id',p.id,
           'item_code',p.item_code,
           'product_name',p.name,
