@@ -60,6 +60,9 @@ const OBJECT_TYPES = [
   "stock_balances",
   "product_units",
   "product_prices",
+  "customer_financial_documents",
+  "customer_payment_receipts",
+  "customer_statement_entries",
 ] as const;
 const REQUEST_KEYS = new Set([
   "provider",
