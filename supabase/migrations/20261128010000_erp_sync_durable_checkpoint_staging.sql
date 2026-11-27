@@ -74,19 +74,38 @@ CREATE TABLE public.erp_sync_page_receipts (
 CREATE INDEX erp_sync_page_receipts_recent_idx
   ON public.erp_sync_page_receipts(organization_id,scope_key,recorded_at DESC);
 
+CREATE TABLE public.erp_sync_page_record_outcomes (
+  organization_id uuid NOT NULL,
+  scope_key text NOT NULL,
+  page_fingerprint text NOT NULL,
+  external_id text NOT NULL CHECK (length(btrim(external_id)) BETWEEN 1 AND 256),
+  source_updated_at timestamptz NOT NULL,
+  disposition text NOT NULL CHECK (disposition IN ('created','updated','unchanged','rejected','conflicted')),
+  recorded_at timestamptz NOT NULL DEFAULT statement_timestamp(),
+  PRIMARY KEY (organization_id,scope_key,page_fingerprint,external_id),
+  FOREIGN KEY (organization_id,scope_key,page_fingerprint)
+    REFERENCES public.erp_sync_page_receipts(organization_id,scope_key,page_fingerprint) ON DELETE RESTRICT
+);
+CREATE INDEX erp_sync_page_record_outcomes_latest_idx
+  ON public.erp_sync_page_record_outcomes(organization_id,scope_key,external_id,recorded_at DESC);
+
 ALTER TABLE public.erp_sync_checkpoints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.erp_sync_checkpoints FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.erp_sync_staged_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.erp_sync_staged_records FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.erp_sync_page_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.erp_sync_page_receipts FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.erp_sync_page_record_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.erp_sync_page_record_outcomes FORCE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.erp_sync_checkpoints FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.erp_sync_staged_records FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.erp_sync_page_receipts FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON TABLE public.erp_sync_page_record_outcomes FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.erp_sync_checkpoints FROM service_role;
 REVOKE ALL ON TABLE public.erp_sync_staged_records FROM service_role;
 REVOKE ALL ON TABLE public.erp_sync_page_receipts FROM service_role;
+REVOKE ALL ON TABLE public.erp_sync_page_record_outcomes FROM service_role;
 
 COMMENT ON TABLE public.erp_sync_checkpoints IS
   'Server-only ERP cursor and watermark state. Cursor values are authenticated-encrypted by the server adapter before storage.';
@@ -94,6 +113,8 @@ COMMENT ON TABLE public.erp_sync_staged_records IS
   'Tenant-scoped, read-only ERP projection staging. Never posts or mutates operational stock, sales or financial ledgers.';
 COMMENT ON TABLE public.erp_sync_page_receipts IS
   'Append-only page receipt/audit ledger for ERP sync replay, evidence and checkpoint commits.';
+COMMENT ON TABLE public.erp_sync_page_record_outcomes IS
+  'Append-only per-record ERP staging dispositions tied to a committed page receipt; contains no operational ledger posting.';
 
 CREATE OR REPLACE FUNCTION public.load_erp_sync_checkpoint(
   p_organization_id uuid,
@@ -201,6 +222,8 @@ DECLARE
   v_unchanged integer:=0;
   v_rejected integer:=0;
   v_conflicted integer:=0;
+  v_disposition text;
+  v_outcomes jsonb:='[]'::jsonb;
 
 BEGIN
   IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
@@ -495,11 +518,13 @@ BEGIN
         v_idempotency_key,v_source_updated_at,v_fields
       );
       v_created:=v_created+1;
+      v_disposition:='created';
     ELSIF v_existing_key=v_idempotency_key THEN
       UPDATE public.erp_sync_staged_records
          SET last_seen_at=statement_timestamp()
        WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
       v_unchanged:=v_unchanged+1;
+      v_disposition:='unchanged';
     ELSIF v_source_updated_at>v_existing_updated_at THEN
       UPDATE public.erp_sync_staged_records
          SET idempotency_key=v_idempotency_key,
@@ -508,16 +533,27 @@ BEGIN
              last_seen_at=statement_timestamp()
        WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
       v_updated:=v_updated+1;
+      v_disposition:='updated';
     ELSIF v_source_updated_at<v_existing_updated_at THEN
       v_rejected:=v_rejected+1;
+      v_disposition:='rejected';
     ELSIF v_fields=v_existing_fields THEN
       UPDATE public.erp_sync_staged_records
          SET idempotency_key=v_idempotency_key,last_seen_at=statement_timestamp()
        WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
       v_unchanged:=v_unchanged+1;
+      v_disposition:='unchanged';
     ELSE
       v_conflicted:=v_conflicted+1;
+      v_disposition:='conflicted';
     END IF;
+    v_outcomes:=v_outcomes || pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'external_id',v_external_id,
+        'source_updated_at',v_source_updated_at,
+        'disposition',v_disposition
+      )
+    );
   END LOOP;
 
 
@@ -541,6 +577,15 @@ BEGIN
     v_records_received,v_created,v_updated,v_unchanged,v_rejected,v_conflicted,
     p_completed,v_checkpoint.version
   );
+
+  INSERT INTO public.erp_sync_page_record_outcomes(
+    organization_id,scope_key,page_fingerprint,external_id,source_updated_at,disposition
+  )
+  SELECT p_organization_id,p_scope_key,p_page_fingerprint,
+         outcome.external_id,outcome.source_updated_at,outcome.disposition
+    FROM pg_catalog.jsonb_to_recordset(v_outcomes) AS outcome(
+      external_id text,source_updated_at timestamptz,disposition text
+    );
 
   RETURN pg_catalog.jsonb_build_object(
     'checkpoint',pg_catalog.jsonb_build_object(
@@ -645,14 +690,28 @@ BEGIN
  SELECT count(*) INTO v_total FROM public.erp_sync_staged_records staged
   WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key;
  SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
-     'external_id',page.external_id,'source_updated_at',page.source_updated_at,'fields',page.fields)
+     'external_id',page.external_id,
+     'source_updated_at',page.source_updated_at,
+     'fields',page.fields,
+     'last_disposition',page.disposition)
      ORDER BY page.source_updated_at DESC,page.external_id),'[]'::jsonb)
   INTO v_records
-  FROM (SELECT staged.external_id,staged.source_updated_at,staged.fields
-          FROM public.erp_sync_staged_records staged
-         WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
-         ORDER BY staged.source_updated_at DESC,staged.external_id
-         LIMIT p_limit OFFSET p_offset) page;
+  FROM (
+    SELECT staged.external_id,staged.source_updated_at,staged.fields,latest.disposition
+      FROM public.erp_sync_staged_records staged
+      LEFT JOIN LATERAL (
+        SELECT outcome.disposition
+          FROM public.erp_sync_page_record_outcomes outcome
+         WHERE outcome.organization_id=staged.organization_id
+           AND outcome.scope_key=staged.scope_key
+           AND outcome.external_id=staged.external_id
+         ORDER BY outcome.recorded_at DESC,outcome.page_fingerprint DESC
+         LIMIT 1
+      ) latest ON TRUE
+     WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+     ORDER BY staged.source_updated_at DESC,staged.external_id
+     LIMIT p_limit OFFSET p_offset
+  ) page;
  RETURN pg_catalog.jsonb_build_object('records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
    'checkpoint_version',v_checkpoint.version,'pending_watermark',v_checkpoint.pending_watermark,
    'completed_watermark',v_checkpoint.completed_watermark);
