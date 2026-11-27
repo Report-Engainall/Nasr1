@@ -126,6 +126,20 @@ test.describe("profile Auth session isolation — disposable local Supabase only
     expect(reloadedProfileB.customerCode).toBe(profileB.customerCode);
     expect(reloadedProfileB.businessName).toBe(profileB.businessName);
 
+    for (const width of [360, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.getByRole("heading", { name: "ملفي الشخصي" })).toBeVisible();
+      await expect(page.getByLabel("اسم الشركة")).toBeVisible();
+      const dimensions = await page.evaluate(() => ({
+        pageWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      }));
+      expect(
+        dimensions.pageWidth,
+        "The customer profile must not overflow horizontally at " + width + "px.",
+      ).toBeLessThanOrEqual(dimensions.viewportWidth);
+    }
+
     await signOutCurrentProfile(page);
     await signInCurrentProfile(page, emailA, passwordA);
     const reloadedProfileA = await readCurrentCustomerProfile(page);
