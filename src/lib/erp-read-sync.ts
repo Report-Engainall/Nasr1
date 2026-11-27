@@ -133,8 +133,8 @@ export function parseErpReadSyncResult(value: unknown): ErpReadSyncResult {
       rejected: count(value.counts.rejected, "rejected"),
       conflicted: count(value.counts.conflicted, "conflicted"),
     },
-    preview: parsePreview(value.preview),
-    preview_error: value.preview_error === null ? null :
+    preview: value.preview === undefined ? null : parsePreview(value.preview),
+    preview_error: value.preview_error === undefined || value.preview_error === null ? null :
       typeof value.preview_error === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value.preview_error)
         ? value.preview_error
         : (() => { throw new Error("رمز خطأ معاينة ERP غير صالح."); })(),
