@@ -173,3 +173,9 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Direct reads of `customer_payment_receipts` therefore use the same source-binding lock as invoice RLS, customer/staff receipt print, statement and Customer 360. The Maker/Checker cutover's `FOR UPDATE` cannot pass an in-flight direct receipt-history read.
 - Added a PostgreSQL 17 race assertion: an accountant directly selects the real APP_ONLY receipt row inside an open transaction; a second service-role connection attempting `FOR UPDATE NOWAIT` on the source binding must fail with `55P03`.
 - Existing authenticated-customer direct receipt access remains denied by the existing policy/grants; customer self-service uses the customer-scoped list/print RPCs which already lock the source binding.
+
+## 2026-11-28 — Repair of duplicated and truncated customer finance migration
+
+- Reconstructed the migration around its first transaction boundary. Removed the appended duplicate migration body that caused an unterminated evidence-hash CHECK and a second COMMIT.
+- Preserved the new external-source invariant requiring evidence SHA-256, source watermark, last sync time and verification time. The resulting file contains one transaction, one bindings table, one sync-evidence table and one provider sync writer.
+- This is a source repair. PostgreSQL 17 reset and exact-head customer financial source acceptance are still required; no production migration was run.
