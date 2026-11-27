@@ -2,39 +2,40 @@
 
 > Sole live execution pointer. Resume from the first next action. Historical checkpoints after the marker are preserved verbatim; do not reopen completed work or repeat the OSS selection recorded here.
 
-- Repository: `Report-Engainall/Nasr1`; only truth branch: `main`.
-- Current `main` SHA (latest documentation update): `9cfb258ef1c601f84de4cb09b7b7797c70230580`.
-- Latest accepted application-code SHA: `a79a7ca87f588671351da98cc5f35578a48c5123`. The descendant commits after this application SHA are documentation-only.
-- Latest accepted application integration: P1 PR #638 merged by squash as `c4e16283d3e0a593e8214b2ec2515d942596fbbe`. PR: https://github.com/Report-Engainall/Nasr1/pull/638.
-- P1 exact-SHA run `45927665856`: SUCCESS.
-- P2 exact-SHA local critical-path run `45927665865`: SUCCESS, 66/66 steps, zero failed steps. It includes PostgreSQL 17 migration replay, local Supabase Storage, Chromium product image UI journey, responsive admin access matrix, inventory/purchase/finance/customer and AI lifecycle acceptance, and exact-SHA evidence verification.
-- Storefront Product Feedback PostgreSQL 17 acceptance run `45927665860`: SUCCESS.
-- P2 artifacts on the exact tested SHA: public UI smoke `15167456541`; authenticated local E2E/report/traces `15167189286`.
-- Product media DLV-003 image-upload leaf: ACCEPTED on disposable local Supabase Storage. Verified primary/gallery placement, retry-only-failed behavior, reload persistence, eight-image cap with ninth rejected and cleanup, manager authorization, customer-role denial and foreign-tenant denial. Product image associations remain **0/114** pending owner-supplied original images mapped by SKU.
-- DLV-002 admin access matrix leaf: ACCEPTED on exact SHA `a79a7ca...`; responsive/admin-only Chromium step passed. The overall DLV-002 route roll-up remains OPEN.
-- DLV-001 requirement-to-screen/service/RPC/Edge and named exact-SHA acceptance crosswalk remains OPEN.
-- Release remains **NO-GO**: hosted authenticated customer/order/tenant E2E was SKIPPED because an external test backend/credentials were not configured; the actual hosted application database target was not proven; hosted Edge runtime was not deployed or exercised. No production DB/Storage writes, deployment, Bolt/Lovable/Vercel use or paid AI calls occurred.
+- Repository: `Report-Engainall/Nasr1`; the only source of truth is `main`.
+- Current `main` SHA before this pointer refresh: `aa6771f09f3ae33145d11500564ea24e37fd38d9`.
+- Latest accepted application/test integration #638: PR https://github.com/Report-Engainall/Nasr1/pull/638 merged as `c4e16283d3e0a593e8214b2ec2515d942596fbbe`; tested application SHA `a79a7ca87f588671351da98cc5f35578a48c5123`.
+- #638 exact-SHA P1 run `45927665856` PASS; exact-SHA P2 local Supabase/Storage/Chromium run `45927665865` PASS (66/66 steps, no failures); PostgreSQL 17 product feedback run `45927665860` PASS. Artifacts: local authenticated E2E `15167189286`; public UI smoke `15167456541`.
+- Product-media acceptance leaf: local Storage UI is accepted. It proves primary/gallery placement, retry-only-failed behavior, reload persistence, eight-image cap/rejection and cleanup of ninth, manager allow, customer deny and foreign-tenant deny. Original product images remain **0/114** until owner-supplied source assets are mapped by SKU. Hosted Edge was not deployed or tested.
+- #649: PR https://github.com/Report-Engainall/Nasr1/pull/649 merged as `946ad06588218c62a70d44b01a44510261bd8c9a`. The PR is P1-only regression coverage; no production route/auth/RLS code changed. Its source SHA was `ad75961430c8bc93ed98e1d5642ec936645d9659`.
+- #649 P1 run `45929399558` SUCCESS: Vitest full regression suite, strict TypeScript P1, strict TypeScript P4 and production build; all 11 steps successful, no failures.
+- #649 P2 run `45929399634`: public Storefront smoke job `140278256177` SUCCESS (20 steps); Auth E2E infrastructure gate `140278256304` SUCCESS. The broader isolated local Supabase/PostgreSQL 17 critical-path job `140279055599` passed local service start, full repository migration replay, DB tests, exact-source build/launch and authenticated order persistence/cross-tenant denial. At last observation it was still running the stock-count XLSX Chromium acceptance; do not mark the full P2 run complete until it ends. This suite does not itself prove /profile Auth A→B.
+- New matrix leaf `PROFILE-ROLE-SESSION-ISOLATION-001` records component-level coverage only: staff precedence when identity also carries customer role; customer-company draft clears and correct profile reloads on Auth A→B and same-user sessionRevision change. It is not hosted or authenticated browser proof.
+- DLV-002 roll-up remains OPEN. The accepted admin access-matrix UI leaf and component-level profile leaf do not close every route/role/loading/error/empty/retry state.
+- DLV-001 requirement→screen/action/service/RPC/Edge/tenant-scope/migration/exact-SHA acceptance crosswalk remains OPEN.
+- Release remains **NO-GO**: no hosted authenticated customer/profile A→B E2E was completed; exact production Supabase target has not been proven; hosted Edge runtime not deployed/tested; original product images remain 0/114. No production DB/Storage writes, deployment, Bolt/Lovable/Vercel usage, or paid AI calls were performed.
 
 ## Reuse decision — OSS quick check for 2026-11-27
 
 - Uppy React: MIT. Official React docs: https://uppy.io/docs/react/ ; license: https://github.com/transloadit/uppy/blob/main/LICENSE.
 - React Dropzone: MIT. License: https://github.com/react-dropzone/react-dropzone/blob/master/LICENSE.
-- Decision: do NOT add either dependency now. Nasr1 already has the domain-specific uploader, SKU-to-product matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. A general dropzone/transfer layer would duplicate current product behavior and would not fix the failed Playwright protocol bridge or Arabic RTL count expectation. No package was added. Do not repeat this search next session unless the upload design materially changes.
+- Decision: do NOT add either dependency. Nasr1 already has a domain-specific uploader, SKU matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. A generic dropzone/transfer library would duplicate behavior and would not address the identified Playwright protocol bridge or Arabic numeral mismatch. No package was added. Do not repeat OSS search next session unless design changes.
 
 ## First next actions
 
-1. Continue DLV-002 route-by-route at 360px/1280px, with `/profile` as the next UI leaf: verify staff/customer/restricted role presentations and Auth user A → sign-out → user B/staff transitions, plus loading/error/empty/retry behavior. Source already contains `resolveProfileAccessMode`, role-gated links, and keys route state by Auth user ID + profile ID + sessionRevision; do not rebuild it. Add only missing UI behavior or focused P1 regression coverage; P2 owns authenticated browser fixtures and server authorization proof.
-2. Keep DLV-002 OPEN until the required route/role/session matrix has exact-SHA evidence. Do not infer that the accepted admin access matrix closes other routes.
-3. Continue remaining DLV-003 product catalogue/detail/discovery acceptance independently. Do not mark product media data complete until the 114 original image associations are mapped from owner-supplied assets.
-4. Keep DLV-001 open until every mandatory requirement is crosswalked to screen, action, service/RPC/Edge, tenant/role scope, migration and exact-SHA acceptance evidence.
-5. Keep hosted E2E, hosted Edge, deployment and release NO-GO until the real target and dedicated test credentials are explicitly identified and approved.
+1. Close the currently running P2 job `140279055599` in workflow run `45929399634`: capture final conclusion, inspect failures/artifacts and record exact state. Its last known active step was Chromium stock-count XLSX acceptance after authenticated order persistence/cross-tenant denial passed.
+2. Add a true disposable local Supabase Auth browser fixture for /profile: authenticate customer A, create an unsaved company draft, sign out, authenticate customer B and prove B's own data loads; verify staff/admin and restricted roles remain separated. Include the same-user sessionRevision transition and /profile 360px/1280px layouts plus loading/error/empty/retry. P1 owns UI/test-only regression; P2 owns authenticated browser fixtures and server authorization.
+3. Keep DLV-002 OPEN until all required routes and actual Auth session/account switching have exact-SHA evidence. Do not infer hosted acceptance from component tests.
+4. Continue DLV-003 product catalogue/detail/discovery acceptance independently. Do not rebuild the accepted uploader. Keep original product image association at 0/114 until owner supplies the actual images/package mapped by SKU.
+5. Continue DLV-001 mapping of every mandatory screen/action to service/RPC/Edge, role/tenant boundary, migration and exact-SHA acceptance.
+6. Keep deployment/release NO-GO until the true hosted target and dedicated test credentials are explicitly identified and approved.
 
 ## Delivery discipline
 
-- `main` only; P1 merges accepted work. Avoid rechecking completed PRs or rebuilding completed screens.
-- Reuse current Supabase/RLS/services. No parallel accounting, inventory, CRM, Storage or AI systems.
+- `main` only; P1 merges accepted work. Avoid duplicate branches/features and repeated checks.
+- Reuse current Supabase/RLS/services; no parallel accounting, inventory, CRM, Storage or AI systems.
 - IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
-- Update this pointer and the existing acceptance matrix only; do not create duplicate status reports or resume documents.
+- Update this pointer and the existing acceptance matrix only. Do not create duplicate status reports or resume files.
 
 ---
 
