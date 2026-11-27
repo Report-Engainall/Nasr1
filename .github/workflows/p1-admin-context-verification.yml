@@ -378,6 +378,10 @@ on:
       - ".github/workflows/p2-playwright-critical-paths.yml"
       - "src/components/UnifiedImportEngine.tsx"
       - "src/components/OnyxProExchangeWorkspace.tsx"
+      - "src/components/ErpReadSyncPanel.tsx"
+      - "src/components/ErpReadSyncPanel.test.tsx"
+      - "src/lib/erp-read-sync.ts"
+      - "src/lib/erp-read-sync.test.ts"
       - "src/components/OnyxProExchangeWorkspace.test.tsx"
       - "src/lib/onyx-pro-live-export.ts"
       - "src/lib/onyx-pro-live-export.test.ts"
@@ -899,7 +903,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: p1-admin-context-${{ github.ref }}-${{ github.sha }}
+  group: p1-admin-context-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
