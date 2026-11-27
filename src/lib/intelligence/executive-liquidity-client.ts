@@ -218,8 +218,8 @@ export function parseExecutiveLiquidityResponse(value: unknown): ExecutiveLiquid
       (row.phase !== "OPENING" && row.phase !== "CLOSING") ||
       !nonEmpty(row.currency, 3) || !ISO_CURRENCY.test(row.currency) ||
       countedAmount === null || countedAmount < 0 ||
-      !integer(row.version, 1, 100000) || !isoTime(row.source_timestamp) ||
-      !nonEmpty(row.evidence_id, 200) || !isoTime(row.source_timestamp) || timestampMicroseconds(row.source_timestamp)! > asOfMicros || row.status !== "VERIFIED"
+      !integer(row.version, 1, 100000) || !isoTime(row.source_timestamp) || timestampMicroseconds(row.source_timestamp)! > asOfMicros ||
+      !nonEmpty(row.evidence_id, 200) || row.status !== "VERIFIED"
     ) return fail("يوجد عد نقدي غير صالح أو مكرر؛ أُوقف عرضه.");
     countIds.add(row.id);
     cashCounts.push({
