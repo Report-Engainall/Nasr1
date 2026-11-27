@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { mapErpReadSyncError, parseErpReadSyncResult } from "./erp-read-sync";
+import { describe, expect, it, vi } from "vitest";
+const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock("@/lib/supabase", () => ({
+  supabase: { functions: { invoke: mocks.invoke } },
+}));
+import { mapErpReadSyncError, parseErpReadSyncResult, runErpReadSync } from "./erp-read-sync";
 
 const complete = {
   status: "complete",
@@ -50,6 +54,22 @@ describe("ERP read-sync client contract", () => {
       ...complete,
       checkpoint: { ...complete.checkpoint, completed_watermark: "not-a-time" },
     })).toThrow();
+  });
+
+  it("invokes only the authenticated read-sync function with the selected bounded request", async () => {
+    mocks.invoke.mockResolvedValueOnce({ data: complete, error: null });
+    const request = {
+      provider: "onyx_pro" as const,
+      object_type: "products" as const,
+      company_external_id: "COMPANY-01",
+      branch_external_id: "BRANCH-01",
+      warehouse_external_id: null,
+      currency_code: "YER",
+      max_pages: 2,
+      max_records: 500,
+    };
+    await expect(runErpReadSync(request)).resolves.toEqual(complete);
+    expect(mocks.invoke).toHaveBeenCalledWith("erp-read-sync", { body: request });
   });
 
   it("maps known provider readiness and tenant-scope failures to safe Arabic messages", () => {
