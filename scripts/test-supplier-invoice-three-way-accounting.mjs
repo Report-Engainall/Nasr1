@@ -21,6 +21,7 @@ const managerEmail = requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
 const adminEmail = requiredEnv("E2E_DEVICE_ADMIN_EMAIL").toLowerCase();
 const customerEmail = requiredEnv("E2E_EMAIL").toLowerCase();
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const concurrentDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 async function expectSqlState(label, action, code, messagePattern) {
   let caught;
@@ -38,22 +39,22 @@ async function findProfile(email) {
   assert.equal(rows.length, 1, "an active isolated profile must exist for " + email);
   return rows[0];
 }
-async function setIdentity(profile) {
-  await db.unsafe("reset role");
-  await db.unsafe(
+async function setIdentity(profile, client = db) {
+  await client.unsafe("reset role");
+  await client.unsafe(
     "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
     "values($1,$1,now(),now(),now(),null,'P2 supplier invoice three-way acceptance','127.0.0.1'::inet) " +
     "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
     [profile.auth_user_id],
   );
-  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [profile.auth_user_id]);
-  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
+  await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [profile.auth_user_id]);
+  await client.unsafe("select set_config('request.jwt.claims',$1,false)", [
     JSON.stringify({ sub: profile.auth_user_id, email: profile.email, role: "authenticated", session_id: profile.auth_user_id }),
   ]);
-  await db.unsafe("set role authenticated");
+  await client.unsafe("set role authenticated");
 }
-async function rpcJson(sql, args) {
-  return asJson((await db.unsafe(sql, args))[0].result);
+async function rpcJson(sql, args, client = db) {
+  return asJson((await client.unsafe(sql, args))[0].result);
 }
 async function createAccount(suffix, label, type, creatorId) {
   const rows = await db.unsafe(
@@ -123,9 +124,9 @@ async function makePostedReceipt(manager, admin, accounts, unitCost, description
   assert.equal(source[0].source_currency, "YER");
   return { purchaseOrderId: po.id, receiptId: received.receipt.id, receiptItemId: source[0].receipt_item_id };
 }
-async function recordInvoice(manager, source, input) {
-  await setIdentity(manager);
-  const today = (await db.unsafe("select current_date::text as day"))[0].day;
+async function recordInvoice(manager, source, input, client = db) {
+  await setIdentity(manager, client);
+  const today = (await client.unsafe("select current_date::text as day"))[0].day;
   const lines = [{
     receipt_item_id: source.receiptItemId,
     quantity: input.quantity || "1",
@@ -134,7 +135,8 @@ async function recordInvoice(manager, source, input) {
   }];
   return rpcJson(
     "select public.record_purchase_supplier_invoice($1::uuid,$2::text,$3::date,$4::numeric,$5::numeric,$6::numeric,$7::jsonb,$8::uuid) as result",
-    [source.purchaseOrderId, input.invoiceNumber, today, input.subtotal, input.tax, input.total, db.json(lines), input.key],
+    [source.purchaseOrderId, input.invoiceNumber, today, input.subtotal, input.tax, input.total, client.json(lines), input.key],
+    client,
   );
 }
 async function reviewVariance(actor, invoiceId, approve, reason) {
@@ -235,6 +237,78 @@ async function main() {
     () => recordInvoice(manager, exactSource, { ...exactInput, invoiceNumber: exactNumber + "-OVER", key: randomUUID() }),
     "22023", /exceeds the not-yet-invoiced physical received quantity/i,
   );
+
+  // Concurrent exact retries on independent PostgreSQL sessions must persist one invoice.
+  const concurrentReplaySource = await makePostedReceipt(manager, admin, accounts, 125.50, "P2 concurrent exact supplier invoice replay");
+  const concurrentReplayInput = {
+    invoiceNumber: "P2-3WAY-CONCURRENT-REPLAY-" + suffix,
+    subtotal: "125.50", tax: "0.00", total: "125.50",
+    unitCost: "125.50", lineTotal: "125.50", key: randomUUID(),
+  };
+  const concurrentReplay = await Promise.all([
+    recordInvoice(manager, concurrentReplaySource, concurrentReplayInput, db),
+    recordInvoice(manager, concurrentReplaySource, concurrentReplayInput, concurrentDb),
+  ]);
+  assert.equal(new Set(concurrentReplay.map(result => result.invoice_id)).size, 1,
+    "concurrent exact retries must converge on one persisted invoice ID");
+  assert.deepEqual(
+    concurrentReplay.map(result => result.replayed).sort(),
+    [false, true],
+    "one concurrent exact retry creates the invoice and the other receives replay confirmation",
+  );
+  await db.unsafe("reset role");
+  const concurrentReplayCount = await db.unsafe(
+    "select count(*)::integer as count from public.purchase_supplier_invoices " +
+    "where organization_id=$1::uuid and idempotency_key=$2::uuid",
+    [organizationId, concurrentReplayInput.key],
+  );
+  assert.equal(concurrentReplayCount[0].count, 1,
+    "concurrent exact retry must not duplicate supplier invoice evidence");
+
+  // Competing invoice numbers/keys cannot collectively bill more than one physical receipt quantity.
+  const concurrentLimitSource = await makePostedReceipt(manager, admin, accounts, 175.00, "P2 concurrent invoice quantity ceiling");
+  const competingInvoices = [
+    {
+      invoiceNumber: "P2-3WAY-RACE-A-" + suffix,
+      subtotal: "175.00", tax: "0.00", total: "175.00",
+      unitCost: "175.00", lineTotal: "175.00", key: randomUUID(),
+    },
+    {
+      invoiceNumber: "P2-3WAY-RACE-B-" + suffix,
+      subtotal: "175.00", tax: "0.00", total: "175.00",
+      unitCost: "175.00", lineTotal: "175.00", key: randomUUID(),
+    },
+  ];
+  const competingResults = await Promise.allSettled([
+    recordInvoice(manager, concurrentLimitSource, competingInvoices[0], db),
+    recordInvoice(manager, concurrentLimitSource, competingInvoices[1], concurrentDb),
+  ]);
+  const acceptedRace = competingResults.filter(result => result.status === "fulfilled");
+  const rejectedRace = competingResults.filter(result => result.status === "rejected");
+  assert.equal(acceptedRace.length, 1,
+    "exactly one competing supplier invoice may consume the one received unit");
+  assert.equal(rejectedRace.length, 1,
+    "the concurrent over-invoice attempt must be rejected after the first transaction commits");
+  assert.equal(rejectedRace[0].reason?.code, "22023",
+    "concurrent over-invoice denial must return the business validation SQLSTATE");
+  assert.match(String(rejectedRace[0].reason?.message),
+    /exceeds the not-yet-invoiced physical received quantity/i);
+  await db.unsafe("reset role");
+  const raceSnapshot = await db.unsafe(
+    "select count(distinct i.id)::integer as invoice_count," +
+    "coalesce(sum(line.invoiced_quantity),0)::numeric(15,3)::text as invoiced_quantity," +
+    "max(line.source_received_quantity)::numeric(15,3)::text as received_quantity " +
+    "from public.purchase_supplier_invoice_lines line " +
+    "join public.purchase_supplier_invoices i on i.id=line.invoice_id and i.organization_id=line.organization_id " +
+    "where line.organization_id=$1::uuid and line.receipt_item_id=$2::uuid",
+    [organizationId, concurrentLimitSource.receiptItemId],
+  );
+  assert.equal(raceSnapshot[0].invoice_count, 1,
+    "only the winning concurrent invoice may be persisted");
+  assert.equal(raceSnapshot[0].invoiced_quantity, "1.000",
+    "aggregate invoiced quantity must remain exactly equal to the physical received quantity");
+  assert.equal(raceSnapshot[0].received_quantity, "1.000",
+    "the test must compare against the exact physical received quantity");
 
   const exactBeforeDeny = await invoiceSnapshot(exact.invoice_id);
   await setIdentity(manager);
@@ -458,4 +532,9 @@ async function main() {
 main().catch(error => {
   process.stderr.write("FAIL supplier invoice three-way accounting acceptance: " + String(error?.stack ?? error) + "\\n");
   process.exitCode = 1;
-}).finally(async () => { await db.end({ timeout: 5 }).catch(() => {}); });
+}).finally(async () => {
+  await Promise.all([
+    db.end({ timeout: 5 }).catch(() => {}),
+    concurrentDb.end({ timeout: 5 }).catch(() => {}),
+  ]);
+});
