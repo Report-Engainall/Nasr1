@@ -70,6 +70,23 @@ describe("evidence passport strict clock contract", () => {
     expect(result.metrics[0].status).toBe("VERIFIED");
   });
 
+  it("rejects a metric as-of one microsecond after the report snapshot", () => {
+    const result = buildEvidencePassport(input({
+      asOf: "2026-11-26T12:00:00.000000Z",
+      metricAsOf: "2026-11-26T12:00:00.000001Z",
+    }));
+    expect(result.metrics[0].status).toBe("NEEDS_REVIEW");
+    expect(result.metrics[0].warnings).toContain("METRIC_AS_OF_MISMATCH");
+  });
+
+  it("rejects a source as-of one microsecond after its metric snapshot", () => {
+    const result = buildEvidencePassport(input({
+      sourceAsOf: "2026-11-26T12:00:00.000001Z",
+    }));
+    expect(result.metrics[0].status).toBe("NEEDS_REVIEW");
+    expect(result.metrics[0].warnings).toContain("SOURCE_AS_OF_MISMATCH");
+  });
+
   it.each([
     ["timezone-less timestamp", "2026-11-26T12:00:00.000"],
     ["impossible calendar date", "2026-02-31T12:00:00.000Z"],
