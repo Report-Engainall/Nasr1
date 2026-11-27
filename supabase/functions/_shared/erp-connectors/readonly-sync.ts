@@ -1011,6 +1011,8 @@ export async function runIncrementalReadOnlySync(input: {
       organizationId: scope.organizationId,
       companyExternalId: scope.companyExternalId,
       branchExternalId: scope.branchExternalId,
+      warehouseExternalId: scope.warehouseExternalId,
+      currencyCode: scope.currencyCode,
       objectType: scope.objectType,
       requestCursor: checkpoint.cursor,
       completedWatermark: checkpoint.completedWatermark,
