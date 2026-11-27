@@ -603,11 +603,69 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION public.list_erp_sync_staged_records(
+ p_organization_id uuid,p_scope_key text,p_provider text,p_company_external_id text,
+ p_branch_external_id text,p_warehouse_external_id text,p_currency_code text,p_object_type text,
+ p_limit integer DEFAULT 20,p_offset integer DEFAULT 0
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+ v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+ v_total bigint;
+ v_records jsonb;
+BEGIN
+ IF coalesce(auth.role(),'')<>'service_role' THEN
+  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP staged preview required';
+ END IF;
+ IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+    OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
+    OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
+    OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
+    OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
+    OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
+    OR p_object_type IS NULL OR p_object_type NOT IN (
+      'products','customers','warehouses','stock_balances','product_units','product_prices',
+      'customer_financial_documents','customer_payment_receipts','customer_statement_entries')
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+    OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 5000
+ THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid bounded ERP staged preview scope is required';
+ END IF;
+ SELECT checkpoint.* INTO v_checkpoint FROM public.erp_sync_checkpoints checkpoint
+  WHERE checkpoint.organization_id=p_organization_id AND checkpoint.scope_key=p_scope_key FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP staged preview scope has no checkpoint'; END IF;
+ IF v_checkpoint.provider IS DISTINCT FROM p_provider
+    OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+    OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+    OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+    OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+    OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+ THEN RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP staged preview scope hash is already bound to different scope metadata'; END IF;
+ SELECT count(*) INTO v_total FROM public.erp_sync_staged_records staged
+  WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key;
+ SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+     'external_id',page.external_id,'source_updated_at',page.source_updated_at,'fields',page.fields)
+     ORDER BY page.source_updated_at DESC,page.external_id),'[]'::jsonb)
+  INTO v_records
+  FROM (SELECT staged.external_id,staged.source_updated_at,staged.fields
+          FROM public.erp_sync_staged_records staged
+         WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+         ORDER BY staged.source_updated_at DESC,staged.external_id
+         LIMIT p_limit OFFSET p_offset) page;
+ RETURN pg_catalog.jsonb_build_object('records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
+   'checkpoint_version',v_checkpoint.version,'pending_watermark',v_checkpoint.pending_watermark,
+   'completed_watermark',v_checkpoint.completed_watermark);
+END
+$function$;
+
 REVOKE ALL ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) TO service_role;
 GRANT EXECUTE ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) TO service_role;
+GRANT EXECUTE ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) TO service_role;
 
 COMMIT;
