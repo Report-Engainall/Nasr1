@@ -1281,65 +1281,63 @@ BEGIN
       MESSAGE = 'receipt print page must use a limit of 1..200 and an offset of 0..10000000';
   END IF;
 
-  SELECT pg_catalog.count(*)
-    INTO v_total
+  -- One statement snapshot keeps total, page rows and has_more consistent
+  -- while receipts are recorded and customer financial sources are cut over.
+  WITH scoped_receipts AS MATERIALIZED (
+    SELECT
+      r.id,
+      r.receipt_number,
+      c.customer_code,
+      COALESCE(
+        NULLIF(pg_catalog.btrim(c.business_name), ''),
+        NULLIF(pg_catalog.btrim(c.contact_name), ''),
+        'عميل غير مسمى'
+      ) AS customer_name,
+      r.currency,
+      r.total_amount,
+      r.allocation_count,
+      r.paid_at,
+      r.payment_method,
+      r.reference
     FROM public.customer_payment_receipts r
     JOIN public.customer_financial_source_bindings b
       ON b.organization_id = r.organization_id
      AND b.customer_id = r.customer_id
      AND b.source_mode = 'APP_ONLY'
      AND b.source_status = 'active'
-   WHERE r.organization_id = v_org;
-
-  SELECT COALESCE(
-    pg_catalog.jsonb_agg(
-      pg_catalog.jsonb_build_object(
-        'id', page.id::text,
-        'receipt_number', page.receipt_number::text,
-        'customer_code', page.customer_code,
-        'customer_name', page.customer_name,
-        'currency', page.currency,
-        'total_amount', page.total_amount::text,
-        'allocation_count', page.allocation_count,
-        'paid_at', page.paid_at,
-        'payment_method', page.payment_method,
-        'reference', page.reference
-      )
-      ORDER BY page.paid_at DESC, page.id DESC
-    ),
-    '[]'::jsonb
+    JOIN public.customers c
+      ON c.id = r.customer_id
+     AND c.organization_id = r.organization_id
+    WHERE r.organization_id = v_org
+  ),
+  page_receipts AS MATERIALIZED (
+    SELECT *
+      FROM scoped_receipts
+     ORDER BY paid_at DESC,id DESC
+     LIMIT p_limit
+     OFFSET p_offset
   )
-    INTO v_receipts
-    FROM (
-      SELECT
-        r.id,
-        r.receipt_number,
-        c.customer_code,
-        COALESCE(
-          NULLIF(pg_catalog.btrim(c.business_name), ''),
-          NULLIF(pg_catalog.btrim(c.contact_name), ''),
-          'عميل غير مسمى'
-        ) AS customer_name,
-        r.currency,
-        r.total_amount,
-        r.allocation_count,
-        r.paid_at,
-        r.payment_method,
-        r.reference
-      FROM public.customer_payment_receipts r
-      JOIN public.customer_financial_source_bindings b
-        ON b.organization_id = r.organization_id
-       AND b.customer_id = r.customer_id
-       AND b.source_mode = 'APP_ONLY'
-       AND b.source_status = 'active'
-      JOIN public.customers c
-        ON c.id = r.customer_id
-       AND c.organization_id = r.organization_id
-      WHERE r.organization_id = v_org
-      ORDER BY r.paid_at DESC, r.id DESC
-      LIMIT p_limit
-      OFFSET p_offset
-    ) AS page;
+  SELECT
+    (SELECT pg_catalog.count(*) FROM scoped_receipts),
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'id',page.id::text,
+          'receipt_number',page.receipt_number::text,
+          'customer_code',page.customer_code,
+          'customer_name',page.customer_name,
+          'currency',page.currency,
+          'total_amount',page.total_amount::text,
+          'allocation_count',page.allocation_count,
+          'paid_at',page.paid_at,
+          'payment_method',page.payment_method,
+          'reference',page.reference
+        )
+        ORDER BY page.paid_at DESC,page.id DESC
+      )
+      FROM page_receipts page
+    ),'[]'::jsonb)
+    INTO v_total,v_receipts;
 
   RETURN pg_catalog.jsonb_build_object(
     'organization_name', v_organization_name,
