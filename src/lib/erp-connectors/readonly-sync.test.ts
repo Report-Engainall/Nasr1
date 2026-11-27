@@ -455,7 +455,7 @@ describe("server-side ERP read connector contract", () => {
     expect(page.records).toHaveLength(1);
   });
 
-  it("retries a mid-stream response failure with the same cursor within the shared retry budget", async () => {
+  it("shares one bounded retry budget across HTTP status and response-body failures", async () => {
     const waits: number[] = [];
     const requests: string[] = [];
     let calls = 0;
@@ -464,6 +464,9 @@ describe("server-side ERP read connector contract", () => {
         requests.push(String(url));
         calls += 1;
         if (calls === 1) {
+          return new Response("{}", { status: 429, headers: { "retry-after": "1" } });
+        }
+        if (calls === 2) {
           const brokenBody = new ReadableStream<Uint8Array>({
             start(controller) {
               controller.enqueue(new TextEncoder().encode("{\"data\":"));
@@ -478,12 +481,13 @@ describe("server-side ERP read connector contract", () => {
         });
       }),
       sleep: async (value) => { waits.push(value); },
+      now: () => Date.parse("2026-11-27T10:00:00Z"),
     });
 
     const page = await connector.readPage({ cursor: "opaque-cursor-1", modifiedSince: null });
-    expect(calls).toBe(2);
-    expect(requests[0]).toBe(requests[1]);
-    expect(waits).toEqual([500]);
+    expect(calls).toBe(3);
+    expect(new Set(requests).size).toBe(1);
+    expect(waits).toEqual([1000, 1000]);
     expect(page.records.map((item) => item.externalId)).toEqual(["stream-retry-1"]);
   });
 
