@@ -5,7 +5,7 @@
 ## Verified repository state
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
-- Latest observed `main` HEAD before this cursor rewrite: `0ebc613b190367cbeb14548e94231893fe925aa9` (documentation-only exact-head status refresh).
+- Latest `main` HEAD synchronized into this P4 branch: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only exact-head status refresh).
 - Latest code-bearing main commit: `9c51f65f16aad1be300444cc37f5a0457b3dccb1` — PR #679 merge. This execution directive does not change product code.
 - PR #679 is **MERGED** at `9c51f65f16aad1be300444cc37f5a0457b3dccb1`: payment chronology and immutable receipt reprint. This is accepted work; do not rebuild it.
 - Baseline P1 Vitest/strict TypeScript and P2 critical-path Playwright were SUCCESS on the code-bearing SHA above. They are historical baseline evidence, not acceptance for later PR heads. Hosted customer/order/tenant E2E remained SKIPPED.
@@ -21,7 +21,7 @@
 | P1 | #699 — customer financial-source UI | `8447a3848bd51506233af8b949f093ba092810af` | Open, non-draft, mergeable; 6 files | Complete the customer financial workspace using the server-selected source; show only the customer's own invoices, statements, receipts and confirmed payments; connect real print/reprint flow. Fix a reproduced exact-head failure at root. |
 | P2 | #697 — financial-source routing | `e378f4d3e3a08db8d57669f029a037040c5a1494` | Open, draft, mergeable; 12 files | Fix the confirmed migration syntax error by restructuring the long validation into clear, parser-safe statements; prove APP_ONLY/ONYX/MUTAKAMEL source isolation and atomic/idempotent reads on isolated PG17. Supply P4's canonical staging/checkpoint contract. |
 | P3 | #700 — intelligence evidence integrity | `3d10287a5b829d66b2a1972f66b82671a6439bac` | Open, non-draft, mergeable; 47 files | Finish one integrated source-backed intelligence delivery on existing engines and command-center surfaces; preserve timestamp, currency and provenance evidence. Exact-head P1 was IN_PROGRESS and P2 QUEUED at the last recorded workflow refresh. |
-| P4 | #686 — read-only incremental ERP connector | `3cbea0faa71981b616a0752ddd0766a2fe07d9a2` | Open, draft, mergeable; 4 files | Complete local adapter, read-transport boundary, safe incremental cursor, durable checkpoint/staging handoff with P2, replay protection, retries, receipts and truthful connector health. Exact-head P1/P2 were QUEUED at the last recorded workflow refresh. |
+| P4 | #686 — read-only incremental ERP connector | source `6ee90727739e8bce6cf862957e4f0ad4554049a3`; tests `5d8313191ad47ae4b3614b6fdd8030aaac44737f`; synced main `12b0db37a97128a19073f907ba12fb700251802b` | Open, draft; current head advances after checkpoint refresh | Closed the unsafe page-completion contract: provider page-size paging now requires both request cursor and response next-cursor path; mismatched/empty cursor paths fail before any HTTP request. Single-response modified-since delta remains allowed only without page-size paging. Added regression coverage for paged-without-cursor rejection, cursor pair enforcement and legitimate single-page delta reads. Existing microsecond watermark/retry/body-bound protections remain. Exact-head P1/P2 results are pending; P2 durable atomic checkpoint/staging remains open. |
 
 ### Other open requests — preserve unique work, do not create a review loop
 
@@ -33,7 +33,7 @@
 ## Immediate execution — all four owners in parallel
 
 1. **P2:** fix the confirmed #697 SQL syntax failure in source, not by retrying unchanged migration text. Complete source isolation, idempotency and the PG17 acceptance for the changed head.
-2. **P4 + P2:** use the P2 canonical contract to finish durable staging/checkpoint persistence and incremental connector behavior in #686. Vendor transport remains disabled until actual version, licence, official interface contract, credentials and sandbox are verified; local code must still be completed.
+2. **P4 + P2:** P4 has closed the local paging-completeness guard in #686. Next, P2 supplies and accepts the durable tenant-scoped staging/checkpoint store; P4 then binds the existing runner to that contract and proves replay/resume behavior. Vendor transport stays disabled until actual version, licence, official interface contract, credentials and sandbox are verified.
 3. **P1 + P2:** finish #699 end-to-end against the server-selected financial-source contract. Do not wait idle for P2: complete the UI, data states, print behavior and typed integration against the agreed contract, then connect the accepted server implementation.
 4. **P3:** complete #700 as one real intelligence outcome, mount it in the existing command center, and fold #680/#698 only when the diff proves they are unique dependencies or duplicate fragments.
 5. **P1:** integrate and merge each accepted slice immediately; do not wait for a different owner's independent outcome.
