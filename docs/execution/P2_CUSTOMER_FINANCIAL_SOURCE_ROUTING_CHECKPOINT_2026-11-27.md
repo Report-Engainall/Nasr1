@@ -109,3 +109,12 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - This work extends the RPC contract used by P1's existing customer receipt component; it adds no route, parallel screen, staff privilege or new migration file. The existing P2 workflow already executes this acceptance script after isolated local seeding.
 - Exact-head acceptance for this update is pending. Previous runs and results are not transferable to the new commit. No production/hosted database mutation, remote migration, ERP request, deployment, secret, paid service or external write was performed.
 - Next code action: address only a concrete failure reproduced by the exact-head P2/PostgreSQL 17 run; otherwise hand the two customer RPC contracts to P1 for exact-head UI verification and merge coordination.
+
+
+## 2026-11-28 follow-up — immutable customer receipt print snapshot
+
+- Closed a READ COMMITTED snapshot gap in `get_my_customer_payment_receipt_print_data(uuid)`: allocation total/count validation and printable allocation JSON previously came from separate SQL statements. A concurrent allocation change could make the printed detail differ from the set that passed reconciliation.
+- The RPC now takes `FOR SHARE` on the saved receipt header and all existing allocation rows, then computes allocation count, distinct-invoice count, validity, amount total, and the final printable allocation DTO from one `MATERIALIZED` SQL snapshot.
+- Exact acceptance additions: printed allocation details must sum to the receipt header; attempts to acquire `FOR UPDATE NOWAIT` on the receipt and allocation rows while the customer print transaction is open must fail with `55P03`.
+- This is read-only hardening. It creates no receipt, payment, allocation, balance or journal write and does not change APP_ONLY/source-cutover ownership.
+- Required re-run: existing financial-source PostgreSQL 17 acceptance on the new exact branch head. No PASS is claimed until the resulting workflow is terminal-success on that SHA.
