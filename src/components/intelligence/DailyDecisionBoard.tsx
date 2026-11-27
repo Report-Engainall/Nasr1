@@ -46,6 +46,12 @@ function priorityRank(record: DecisionMemoryRecord): number {
 
 export type DailyDecisionBoardFilter = "ALL" | "OPEN" | "OVERDUE" | "AWAITING_MEASUREMENT" | "CLOSED";
 export type DailyDecisionBoardCounts = Record<DailyDecisionBoardFilter, number>;
+export type DailyDecisionPriorityFilter = "ALL" | "P0" | "P1" | "P2" | "P3" | "UNRANKED";
+
+export interface DailyDecisionAdvancedFilters {
+  owner?: string;
+  priority?: DailyDecisionPriorityFilter;
+}
 
 function isTerminalDecision(record: DecisionMemoryRecord): boolean {
   return record.state === "REJECTED" || record.state === "MEASURED";
@@ -122,10 +128,19 @@ export function filterDailyDecisionRecords(
   filter: DailyDecisionBoardFilter,
   query: string,
   now: number,
+  advanced: DailyDecisionAdvancedFilters = {},
 ): DecisionMemoryRecord[] {
   const normalizedQuery = normalizeDailyDecisionSearch(query);
   return records
     .filter(record => matchesDailyDecisionFilter(record, filter, now))
+    .filter(record => advanced.owner === undefined || advanced.owner === "ALL" ||
+      (record.owner.trim() || "غير معيّن") === advanced.owner)
+    .filter(record => {
+      if (!advanced.priority || advanced.priority === "ALL") return true;
+      const savedPriority = record.candidateSnapshot?.priority;
+      if (advanced.priority === "UNRANKED") return !savedPriority;
+      return savedPriority === advanced.priority;
+    })
     .filter(record => !normalizedQuery || decisionSearchText(record).includes(normalizedQuery))
     .sort((left, right) => compareOrder(left, right, now));
 }
@@ -430,9 +445,16 @@ export function DailyDecisionBoard({
   const now = Date.now();
   const [activeFilter, setActiveFilter] = useState<DailyDecisionBoardFilter>("OPEN");
   const [searchQuery, setSearchQuery] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
   const [page, setPage] = useState(0);
   const counts = summarizeDailyDecisionBoard(result.records, now);
-  const filteredRecords = filterDailyDecisionRecords(result.records, activeFilter, searchQuery, now);
+  const ownerOptions = Array.from(new Set(result.records.map(record => record.owner.trim() || "غير معيّن")))
+    .sort((left, right) => left.localeCompare(right, "ar"));
+  const filteredRecords = filterDailyDecisionRecords(result.records, activeFilter, searchQuery, now, {
+    owner: ownerFilter,
+    priority: priorityFilter,
+  });
   const pageView = paginateDailyDecisionRecords(filteredRecords, page);
   const currentPage = pageView.pageIndex;
   const pageCount = pageView.pageCount;
@@ -529,6 +551,37 @@ export function DailyDecisionBoard({
                 {filter.label} <span className="ms-1 tabular-nums">({counts[filter.value]})</span>
               </button>
             ))}
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2" aria-label="تصفية حسب المسؤول والأولوية">
+            <label className="space-y-1 text-xs">
+              <span className="block font-medium">المسؤول</span>
+              <select
+                aria-label="تصفية حسب المسؤول"
+                value={ownerFilter}
+                onChange={event => { setOwnerFilter(event.target.value); setPage(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              >
+                <option value="ALL">كل المسؤولين</option>
+                {ownerOptions.map(owner => <option key={owner} value={owner}>{owner}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs">
+              <span className="block font-medium">الأولوية المحفوظة</span>
+              <select
+                aria-label="تصفية حسب الأولوية المحفوظة"
+                value={priorityFilter}
+                onChange={event => { setPriorityFilter(event.target.value as DailyDecisionPriorityFilter); setPage(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              >
+                <option value="ALL">كل الأولويات</option>
+                <option value="P0">P0 — حرجة</option>
+                <option value="P1">P1 — عالية</option>
+                <option value="P2">P2 — متوسطة</option>
+                <option value="P3">P3 — متابعة</option>
+                <option value="UNRANKED">تاريخية بلا أولوية محفوظة</option>
+              </select>
+            </label>
           </div>
 
           <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
