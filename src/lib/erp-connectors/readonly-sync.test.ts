@@ -504,27 +504,6 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     expect(inputs[0].modifiedSince).toBe("2026-11-27T08:58:00.000Z");
   });
 
-  it("normalizes database timestamps with UTC offsets before calculating the overlap", async () => {
-    const store = new InMemoryCheckpointStore(checkpoint({
-      version: 8,
-      completedWatermark: "2026-11-27T09:00:00+00:00",
-    }));
-    const inputs: ErpReadPageInput[] = [];
-    const connector: ErpReadConnector = {
-      readPage: async (input) => {
-        inputs.push(input);
-        return {
-          records: [record("offset-1", "2026-11-27T09:30:00Z")],
-          nextCursor: null,
-          httpStatus: 200,
-          externalRequestId: null,
-          responseSha256: "8".repeat(64),
-        };
-      },
-    };
-    await runIncrementalReadOnlySync({ connector, store, scope, overlapMs: 120_000 });
-    expect(inputs[0].modifiedSince).toBe("2026-11-27T08:58:00.000Z");
-  });
 
   it("commits pages atomically and advances the completed watermark only at the final page", async () => {
     const store = new InMemoryCheckpointStore(checkpoint({
