@@ -106,10 +106,26 @@ describe("ERP read-sync client contract", () => {
         records: [{
           externalId: "ERP-INVOICE-1001",
           sourceUpdatedAt: "2026-11-28T00:45:00Z",
+          lastDisposition: "created",
           fields: { document_number: "INV-1001", supplier_cost: "1.00" },
         }],
         total: 1, limit: 20, offset: 0, checkpointVersion: 12,
         pendingWatermark: null, completedWatermark: "2026-11-28T00:45:00Z",
+      },
+    }, "customer_financial_documents")).toThrow();
+  });
+
+  it("rejects unknown per-record disposition states", () => {
+    expect(() => parseErpReadSyncResult({
+      ...complete,
+      preview: {
+        ...complete.preview,
+        records: [{
+          externalId: "ERP-INVOICE-1001",
+          sourceUpdatedAt: "2026-11-28T00:45:00Z",
+          lastDisposition: "posting",
+          fields: { document_number: "INV-1001" },
+        }],
       },
     }, "customer_financial_documents")).toThrow();
   });
