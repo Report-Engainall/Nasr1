@@ -1,52 +1,41 @@
 # LIVE EXECUTION RESUME — 2026-11-27
 
-> Sole live execution pointer. Continue from the first next action below. Historical checkpoints after the marker are preserved verbatim for evidence only; do not resume from them.
+> Sole live execution pointer. Resume from the first next action. Historical checkpoints after the marker are preserved verbatim; do not reopen completed work or repeat the OSS selection recorded here.
 
 - Repository: `Report-Engainall/Nasr1`; only truth branch: `main`.
-- Current `main` SHA: `90597e5ba0071bc82cdde14174035b49f3399b51`.
-- Latest accepted feature integrations:
-  - P3 PR #624 merged as `68148f4ded83ed16bdf7a42dda5fad619c7e76b5` — seven Onyx test callbacks corrected to satisfy the reader's void callback contract. Test-only; no workbook or accounting behavior was changed.
-  - P1 PR #625 merged squash as `90597e5ba0071bc82cdde14174035b49f3399b51` — task-quality review centre now recovers from unexpected metric-read exceptions, retains last known good metrics, exposes retry, and ignores stale responses. Focused loading/error/retry/concurrency tests added; P1 verification path filters updated.
-- Ownership: P1 product/UI and sole merger; P2 database/RPC/RLS/transactions/inventory/finance/storage contracts; P3 deterministic intelligence and AI engines.
-- No hosted/production Supabase mutation, production Storage write, deployment, Bolt/Lovable/Vercel action, or paid AI call was performed.
+- Current `main` SHA (latest documentation update): `9cfb258ef1c601f84de4cb09b7b7797c70230580`.
+- Latest accepted application-code SHA: `a79a7ca87f588671351da98cc5f35578a48c5123`. The descendant commits after this application SHA are documentation-only.
+- Latest accepted application integration: P1 PR #638 merged by squash as `c4e16283d3e0a593e8214b2ec2515d942596fbbe`. PR: https://github.com/Report-Engainall/Nasr1/pull/638.
+- P1 exact-SHA run `45927665856`: SUCCESS.
+- P2 exact-SHA local critical-path run `45927665865`: SUCCESS, 66/66 steps, zero failed steps. It includes PostgreSQL 17 migration replay, local Supabase Storage, Chromium product image UI journey, responsive admin access matrix, inventory/purchase/finance/customer and AI lifecycle acceptance, and exact-SHA evidence verification.
+- Storefront Product Feedback PostgreSQL 17 acceptance run `45927665860`: SUCCESS.
+- P2 artifacts on the exact tested SHA: public UI smoke `15167456541`; authenticated local E2E/report/traces `15167189286`.
+- Product media DLV-003 image-upload leaf: ACCEPTED on disposable local Supabase Storage. Verified primary/gallery placement, retry-only-failed behavior, reload persistence, eight-image cap with ninth rejected and cleanup, manager authorization, customer-role denial and foreign-tenant denial. Product image associations remain **0/114** pending owner-supplied original images mapped by SKU.
+- DLV-002 admin access matrix leaf: ACCEPTED on exact SHA `a79a7ca...`; responsive/admin-only Chromium step passed. The overall DLV-002 route roll-up remains OPEN.
+- DLV-001 requirement-to-screen/service/RPC/Edge and named exact-SHA acceptance crosswalk remains OPEN.
+- Release remains **NO-GO**: hosted authenticated customer/order/tenant E2E was SKIPPED because an external test backend/credentials were not configured; the actual hosted application database target was not proven; hosted Edge runtime was not deployed or exercised. No production DB/Storage writes, deployment, Bolt/Lovable/Vercel use or paid AI calls occurred.
 
-## Accepted execution — PR #624
+## Reuse decision — OSS quick check for 2026-11-27
 
-- P3 Onyx test callback repair accepted on `main` at `68148f4ded83ed16bdf7a42dda5fad619c7e76b5`.
-- Exact-head P1 checks passed; full P2 local acceptance run `45912063978` completed successfully.
-- The local suite used disposable Supabase/PostgreSQL 17 and verified migrations, tenant/role boundaries, idempotent decisions, inventory/FEFO, finance and supplier operations, storefront reviews/questions, Storage constraints, and Chromium order/return/export/print paths.
-- No hosted Supabase or production data acceptance is inferred from the local suite.
-
-## Accepted execution — PR #625
-
-- PR #625: https://github.com/Report-Engainall/Nasr1/pull/625
-- Exact tested PR head: `99748365c261e6d6490dfbe8a535101a9df43e9d`; merged squash SHA: `90597e5ba0071bc82cdde14174035b49f3399b51`.
-- Final application diff contained exactly three files: `TaskQualityReviewCenter.tsx`, its focused test, and the existing P1 workflow path filters.
-- Exact-head P1 run `45913116165`: SUCCESS — Vitest, P1 strict TypeScript, P4 strict TypeScript and production build.
-- Exact-head P2 run `45913116054`: SUCCESS — 67/67 steps completed; zero failures. Local PostgreSQL 17 migration replay, product-image Storage handler against real local Supabase Storage, built app, authenticated Chromium order/tenant denial, checkout replay, return/credit memo, XLSX/Onyx exports, finance/task printing, customer-manager financial privacy/audit, device-session revocation, product price reload, admin access matrix, category/privacy lifecycle and AI prompt governance all passed.
-- P2 public read-only browser smoke and authenticated infrastructure gate: SUCCESS. Hosted authenticated customer/order/tenant job: SKIPPED because external test credentials/backend were not configured. Chromium install was skipped because the pinned browser was already cached; failure diagnostics were skipped because no failure occurred.
-- The P2 local runner stopped the local Supabase/application stack and uploaded its E2E traces/report/server log. The suite wrote only to disposable local fixtures, never the hosted project.
-
-## Remaining release blockers and boundaries
-
-- Release status remains **NO-GO**: the authenticated hosted-backend acceptance was skipped, no actual hosted application database has been identified/verified in this execution, and no deployment/runtime proof was performed.
-- DLV-003 remains open only for the authenticated browser journey through the existing product image UI: primary vs gallery placement, gallery limit, failed-file retry, manager/admin authorization and tenant isolation, with a saved receipt from disposable local Storage. The uploader, exact item-code matching, gallery, lifecycle guards and Storage Edge handler already exist; do not rebuild them. The handler-to-local-Storage acceptance has passed, but it is not proof of the user-facing UI journey or hosted Storage.
-- Task-quality reviews: P1 centre recovery is merged and tested. Migration prerequisites `20261106060000`, `20261106070000`, `20261106080000`, `20261106081000` and `20261106090000_operational_task_quality_reviews.sql` remain unapplied to an approved non-production/hosted target. Manager/admin authorization, cross-tenant denial and raw append-only table restrictions still require database runtime acceptance. Do not expose raw review-event rows.
+- Uppy React: MIT. Official React docs: https://uppy.io/docs/react/ ; license: https://github.com/transloadit/uppy/blob/main/LICENSE.
+- React Dropzone: MIT. License: https://github.com/react-dropzone/react-dropzone/blob/master/LICENSE.
+- Decision: do NOT add either dependency now. Nasr1 already has the domain-specific uploader, SKU-to-product matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. A general dropzone/transfer layer would duplicate current product behavior and would not fix the failed Playwright protocol bridge or Arabic RTL count expectation. No package was added. Do not repeat this search next session unless the upload design materially changes.
 
 ## First next actions
 
-1. Add a focused authenticated Chromium acceptance for the existing `BulkProductImageUploader` on the active `/admin/products` workspace. Use the P2 job's disposable local Supabase users/product and actual local Storage API; verify primary/gallery roles, the eight-image gallery limit, retry-only-failed behavior, persisted product reload and no cross-tenant access. Preserve the current uploader/gallery/service; add no parallel storage implementation.
-2. Wire that browser proof into the existing P2 local acceptance workflow without weakening its external-infrastructure gate. Capture exact-SHA evidence and clean up every local object/fixture.
-3. Keep task-quality migration/auth acceptance separate and pending until P2 approves a non-production target and validates the listed migrations/RPC/RLS behavior.
-4. Only after the hosted target is explicitly identified and dedicated test credentials are configured may authenticated hosted acceptance run. Until then, keep hosted E2E SKIPPED and release NO-GO.
+1. Continue DLV-002 route-by-route at 360px/1280px, with `/profile` as the next UI leaf: verify staff/customer/restricted role presentations and Auth user A → sign-out → user B/staff transitions, plus loading/error/empty/retry behavior. Source already contains `resolveProfileAccessMode`, role-gated links, and keys route state by Auth user ID + profile ID + sessionRevision; do not rebuild it. Add only missing UI behavior or focused P1 regression coverage; P2 owns authenticated browser fixtures and server authorization proof.
+2. Keep DLV-002 OPEN until the required route/role/session matrix has exact-SHA evidence. Do not infer that the accepted admin access matrix closes other routes.
+3. Continue remaining DLV-003 product catalogue/detail/discovery acceptance independently. Do not mark product media data complete until the 114 original image associations are mapped from owner-supplied assets.
+4. Keep DLV-001 open until every mandatory requirement is crosswalked to screen, action, service/RPC/Edge, tenant/role scope, migration and exact-SHA acceptance evidence.
+5. Keep hosted E2E, hosted Edge, deployment and release NO-GO until the real target and dedicated test credentials are explicitly identified and approved.
 
 ## Delivery discipline
 
-- `main` is the only truth branch. P1 alone merges accepted work.
-- Use existing modules and migrations; no parallel accounting, inventory, CRM, storage or AI system.
-- All database acceptance before approved hosted target identity is proven must use disposable local PostgreSQL 17/Supabase.
+- `main` only; P1 merges accepted work. Avoid rechecking completed PRs or rebuilding completed screens.
+- Reuse current Supabase/RLS/services. No parallel accounting, inventory, CRM, Storage or AI systems.
 - IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
-- Preserve this pointer and the existing acceptance matrix; do not create duplicate status reports or resume files.
+- Update this pointer and the existing acceptance matrix only; do not create duplicate status reports or resume documents.
+
 ---
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
