@@ -20,8 +20,8 @@ Branch: `integrate/customer-asset-atomic-replacement-current-main-20261117`
 
 ## Current main and integration boundary
 - Latest observed `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e`.
-- Current PR head: `72488cb74b61b972a1000bb2a5391eea01eadb63`; it is a checkpoint-only documentation update after tested source head `ff68e2e...`. No application, migration, transaction RPC, runner or workflow code changed after the tested source.
-- Latest compare is **7 commits ahead / 28 behind**, merge base `8144c30ae47977be053c06ea8bb512a2d0cbe9dc`, with exactly seven scoped paths: P2 workflow, checkpoint, runner, replacement component/test, migration, and P1 typecheck config.
+- Current PR head before this refresh: `dc860d99977ff18d6bdb315c18b094af7defdfc9`; follow-on commits after tested source head `ff68e2e...` are checkpoint-only. No application, migration, transaction RPC, runner or workflow code changed after the tested source. No application, migration, transaction RPC, runner or workflow code changed after the tested source.
+- Latest compare is **8 commits ahead / 28 behind**, merge base `8144c30ae47977be053c06ea8bb512a2d0cbe9dc`, with exactly seven scoped paths: P2 workflow, checkpoint, runner, replacement component/test, migration, and P1 typecheck config.
 - P1 owns synchronization with current `main`, preserving newer UI work, implementing the pagination contract, then rerunning P1/P2 on the exact synchronized head. P2 does not merge to `main`; P3 retains sole merge authority.
 - Keep hosted E2E as SKIPPED and release NO-GO until the real application Supabase project ref is proven and approved hosted acceptance is authorized.
 
