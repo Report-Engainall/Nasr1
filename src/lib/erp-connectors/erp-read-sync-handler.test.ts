@@ -80,7 +80,7 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
       responseSha256: "ab".repeat(32),
     })),
   }));
-  const store: ErpSyncCheckpointStore = {
+  const store: ErpSyncCheckpointStore & ErpStagedRecordReader = {
     loadCheckpoint: vi.fn(async (scope: ErpSyncScope) => {
       loadedScopes.push(scope);
       return {
@@ -105,6 +105,19 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
       cursor: null,
       pendingWatermark: null,
       completedWatermark: null,
+    })),
+    listStagedRecords: vi.fn(async () => ({
+      records: [{
+        externalId: "ERP-PRODUCT-001",
+        sourceUpdatedAt: "2026-11-28T00:30:00Z",
+        fields: { item_code: "000125", name: "منتج تجريبي" },
+      }],
+      total: 1,
+      limit: 20,
+      offset: 0,
+      checkpointVersion: 1,
+      pendingWatermark: null,
+      completedWatermark: "2026-11-28T00:30:00Z",
     })),
   };
   const logError = vi.fn();
@@ -157,6 +170,8 @@ describe("ERP read-only Edge Function handler", () => {
 
     expect(response.status).toBe(200);
     expect(payload.status).toBe("complete");
+    expect(payload.preview).toMatchObject({ total: 1, limit: 20, records: [{ externalId: "ERP-PRODUCT-001", fields: { item_code: "000125" } }] });
+    expect(payload.preview_error).toBeNull();
     expect(payload.counts).toEqual({
       created: 0,
       updated: 0,
@@ -180,6 +195,7 @@ describe("ERP read-only Edge Function handler", () => {
     expect(connection.credential.secret).toBe("server-only-erp-token");
     expect(JSON.stringify(payload)).not.toContain("server-only");
     expect(JSON.stringify(payload)).not.toContain("tenant-private-cursor");
+    expect(JSON.stringify(payload)).not.toContain("idempotencyKey");
     expect(JSON.stringify(payload)).not.toContain("v1:");
     expect(response.headers.get("access-control-allow-origin")).toBe(origin);
   });
