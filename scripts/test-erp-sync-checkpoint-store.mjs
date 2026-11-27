@@ -765,7 +765,7 @@ async function main() {
     "invalid dual-sided statement entry must not advance its checkpoint");
 
   const unchangedPage = page({
-    expectedVersion: 6,
+    expectedVersion: 7,
     label: "same-time-unchanged",
     records: [stagedRecord("Product version two", timestamp2)],
     nextCursor: cursorCiphertext("same-time-unchanged"),
@@ -774,7 +774,7 @@ async function main() {
     completed: false,
   });
   const unchangedSaved = await persistPage(unchangedPage);
-  assert.equal(unchangedSaved.checkpoint.version, 7);
+  assert.equal(unchangedSaved.checkpoint.version, 8);
   assert.equal(unchangedSaved.counts.unchanged, 1);
 
   const outcomeRows = await db.unsafe(
