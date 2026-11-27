@@ -149,6 +149,44 @@ async function main() {
   const initialStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
   assert.ok(Array.isArray(initialStatement.summary), "APP_ONLY statement retains the existing ledger contract");
   const initialSummary = JSON.stringify(initialStatement.summary);
+
+
+  // Seed a real order, invoice and invoice line so the APP_ONLY/ONYX RLS checks
+  // cannot pass vacuously when the customer has no invoice rows.
+  const sourceTestOrderId = randomUUID();
+  const sourceTestInvoiceId = randomUUID();
+  const sourceTestInvoiceItemId = randomUUID();
+  const sourceTestInvoiceNumber = "FIN-SOURCE-" + randomUUID().slice(0, 8).toUpperCase();
+  await db.unsafe(
+    "insert into public.orders (id,organization_id,customer_id,order_number) values ($1::uuid,$2::uuid,$3::uuid,$4::text)",
+    [sourceTestOrderId, orgId, customerId, "ORD-" + sourceTestInvoiceNumber],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoices (id,organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount) " +
+      "values ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,'issued','YER',125,0,125)",
+    [sourceTestInvoiceId, orgId, customerId, sourceTestOrderId, sourceTestInvoiceNumber],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoice_items (id,organization_id,invoice_id,item_code,description,unit,quantity,unit_price,line_total) " +
+      "values ($1::uuid,$2::uuid,$3::uuid,'FIN-SOURCE-ITEM','Financial source isolation fixture','box',1,125,125)",
+    [sourceTestInvoiceItemId, orgId, sourceTestInvoiceId],
+  );
+
+  const appOnlyInvoiceRows = await customerDb.unsafe(
+    "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestInvoiceId, orgId, customerId],
+  );
+  const appOnlyInvoiceItemRows = await customerDb.unsafe(
+    "select id from public.customer_invoice_items where id=$1::uuid and organization_id=$2::uuid and invoice_id=$3::uuid",
+    [sourceTestInvoiceItemId, orgId, sourceTestInvoiceId],
+  );
+  assert.equal(appOnlyInvoiceRows.length, 1, "APP_ONLY customer can read a real own invoice row");
+  assert.equal(appOnlyInvoiceItemRows.length, 1, "APP_ONLY customer can read a real own invoice line");
+  const appOnlyInvoicePdf = await rpc(customerDb,
+    "select public.get_customer_invoice_pdf($1::uuid) as result",
+    [sourceTestInvoiceId],
+  );
+  assert.equal(appOnlyInvoicePdf.invoice.id, sourceTestInvoiceId, "APP_ONLY customer can print the own invoice document");
   const foreignResolver = await rpc(foreignCustomerDb, "select public.get_my_customer_financial_source() as result");
   assert.equal(foreignResolver.source_mode, "APP_ONLY");
   await rpc(foreignCustomerDb, "select public.get_customer_account_statement() as result");
@@ -278,13 +316,18 @@ async function main() {
   );
 
   const externalInvoiceRows = await customerDb.unsafe(
-    "select id from public.customer_invoices where organization_id=$1::uuid and customer_id=$2::uuid order by issued_at desc limit 5",
-    [orgId, customerId],
+    "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestInvoiceId, orgId, customerId],
   );
-  assert.equal(externalInvoiceRows.length, 0, "direct PostgREST invoice metadata reads are denied for external-source customers");
+  const externalInvoiceItemRows = await customerDb.unsafe(
+    "select id from public.customer_invoice_items where id=$1::uuid and organization_id=$2::uuid and invoice_id=$3::uuid",
+    [sourceTestInvoiceItemId, orgId, sourceTestInvoiceId],
+  );
+  assert.equal(externalInvoiceRows.length, 0, "direct invoice metadata reads are denied for a real APP_ONLY invoice after ONYX cutover");
+  assert.equal(externalInvoiceItemRows.length, 0, "direct invoice line reads are denied for a real APP_ONLY invoice after ONYX cutover");
   await expectFailure(
-    "external customer cannot read an APP_ONLY invoice PDF",
-    rpc(customerDb, "select public.get_customer_invoice_pdf($1::uuid) as result", [randomUUID()]),
+    "external customer cannot read a real APP_ONLY invoice PDF",
+    rpc(customerDb, "select public.get_customer_invoice_pdf($1::uuid) as result", [sourceTestInvoiceId]),
     "55000",
     "APP_ONLY invoice PDF",
   );
