@@ -1123,6 +1123,54 @@ COMMENT ON FUNCTION public.get_customer_invoice_pdf(uuid) IS
 
 -- Boolean-only source predicate for existing finance receipt reads. The binding
 -- table remains inaccessible directly to authenticated roles.
+
+-- Direct finance-staff payment reads are another APP_ONLY ledger entry point.
+-- Preserve the existing is_staff + tenant scope, but make the selected source a
+-- restrictive condition so an external source cannot expose old app allocations.
+CREATE OR REPLACE FUNCTION public.staff_customer_app_only_payment_read_allowed(
+  p_customer_id uuid,
+  p_organization_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+  SELECT auth.uid() IS NOT NULL
+     AND p_customer_id IS NOT NULL
+     AND p_organization_id IS NOT NULL
+     AND p_organization_id = public.current_organization_id()
+     AND public.is_staff()
+     AND EXISTS (
+       SELECT 1
+         FROM public.customer_financial_source_bindings b
+        WHERE b.organization_id = p_organization_id
+          AND b.customer_id = p_customer_id
+          AND b.source_mode = 'APP_ONLY'
+          AND b.source_status = 'active'
+     )
+$function$;
+REVOKE ALL ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uuid,uuid) TO authenticated;
+COMMENT ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uuid,uuid) IS
+  'Boolean-only staff payment-read boundary. Preserves existing is_staff/tenant authorization and permits app-ledger allocations only when the server-owned customer source is active APP_ONLY.';
+
+DROP POLICY IF EXISTS customer_payment_financial_source_read_guard
+  ON public.customer_payments;
+CREATE POLICY customer_payment_financial_source_read_guard
+  ON public.customer_payments
+  AS RESTRICTIVE
+  FOR SELECT
+  TO authenticated
+  USING (
+    public.staff_customer_app_only_payment_read_allowed(customer_id,organization_id)
+  );
+
+COMMENT ON POLICY customer_payment_financial_source_read_guard
+  ON public.customer_payments IS
+  'Restricts direct staff reads of app-ledger payment allocations to customers whose active financial source remains APP_ONLY.';
+
 CREATE OR REPLACE FUNCTION public.customer_app_only_receipt_read_allowed(
   p_customer_id uuid,
   p_organization_id uuid
