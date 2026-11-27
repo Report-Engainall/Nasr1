@@ -211,16 +211,22 @@ function optionalText(value: unknown, max = 2000): value is string | null {
 function timestamp(value: unknown): value is string {
   return strictTimestamp(value) !== null;
 }
-function strictTimestamp(value: unknown): number | null {
+/** Exact UTC instant in microseconds; PostgreSQL timestamptz stores at most six fractional digits. */
+function strictTimestamp(value: unknown): bigint | null {
   if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value)) {
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value)) {
     return null;
   }
   const datePart = value.slice(0, 10);
   const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
   if (!Number.isFinite(dateMillis) || new Date(dateMillis).toISOString().slice(0, 10) !== datePart) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  const parsedMillis = Date.parse(value);
+  if (!Number.isFinite(parsedMillis)) return null;
+  const fractionMatch = /T\d{2}:\d{2}:\d{2}(?:\.(\d+))?/.exec(value);
+  const fraction = (fractionMatch?.[1] ?? "").padEnd(6, "0");
+  const fractionMicros = BigInt(fraction || "0");
+  const parsedMillisecondFraction = BigInt(fraction.slice(0, 3).padEnd(3, "0") || "0") * 1000n;
+  return BigInt(parsedMillis) * 1000n + fractionMicros - parsedMillisecondFraction;
 }
 function day(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -407,7 +413,7 @@ export function parseShiftOperationsSnapshot(value: unknown): ShiftOperationsSna
       !day(raw.businessDate) || !validTimeZone ||
       !timestamp(raw.asOf) || !timestamp(raw.generatedAt) ||
       !(raw.currentOwnerProfileId === null || text(raw.currentOwnerProfileId, 100)) ||
-      Date.parse(raw.asOf) > Date.parse(raw.generatedAt) ||
+      strictTimestamp(raw.asOf)! > strictTimestamp(raw.generatedAt)! ||
       (raw.previousShiftId !== null && !text(raw.previousShiftId, 100)) ||
       !sourceCoverage || sourceCoverage.some(item => !item) ||
       !items || items.length > 500 || items.some(item => !item) ||
@@ -452,8 +458,8 @@ function verifiedEvidence(
       item.status === "VERIFIED" &&
       item.completeness === "COMPLETE" &&
       item.quality === "ACCEPTABLE" &&
-      Date.parse(item.sourceTimestamp) <= Date.parse(asOf) &&
-      Date.parse(item.asOf) <= Date.parse(asOf) &&
+      strictTimestamp(item.sourceTimestamp)! <= strictTimestamp(asOf)! &&
+      strictTimestamp(item.asOf)! <= strictTimestamp(asOf)! &&
       (period === null || (item.period !== null && item.period.from === period.from && item.period.to === period.to));
   });
 }
@@ -471,8 +477,9 @@ function sourceCoverageReady(
     : coverage.key === "HANDOVER" ? (snapshot.handover.recordedAt ? 1 : 0) : null;
   if (coverage.status !== "VERIFIED" || coverage.completeness !== "COMPLETE" ||
       coverage.quality !== "ACCEPTABLE" || !coverage.completePopulation ||
-      coverage.asOf === null || Date.parse(coverage.asOf) > Date.parse(snapshot.asOf) ||
-      Date.parse(snapshot.generatedAt) - Date.parse(coverage.asOf) > coverage.freshnessLimitMinutes * 60_000 ||
+      coverage.asOf === null || strictTimestamp(coverage.asOf)! > strictTimestamp(snapshot.asOf)! ||
+      strictTimestamp(snapshot.generatedAt)! - strictTimestamp(coverage.asOf)! >
+        BigInt(coverage.freshnessLimitMinutes) * 60_000_000n ||
       coverage.expectedCount === null || coverage.returnedCount === null ||
       coverage.returnedCount !== coverage.expectedCount ||
       (queueBacked.has(coverage.key) && coverage.returnedCount !== rowCount) ||
@@ -490,7 +497,7 @@ function validItem(
 ): boolean {
   const coverage = coverageFor(snapshot, item.sourceKey);
   return !!coverage && sourceCoverageReady(coverage, snapshot, index) &&
-    Date.parse(item.updatedAt) <= Date.parse(snapshot.asOf) &&
+    strictTimestamp(item.updatedAt)! <= strictTimestamp(snapshot.asOf)! &&
     verifiedEvidence(item.evidenceIds, index, snapshot.asOf, coverage.period);
 }
 function safeItems(snapshot: ShiftOperationsSnapshot, index: Map<string, EvidenceRecord>, warnings: string[]): ShiftQueueItem[] {
@@ -566,7 +573,8 @@ function buildCashControls(
 ): ShiftCashControlResult[] {
   const coverage = coverageFor(snapshot, "CASH");
   return snapshot.cashControls.map(item => {
-    if (Date.parse(item.sourceAsOf) > Date.parse(snapshot.asOf)) warnings.push("FUTURE_CASH_SOURCE_AS_OF:" + item.currency);
+    const sourceIsCurrent = strictTimestamp(item.sourceAsOf)! <= strictTimestamp(snapshot.asOf)!;
+    if (!sourceIsCurrent) warnings.push("FUTURE_CASH_SOURCE_AS_OF:" + item.currency);
     const opening = cashPoint(item.opening, snapshot, index, coverage);
     const closing = cashPoint(item.closing, snapshot, index, coverage);
     const ids = [
@@ -577,8 +585,8 @@ function buildCashControls(
     return {
       currency: item.currency,
       sourceAsOf: item.sourceAsOf,
-      opening: item.sourceAsOf <= snapshot.asOf ? opening : { expected: null, counted: null, variance: null, state: "UNKNOWN" },
-      closing: item.sourceAsOf <= snapshot.asOf ? closing : { expected: null, counted: null, variance: null, state: "UNKNOWN" },
+      opening: sourceIsCurrent ? opening : { expected: null, counted: null, variance: null, state: "UNKNOWN" },
+      closing: sourceIsCurrent ? closing : { expected: null, counted: null, variance: null, state: "UNKNOWN" },
       evidenceIds,
     };
   });
@@ -595,7 +603,7 @@ function buildHandover(
   };
   const coverage = coverageFor(snapshot, "HANDOVER");
   if (!sourceCoverageReady(coverage, snapshot, index) || !value.recordedAt ||
-      Date.parse(value.recordedAt) > Date.parse(snapshot.asOf) ||
+      strictTimestamp(value.recordedAt)! > strictTimestamp(snapshot.asOf)! ||
       !value.outgoingOwnerProfileId || !value.incomingOwnerProfileId ||
       !verifiedEvidence(value.evidenceIds, index, snapshot.asOf, coverage?.period ?? null) ||
       value.openItemRefs.some(ref => !rows.some(item => item.sourceRef === ref && item.state !== "UNKNOWN" && item.state !== "RESOLVED"))) {
@@ -612,8 +620,8 @@ function buildHandover(
     acceptedAt: null, reason: value.reason ?? "سُجل التسليم ولم يُسجل قبول المستلم بعد.",
     note: value.note, openItemRefs: value.openItemRefs, evidenceIds: value.evidenceIds,
   };
-  if (!timestamp(value.acceptedAt) || Date.parse(value.acceptedAt) < Date.parse(value.recordedAt) ||
-      Date.parse(value.acceptedAt) > Date.parse(snapshot.asOf)) return {
+  if (!timestamp(value.acceptedAt) || strictTimestamp(value.acceptedAt)! < strictTimestamp(value.recordedAt)! ||
+      strictTimestamp(value.acceptedAt)! > strictTimestamp(snapshot.asOf)!) return {
     state: "UNKNOWN", outgoingOwnerProfileId: null, incomingOwnerProfileId: null,
     recordedAt: null, acceptedAt: null,
     reason: "توقيت قبول التسليم خارج نطاق اللقطة أو يسبق تسجيله.",
@@ -650,7 +658,7 @@ export function buildShiftOperationsCenter(value: unknown): ShiftOperationsCente
   const warnings: string[] = [];
   const evidence = evidenceIndex(snapshot);
   for (const item of snapshot.evidenceRecords) {
-    if (Date.parse(item.sourceTimestamp) > Date.parse(snapshot.asOf) || Date.parse(item.asOf) > Date.parse(snapshot.asOf)) {
+    if (strictTimestamp(item.sourceTimestamp)! > strictTimestamp(snapshot.asOf)! || strictTimestamp(item.asOf)! > strictTimestamp(snapshot.asOf)!) {
       warnings.push("SHIFT_EVIDENCE_AFTER_AS_OF:" + item.id);
     }
   }
