@@ -188,6 +188,8 @@ export interface ErpSyncCheckpointStore {
 export type ErpReadPageInput = {
   cursor: string | null;
   modifiedSince: string | null;
+  /** Maximum number of rows the current run can safely accept from this page. */
+  maxRows?: number;
 };
 
 export interface ErpReadConnector {
@@ -527,6 +529,10 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
   }
 
   async readPage(input: ErpReadPageInput): Promise<ErpPage> {
+    const maxRows = input.maxRows ?? MAX_PAGE_ROWS;
+    if (!Number.isInteger(maxRows) || maxRows < 1 || maxRows > MAX_PAGE_ROWS) {
+      throw new ErpConnectorError("INVALID_ERP_PAGE_LIMIT", "حد سجلات صفحة ERP خارج النطاق الآمن.");
+    }
     const url = new URL(this.contract.path.replace(/^\/+/, ""), this.baseUrl.toString().replace(/\/?$/, "/"));
     if (input.cursor) {
       if (!this.contract.cursorParameter) {
@@ -544,7 +550,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
       if (!Number.isInteger(size) || size < 1 || size > MAX_PAGE_ROWS) {
         throw new ErpConnectorError("INVALID_PROVIDER_CONTRACT", "حجم صفحة ERP خارج النطاق الآمن.");
       }
-      url.searchParams.set(this.contract.pageSizeParameter, String(size));
+      url.searchParams.set(this.contract.pageSizeParameter, String(Math.min(size, maxRows)));
     }
     if (url.origin !== this.baseUrl.origin || url.protocol !== "https:") {
       throw new ErpConnectorError("ERP_ORIGIN_CHANGED", "تغير أصل اتصال ERP أثناء بناء الطلب.");
@@ -573,6 +579,13 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
     const rows = getPath(payload, this.contract.itemsPath, "itemsPath");
     if (!Array.isArray(rows) || rows.length > MAX_PAGE_ROWS) {
       throw new ErpConnectorError("INVALID_ERP_PAGE", "بنية صفحة ERP غير صالحة أو تتجاوز حد الصفوف.", { httpStatus: request.response.status });
+    }
+    if (rows.length > maxRows) {
+      throw new ErpConnectorError(
+        "ERP_PAGE_EXCEEDS_RUN_LIMIT",
+        "تجاوزت صفحة ERP سقف السجلات المتبقي للدفعة؛ لم يتم حفظ الصفحة أو تحريك مؤشر المزامنة.",
+        { httpStatus: request.response.status },
+      );
     }
     const next = this.contract.nextCursorPath
       ? getPath(payload, this.contract.nextCursorPath, "nextCursorPath")
@@ -896,6 +909,7 @@ export async function runIncrementalReadOnlySync(input: {
         modifiedSince: checkpoint.cursor || !checkpoint.completedWatermark
           ? null
           : subtractOverlap(checkpoint.completedWatermark, overlapMs),
+        maxRows: maxRecords - recordsRead,
       });
     } catch (error) {
       if (
@@ -918,6 +932,13 @@ export async function runIncrementalReadOnlySync(input: {
         !/^[0-9a-f]{64}$/.test(page.responseSha256) ||
         !Array.isArray(page.records) || page.records.length > MAX_PAGE_ROWS) {
       throw new ErpConnectorError("INVALID_ERP_PAGE_RESULT", "نتيجة صفحة ERP لا تحتوي استجابة موثقة أو عدد سجلات صالحًا.");
+    }
+    if (page.records.length > maxRecords - recordsRead) {
+      throw new ErpConnectorError(
+        "ERP_PAGE_EXCEEDS_RUN_LIMIT",
+        "تجاوز موصل ERP سقف السجلات المتبقي للدفعة؛ لم يتم حفظ الصفحة أو تحريك مؤشر المزامنة.",
+        { httpStatus: page.httpStatus },
+      );
     }
     if (page.nextCursor !== null) cleanIdentity(page.nextCursor, "next_cursor", MAX_CURSOR_LENGTH);
     if (page.nextCursor && (page.nextCursor === checkpoint.cursor || seenCursors.has(page.nextCursor))) {
