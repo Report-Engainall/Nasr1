@@ -279,8 +279,8 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     return Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
   }
 
-  private async encryptCursor(cursor: string | null, scopeKey: string): Promise<{ ciphertext: string | null; sha256: string | null }> {
-    if (cursor === null) return { ciphertext: null, sha256: null };
+  private async encryptCursor(cursor: string | null, scopeKey: string): Promise<string | null> {
+    if (cursor === null) return null;
     const plaintext = new TextEncoder().encode(cursor);
     if (plaintext.byteLength < 1 || plaintext.byteLength > MAX_CURSOR_BYTES) {
       throw new ErpConnectorError("INVALID_ERP_CURSOR", "مؤشر ERP فارغ أو يتجاوز الحد الآمن.");
@@ -292,7 +292,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
     combined.set(iv, 0);
     combined.set(encrypted, iv.byteLength);
     const ciphertext = "v1:" + bytesToBase64(combined);
-    return { ciphertext, sha256: await sha256Hex(ciphertext) };
+    return ciphertext;
   }
 
   private async decryptCursor(ciphertext: string | null, scopeKey: string): Promise<string | null> {
@@ -364,8 +364,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
       p_external_request_id: input.receipt.externalRequestId,
       p_response_sha256: input.receipt.responseSha256,
       p_records: records,
-      p_next_cursor_ciphertext: encrypted.ciphertext,
-      p_next_cursor_ciphertext_sha256: encrypted.sha256,
+      p_next_cursor_ciphertext: encrypted,
       p_pending_watermark: input.pendingWatermark,
       p_completed_watermark: input.completedWatermark,
       p_completed: input.completed,
