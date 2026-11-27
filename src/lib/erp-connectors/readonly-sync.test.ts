@@ -470,7 +470,7 @@ describe("server-side ERP read connector contract", () => {
             warehouse_code: "WH-A",
             on_hand: 20,
             reserved: 5,
-            available: 14,
+            available: 16,
           }],
         },
         meta: { next_cursor: null },
