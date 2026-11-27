@@ -16,10 +16,10 @@ async function as(a){
  await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:a.auth_user_id,email:a.email,role:"authenticated",session_id:a.auth_user_id})]);
  await db.unsafe("set role authenticated");
 }
-async function receipt(manager,batch,expiry,quantity=1){
+async function receipt(manager,batch,expiry,quantity=1,targetWarehouse=warehouse){
  await as(manager);
  const po=(await rpc("select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) result",
- [supplier,warehouse,db.json([{product_id:product,quantity,unit_cost:125.5}]),"FEFO "+batch,randomUUID().replaceAll("-","")])).purchase_order.id;
+ [supplier,targetWarehouse,db.json([{product_id:product,quantity,unit_cost:125.5}]),"FEFO "+batch,randomUUID().replaceAll("-","")])).purchase_order.id;
  assert.ok(po);await rpc("select public.submit_purchase_order($1::uuid) result",[po]);
  const visibleOrders=await rpc("select public.fetch_purchase_orders() result");
  assert.ok(Array.isArray(visibleOrders),"authorized purchase-order reader must return an array");
@@ -121,7 +121,17 @@ async function main(){
  const replacementDate=(await db.unsafe(
   "select to_char((pg_catalog.now() at time zone 'UTC')::date+1,'YYYY-MM-DD') d",
  ))[0].d;
- const replacement=await receipt(manager,"FEFO-REPLACEMENT-"+suffix,replacementDate);
+ const alternateWarehouse=(await db.unsafe(
+  "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and id<>$2::uuid order by id limit 1",
+  [org,warehouse],
+ ))[0];
+ assert.ok(alternateWarehouse,"FEFO cross-warehouse rollback acceptance requires a second active tenant warehouse");
+ const replacement=await receipt(manager,"FEFO-REPLACEMENT-"+suffix,replacementDate,1,alternateWarehouse.id);
+ const replacementCandidate=(await db.unsafe(
+  "select id::text batch_id from public.inventory_batches where receipt_id=$1::uuid and product_id=$2::uuid order by received_at desc,id desc limit 1",
+  [replacement.receiptId,product],
+ ))[0];
+ assert.ok(replacementCandidate,"replacement receipt must create a traceable batch in the alternate warehouse");
  const stillProcessing=(await db.unsafe("select status from public.orders where id=$1::uuid",[order3]))[0];
  assert.equal(stillProcessing.status,"processing","failed shipment must leave order status unchanged");
 
@@ -157,6 +167,84 @@ async function main(){
  await as(manager);
  const reallocationKey="fefo-reallocate-"+randomUUID().replaceAll("-","");
  const reallocationReason="Replace a reserved lot that expired before shipment";
+
+ // The candidate batch has one free unit, but corrupt its alternate-warehouse
+ // aggregate on-hand balance to equal reserved. The order's expired source lot
+ // is in the original warehouse, so releasing that reservation cannot create
+ // availability in the replacement warehouse. Reallocation must reject before
+ // appending any movement or changing either warehouse's reservation counters.
+ await db.unsafe("reset role");
+ const targetBalanceBefore=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved,quantity_available::text available " +
+  "from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,alternateWarehouse.id],
+ ))[0];
+ assert.ok(targetBalanceBefore,"replacement warehouse must have an aggregate balance row");
+ assert.ok(Number(targetBalanceBefore.on_hand)>=1,"replacement warehouse must retain the physical batch unit");
+ const candidateStateBefore=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [replacementCandidate.batch_id],
+ ))[0];
+ assert.equal(Number(candidateStateBefore.on_hand)-Number(candidateStateBefore.reserved),1,
+  "replacement FEFO batch must expose one free unit");
+ const sourceStateBefore=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [originalReservation.id],
+ ))[0];
+ const movementCountBefore=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [order3],
+ ))[0].count;
+ await db.unsafe(
+  "update public.inventory_balances set quantity_on_hand=quantity_reserved,last_movement_at=now(),updated_at=now() " +
+  "where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,alternateWarehouse.id],
+ );
+ const blockedTarget=(await db.unsafe(
+  "select quantity_available::text available from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,alternateWarehouse.id],
+ ))[0];
+ assert.equal(Number(blockedTarget.available),0);
+ await as(manager);
+ await assert.rejects(
+  () => rpc(
+   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [order3,reallocationKey,reallocationReason],
+  ),
+  error => String(error?.code)==="40001" && String(error?.message).includes("aggregate available balance"),
+  "reallocation must fail closed when the target batch has stock but its warehouse aggregate does not",
+ );
+ await db.unsafe("reset role");
+ const movementCountAfter=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [order3],
+ ))[0].count;
+ assert.equal(movementCountAfter,movementCountBefore,
+  "failed cross-warehouse reallocation must roll back both source release and target reserve movement");
+ const sourceStateAfter=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [originalReservation.id],
+ ))[0];
+ const candidateStateAfter=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [replacementCandidate.batch_id],
+ ))[0];
+ assert.equal(Number(sourceStateAfter.reserved),Number(sourceStateBefore.reserved),
+  "failed reallocation must restore the expired source batch reservation");
+ assert.equal(Number(candidateStateAfter.reserved),Number(candidateStateBefore.reserved),
+  "failed reallocation must not reserve the mismatched target batch");
+ await db.unsafe(
+  "update public.inventory_balances set quantity_on_hand=$3::numeric,last_movement_at=now(),updated_at=now() " +
+  "where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,alternateWarehouse.id,targetBalanceBefore.on_hand],
+ );
+ const targetBalanceRestored=(await db.unsafe(
+  "select quantity_available::text available from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,alternateWarehouse.id],
+ ))[0];
+ assert.ok(Number(targetBalanceRestored.available)>=1,
+  "test fixture must restore the alternate-warehouse aggregate before retry");
+ await as(manager);
  const reallocated=await rpc(
   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
   [order3,reallocationKey,reallocationReason],
