@@ -779,6 +779,24 @@ function validateCanonicalCandidate(record: ErpCanonicalRecord, scope: ErpSyncSc
       throw new ErpConnectorError("INVALID_ERP_STOCK_BALANCE", "رصيد ERP لا يحقق الموجود = المحجوز + المتاح بدقة ثلاث منازل عشرية.");
     }
   }
+  if (scope.objectType === "product_units") {
+    const factor = fields.conversion_factor;
+    if (typeof factor !== "number" || factor <= 0 || factor > 1_000_000_000 ||
+        typeof fields.is_base_unit !== "boolean" ||
+        (fields.is_base_unit && Math.abs(factor - 1) > 0.000001)) {
+      throw new ErpConnectorError("INVALID_ERP_UNIT_CONVERSION", "معامل تحويل وحدة ERP يجب أن يكون موجبًا، ومعامل الوحدة الأساسية يساوي 1.");
+    }
+  }
+  if (scope.objectType === "product_prices") {
+    const price = fields.unit_price;
+    const minimum = fields.minimum_quantity;
+    const discount = fields.discount_percent;
+    if (typeof price !== "number" || price < 0 ||
+        (minimum != null && (typeof minimum !== "number" || minimum < 0)) ||
+        (discount != null && (typeof discount !== "number" || discount < 0 || discount > 100))) {
+      throw new ErpConnectorError("INVALID_ERP_PRICE", "سعر ERP أو الحد الأدنى أو نسبة الخصم غير صالحة.");
+    }
+  }
   return {
     ...record,
     externalId: cleanIdentity(record.externalId, "external_id"),
