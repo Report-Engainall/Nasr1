@@ -3,6 +3,7 @@ import {
   ErpConnectorError,
   OfficialJsonErpReadConnector,
   evaluateErpReadCapability,
+  runIncrementalReadOnlyBatch,
   runIncrementalReadOnlySync,
   type ErpCanonicalRecord,
   type ErpCheckpoint,
@@ -768,6 +769,122 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     await expect(runIncrementalReadOnlySync({ connector, store, scope }))
       .rejects.toMatchObject({ code: "CHECKPOINT_CONFLICT" });
     expect(store.committed).toHaveLength(0);
+  });
+
+  it("runs independent object streams sequentially and continues after one object fails safely", async () => {
+    const order: string[] = [];
+    const productsStore = new InMemoryCheckpointStore();
+    const customersStore = new InMemoryCheckpointStore();
+    const warehousesStore = new InMemoryCheckpointStore();
+    const emptyPage = (digest: string) => ({
+      records: [],
+      nextCursor: null,
+      httpStatus: 200,
+      externalRequestId: null,
+      responseSha256: digest.repeat(64),
+    });
+
+    const batch = await runIncrementalReadOnlyBatch({
+      tasks: [
+        {
+          scope,
+          store: productsStore,
+          connector: {
+            readPage: async () => {
+              order.push("products");
+              return emptyPage("a");
+            },
+          },
+        },
+        {
+          scope: { ...scope, objectType: "customers" },
+          store: customersStore,
+          connector: {
+            readPage: async () => {
+              order.push("customers");
+              throw new ErpConnectorError(
+                "ERP_PERMISSION_DENIED",
+                "secret-provider-response-must-not-escape",
+                { httpStatus: 403 },
+              );
+            },
+          },
+        },
+        {
+          scope: { ...scope, objectType: "warehouses" },
+          store: warehousesStore,
+          connector: {
+            readPage: async () => {
+              order.push("warehouses");
+              return emptyPage("b");
+            },
+          },
+        },
+      ],
+    });
+
+    expect(order).toEqual(["products", "customers", "warehouses"]);
+    expect(batch.status).toBe("partial_failure");
+    expect(batch.completedTasks).toBe(2);
+    expect(batch.continuedTasks).toBe(0);
+    expect(batch.failedTasks).toBe(1);
+    expect(batch.tasks.map((task) => [task.objectType, task.status, task.errorCode])).toEqual([
+      ["products", "complete", null],
+      ["customers", "failed", "ERP_PERMISSION_DENIED"],
+      ["warehouses", "complete", null],
+    ]);
+    expect(JSON.stringify(batch)).not.toContain("secret-provider-response-must-not-escape");
+    expect(productsStore.committed).toHaveLength(1);
+    expect(customersStore.committed).toHaveLength(0);
+    expect(warehousesStore.committed).toHaveLength(1);
+  });
+
+  it("rejects duplicate tenant/company/branch/warehouse/currency object scopes before any batch side effect", async () => {
+    const store = new InMemoryCheckpointStore();
+    const readPage = vi.fn(async () => ({
+      records: [],
+      nextCursor: null,
+      httpStatus: 200,
+      externalRequestId: null,
+      responseSha256: "c".repeat(64),
+    }));
+    const task = { scope, store, connector: { readPage } };
+
+    await expect(runIncrementalReadOnlyBatch({
+      tasks: [task, task],
+    })).rejects.toMatchObject({ code: "DUPLICATE_ERP_SYNC_BATCH_SCOPE" });
+
+    expect(readPage).not.toHaveBeenCalled();
+    expect(store.committed).toHaveLength(0);
+    expect(store.state.version).toBe(0);
+  });
+
+  it("binds empty-page replay fingerprints to warehouse and currency even when there are no record keys", async () => {
+    const firstStore = new InMemoryCheckpointStore();
+    const secondStore = new InMemoryCheckpointStore();
+    const connector: ErpReadConnector = {
+      readPage: async () => ({
+        records: [],
+        nextCursor: null,
+        httpStatus: 200,
+        externalRequestId: "same-source-request",
+        responseSha256: "d".repeat(64),
+      }),
+    };
+
+    await runIncrementalReadOnlySync({
+      connector,
+      store: firstStore,
+      scope: { ...scope, warehouseExternalId: "WH-A", currencyCode: "YER" },
+    });
+    await runIncrementalReadOnlySync({
+      connector,
+      store: secondStore,
+      scope: { ...scope, warehouseExternalId: "WH-B", currencyCode: "SAR" },
+    });
+
+    expect(firstStore.committed[0].pageFingerprint)
+      .not.toBe(secondStore.committed[0].pageFingerprint);
   });
 
   it("does not invent enabled-provider capability when the installed license or endpoint is unknown", () => {
