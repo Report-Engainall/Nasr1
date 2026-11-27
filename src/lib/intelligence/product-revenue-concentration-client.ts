@@ -83,6 +83,14 @@ function integer(value: unknown): value is number {
 }
 function mapFailure(error: unknown): ProductRevenueConcentrationFetchResult {
   const failure = error as { code?: string; message?: string };
+  const code = typeof failure?.code === "string" ? failure.code : "";
+  const message = typeof failure?.message === "string" ? failure.message : "";
+  if (
+    ["FETCH_ERROR", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(code) ||
+    /failed to fetch|network unavailable|network error|connection (?:timed out|reset|refused)|timed out/i.test(message)
+  ) {
+    return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بمصدر تركّز الفواتير؛ أعد المحاولة عند عودة الاتصال." };
+  }
   if (failure?.code === "42501" || failure?.code === "28000" || failure?.code === "PGRST301") {
     return { ok: false, status: "DENIED", message: "لا تملك صلاحية قراءة تركّز قيمة الفواتير حسب المنتج." };
   }
