@@ -105,7 +105,7 @@ export function buildSystemHealthSnapshot(input:{
    status=unknownUnlessUnavailable(status);warnings.push("HEALTH_EVIDENCE_AMBIGUOUS");
   }else if(!record){
    status=unknownUnlessUnavailable(status);warnings.push("HEALTH_EVIDENCE_MISSING");
-  }else if(record.source?.kind!=="SYSTEM_PROBE"){
+  }else if(record.source?.kind!=="SYSTEM_PROBE"||typeof record.source.name!=="string"||!IDENTIFIER.test(record.source.name)){
    status=unknownUnlessUnavailable(status);warnings.push("HEALTH_EVIDENCE_SOURCE_KIND_INVALID");
   }else{
    const sourceTime=strictInstant(record.sourceTimestamp),evidenceAsOf=strictInstant(record.asOf);
@@ -144,7 +144,8 @@ export function buildSystemHealthSnapshot(input:{
   });
  }
 
- const status=components.some(component=>component.status==="UNAVAILABLE")?"UNAVAILABLE":
+ const status=inputWarnings.includes("REQUIRED_COMPONENT_INVALID")||components.length===0?"UNKNOWN":
+  components.some(component=>component.status==="UNAVAILABLE")?"UNAVAILABLE":
   components.some(component=>component.status==="UNKNOWN")?"UNKNOWN":
   components.some(component=>component.status==="DEGRADED")?"DEGRADED":"HEALTHY";
  const warnings=unique([...inputWarnings,...components.flatMap(component=>component.warnings)]);
