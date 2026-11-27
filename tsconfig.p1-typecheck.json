@@ -129,6 +129,8 @@
     "src/lib/intelligence/liquidity.ts",
     "src/lib/intelligence/natural-language-assistant-client.test.ts",
     "src/lib/intelligence/natural-language-assistant-client.ts",
+    "src/lib/intelligence/customer-service-intelligence-client.test.ts",
+    "src/lib/intelligence/customer-service-intelligence-client.ts",
     "src/lib/intelligence/natural-language-assistant.ts",
     "src/lib/intelligence/product-performance-growth-client.test.ts",
     "src/lib/intelligence/product-performance-growth-client.ts",
