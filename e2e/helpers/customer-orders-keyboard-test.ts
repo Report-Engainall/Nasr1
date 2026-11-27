@@ -32,7 +32,8 @@ type CustomerOrdersSearchFixture = {
   requests: Array<{
     orderNumberFilter: string | null;
     statusFilter: string | null;
-    range: string | null;
+    offset: string | null;
+    limit: string | null;
     prefer: string | null;
   }>;
 };
@@ -164,15 +165,32 @@ async function handleCustomerOrdersFixtureRequest(
         const matchesStatus = !statusFilter || !statusFilter.startsWith("eq.") || row.status === statusFilter.slice(3);
         return matchesNumber && matchesStatus;
       });
-      const range = request.headers()["range"] ?? "0-24";
-      const [rangeStart, rangeEnd] = range.split("-").map(Number);
-      const from = Number.isSafeInteger(rangeStart) && rangeStart >= 0 ? rangeStart : 0;
-      const to = Number.isSafeInteger(rangeEnd) && rangeEnd >= from ? rangeEnd : from + 24;
+      const offset = url.searchParams.get("offset");
+      const limit = url.searchParams.get("limit");
+      const from = offset === null ? Number.NaN : Number(offset);
+      const pageSize = limit === null ? Number.NaN : Number(limit);
+      if (
+        !Number.isSafeInteger(from) ||
+        from < 0 ||
+        !Number.isSafeInteger(pageSize) ||
+        pageSize < 1 ||
+        pageSize > 100
+      ) {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          headers: { "access-control-allow-origin": "*" },
+          body: JSON.stringify({ message: "Expected PostgREST offset and limit query parameters." }),
+        });
+        return;
+      }
+      const to = from + pageSize - 1;
       const pageRows = visibleRows.slice(from, to + 1);
       searchFixture.requests.push({
         orderNumberFilter,
         statusFilter,
-        range: request.headers()["range"] ?? null,
+        offset,
+        limit,
         prefer: request.headers().prefer ?? null,
       });
       const contentRange = visibleRows.length === 0
@@ -270,7 +288,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect(resultCount).toContainText("إجمالي النتائج");
     await expect(page.getByRole("status", { name: "صفحة الطلبات الحالية" })).toContainText("صفحة 1 من 2");
     await expect.poll(() => fixture.requests.some((request) =>
-      request.range === "0-24" && (request.prefer ?? "").includes("count=exact"),
+      request.offset === "0" && request.limit === "25" && (request.prefer ?? "").includes("count=exact"),
     )).toBe(true);
 
     // Move to page two, then apply a one-record search. Old page-two rows must disappear.
@@ -279,7 +297,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect(page.locator("tbody tr")).toHaveCount(5);
     await expect(page.getByText("SO-2026-0005", { exact: true })).toBeVisible();
     await expect(page.getByRole("status", { name: "صفحة الطلبات الحالية" })).toContainText("صفحة 2 من 2");
-    await expect.poll(() => fixture.requests.slice(beforeNextPage).some((request) => request.range === "25-49")).toBe(true);
+    await expect.poll(() => fixture.requests.slice(beforeNextPage).some((request) => request.offset === "25" && request.limit === "25")).toBe(true);
 
     async function submitSearch(value: string): Promise<number> {
       const previousRequests = fixture.requests.length;
@@ -294,7 +312,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect(page.getByText("SO-2026-0028", { exact: true })).toBeVisible();
     await expect(page.getByText("SO-2026-0005", { exact: true })).toHaveCount(0);
     await expect.poll(() => fixture.requests.slice(arabicSearchStart).some((request) =>
-      request.orderNumberFilter === "ilike.*0028*" && request.range === "0-24" && request.statusFilter === null,
+      request.orderNumberFilter === "ilike.*0028*" && request.offset === "0" && request.limit === "25" && request.statusFilter === null,
     )).toBe(true);
 
     // Persian and ASCII digits must yield the same server-side numeric token.
@@ -318,7 +336,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     const beforeStatus = fixture.requests.length;
     await status.selectOption("pending");
     await expect.poll(() => fixture.requests.slice(beforeStatus).some((request) =>
-      request.orderNumberFilter === "ilike.*2026-00*" && request.statusFilter === "eq.pending" && request.range === "0-24",
+      request.orderNumberFilter === "ilike.*2026-00*" && request.statusFilter === "eq.pending" && request.offset === "0" && request.limit === "25",
     )).toBe(true);
     await expect(page.locator("tbody tr")).toHaveCount(15);
     await expect(resultCount).toContainText("١٥");
@@ -330,11 +348,11 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await page.getByRole("button", { name: "صفحة الطلبات التالية" }).click();
     await expect(page.locator("tbody tr")).toHaveCount(5);
     await expect(page.getByText("SO-2026-0005", { exact: true })).toBeVisible();
-    await expect.poll(() => fixture.requests.slice(beforeSecondPage).some((request) => request.range === "25-49")).toBe(true);
+    await expect.poll(() => fixture.requests.slice(beforeSecondPage).some((request) => request.offset === "25" && request.limit === "25")).toBe(true);
     const beforeClear = fixture.requests.length;
     await searchForm.getByRole("button", { name: "مسح", exact: true }).click();
     await expect.poll(() => fixture.requests.slice(beforeClear).some((request) =>
-      request.orderNumberFilter === null && request.statusFilter === null && request.range === "0-24",
+      request.orderNumberFilter === null && request.statusFilter === null && request.offset === "0" && request.limit === "25",
     )).toBe(true);
     await expect(page.locator("tbody tr")).toHaveCount(25);
     await expect(page.getByText("SO-2026-0030", { exact: true })).toBeVisible();
@@ -343,7 +361,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
 
     const noMatchStart = await submitSearch("NO-MATCH");
     await expect.poll(() => fixture.requests.slice(noMatchStart).some((request) =>
-      request.orderNumberFilter === "ilike.*NO-MATCH*" && request.range === "0-24",
+      request.orderNumberFilter === "ilike.*NO-MATCH*" && request.offset === "0" && request.limit === "25",
     )).toBe(true);
     await expect(page.getByText("لا توجد طلبات تطابق رقم البحث.", { exact: true })).toBeVisible();
     await expect(resultCount).toContainText("٠");
