@@ -1156,6 +1156,8 @@ GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uu
 COMMENT ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uuid,uuid) IS
   'Boolean-only staff payment-read boundary. Preserves existing is_staff/tenant authorization and permits app-ledger allocations only when the server-owned customer source is active APP_ONLY.';
 
+ALTER TABLE public.customer_payments ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS customer_payment_financial_source_read_guard
   ON public.customer_payments;
 CREATE POLICY customer_payment_financial_source_read_guard
