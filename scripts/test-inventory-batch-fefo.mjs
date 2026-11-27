@@ -121,7 +121,7 @@ async function main(){
  assert.equal(stillProcessing.status,"processing","failed shipment must leave order status unchanged");
 
  const replacementDate=(await db.unsafe(
-  "select to_char((pg_catalog.now() at time zone 'UTC')::date+60,'YYYY-MM-DD') d",
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+1,'YYYY-MM-DD') d",
  ))[0].d;
  const replacement=await receipt(manager,"FEFO-REPLACEMENT-"+suffix,replacementDate);
  await as(manager);
