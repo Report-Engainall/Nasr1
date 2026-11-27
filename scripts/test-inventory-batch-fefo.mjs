@@ -163,6 +163,8 @@ async function main(){
  assert.equal(worklistOrder.expired_lot_count,1);
  assert.equal(worklistOrder.expired_lots[0].batch_number,late.batch);
  assert.equal(worklistOrder.expired_lots[0].reservation_matches_batch,true);
+ assert.equal(worklistOrder.expired_lots[0].reservation_matches_balance,true,
+  "expired worklist must confirm aggregate warehouse reserved parity as well as batch parity");
  assert.ok(Number(worklistOrder.expired_lots[0].replacement_available_quantity)>=1,
   "work queue must expose in-date replacement quantity before the manager reallocates");
  await assert.rejects(
@@ -764,6 +766,17 @@ async function main(){
   assert.ok(entry,"both active shared-lot orders must remain visible in the expired FEFO worklist");
   assert.equal(entry.expired_lots[0].reservation_matches_batch,false,
    "the lot match flag must compare its reserved counter with all active orders, not only the current order");
+  assert.equal(entry.expired_lots[0].reservation_matches_balance,false,
+   "the expired worklist must expose aggregate warehouse under-reporting across all active orders");
+ }
+ const sharedIncomplete=await rpc(
+  "select public.list_orders_with_incomplete_inventory_reservations(50,0) result",
+ );
+ for(const ledgerOrderId of [ledgerOrderA,ledgerOrderB]){
+  const entry=sharedIncomplete.orders.find(value=>value.order_id===ledgerOrderId);
+  assert.ok(entry,"both shared-lot orders must remain visible in the incomplete-reservation queue");
+  assert.equal(entry.lines[0].reservation_batch_ledger_matches,false);
+  assert.equal(entry.lines[0].reservation_balance_ledger_matches,false);
  }
  const batchReservedBeforeLedgerGuard=(await db.unsafe(
   "select quantity_reserved::text from public.inventory_batches where id=$1::uuid",
@@ -812,6 +825,70 @@ async function main(){
   "where product_id=$1::uuid and warehouse_id=$2::uuid",
   [product,warehouse],
  );
+
+ // Isolate aggregate-only drift while the batch subledger remains exact.
+ // Both manager queues must identify the warehouse counter as the blocker.
+ const batchParityAfterRestore=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [ledgerBatchId],
+ ))[0];
+ await db.unsafe(
+  "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() "+
+  "where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ );
+ await as(manager);
+ const aggregateOnlyExpiredQueue=await rpc(
+  "select public.list_orders_with_expired_fefo_reservations(50,0) result",
+ );
+ const aggregateOnlyEntry=aggregateOnlyExpiredQueue.orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(aggregateOnlyEntry);
+ assert.equal(aggregateOnlyEntry.expired_lots[0].reservation_matches_batch,true,
+  "batch subledger remains reconciled in the aggregate-only mismatch fixture");
+ assert.equal(aggregateOnlyEntry.expired_lots[0].reservation_matches_balance,false,
+  "expired worklist must flag aggregate-only warehouse counter drift");
+ const aggregateOnlyIncompleteQueue=await rpc(
+  "select public.list_orders_with_incomplete_inventory_reservations(50,0) result",
+ );
+ const aggregateOnlyIncomplete=aggregateOnlyIncompleteQueue.orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(aggregateOnlyIncomplete);
+ assert.equal(aggregateOnlyIncomplete.lines[0].reservation_batch_ledger_matches,true);
+ assert.equal(aggregateOnlyIncomplete.lines[0].reservation_balance_ledger_matches,false);
+ const balanceBeforeAggregateOnlyReject=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ const movementsBeforeAggregateOnlyReject=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [ledgerOrderA],
+ ))[0].count;
+ await assert.rejects(
+  () => rpc(
+   "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [ledgerOrderA,"fefo-balance-only-mismatch-"+randomUUID().replaceAll("-",""),"Reject aggregate reservation counter drift"],
+  ),
+  error => String(error?.code)==="40001" && String(error?.message).includes("aggregate reserved quantity is below"),
+  "reallocation must reject aggregate-only reserved-counter under-reporting before the source lot is released",
+ );
+ const balanceAfterAggregateOnlyReject=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ const movementsAfterAggregateOnlyReject=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [ledgerOrderA],
+ ))[0].count;
+ assert.equal(balanceAfterAggregateOnlyReject.reserved,balanceBeforeAggregateOnlyReject.reserved,
+  "aggregate-only mismatch must not mutate the warehouse reservation counter");
+ assert.equal(movementsAfterAggregateOnlyReject,movementsBeforeAggregateOnlyReject,
+  "aggregate-only mismatch must not append a partial release or reserve movement");
+ await db.unsafe(
+  "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
+  "where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ );
+ assert.ok(Number(batchParityAfterRestore.reserved)>=2,
+  "fixture must retain the expected shared-lot reservations after aggregate recovery");
 
  // Prove atomic rollback in the missing-reservation repair action when a
  // source order has one unit unreserved and no other in-date free lot remains.
