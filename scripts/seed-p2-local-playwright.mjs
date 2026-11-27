@@ -604,7 +604,7 @@ async function main() {
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
     " confirmedUsers=7 adminAndManagerSeeded=true accountantSeeded=true customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
-    " multiInvoiceReceiptInvoices=2 localOnly=true catalogProduct=" + productId + " stock=100 localOnly=true\n",
+    " multiInvoiceReceiptInvoices=2 localOnly=true catalogProduct=" + productId + " stock=100 foreignImageProduct=" + foreignProductId + " localOnly=true\n",
   );
 }
 
