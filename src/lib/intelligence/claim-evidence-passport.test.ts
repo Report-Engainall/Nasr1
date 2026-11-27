@@ -39,11 +39,11 @@ function record(
   };
 }
 
-function passport(metrics: MetricSnapshot[], evidenceRecords: EvidenceRecord[] = []): EvidencePassport {
+function passport(metrics: MetricSnapshot[], evidenceRecords: EvidenceRecord[] = [], passportAsOf = asOf): EvidencePassport {
   return {
     id: "passport",
-    generatedAt: asOf,
-    asOf,
+    generatedAt: passportAsOf,
+    asOf: passportAsOf,
     status: "VERIFIED",
     completeness: "COMPLETE",
     evidenceRecords,
@@ -60,6 +60,22 @@ const oneMetricClaim = (kind: ClaimDraft["kind"] = "OBSERVATION"): ClaimDraft =>
 });
 
 describe("claim evidence passports", () => {
+  it("accepts equivalent report, metric and source instants with different valid UTC offsets", () => {
+    const built = buildClaimEvidencePassports(
+      passport(
+        [metric("metric-1", "receivable.outstanding", "invoice-1", { asOf: "2026-11-17T03:00:00.000000+03:00" })],
+        [record("invoice-1", "customer_invoices", { asOf: "2026-11-17T01:00:00.000000+01:00" })],
+        "2026-11-17T00:00:00.000000Z",
+      ),
+      [{
+        ...oneMetricClaim(),
+        confidence: { value: 0.93, basis: "server-sourced validation record", evidenceIds: ["invoice-1"] },
+      }],
+    );
+    expect(built[0].status).toBe("VERIFIED");
+    expect(built[0].confidence).toBe(0.93);
+  });
+
   it("binds an observation to verified metrics, exact formulas and source record references without inventing confidence", () => {
     const built = buildClaimEvidencePassports(
       passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [record("invoice-1", "customer_invoices")]),
@@ -120,19 +136,19 @@ describe("claim evidence passports", () => {
   });
 
   it("accepts a cause only with a separate verified causal-study source, two aligned measures and documented assumptions", () => {
-    const studyRecord = record("causal-1", "causal_studies", {
-      source: { kind: "CAUSAL_STUDY", name: "causal_studies", recordId: "study-1", version: "study-v1" },
-    });
     const built = buildClaimEvidencePassports(
       passport(
         [
           metric("metric-1", "exposure.discount_rate", "invoice-1", { unit: "RATIO", currency: undefined }),
-          metric("metric-2", "outcome.margin_rate", "ledger-1", { unit: "RATIO", currency: undefined }),
+          metric("metric-2", "outcome.margin_rate", "ledger-1", { unit: "RATIO", currency: undefined, asOf: "2026-11-17T03:00:00.000000+03:00" }),
         ],
         [
           record("invoice-1", "customer_invoices", { currency: undefined }),
-          record("ledger-1", "general_ledger", { currency: undefined }),
-          studyRecord,
+          record("ledger-1", "general_ledger", { currency: undefined, asOf: "2026-11-17T01:00:00.000000+01:00" }),
+          record("causal-1", "causal_studies", {
+            source: { kind: "CAUSAL_STUDY", name: "causal_studies", recordId: "study-1", version: "study-v1" },
+            asOf: "2026-11-17T02:00:00.000000+02:00",
+          }),
         ],
       ),
       [{
