@@ -11,8 +11,10 @@ export interface ReplenishmentRecommendation {
  reorderPoint:number|null;dailyDemand:number|null;leadTimeDemand:number|null;targetStock:number|null;recommendedQuantity:number|null;
  formulaId:string;formulaVersion:string;evidenceIds:string[];warnings:string[];automaticPurchase:false;
 }
-const FORMULA_ID="inventory.replenishment-target";
-const FORMULA_VERSION="1.1.1";
+export const REPLENISHMENT_FORMULA_ID="inventory.replenishment-target";
+export const REPLENISHMENT_FORMULA_VERSION="1.1.1";
+const FORMULA_ID=REPLENISHMENT_FORMULA_ID;
+const FORMULA_VERSION=REPLENISHMENT_FORMULA_VERSION;
 function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
  if(numerator<=0n)return 0n;
  return (numerator+denominator-1n)/denominator;
