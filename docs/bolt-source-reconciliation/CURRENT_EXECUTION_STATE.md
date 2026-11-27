@@ -47,6 +47,40 @@ The application must stop depending on staff re-entering product, customer, stoc
 - **Preferred transport:** official webhook/event subscription for low latency where truly supported; otherwise bounded incremental polling using an authoritative modified-since cursor/watermark with overlap protection. Full snapshot is for initial bootstrap/reconciliation only, not routine repeated full imports.
 - **Fallback:** when the provider has no supported API/event channel but has an officially supported export interface, retain the existing controlled import as a clearly labeled manual/assisted fallback. Never claim real-time or automatic sync in this state.
 
+### Onyx Pro capabilities to inventory and exploit — merchant value scope
+
+Onyx's published solution catalogue and mobile-app descriptions identify the following capability groups. This is a **discovery/requirements inventory**, not proof that the Aghbari installation has each module, licence, endpoint or API enabled. P4 must mark every capability AVAILABLE_AND_LICENSED / AVAILABLE_REQUIRES_ENABLEMENT / LICENSE_REQUIRED / NOT_SUPPORTED_IN_INSTALLED_VERSION / UNKNOWN, attach official vendor evidence, and identify its supported integration route before coding against it.
+
+1. **Customer-facing commerce and account self-service**
+   - Customer Self Service app: direct online connection to the Onyx server, configurable work-screen names and supported languages; investigate actual customer account, statement, invoice and bill-payment services in the installed release. Onyx states invoice payment requires API activation.
+   - Onyx Shopping: product/store browsing, basket/cart and online synchronization so the merchant receives the customer's order.
+   - Customer Orders: customer/product/account balance and credit-limit lookup; order lines, prices, tax, discounts and free goods as configured in Onyx; region/representative/salesperson assignment; dated stock reservation and approved payment method.
+   - Map the same data into Aghbari's existing catalog, cart, customer account, sales quote/order and financial screens rather than sending customers to a second store.
+2. **Sales, customer management and after-sales**
+   - Customer master/classification/contacts, sales representatives and territories, credit/receivable exposure and collections.
+   - Sales quotations/offers, orders, sales invoices, returns/credit notes, order status, price lists, customer-specific prices, quantity discounts, tax and free quantities—only where the installed sales module provides them and the role is entitled.
+   - Sales history and reports by customer/product/representative/region/time; show only customer-safe fields in customer UI and wider metrics only in authorized admin views.
+3. **Inventory and warehouse execution**
+   - Item/product master, groups/categories, SKU/barcode, warehouse-specific on-hand/available balances, stock movements and permitted reservation states.
+   - Warehouse counts (periodic/annual and document-level), barcode-assisted picking/preparation, partial fulfilment, goods-received/receiving workflows and transfer/issue records where supported.
+   - Synchronize quantity and fulfilment evidence; never equate physical on-hand with available-to-promise without reservations/holds and the ERP's own availability rule.
+4. **Collections, receivables and finance**
+   - Customer balances, receivable aging/duedates, receipts/collection history and cheque states when accessible; Collection Mobile documents cash/cheque receipts and reflects them in linked accounts, so Aghbari must never independently post a second receipt for the same collection.
+   - Authorized customer statement (summary/analytic), invoices, posted receipts/payments, per-currency balances and due amounts.
+   - Internal-only finance dashboards: cash/bank account balances, ledger/posted-document references, financial statements and approved management indicators. Keep general ledger, margins, supplier balances and internal cash details out of the customer account.
+5. **Purchasing and supplier operations**
+   - Supplier master and balances; purchase requests, vendor quotations and comparisons, purchase orders, delivery dates, partial goods receipt, purchase invoices/returns, supplier discounts/free quantities and cost allocation/landed expenses where present.
+   - Keep supplier costs and liabilities admin-only; connect purchase/receipt/invoice references to current Aghbari procurement workflows without duplicating purchase or payable documents.
+6. **Distribution, delivery and field operations**
+   - Sales/distribution plans, customer visits, assigned representatives, regions/routes, route/visit tracking where enabled, sales/returns/collections by representative, and warehouse preparation-to-delivery handoff.
+   - Link ERP order/route/collection references to Aghbari's delivery workflow. Location tracking requires explicit business/legal authorization and must not be exposed to customers or unauthorized staff.
+7. **Executive reporting, BI/MIS, approvals and controls**
+   - Authorized indicators/reports for net sales, gross margin, customer/supplier performance, inventory balances, cash, purchases, expenses and financial position/cash flow; slice by branch/activity/project/cost centre/warehouse/time only when the source returns a valid scope.
+   - Document review/approval queues, user privileges, period closing/locks and audit references.
+   - Optional licensed modules to assess for management value: budgets and sales/purchase/collection plans, BI/MIS, fixed assets and maintenance, fleet, projects/settlements, HR/payroll and attendance. These remain admin-only, are not part of customer self-service, and must not displace the core commerce/ERP connector work.
+
+**Critical connector distinction:** Onyx advertises online mobile applications and services that connect to its own server, including Customer Self Service and Onyx Shopping. This does not by itself establish a public third-party API or grant Aghbari permission to call those internal interfaces. P4 must obtain the official API/web-service/connector documentation, enabled endpoint list, licence and credentials from the company/vendor. Do not reverse-engineer private endpoints, scrape the ERP database, or claim automatic integration merely because a separate Onyx mobile app exists. If only file exchange is licensed, label it assisted/manual and use the existing 27-column/snapshot workflow.
+
 ### Integration Hub / Admin Sync Console
 
 P1 must expose the existing integration capability in the current admin experience, reusing the current `/admin/onyx` and Integration Hub rather than creating parallel navigation. P4 supplies real connector states/actions; P2 supplies secure contracts.
