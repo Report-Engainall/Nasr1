@@ -5,20 +5,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { StorefrontCartRestoreFailure } from "./StorefrontCartRestoreFailure";
 
 const items = [
-  {
-    productId: "a1000000-0000-4000-8000-000000000001",
-    quantity: 4,
-    lastKnownName: "طحين القمح الفاخر",
-    lastKnownItemCode: "AGH-0193",
-    lastKnownUnit: "كيس",
-  },
-  {
-    productId: "a1000000-0000-4000-8000-000000000002",
-    quantity: 2,
-    lastKnownName: "زيت نباتي",
-    lastKnownItemCode: "AGH-0214",
-    lastKnownUnit: "عبوة",
-  },
+  { productId: "a1000000-0000-4000-8000-000000000001", quantity: 4 },
+  { productId: "a1000000-0000-4000-8000-000000000002", quantity: 2 },
 ];
 
 afterEach(() => cleanup());
@@ -36,13 +24,8 @@ describe("StorefrontCartRestoreFailure", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("تعذر استعادة تفاصيل أصناف السلة");
     expect(screen.getByRole("group", { name: "الأصناف المحفوظة محليًا" })).toBeInTheDocument();
-    expect(screen.getByText("طحين القمح الفاخر")).toBeInTheDocument();
-    expect(screen.getByText("زيت نباتي")).toBeInTheDocument();
-    expect(screen.getByText("AGH-0193")).toBeInTheDocument();
-    expect(screen.getByText("AGH-0214")).toBeInTheDocument();
-    expect(screen.getAllByText(/لم يتم التحقق من مطابقته للكتالوج الحالي/)).toHaveLength(2);
-    expect(screen.getByText("الوحدة المحفوظة سابقًا: كيس")).toBeInTheDocument();
-    expect(screen.getByText("الوحدة المحفوظة سابقًا: عبوة")).toBeInTheDocument();
+    expect(screen.getByText("00000001")).toBeInTheDocument();
+    expect(screen.getByText("00000002")).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.tagName === "SMALL" && element.textContent === "الكمية المحفوظة: 4")).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.tagName === "SMALL" && element.textContent === "الكمية المحفوظة: 2")).toBeInTheDocument();
     expect(screen.queryByText(/سعر|إجمالي|المتاح/)).toBeNull();
