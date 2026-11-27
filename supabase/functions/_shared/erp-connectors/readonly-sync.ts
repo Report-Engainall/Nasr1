@@ -509,16 +509,16 @@ function validateContract(connection: ErpConnection, contract: ErpReadContract):
       "عقد ERP لا يجوز أن يعلن في الوقت نفسه عن cursor للصفحات واستجابة delta أحادية مكتملة.",
     );
   }
-  if (!hasCursorParameter && contract.singlePageComplete !== true) {
-    throw new ErpConnectorError(
-      "INCREMENTAL_PAGINATION_UNSUPPORTED",
-      "لا يمكن اعتماد استجابة delta أحادية دون إثبات رسمي بأن رد المزود يحتوي كامل النتائج.",
-    );
-  }
   if (contract.pageSizeParameter !== undefined && !hasCursorParameter) {
     throw new ErpConnectorError(
       "INVALID_PROVIDER_CONTRACT",
       "تقسيم استجابة ERP إلى صفحات يتطلب cursor موثقًا للانتقال والتحقق من اكتمال القراءة.",
+    );
+  }
+  if (!hasCursorParameter && contract.singlePageComplete !== true) {
+    throw new ErpConnectorError(
+      "INCREMENTAL_PAGINATION_UNSUPPORTED",
+      "لا يمكن اعتماد استجابة delta أحادية دون إثبات رسمي بأن رد المزود يحتوي كامل النتائج.",
     );
   }
   if (hasNextCursorPath && (
