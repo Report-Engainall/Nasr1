@@ -287,6 +287,13 @@ describe("demand forecast ISO timestamp offset contract", () => {
     });
   }
 
+  it("accepts PostgreSQL microseconds and rejects sub-microsecond as-of precision", () => {
+    const valid = "2026-11-26T02:45:47.123456Z";
+    expect(resultAt(valid).asOf).toBe(valid);
+    expect(() => resultAt("2026-11-26T02:45:47.1234567Z"))
+      .toThrow("demand_forecast_id_or_timestamp_invalid");
+  });
+
   for (const timestamp of [
     "2026-11-26T16:45:47.000+14:01",
     "2026-11-26T02:45:47.000-14:01",
