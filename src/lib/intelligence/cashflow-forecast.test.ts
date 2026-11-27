@@ -163,3 +163,26 @@ describe("cashflow metric generation clock", () => {
   expect(result.points[0]).toMatchObject({openingBalance:100,projectedBalance:100,status:"VERIFIED"});
  });
 });
+
+
+describe("cashflow forecast currency visibility under incomplete evidence",()=>{
+ it("keeps an unverified currency visible without inventing a balance or movements",()=>{
+  const scheduled=entry("needs-review-entry","INFLOW","2026-11-01",20);
+  const incompleteEvidence={...evidence("needs-review-entry","YER"),status:"NEEDS_REVIEW" as const,completeness:"PARTIAL" as const};
+  const result=buildCashflowForecast({
+   ...base([scheduled]),
+   openingBalances:[],
+   evidenceRecords:[incompleteEvidence],
+  });
+  const points=result.points.filter(point=>point.currency==="YER");
+  expect(points.map(point=>point.horizonDays)).toEqual([7,30,90]);
+  for(const point of points){
+   expect(point).toMatchObject({
+    currency:"YER",openingBalance:null,knownInflows:null,knownOutflows:null,
+    projectedBalance:null,status:"NEEDS_REVIEW",scheduleComplete:false,
+   });
+   expect(point.warnings).toContain("SCHEDULE_ENTRY_NOT_VERIFIED");
+   expect(point.evidenceIds).toContain("needs-review-entry");
+  }
+ });
+});
