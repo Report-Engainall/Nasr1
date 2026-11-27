@@ -18,7 +18,7 @@ Base SHA: `d7da98a0a11872c8c263c4dbf26dba258637d95e`
 
 ## Latest main and integration boundary
 - Latest observed `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e` (execution cursor refresh after product-image acceptance).
-- PR #641 remains open; current compare is **12 commits ahead / 5 behind**, merge base `d7da98a0a11872c8c263c4dbf26dba258637d95e`, with exactly three unique paths: `.github/workflows/p2-playwright-critical-paths.yml`, this P2 checkpoint, and `scripts/test-supplier-invoice-three-way-accounting.mjs`.
+- PR #641 remains open; current compare against `main` `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e` is **13 commits ahead / 5 behind**, merge base `d7da98a0a11872c8c263c4dbf26dba258637d95e`, with exactly three unique paths: `.github/workflows/p2-playwright-critical-paths.yml`, this P2 checkpoint, and `scripts/test-supplier-invoice-three-way-accounting.mjs`.
 - P1 owns synchronizing with `586db78...`, reviewing those three scoped paths, incorporating its page-2 assertion correction, and rerunning P1/P2 on the exact synchronized head. P2 does not merge to `main`; P3 retains merge authority.
 - Do not carry current-head acceptance to any post-sync SHA without exact-head reruns. Hosted E2E remains SKIPPED and release remains NO-GO until separately authorized hosted target identity and credentials are proven.
 
