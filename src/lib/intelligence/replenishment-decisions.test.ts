@@ -156,4 +156,24 @@ describe("replenishment decision integration", () => {
   });
 
 
+  it.each([
+    ["formulaId", "unknown.replenishment"],
+    ["formulaVersion", "999.0.0"],
+  ] as const)("rejects a recommendation with an unregistered %s", (field, value) => {
+    const unregistered = recommendation({ [field]: value } as Partial<ReplenishmentRecommendation>);
+    expect(buildReplenishmentDecisionCandidates({
+      asOf, products: [product()], recommendations: [unregistered],
+    })).toEqual([]);
+  });
+
+  it("withholds duplicate recommendations for the same product instead of emitting duplicate decisions", () => {
+    const valid = recommendation();
+    expect(buildReplenishmentDecisionCandidates({
+      asOf, products: [product()],
+      recommendations: [valid, { ...valid, productRef: " SKU-1 " }],
+    })).toEqual([]);
+  });
+
+
+
 });
