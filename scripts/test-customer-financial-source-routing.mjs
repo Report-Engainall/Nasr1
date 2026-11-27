@@ -242,6 +242,11 @@ async function main() {
     "APP_ONLY receipt print returns the saved receipt");
   assert.equal(appOnlyReceiptPrint.allocations.length, 2,
     "APP_ONLY receipt print reconciles both saved invoice allocations");
+  const staffPrintedAllocationTotal = appOnlyReceiptPrint.allocations.reduce(
+    (sum, allocation) => sum + Number(allocation.amount), 0,
+  );
+  assert.equal(staffPrintedAllocationTotal, Number(appOnlyReceiptPrint.receipt.total_amount),
+    "staff print DTO amounts must reconcile exactly to the saved receipt header");
 
   const customerReceiptOptions = await rpc(customerDb,
     "select public.get_my_customer_payment_receipt_print_options(50,0) as result");
@@ -346,6 +351,33 @@ async function main() {
 
     await expectFailure(
       "customer receipt print holds all existing allocation rows against concurrent mutation",
+      serviceDb.unsafe(
+        "select id from public.customer_payments where receipt_id=$1::uuid for update nowait",
+        [sourceTestReceiptId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
+
+  // Staff print uses the same binding -> receipt -> allocations lock order.
+  await managerDb.begin(async tx => {
+    await setIdentity(tx, manager.auth_user_id, manager.email);
+    const staffLockedPrint = await rpc(tx,
+      "select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result",
+      [sourceTestReceiptId]);
+    assert.equal(staffLockedPrint.receipt.id, sourceTestReceiptId);
+    await expectFailure(
+      "staff receipt printer blocks a concurrent FK KEY SHARE reference that could append a phantom allocation",
+      serviceDb.unsafe(
+        "select id from public.customer_payment_receipts where id=$1::uuid for key share nowait",
+        [sourceTestReceiptId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+    await expectFailure(
+      "staff receipt printer blocks concurrent allocation-row mutation",
       serviceDb.unsafe(
         "select id from public.customer_payments where receipt_id=$1::uuid for update nowait",
         [sourceTestReceiptId],
