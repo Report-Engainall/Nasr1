@@ -165,6 +165,66 @@ describe("claim evidence passports", () => {
     expect(built[0].sourceRecords.map((item) => item.source.name)).toContain("causal_studies");
   });
 
+  it("rejects source timestamps one microsecond after a claim snapshot", () => {
+    const futureSource = record("invoice-1", "customer_invoices", {
+      sourceTimestamp: "2026-11-17T00:00:00.000001Z",
+    });
+    const built = buildClaimEvidencePassports(
+      passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [futureSource]),
+      [oneMetricClaim()],
+    );
+    expect(built[0].status).toBe("UNVERIFIED");
+    expect(built[0].boundaries).toContain("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
+  });
+
+  it("rejects source timestamps finer than PostgreSQL microsecond precision", () => {
+    const invalidSource = record("invoice-1", "customer_invoices", {
+      sourceTimestamp: "2026-11-16T23:00:00.1234567Z",
+    });
+    const built = buildClaimEvidencePassports(
+      passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [invalidSource]),
+      [oneMetricClaim()],
+    );
+    expect(built[0].status).toBe("UNVERIFIED");
+    expect(built[0].boundaries).toContain("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
+  });
+
+  it("does not prove a causal claim with verification one microsecond after its snapshot", () => {
+    const studyRecord = record("causal-1", "causal_studies", {
+      source: { kind: "CAUSAL_STUDY", name: "causal_studies", recordId: "study-1", version: "study-v1" },
+    });
+    const built = buildClaimEvidencePassports(
+      passport([
+        metric("metric-1", "exposure.discount_rate", "invoice-1", { unit: "RATIO", currency: undefined }),
+        metric("metric-2", "outcome.margin_rate", "ledger-1", { unit: "RATIO", currency: undefined }),
+      ], [
+        record("invoice-1", "customer_invoices", { currency: undefined }),
+        record("ledger-1", "general_ledger", { currency: undefined }),
+        studyRecord,
+      ]),
+      [{
+        id: "causal-claim",
+        statement: "التجربة تثبت أثر الخصم على هامش الربح",
+        kind: "CAUSE",
+        metricIds: ["metric-1", "metric-2"],
+        causalStudy: {
+          evidenceIds: ["causal-1"],
+          methodology: "difference-in-differences",
+          design: "matched control group",
+          assumptions: ["parallel trends"],
+          confounderAssessment: "promotion season adjusted",
+          verifiedAt: "2026-11-17T00:00:00.000001Z",
+          reviewedBy: "finance-reviewer",
+          confidence: 0.82,
+          confidenceBasis: "registered causal study",
+        },
+      }],
+    );
+    expect(built[0].classification).toBe("DRIVER");
+    expect(built[0].causalStatus).toBe("NOT_ESTABLISHED");
+    expect(built[0].status).toBe("NEEDS_REVIEW");
+  });
+
   it("rejects a metric marked verified when its referenced source record is not verified", () => {
     const unverifiedSource = record("invoice-1", "customer_invoices", { status: "UNVERIFIED" });
     const built = buildClaimEvidencePassports(
