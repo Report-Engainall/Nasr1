@@ -5,6 +5,13 @@ Role: P2 — inventory data lineage, purchase commitments, PostgreSQL 17, tenant
 PR: #681 — https://github.com/Report-Engainall/Nasr1/pull/681
 Branch: `p2/replenishment-open-po-pg17-20261127-v2`
 
+## P1 pagination-fixture dependency consumed unchanged — 2026-11-27
+- The P2 browser run on the earlier branch head `929e171387e5878325e9adf73c5f0a969f0ed8ac` failed its public smoke only on the P1-owned test helper expecting HTTP `Range: 0-24`, while the real page uses PostgREST `offset`/`limit`. The local P2 Supabase job independently continued and had reached 52/71 steps without failures.
+- The exact P1-authored helper blob `b8505a706773062c49ce0cceef76d76e19166117`, committed by P1 as `c73c9f7983234d877d1cf96544f4b61c16e36676` and already exercised by the public-smoke **SUCCESS** in #605, was reused byte-for-byte in this P2 branch. No P1 logic was edited or rewritten.
+- New current PR code head: `0f51d6a349cd25d2e8e025b294079940a8de4fee`; compare to `main` `348da8e756201fc103089cf4a5a690a4132528b7`: **13 ahead / 0 behind**, four paths (existing P2 workflow, this checkpoint, the P1 test helper blob, and P2 replenishment acceptance script). No production migration/RPC/source change.
+- P2 [run 46064801689](https://github.com/Report-Engainall/Nasr1/actions/runs/46064801689) and P1 [run 46064801698](https://github.com/Report-Engainall/Nasr1/actions/runs/46064801698) were **QUEUED** at checkpoint time. The earlier P2 workflow on `929e...` remained in progress; its outcome is not carried to the new SHA.
+- Next: poll the exact `0f51d6a...` P2 public smoke, local PG17 replenishment test and authenticated Chromium suite; record only exact-head completed evidence. P1 owns final merge. P2 did not touch production or main.
+
 ## Scope and canonical contract
 - The production aggregate and unit-normalization migrations are already on `main`: `20261105230000_intelligence_replenishment_open_purchase_orders.sql` and `20261117150000_inventory_replenishment_open_po_unit_normalization.sql`.
 - This PR adds acceptance coverage only; it does not change production schema/RPC behavior or P1/P3 UI/engine code.
