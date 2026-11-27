@@ -778,6 +778,8 @@ BEGIN
                 FROM public.inventory_movements unbatched_ledger
                 JOIN public.orders active_order
                   ON active_order.id=unbatched_ledger.reference_id AND active_order.organization_id=v_org
+                JOIN public.warehouses active_warehouse
+                  ON active_warehouse.id=unbatched_ledger.warehouse_id AND active_warehouse.organization_id=v_org
                WHERE unbatched_ledger.reference_type='order'
                  AND unbatched_ledger.product_id=g.product_id
                  AND unbatched_ledger.inventory_batch_id IS NOT NULL
@@ -794,12 +796,16 @@ BEGIN
         ) active_warehouses
        WHERE NOT EXISTS(
          SELECT 1 FROM public.inventory_balances present
+          JOIN public.warehouses present_warehouse
+            ON present_warehouse.id=present.warehouse_id AND present_warehouse.organization_id=v_org
           WHERE present.product_id=g.product_id
             AND present.warehouse_id=active_warehouses.warehouse_id
        )
     )
     AND NOT EXISTS(
       SELECT 1 FROM public.inventory_balances balance
+       JOIN public.warehouses balance_warehouse
+         ON balance_warehouse.id=balance.warehouse_id AND balance_warehouse.organization_id=v_org
        WHERE balance.product_id=g.product_id
          AND balance.quantity_reserved < coalesce((
            SELECT pg_catalog.sum(active_balance_reservations.reserved_quantity)
