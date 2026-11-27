@@ -553,6 +553,35 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     expect(result.counts.created).toBe(2);
   });
 
+  it("rejects invalid price rows from any connector before they reach persistence", async () => {
+    const store = new InMemoryCheckpointStore();
+    const connector: ErpReadConnector = {
+      readPage: async () => ({
+        records: [{
+          ...record("bad-price", "2026-11-27T10:00:00Z"),
+          objectType: "product_prices",
+          fields: {
+            item_code: "000125",
+            price_list_code: "WHOLESALE",
+            currency_code: "YER",
+            unit_price: -10,
+            discount_percent: 25,
+          },
+        }],
+        nextCursor: null,
+        httpStatus: 200,
+        externalRequestId: null,
+        responseSha256: "9".repeat(64),
+      }),
+    };
+    await expect(runIncrementalReadOnlySync({
+      connector,
+      store,
+      scope: { ...scope, objectType: "product_prices" },
+    })).rejects.toMatchObject({ code: "INVALID_ERP_PRICE" });
+    expect(store.committed).toHaveLength(0);
+  });
+
   it("keeps a bounded run resumable instead of fetching an unbounded export", async () => {
     const store = new InMemoryCheckpointStore();
     let calls = 0;
