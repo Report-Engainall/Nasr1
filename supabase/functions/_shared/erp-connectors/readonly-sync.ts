@@ -773,14 +773,14 @@ function validateCheckpoint(value: ErpCheckpoint): ErpCheckpoint {
   if (!value || !Number.isSafeInteger(value.version) || value.version < 0) {
     throw new ErpConnectorError("INVALID_SYNC_CHECKPOINT", "إصدار checkpoint غير صالح.");
   }
-  for (const field of ["completedWatermark", "pendingWatermark"] as const) {
-    const timestamp = value[field];
-    if (timestamp !== null && validateTimestamp(timestamp) !== timestamp) {
-      throw new ErpConnectorError("INVALID_SYNC_CHECKPOINT", "قيمة watermark غير موحدة بصيغة UTC.");
-    }
-  }
+  const completedWatermark = value.completedWatermark === null
+    ? null
+    : validateTimestamp(value.completedWatermark);
+  const pendingWatermark = value.pendingWatermark === null
+    ? null
+    : validateTimestamp(value.pendingWatermark);
   if (value.cursor !== null) cleanIdentity(value.cursor, "cursor", MAX_CURSOR_LENGTH);
-  return value;
+  return { ...value, completedWatermark, pendingWatermark };
 }
 
 function maxTimestamp(...values: Array<string | null>): string | null {
