@@ -833,6 +833,7 @@ async function main() {
   assert.equal(invoicePreview.records.length, 1);
   assert.equal(invoicePreview.records[0].external_id, "ONYX-INVOICE-1001");
   assert.equal(invoicePreview.records[0].last_disposition, "created");
+  assert.equal(invoicePreview.records[0].last_disposition_reason, null);
   assert.equal(asJson(invoicePreview.records[0].fields).total_amount, "1250.7500");
   assert.equal(asJson(invoicePreview.records[0].fields).currency_code, "YER");
   assert.equal(Object.prototype.hasOwnProperty.call(invoicePreview.records[0], "idempotency_key"), false,
