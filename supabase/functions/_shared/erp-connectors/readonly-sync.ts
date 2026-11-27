@@ -766,7 +766,7 @@ export async function runIncrementalReadOnlySync(input: {
   const maxPages = input.maxPages ?? 10;
   const maxRecords = input.maxRecords ?? 2000;
   if (!UUID_PATTERN.test(input.scope.organizationId) ||
-      !["onyx_pro", "al_mutakamel"].includes(scope.provider) ||
+      !["onyx_pro", "al_mutakamel"].includes(input.scope.provider) ||
       !Object.prototype.hasOwnProperty.call(SAFE_FIELDS, input.scope.objectType) ||
       !Number.isSafeInteger(overlapMs) || overlapMs < 0 || overlapMs > 24 * 60 * 60 * 1000 ||
       !Number.isInteger(maxPages) || maxPages < 1 || maxPages > MAX_SYNC_PAGES ||
