@@ -159,6 +159,29 @@ describe("supplier performance evidence contract", () => {
     expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
   });
 
+  it.each([
+    ["ten fractional digits", "2026-11-26T12:00:00.1234567890Z"],
+    ["hour beyond 23", "2026-11-26T25:00:00.000Z"],
+    ["minute beyond 59", "2026-11-26T12:60:00.000Z"],
+    ["second beyond 59", "2026-11-26T12:00:60.000Z"],
+    ["UTC offset beyond 14 hours", "2026-11-26T12:00:00.000+14:01"],
+    ["unsupported 23-hour UTC offset", "2026-11-26T12:00:00.000+23:59"],
+  ])("rejects invalid timestamp precision or clock range: %s", (_label, value) => {
+    const input = snapshot();
+    input.asOf = value;
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
+  it.each([
+    ["ten fractional digits", "2026-11-02T09:00:00.1234567890Z"],
+    ["invalid clock minute", "2026-11-02T09:60:00.000Z"],
+    ["unsupported UTC offset", "2026-11-02T09:00:00.000+15:00"],
+  ])("rejects a recent order submitted with invalid timestamp precision: %s", (_label, submittedAt) => {
+    const input = snapshot();
+    input.suppliers[0].recentOrders[3].submittedAt = submittedAt;
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
   it("rejects a report period wider than the source RPC contract", () => {
     const input = snapshot();
     input.period.from = "2024-01-01";
