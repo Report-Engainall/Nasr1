@@ -57,6 +57,16 @@ export function isDailyDecisionOverdue(record: DecisionMemoryRecord, now: number
   return Number.isFinite(dueAt) && dueAt <= now;
 }
 
+export function normalizeDailyDecisionSearch(value: string): string {
+  return value.normalize("NFKC")
+    .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .toLocaleLowerCase()
+    .trim();
+}
+
 function decisionSearchText(record: DecisionMemoryRecord): string {
   const candidate = record.candidateSnapshot;
   const evidenceNames = (record.snapshot?.evidenceRecords ?? [])
@@ -75,7 +85,7 @@ function decisionSearchText(record: DecisionMemoryRecord): string {
     candidate?.what ?? "", candidate?.why ?? "", candidate?.risk ?? "",
     candidate?.owner ?? "", candidate?.whatNext ?? "", candidate?.expectedOutcome ?? "",
     ...evidenceNames,
-  ].join(" ").toLocaleLowerCase();
+  ].join(" ").split(/\\s+/).map(normalizeDailyDecisionSearch).join(" ");
 }
 
 function matchesDailyDecisionFilter(
@@ -112,7 +122,7 @@ export function filterDailyDecisionRecords(
   query: string,
   now: number,
 ): DecisionMemoryRecord[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = normalizeDailyDecisionSearch(query);
   return records
     .filter(record => matchesDailyDecisionFilter(record, filter, now))
     .filter(record => !normalizedQuery || decisionSearchText(record).includes(normalizedQuery))
@@ -371,7 +381,36 @@ function DecisionCard({
   );
 }
 
-const DAILY_DECISION_PAGE_SIZE = 10;
+export const DAILY_DECISION_PAGE_SIZE = 10;
+
+export interface DailyDecisionBoardPage {
+  items: DecisionMemoryRecord[];
+  pageIndex: number;
+  pageCount: number;
+  firstItem: number;
+  lastItem: number;
+}
+
+export function paginateDailyDecisionRecords(
+  records: DecisionMemoryRecord[],
+  requestedPage: number,
+  pageSize = DAILY_DECISION_PAGE_SIZE,
+): DailyDecisionBoardPage {
+  const safePageSize = Number.isSafeInteger(pageSize) && pageSize > 0 ? pageSize : DAILY_DECISION_PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil(records.length / safePageSize));
+  const requested = Number.isSafeInteger(requestedPage) ? Math.max(0, requestedPage) : 0;
+  const pageIndex = Math.min(requested, pageCount - 1);
+  const start = pageIndex * safePageSize;
+  const items = records.slice(start, start + safePageSize);
+  return {
+    items,
+    pageIndex,
+    pageCount,
+    firstItem: records.length === 0 ? 0 : start + 1,
+    lastItem: Math.min(start + safePageSize, records.length),
+  };
+}
+
 const boardFilters: Array<{ value: DailyDecisionBoardFilter; label: string }> = [
   { value: "ALL", label: "الكل" },
   { value: "OPEN", label: "تحتاج إجراء" },
@@ -393,12 +432,12 @@ export function DailyDecisionBoard({
   const [page, setPage] = useState(0);
   const counts = summarizeDailyDecisionBoard(result.records, now);
   const filteredRecords = filterDailyDecisionRecords(result.records, activeFilter, searchQuery, now);
-  const pageCount = Math.max(1, Math.ceil(filteredRecords.length / DAILY_DECISION_PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount - 1);
-  const pageStart = currentPage * DAILY_DECISION_PAGE_SIZE;
-  const visibleRecords = filteredRecords.slice(pageStart, pageStart + DAILY_DECISION_PAGE_SIZE);
-  const firstVisible = filteredRecords.length === 0 ? 0 : pageStart + 1;
-  const lastVisible = Math.min(pageStart + DAILY_DECISION_PAGE_SIZE, filteredRecords.length);
+  const pageView = paginateDailyDecisionRecords(filteredRecords, page);
+  const currentPage = pageView.pageIndex;
+  const pageCount = pageView.pageCount;
+  const visibleRecords = pageView.items;
+  const firstVisible = pageView.firstItem;
+  const lastVisible = pageView.lastItem;
 
   return (
     <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
