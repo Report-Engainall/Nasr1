@@ -142,6 +142,9 @@ describe("daily decision work queue selectors", () => {
     expect(isDailyDecisionDueWithin(dueThisWeek, NOW, 24 * 60 * 60 * 1000)).toBe(false);
     expect(isDailyDecisionDueWithin(dueThisWeek, NOW, 7 * 24 * 60 * 60 * 1000)).toBe(true);
     expect(isDailyDecisionUnscheduled(noSchedule)).toBe(true);
+    expect(isDailyDecisionUnscheduled(decision("executed", "EXECUTED", {
+      reviewDisposition: "NOT_SCHEDULED",
+    }))).toBe(false);
     expect(isDailyDecisionUnscheduled(terminal)).toBe(false);
     expect(filterDailyDecisionRecords([late, dueSoon, dueThisWeek, noSchedule, terminal], "DUE_24H", "", NOW)
       .map(item => item.decisionId)).toEqual(["soon"]);
