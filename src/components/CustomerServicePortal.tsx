@@ -18,7 +18,7 @@ function readCustomerFinancialRequestIntent(searchStr:string):CustomerFinancialR
  return value==="balance_review"||value==="statement_period"?value:null;
 }
 function isCalendarDate(value:string):boolean{
- if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)||Number(value.slice(0,4))<1)return false;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||Number(value.slice(0,4))<1)return false;
  const timestamp=Date.parse(value+"T00:00:00.000Z");
  return Number.isFinite(timestamp)&&new Date(timestamp).toISOString().slice(0,10)===value;
 }
@@ -79,10 +79,11 @@ function Workspace(){
   setTypeDraft("");setAppliedType(null);
  },[linkedCaseCode]);
  useEffect(()=>{
-  setFinancialRequestIntent(requestedFinancialIntent);
+  const intent=readCustomerFinancialRequestIntent(location.searchStr);
+  setFinancialRequestIntent(intent);
   setStatementPeriodFrom("");
   setStatementPeriodThrough("");
-  setDraft(requestedFinancialIntent?financialRequestDraft(requestedFinancialIntent):initialDraft);
+  setDraft(intent?financialRequestDraft(intent):initialDraft);
   setRequestKey(newCustomerServicePortalRequestKey());
   setError("");
  },[location.searchStr]);
@@ -119,7 +120,7 @@ function Workspace(){
   if(!canCreate||!draft.subject.trim()||!draft.description.trim())return;
   if(!statementPeriodValid){setError("حدد تاريخ بداية ونهاية صحيحين، على أن تكون البداية قبل النهاية أو مساوية لها.");return;}
   const description=financialRequestIntent==="statement_period"
-   ?draft.description.trim()+"\\n\\nالفترة المطلوبة (شاملة اليومين): "+statementPeriodFrom+" إلى "+statementPeriodThrough+"."
+   ?draft.description.trim()+"\n\nالفترة المطلوبة (شاملة اليومين): "+statementPeriodFrom+" إلى "+statementPeriodThrough+"."
    :draft.description.trim();
   if(description.length>4000){setError("تفاصيل الطلب أطول من الحد المسموح؛ اختصر النص ثم أعد الإرسال.");return;}
   setSaving(true);setError("");setNotice("");

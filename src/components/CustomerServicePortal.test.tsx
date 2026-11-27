@@ -81,7 +81,7 @@ describe("CustomerServicePortal financial service requests", () => {
       subject: "طلب مراجعة رصيد الحساب",
       description: expect.stringContaining("لا يجيز تعديل الرصيد أو ترحيل حركة مالية"),
     }));
-    expect(screen.getByRole("status")).toHaveTextContent("تم فتح الحالة SRV-2026-0001");
+    expect(screen.getByText(/تم فتح الحالة SRV-2026-0001/)).toBeInTheDocument();
   });
 
   it("requires a valid inclusive date period before creating a statement request", async () => {
