@@ -209,6 +209,14 @@ async function main() {
   const sourceTestReceiptId = seededReceipt.receipt_id;
   assert.ok(sourceTestReceiptId, "a real two-invoice customer receipt is atomically saved");
 
+  const appOnlyCustomer360 = await rpc(managerDb,
+    "select public.get_staff_customer_360($1::uuid) as result",
+    [customerId]);
+  assert.equal(appOnlyCustomer360.customer.id, customerId,
+    "APP_ONLY Customer 360 returns the scoped customer");
+  assert.ok(Array.isArray(appOnlyCustomer360.finance_by_currency),
+    "APP_ONLY Customer 360 returns its currency-separated finance projection");
+
   const appOnlyReceiptOptions = await rpc(accountantDb,
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.ok(appOnlyReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
@@ -446,6 +454,13 @@ async function main() {
     "app ledger fallback is prohibited",
   );
 
+  await expectFailure(
+    "staff Customer 360 cannot return an APP_ONLY finance snapshot after ONYX cutover",
+    rpc(managerDb, "select public.get_staff_customer_360($1::uuid) as result", [customerId]),
+    "55000",
+    "APP_ONLY Customer 360 finance snapshot",
+  );
+
   const externalInvoiceRows = await customerDb.unsafe(
     "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
     [sourceTestInvoiceId, orgId, customerId],
@@ -539,6 +554,13 @@ async function main() {
   assert.equal(mutakamelApproved.source_mode, "MUTAKAMEL");
   assert.equal(mutakamelApproved.revision, 3);
 
+  await expectFailure(
+    "staff Customer 360 cannot return an APP_ONLY finance snapshot after MUTAKAMEL cutover",
+    rpc(managerDb, "select public.get_staff_customer_360($1::uuid) as result", [customerId]),
+    "55000",
+    "APP_ONLY Customer 360 finance snapshot",
+  );
+
   const mutakamelReceiptOptions = await rpc(accountantDb,
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.equal(mutakamelReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId), false,
@@ -575,6 +597,12 @@ async function main() {
   const finalResolver = await rpc(customerDb, "select public.get_my_customer_financial_source() as result");
   assert.equal(finalResolver.source_mode, "APP_ONLY");
   assert.equal(finalResolver.can_read_app_ledger, true);
+
+  const finalCustomer360 = await rpc(managerDb,
+    "select public.get_staff_customer_360($1::uuid) as result",
+    [customerId]);
+  assert.equal(finalCustomer360.customer.id, customerId,
+    "Customer 360 finance projection is restored only after approved APP_ONLY return");
   const finalStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
   assert.equal(JSON.stringify(finalStatement.summary), initialSummary, "source cutover must not synthesize or alter the app ledger");
 
