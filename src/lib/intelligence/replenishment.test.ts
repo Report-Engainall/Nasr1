@@ -319,3 +319,21 @@ describe("replenishment snapshot calculation clock", () => {
     expect(result.recommendations[0].warnings).toContain("METRIC_CALCULATION_TIMESTAMP_INVALID");
   });
 });
+
+describe("replenishment UTC offset ceiling", () => {
+  it.each([
+    ["+14:00", "2026-11-26T14:00:00.000+14:00"],
+    ["-14:00", "2026-11-25T10:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, asOf) => {
+    const result = build([], { asOf });
+    expect(result.asOf).toBe(asOf);
+  });
+
+  it.each([
+    "2026-11-26T14:00:00.000+14:01",
+    "2026-11-25T10:00:00.000-14:01",
+    "2026-11-26T23:59:00.000+23:59",
+  ])("rejects a replenishment snapshot clock beyond the ISO offset range: %s", asOf => {
+    expect(() => build([], { asOf })).toThrow("asOf must be valid");
+  });
+});
