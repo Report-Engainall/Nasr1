@@ -331,8 +331,11 @@ BEGIN
     IF p_object_type='customer_financial_documents' THEN
       IF jsonb_typeof(v_fields->'document_number') IS DISTINCT FROM 'string'
          OR length(btrim(v_fields->>'document_number')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'document_type') IS DISTINCT FROM 'string'
          OR (v_fields->>'document_type') NOT IN ('invoice','credit_note','debit_note')
+         OR jsonb_typeof(v_fields->'document_status') IS DISTINCT FROM 'string'
          OR (v_fields->>'document_status') NOT IN ('draft','posted','partial','paid','overdue','voided','cancelled','reversed')
+         OR jsonb_typeof(v_fields->'issue_date') IS DISTINCT FROM 'string'
          OR (v_fields->>'issue_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
          OR jsonb_typeof(v_fields->'total_amount') IS DISTINCT FROM 'string'
          OR (v_fields->>'total_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
@@ -348,7 +351,9 @@ BEGIN
     ELSIF p_object_type='customer_payment_receipts' THEN
       IF jsonb_typeof(v_fields->'receipt_number') IS DISTINCT FROM 'string'
          OR length(btrim(v_fields->>'receipt_number')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'payment_status') IS DISTINCT FROM 'string'
          OR (v_fields->>'payment_status') NOT IN ('confirmed','pending','voided','reversed')
+         OR jsonb_typeof(v_fields->'receipt_date') IS DISTINCT FROM 'string'
          OR (v_fields->>'receipt_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
          OR jsonb_typeof(v_fields->'amount') IS DISTINCT FROM 'string'
          OR (v_fields->>'amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
@@ -358,7 +363,9 @@ BEGIN
     ELSIF p_object_type='customer_statement_entries' THEN
       IF jsonb_typeof(v_fields->'entry_reference') IS DISTINCT FROM 'string'
          OR length(btrim(v_fields->>'entry_reference')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'entry_type') IS DISTINCT FROM 'string'
          OR (v_fields->>'entry_type') NOT IN ('invoice','payment','credit_note','debit_note','opening_balance','adjustment')
+         OR jsonb_typeof(v_fields->'entry_date') IS DISTINCT FROM 'string'
          OR (v_fields->>'entry_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
          OR jsonb_typeof(v_fields->'debit_amount') IS DISTINCT FROM 'string'
          OR jsonb_typeof(v_fields->'credit_amount') IS DISTINCT FROM 'string'
