@@ -1305,6 +1305,8 @@ function Statement() {
         <button style={secondary} onClick={() => window.print()} disabled={!appLedgerAvailable || loading}>
           <Printer size={15} /> طباعة من المتصفح
         </button>
+        <a href="/service-cases?request=statement_period" style={{...secondary,textDecoration:"none"}}>طلب كشف حساب لفترة</a>
+        <a href="/service-cases?request=balance_review" style={{...secondary,textDecoration:"none"}}>طلب مراجعة الرصيد</a>
       </div>
       {error && <ErrorBox message={error} retry={() => void load()} />}
       {pdfError && <ErrorBox message={pdfError} retry={() => void downloadStatementPdf()} />}
