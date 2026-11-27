@@ -458,7 +458,7 @@ describe("decision outcome strict evidence clock and lifecycle chronology", () =
   });
 
   it("accepts the ISO maximum timezone offset for persisted lifecycle clocks", async () => {
-    const at = "2026-10-31T23:59:59.000+14:00";
+    const at = "2026-10-31T23:59:59.123456+14:00";
     const valid = {
       ...outcome,
       createdAt: at,
@@ -467,6 +467,19 @@ describe("decision outcome strict evidence clock and lifecycle chronology", () =
     };
     rpc.mockResolvedValueOnce({ data: { items: [valid], total: 1 }, error: null });
     await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: true, items: [{ state: "PROPOSED" }] });
+  });
+
+  it("rejects decision evidence clocks finer than PostgreSQL microseconds", async () => {
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshotForClockTests,
+        proof: {
+          ...rankedCandidateSnapshotForClockTests.proof,
+          asOf: "2026-10-31T10:00:00.1234567Z",
+        },
+      },
+    });
   });
 
   it("rejects measured evidence with an impossible period date", async () => {
