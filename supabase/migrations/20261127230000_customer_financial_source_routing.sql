@@ -1210,24 +1210,35 @@ CREATE OR REPLACE FUNCTION public.customer_app_only_receipt_read_allowed(
   p_organization_id uuid
 )
 RETURNS boolean
-LANGUAGE sql
-STABLE
+LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
-  SELECT auth.uid() IS NOT NULL
-     AND p_customer_id IS NOT NULL
-     AND p_organization_id IS NOT NULL
-     AND p_organization_id = public.current_organization_id()
-     AND public.can_manage_finance()
-     AND EXISTS (
-       SELECT 1
-         FROM public.customer_financial_source_bindings b
-        WHERE b.organization_id = p_organization_id
-          AND b.customer_id = p_customer_id
-          AND b.source_mode = 'APP_ONLY'
-          AND b.source_status = 'active'
-     )
+DECLARE
+  v_source_mode text;
+  v_source_status text;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_customer_id IS NULL
+     OR p_organization_id IS NULL
+     OR p_organization_id IS DISTINCT FROM public.current_organization_id()
+     OR NOT public.can_manage_finance() THEN
+    RETURN false;
+  END IF;
+
+  -- Direct finance receipt reads must serialize with the same source cutover lock.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=p_organization_id
+     AND b.customer_id=p_customer_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  RETURN v_source_mode='APP_ONLY' AND v_source_status='active';
+END
 $function$;
 REVOKE ALL ON FUNCTION public.customer_app_only_receipt_read_allowed(uuid,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.customer_app_only_receipt_read_allowed(uuid,uuid) TO authenticated;
@@ -3555,24 +3566,35 @@ CREATE OR REPLACE FUNCTION public.customer_app_only_receipt_read_allowed(
   p_organization_id uuid
 )
 RETURNS boolean
-LANGUAGE sql
-STABLE
+LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
-  SELECT auth.uid() IS NOT NULL
-     AND p_customer_id IS NOT NULL
-     AND p_organization_id IS NOT NULL
-     AND p_organization_id = public.current_organization_id()
-     AND public.can_manage_finance()
-     AND EXISTS (
-       SELECT 1
-         FROM public.customer_financial_source_bindings b
-        WHERE b.organization_id = p_organization_id
-          AND b.customer_id = p_customer_id
-          AND b.source_mode = 'APP_ONLY'
-          AND b.source_status = 'active'
-     )
+DECLARE
+  v_source_mode text;
+  v_source_status text;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_customer_id IS NULL
+     OR p_organization_id IS NULL
+     OR p_organization_id IS DISTINCT FROM public.current_organization_id()
+     OR NOT public.can_manage_finance() THEN
+    RETURN false;
+  END IF;
+
+  -- Direct finance receipt reads must serialize with the same source cutover lock.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=p_organization_id
+     AND b.customer_id=p_customer_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  RETURN v_source_mode='APP_ONLY' AND v_source_status='active';
+END
 $function$;
 REVOKE ALL ON FUNCTION public.customer_app_only_receipt_read_allowed(uuid,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.customer_app_only_receipt_read_allowed(uuid,uuid) TO authenticated;

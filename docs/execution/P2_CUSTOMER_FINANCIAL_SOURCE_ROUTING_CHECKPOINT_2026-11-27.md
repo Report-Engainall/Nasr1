@@ -166,3 +166,10 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - The source change review RPC already locks the same binding `FOR UPDATE` before approving and increments its revision/source in one transaction. Direct customer and finance-staff invoice and invoice-line RLS reads now hold their shared binding lock until the caller's transaction ends, so an approved cutover must wait for any in-flight APP_ONLY query to finish; a read arriving after cutover sees the external source and is denied.
 - Added real PostgreSQL acceptance for both customer and finance-staff direct invoice + invoice-line RLS paths. While each read transaction is open, a separate service-role connection's `FOR UPDATE NOWAIT` against the same binding must fail with `55P03`. Existing external-source RLS denial and no-fallback tests remain.
 - This closes the server-side race, not only the P1 client revalidation race. The exact updated migration + acceptance must pass isolated PostgreSQL 17 before this change is accepted.
+
+## 2026-11-28 — Finance receipt RLS source lock
+
+- Replaced both migration definitions of `customer_app_only_receipt_read_allowed(uuid,uuid)` with a `VOLATILE` SECURITY DEFINER predicate that validates the active finance organization/capability, locks the exact source binding `FOR SHARE`, and returns true only for an active APP_ONLY source.
+- Direct reads of `customer_payment_receipts` therefore use the same source-binding lock as invoice RLS, customer/staff receipt print, statement and Customer 360. The Maker/Checker cutover's `FOR UPDATE` cannot pass an in-flight direct receipt-history read.
+- Added a PostgreSQL 17 race assertion: an accountant directly selects the real APP_ONLY receipt row inside an open transaction; a second service-role connection attempting `FOR UPDATE NOWAIT` on the source binding must fail with `55P03`.
+- Existing authenticated-customer direct receipt access remains denied by the existing policy/grants; customer self-service uses the customer-scoped list/print RPCs which already lock the source binding.

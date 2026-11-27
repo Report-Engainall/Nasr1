@@ -359,6 +359,28 @@ async function main() {
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.ok(appOnlyReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
     "APP_ONLY receipt selector includes the saved receipt");
+
+  // Direct finance staff receipt-history reads must hold the source binding just
+  // like invoice RLS, receipt print and statement RPCs do.
+  await accountantDb.begin(async tx => {
+    await setIdentity(tx, accountant.auth_user_id, accountant.email);
+    const lockedReceipts = await tx.unsafe(
+      "select id from public.customer_payment_receipts " +
+      "where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+      [sourceTestReceiptId, orgId, customerId],
+    );
+    assert.equal(lockedReceipts.length, 1,
+      "finance staff RLS receipt read returns the APP_ONLY receipt");
+    await expectFailure(
+      "direct finance receipt RLS read blocks an exclusive source cutover until its transaction ends",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId, customerId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
   const appOnlyReceiptPrint = await rpc(accountantDb,
     "select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result",
     [sourceTestReceiptId],
