@@ -371,7 +371,7 @@ describe("server-side ERP read connector contract", () => {
     const url = new URL(requestedUrl);
     expect(url.origin).toBe("https://erp.example.test");
     expect(url.pathname).toBe("/api/v1/items");
-    expect(url.searchParams.get("modified_since")).toBe("2026-11-27T09:58:00Z");
+    expect(url.searchParams.get("modified_since")).toBe("2026-11-27T09:58:00.000Z");
     expect(url.searchParams.get("limit")).toBe("100");
     expect(authHeader).toBe("Bearer test-only-secret");
     expect(page.httpStatus).toBe(200);
