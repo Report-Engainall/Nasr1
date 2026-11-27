@@ -102,6 +102,10 @@ describe("business health assistant source completeness", () => {
     expect(areBusinessHealthAssistantSourcesComplete(complete, "VERIFIED")).toBe(true);
     expect(areBusinessHealthAssistantSourcesComplete({
       ...complete,
+      inventory: { ...complete.inventory, asOf: "2026-11-17T12:00:00.1234567Z" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
       supplierPostedPayableActivity: { ...supplierReady, asOf: "2026-11-17T11:59:59.000Z" },
     }, "VERIFIED")).toBe(false);
     expect(areBusinessHealthAssistantSourcesComplete({
@@ -132,6 +136,17 @@ describe("business health assistant source completeness", () => {
       ...complete,
       inventory: { ...complete.inventory, asOf: "2026-11-17T12:00:00+14:01" },
     }, "VERIFIED")).toBe(false);
+  });
+
+  it("requires identical exact PostgreSQL microsecond instants across all business health sources", () => {
+    const precise = "2026-11-17T12:00:00.123456Z";
+    const sources = completeSources();
+    sources.inventory = { ...sources.inventory, asOf: precise };
+    sources.cashflow = mapBusinessHealthCashflowSource(cashflow({ asOf: precise }));
+    sources.retention = mapBusinessHealthRetentionSource(retention({ asOf: precise }));
+    sources.productRevenueConcentration = { ...sources.productRevenueConcentration, asOf: precise };
+    sources.supplierPostedPayableActivity = { ...sources.supplierPostedPayableActivity, asOf: precise };
+    expect(areBusinessHealthAssistantSourcesComplete(sources, "VERIFIED")).toBe(true);
   });
 
   it("does not elevate the complete-source rollup when one important source is partial or missing", () => {
