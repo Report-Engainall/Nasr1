@@ -20,6 +20,7 @@ The existing receipt → FEFO reserve → sale pipeline excluded already-expired
 - A server-only idempotency ledger prevents repeated execution. Exact retries return the persisted result; payload reuse with a different order/reason is rejected. A no-op response explicitly reports `no_expired_reservations` and zero quantity.
 - Shipment now fails closed with SQLSTATE `55000` while any net outstanding reservation still references an expired lot. Both shipment and cancellation settle only the net outstanding reservation after prior releases; previously released batches are not sold or released twice.
 - Reallocation records an audit event and does not write payments, invoices, receivables, cost postings or journals.
+- Strict execution boundary: `anon` and `service_role` are explicitly denied `EXECUTE`; only `authenticated` can reach the RPC, whose body then enforces manager/admin capability. The idempotency table grants no direct `SELECT` to authenticated or service_role. PG17 acceptance asserts both function and table privileges.
 
 ## Acceptance added
 
