@@ -751,9 +751,9 @@ BEGIN
      ORDER BY page.source_updated_at DESC,page.external_id),'[]'::jsonb)
   INTO v_records
   FROM (
-    SELECT rows.external_id,rows.source_updated_at,rows.fields,rows.disposition
-      FROM preview_rows rows
-     ORDER BY rows.source_updated_at DESC,rows.external_id
+    SELECT preview_row.external_id,preview_row.source_updated_at,preview_row.fields,preview_row.disposition
+      FROM preview_rows preview_row
+     ORDER BY preview_row.source_updated_at DESC,preview_row.external_id
      LIMIT p_limit OFFSET p_offset
   ) page;
  RETURN pg_catalog.jsonb_build_object('records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
