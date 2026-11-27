@@ -246,6 +246,7 @@ async function main() {
     "42501", /finance permission required/i,
   );
   const exactDeniedInsertBefore = await invoiceSnapshot(exact.invoice_id);
+  await setIdentity(customer);
   await expectSqlState(
     "customer cannot directly mutate supplier invoice evidence",
     () => db.unsafe("update public.purchase_supplier_invoices set supplier_invoice_number=supplier_invoice_number||'-DENIED' where id=$1::uuid", [exact.invoice_id]),
@@ -425,6 +426,7 @@ async function main() {
   // Final source, line and event evidence is append-only; direct authenticated mutation is denied.
   await setIdentity(manager);
   const varianceBeforeDirectWrite = await invoiceSnapshot(variance.invoice_id);
+  await setIdentity(manager);
   await expectSqlState(
     "finance user cannot directly update immutable supplier invoice lines",
     () => db.unsafe("update public.purchase_supplier_invoice_lines set invoiced_quantity=1.001 where organization_id=$1::uuid and invoice_id=$2::uuid", [organizationId, variance.invoice_id]),
