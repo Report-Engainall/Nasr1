@@ -373,7 +373,8 @@ export function createErpReadSyncHandler(
         : "ERP_SYNC_FAILED";
       const retryable = error instanceof ErpConnectorError && error.retryable;
       dependencies.logError("ERP read-only synchronization failed", { code, retryable });
-      const status = code.includes("NOT_CONFIGURED") || code.includes("NOT_ENABLED") ||
+      const status = code.includes("SCOPE_NOT_ALLOWED") ? 403 :
+        code.includes("NOT_CONFIGURED") || code.includes("NOT_ENABLED") ||
         code.includes("TENANT_SCOPE") ? 503 : retryable ? 503 : 502;
       return json({ error: code, retryable }, status, origin);
     }
