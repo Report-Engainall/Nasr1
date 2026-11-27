@@ -11,6 +11,7 @@ import {
   type ErpStagedPreview,
   type ErpStagedRecordReader,
   type ErpSyncCheckpointStore,
+  type ErpSyncScope,
 } from "../_shared/erp-connectors/readonly-sync.ts";
 
 type VerifiedUser = { id: string };
