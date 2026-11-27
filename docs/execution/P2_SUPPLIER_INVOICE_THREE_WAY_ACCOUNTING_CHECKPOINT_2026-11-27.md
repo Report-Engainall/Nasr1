@@ -72,3 +72,8 @@ Base SHA: `d7da98a0a11872c8c263c4dbf26dba258637d95e`
 
 ## Next action
 - P1 fixes the task page-2 expected card count (cap at 10 and optionally assert page 3 count) without weakening tenant/viewport assertions. Then synchronize this PR with current `main` and run P1/P2 on the resulting exact head. No supplier invoice SQL change is warranted by this run.
+
+## Main movement after exact-head acceptance
+- After the `3848643...` P1/P2 run, current `main` advanced again: `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361` (inventory transfer history UI/filter), then `85331656b51825e0e1316f31faff644a09c58602` (stock-count search filters/pagination).
+- The latter changes the shared P2 workflow path filters plus stock-count page/tests/filter library; it does not change supplier invoice RPCs, invoice runner, or supplier-invoice UI.
+- PR #641 last observed head before this checkpoint amendment: `3848643...`; it is currently two commits behind latest `main`, `mergeable=true`. Do not claim current-head acceptance and do not merge until P1 fixes the task pagination test, synchronize with latest main, and reruns exact-head P1/P2.
