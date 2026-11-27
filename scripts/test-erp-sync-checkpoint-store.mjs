@@ -280,7 +280,7 @@ async function main() {
   const committed6 = await persistPage(delta);
   assert.equal(committed6.checkpoint.version, 6);
   assert.ok(committed6.checkpoint.cursor_ciphertext);
-  assert.equal(committed6.checkpoint.completed_watermark, timestamp2);
+  assert.equal(Date.parse(committed6.checkpoint.completed_watermark), Date.parse(timestamp2));
 
   const resetRows = await db.unsafe(
     "select public.reset_erp_sync_expired_cursor($1::uuid,$2::text,$3::bigint) as result",
@@ -332,7 +332,7 @@ async function main() {
   assert.equal(receipts.find((row) => row.organization_id === organizationA)?.pages, 6,
     "replay, rejected input and stale CAS must not create duplicate receipts");
   assert.equal(receipts.find((row) => row.organization_id === organizationB)?.pages, 1);
-  assert.equal(checkpoints.find((row) => row.organization_id === organizationA)?.version, 7);
+  assert.equal(Number(checkpoints.find((row) => row.organization_id === organizationA)?.version), 7);
   assert.equal(new Date(checkpoints.find((row) => row.organization_id === organizationA)?.completed_watermark).getTime(),
     new Date(timestamp2).getTime());
   assert.equal(checkpoints.find((row) => row.organization_id === organizationA)?.cursor_ciphertext, null);
