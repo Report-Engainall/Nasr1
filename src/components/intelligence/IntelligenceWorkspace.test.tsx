@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   fetchShiftWorkspace: vi.fn(),
   fetchProcessBottlenecks: vi.fn(),
   fetchProductGrossMargin: vi.fn(),
+  fetchCustomerRetention: vi.fn(),
   startShift: vi.fn(),
   recordShiftCash: vi.fn(),
   recordShiftHandover: vi.fn(),
@@ -42,6 +43,9 @@ vi.mock("@/lib/intelligence/cashflow-schedule-client", () => ({
     asOf: "2026-10-31T09:00:00.000Z",
   })),
   fetchCashflowSchedule: mocks.fetchCashflow,
+}));
+vi.mock("@/lib/intelligence/customer-retention-client", () => ({
+  fetchCustomerRetentionWorkspaceAggregate: mocks.fetchCustomerRetention,
 }));
 vi.mock("@/lib/intelligence/executive-liquidity-client", () => ({
   fetchExecutiveLiquidityWorkspace: mocks.fetchExecutiveLiquidity,
@@ -283,6 +287,7 @@ function inventoryFixture(): InventoryIntelligenceData {
 describe("production intelligence workspace inventory screens", () => {
   beforeEach(() => {
     mocks.user = { profileId: "admin-profile", name: "مدير المالية", roles: ["admin"] };
+    mocks.fetchCustomerRetention.mockReset().mockResolvedValue({ ok: false, status: "UNAVAILABLE", message: "customer retention fixture unavailable" });
     mocks.fetchCashflow.mockReset().mockResolvedValue({
       ok: false, status: "UNAVAILABLE", message: "cashflow fixture deliberately unavailable",
     });
@@ -406,6 +411,76 @@ describe("production intelligence workspace inventory screens", () => {
         impact: null,
         impactStatus: "WITHHELD",
         impactReason: "UNIT_COST_OR_CURRENCY_NOT_VERIFIED",
+      }),
+    })));
+  });
+
+  it("promotes verified customer retention follow-ups into the daily decision lifecycle", async () => {
+    mocks.fetchCustomerRetention.mockReset().mockResolvedValue({
+      ok: true,
+      data: {
+        id: "retention-board-fixture",
+        asOf: "2026-10-30T10:00:00.000Z",
+        period: { from: "2026-10-01", to: "2026-10-29" },
+        previousPeriod: { from: "2026-09-01", to: "2026-09-30" },
+        status: "VERIFIED",
+        population: { total: 1, activeCurrentPeriod: 0, priorPeriodCohort: 1, retainedCustomers: 0, repeatPurchaseCustomers: 0 },
+        retentionRate: 0,
+        repeatPurchaseRate: null,
+        averageOrdersPerActiveCustomer: null,
+        activity: { active30Days: 0, cooling31To60Days: 0, atRisk61To90Days: 0, inactiveOver90Days: 1, noOrderDate: 0 },
+        focusByCurrency: [],
+        customers: [],
+        warnings: [],
+      },
+      actionQueue: {
+        status: "VERIFIED",
+        actions: [{
+          customerRef: "customer-retention-1",
+          priority: "HIGH",
+          action: "REACTIVATE",
+          activity: "INACTIVE",
+          daysSinceLastOrder: 100,
+          lastOrderAt: "2026-07-21T10:00:00.000Z",
+          orderCountCurrent: 0,
+          orderCountPrevious: 1,
+          reason: "لم يظهر طلب منذ أكثر من 90 يوماً؛ راجع سبب الانقطاع قبل تقديم عرض استعادة.",
+          evidenceIds: ["evidence:retention:current", "evidence:retention:previous"],
+          metricIds: ["metric:retention:current", "metric:retention:previous"],
+          metricKeys: ["customer.orders.current", "customer.orders.previous"],
+          formulaVersions: ["customer-order-count@1.0.0", "customer-order-count@1.0.0"],
+        }],
+        totalActionable: 1,
+        omittedCount: 0,
+        withheldCustomerCount: 0,
+        warnings: [],
+      },
+      growthInputs: { evidenceRecords: [], metrics: [], signals: [], sourceSnapshotVerified: true },
+    });
+    render(<IntelligenceWorkspace />);
+
+    const actionText = await screen.findByText(/إعادة تنشيط العميل · customer-retention-1/);
+    const card = actionText.closest("article");
+    expect(card).not.toBeNull();
+    expect(card).toHaveTextContent("CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE");
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
+
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      candidateId: "customer.retention:customer-retention-1:2026-10-30",
+      ruleId: "customers.retention.follow-up",
+      ruleVersion: "1.0.0",
+      expectedOutcome: expect.stringContaining("دون احتساب إيراد مسترد"),
+      candidateSnapshot: expect.objectContaining({
+        priority: "P1",
+        priorityScore: 300,
+        impact: null,
+        impactStatus: "WITHHELD",
+        impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+        proof: expect.objectContaining({
+          evidenceIds: ["evidence:retention:current", "evidence:retention:previous"],
+          metricKeys: ["customer.orders.current", "customer.orders.previous"],
+          formulaVersions: ["customer-order-count@1.0.0", "customer-order-count@1.0.0"],
+        }),
       }),
     })));
   });
