@@ -13,6 +13,7 @@
     "src/components/AdminAiGovernanceWorkspace.test.tsx",
     "src/components/AdminAiGovernanceWorkspace.tsx",
     "src/components/AdminCategoryTree.tsx",
+    "src/components/AdminCustomer360.source-gate.test.tsx",
     "src/components/AdminCustomer360.tsx",
     "src/components/AdminOrderCreationDialog.test.tsx",
     "src/components/AdminOrderCreationDialog.tsx",

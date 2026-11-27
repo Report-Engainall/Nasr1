@@ -16,6 +16,8 @@ import { fetchCustomerRetentionReport } from '@/lib/customer-retention-client';
 import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retention';
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
 import { CustomerAssetsPanel } from '@/components/CustomerAssetsPanel';
+import { CustomerFinancialSourceNotice } from '@/components/CustomerFinancialSourceNotice';
+import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, type CustomerFinancialSource } from '@/lib/customer-financial-source';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -857,6 +859,8 @@ function Customer360Interactions({
 
 export function AdminCustomer360({ customer, onClose }: { customer: Pick<Customer, "id">; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
+  const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [financialSourceError, setFinancialSourceError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exportError, setExportError] = useState('');
@@ -871,7 +875,10 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
   }, []);
 
   const loadCustomer360 = useCallback(async () => {
+    let financialSourceResolved = false;
     setSummary(null);
+    setFinancialSource(null);
+    setFinancialSourceError('');
     setInteractionHistory([]);
     setInteractionHistoryLoading(true);
     setInteractionHistoryError('');
@@ -890,10 +897,22 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
       if (!scopedCustomer || scopedCustomer.id !== customer.id) {
         throw new Error(CUSTOMER_SCOPE_BLOCKED_MESSAGE);
       }
+      const selectedSource = await fetchStaffCustomerFinancialSource(customer.id);
+      financialSourceResolved = true;
+      setFinancialSource(selectedSource);
+      if (!canReadCustomerAppLedger(selectedSource)) {
+        // The SECURITY DEFINER Customer 360 projection includes APP_ONLY finance.
+        // Never call it for external, stale or suspended source bindings.
+        setSummary(null);
+        return;
+      }
       const customerSummary = await fetchStaffCustomer360Summary(customer.id);
       setSummary(customerSummary);
     } catch (cause) {
       setSummary(null);
+      if (!financialSourceResolved) {
+        setFinancialSourceError('تعذر التحقق من مصدر الحساب المالي لهذا العميل؛ أوقفنا ملخص Customer 360 المالي حتى يؤكد الخادم المصدر والصلاحية.');
+      }
       setError(cause instanceof Error && cause.message === CUSTOMER_SCOPE_BLOCKED_MESSAGE ? CUSTOMER_SCOPE_BLOCKED_MESSAGE : CUSTOMER360_LOAD_ERROR_MESSAGE);
     } finally {
       setLoading(false);
@@ -967,7 +986,13 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
         onExport={exportCustomer360}
         onPrint={printCustomer360}
       />
-      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : summary ? (
+      <CustomerFinancialSourceNotice source={financialSource} loading={loading} error={financialSourceError} />
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> :
+        financialSource && !canReadCustomerAppLedger(financialSource) ? (
+          <p className="report-note" role="status">
+            ملخص Customer 360 المالي غير متاح لهذا العميل لأن مصدر الحساب المحدد ليس دفتر متجر الأغبري النشط. لم نقرأ أو نجمع فواتير أو دفعات APP_ONLY؛ يجب أن تأتي القراءة المالية من الموصل المعتمد للمصدر الخارجي.
+          </p>
+        ) : summary ? (
         <>
           <Customer360LoadedView
             summary={summary}
