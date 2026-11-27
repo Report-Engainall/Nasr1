@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ErpReadSyncPanel } from "@/components/ErpReadSyncPanel";
 import { ArrowRight, Download, FileSpreadsheet, FileText, PackageCheck, RefreshCw, ShieldCheck } from "lucide-react";
 import { fetchActiveInventoryWarehouses, type ActiveInventoryWarehouse } from "@/lib/api";
 import { ONYX_PRO_DATASETS, buildOnyxProHeaderCsv, type OnyxProDataset } from "@/lib/onyx-pro-schema";
@@ -244,6 +245,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
         </div>
       </section>
 
+      <ErpReadSyncPanel canManage={canManageImports} />
 
       {canManageImports && (
         <section className="panel" style={{ display: "grid", gap: 12 }} aria-label="تصدير بيانات الأغبري الحالية إلى Onyx">
