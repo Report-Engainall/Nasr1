@@ -33,11 +33,12 @@ export function isSafeStorefrontImageUrl(value: unknown): value is string {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password) return false;
 
-    for (const key of url.searchParams.keys()) {
-      if (PRIVATE_IMAGE_QUERY_KEYS.has(key.toLowerCase())) return false;
-    }
+    let containsPrivateQuery = false;
+    url.searchParams.forEach((_queryValue, key) => {
+      if (PRIVATE_IMAGE_QUERY_KEYS.has(key.toLowerCase())) containsPrivateQuery = true;
+    });
 
-    return true;
+    return !containsPrivateQuery;
   } catch {
     return false;
   }
