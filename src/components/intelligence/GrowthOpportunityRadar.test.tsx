@@ -185,6 +185,28 @@ describe("GrowthOpportunityRadar", () => {
     expect(screen.getByText(/حُفظ القرار في دورة القرارات بالخادم/)).toBeInTheDocument();
   });
 
+  it.each([
+    ["QUOTE_UNCONVERTED", "growth.quote.unconverted"],
+    ["PRODUCT_UNAVAILABLE_DEMAND", "growth.product.unavailable-demand"],
+    ["CUSTOMER_ACTIVITY_DECLINE", "growth.customer.activity-decline"],
+    ["REPEAT_PURCHASE", "growth.customer.repeat-purchase"],
+    ["PRODUCT_PERFORMANCE_CHANGE", "growth.product.performance-change"],
+  ] as const)("maps the %s opportunity to its own decision rule", async (kind, ruleId) => {
+    const opportunity = {
+      ...verifiedOpportunity,
+      id: "growth:" + kind + ":2026-11-13T04:00:00.000Z",
+      kind,
+    };
+    render(<GrowthOpportunityRadar result={{ ...verifiedRadar, opportunities: [opportunity] }} />);
+    fireEvent.click(screen.getByRole("button", { name: "حفظ كقرار إداري للمتابعة" }));
+
+    await waitFor(() => expect(mocks.createDecisionOutcomeProposal).toHaveBeenCalledTimes(1));
+    expect(mocks.createDecisionOutcomeProposal.mock.calls[0][0]).toMatchObject({
+      candidateId: opportunity.id,
+      ruleId,
+    });
+  });
+
   it("reuses an existing decision proposal without creating a duplicate", async () => {
     mocks.createDecisionOutcomeProposal.mockResolvedValue({
       ok: true,
