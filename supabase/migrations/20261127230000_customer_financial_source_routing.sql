@@ -396,7 +396,9 @@ BEGIN
                  AND jsonb_typeof(balance.totals->'target_source_balance')='string'
                  AND balance.totals->>'current_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
                  AND balance.totals->>'target_source_balance' ~ '^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
-                THEN false
+                THEN p_reconciliation_result='matched'
+                 AND (balance.totals->>'current_source_balance')::numeric
+                     <> (balance.totals->>'target_source_balance')::numeric
                 ELSE true
               END
      )
@@ -410,7 +412,7 @@ BEGIN
          ) e
         WHERE e.value !~ '^[0-9]{1,9}$'
      ) THEN
-RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid provider reconciliation evidence metadata is required';
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid provider reconciliation evidence metadata is required';
   END IF;
   SELECT r.* INTO v_request
     FROM public.customer_financial_source_change_requests r
