@@ -69,6 +69,7 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  const byId=new Map<string,MetricSnapshot>();
  for(const m of passport.metrics)if(!duplicates.has(m.id))byId.set(m.id,m);
  const openingCurrencies=new Map<string,MetricSnapshot>(),duplicateOpening=new Set<string>();
+ const topWarnings:string[]=(input.openingBalanceWarnings??[]).filter(w=>typeof w==="string"&&w.trim().length>0&&w.length<=500);
  for(const raw of input.openingBalances){
   if(typeof raw.currency!=="string"||!ISO_CURRENCY.test(raw.currency)){
    topWarnings.push("OPENING_BALANCE_CURRENCY_IDENTITY_INVALID");
@@ -90,7 +91,7 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  const duplicateEntryIds=new Set<string>(),seen=new Set<string>();
  for(const entry of input.entries){if(seen.has(entry.id))duplicateEntryIds.add(entry.id);seen.add(entry.id)}
  const scheduleStatus=statusOf(input.scheduleStatus,input.scheduleCompleteness,input.scheduleQuality);
- const result:CashflowForecastPoint[]=[],topWarnings:string[]=(input.openingBalanceWarnings??[]).filter(w=>typeof w==="string"&&w.trim().length>0&&w.length<=500);
+ const result:CashflowForecastPoint[]=[];
  // Scheduled evidence may be displayed without a cash opening balance. The currency
  // is still sourced from a validated schedule metric; no opening or projected balance
  // is synthesized when the bank/cash source is absent.
