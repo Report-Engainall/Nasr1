@@ -681,6 +681,123 @@ async function main(){
  assert.equal(ledgerMismatchReleaseCount[0].count,0,
   "ledger mismatch rejection must not append a partial release movement");
 
+ // Prove atomic rollback in the missing-reservation repair action when a
+ // source order has one unit unreserved and no other in-date free lot remains.
+ const reconcileFailureDate=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+12,'YYYY-MM-DD') d",
+ ))[0].d;
+ const reconcileFailureReceipt=await receipt(
+  manager,"FEFO-RECONCILE-FAIL-"+suffix,reconcileFailureDate,2,
+ );
+ assert.ok(reconcileFailureReceipt.receiptId);
+ await as(manager);
+ const reconcileFailureOrder=(await rpc(
+  "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
+  [cust.id,db.json([{product_id:product,quantity:2}]),"FEFO reconcile atomic shortage",randomUUID().replaceAll("-",""),"cash_on_delivery"],
+ )).id;
+ assert.ok(reconcileFailureOrder);
+ await status(manager,reconcileFailureOrder,"confirmed");
+ await status(manager,reconcileFailureOrder,"processing");
+ const reconcileFailureSource=(await db.unsafe(
+  "select im.inventory_batch_id::text batch_id,im.product_id::text product_id,im.warehouse_id::text warehouse_id,"+
+  "im.quantity::text quantity,b.batch_number,b.expiry_date::text expiry_date "+
+  "from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id "+
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve'",
+  [reconcileFailureOrder],
+ ))[0];
+ assert.ok(reconcileFailureSource);
+ assert.equal(Number(reconcileFailureSource.quantity),2);
+ await db.unsafe(
+  "update public.inventory_batches set quantity_reserved=quantity_reserved-1 where id=$1::uuid and quantity_reserved>=1",
+  [reconcileFailureSource.batch_id],
+ );
+ const afterPartialRelease=(await db.unsafe(
+  "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() "+
+  "where product_id=$1::uuid and warehouse_id=$2::uuid and quantity_reserved>=1 returning quantity_available",
+  [product,warehouse],
+ ))[0];
+ assert.ok(afterPartialRelease);
+ await db.unsafe(
+  "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) "+
+  "values($1::uuid,$2::uuid,'release_reservation',1,$3,'order',$4::uuid,'Local fixture release before failed missing-reservation repair',$5::uuid,$6::uuid)",
+  [product,warehouse,afterPartialRelease.quantity_available,reconcileFailureOrder,manager.id,reconcileFailureSource.batch_id],
+ );
+
+ // Remove the remaining free unit as a physical-loss fixture, keeping batch
+ // and aggregate ledgers aligned so the only failure is genuine stock shortage.
+ const afterPhysicalLoss=(await db.unsafe(
+  "update public.inventory_batches set quantity_on_hand=quantity_on_hand-1 "+
+  "where id=$1::uuid and quantity_on_hand-quantity_reserved>=1 returning quantity_on_hand::text on_hand,quantity_reserved::text reserved",
+  [reconcileFailureSource.batch_id],
+ ))[0];
+ assert.ok(afterPhysicalLoss);
+ const aggregateAfterPhysicalLoss=(await db.unsafe(
+  "update public.inventory_balances set quantity_on_hand=quantity_on_hand-1,last_movement_at=now(),updated_at=now() "+
+  "where product_id=$1::uuid and warehouse_id=$2::uuid and quantity_available>=1 returning quantity_available",
+  [product,warehouse],
+ ))[0];
+ assert.ok(aggregateAfterPhysicalLoss);
+ await db.unsafe(
+  "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) "+
+  "values($1::uuid,$2::uuid,'inventory_adjustment',-1,$3,'inventory_adjustment',$4::uuid,'Local fixture physical loss before no-stock reconciliation',$5::uuid,$6::uuid)",
+  [product,warehouse,aggregateAfterPhysicalLoss.quantity_available,reconcileFailureOrder,manager.id,reconcileFailureSource.batch_id],
+ );
+ assert.equal(Number(afterPhysicalLoss.on_hand),1);
+ assert.equal(Number(afterPhysicalLoss.reserved),1);
+ assert.equal(Number(aggregateAfterPhysicalLoss.quantity_available),0);
+
+ await as(manager);
+ const noStockWorklist=await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result");
+ const noStockEntry=noStockWorklist.orders.find(row=>row.order_id===reconcileFailureOrder);
+ assert.ok(noStockEntry);
+ assert.equal(Number(noStockEntry.missing_quantity),1);
+ assert.equal(Number(noStockEntry.lines[0].replacement_available_quantity),0);
+ const noStockBatchBefore=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [reconcileFailureSource.batch_id],
+ ))[0];
+ const noStockBalanceBefore=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ const noStockReserveCountBefore=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='reserve'",
+  [reconcileFailureOrder],
+ ))[0].count;
+ const noStockKey="fefo-reconcile-no-stock-"+randomUUID().replaceAll("-","");
+ await assert.rejects(
+  () => rpc(
+   "select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+   [reconcileFailureOrder,noStockKey,"No valid free lot remains; require atomic rollback"],
+  ),
+  error => String(error?.code)==="P0001" && String(error?.message).includes("no changes were committed"),
+  "incomplete reservation repair must roll back when no valid FEFO stock can cover the deficit",
+ );
+ const noStockBatchAfter=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
+  [reconcileFailureSource.batch_id],
+ ))[0];
+ const noStockBalanceAfter=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ assert.deepEqual(noStockBatchAfter,noStockBatchBefore,
+  "failed missing-reservation repair must preserve source batch counters");
+ assert.deepEqual(noStockBalanceAfter,noStockBalanceBefore,
+  "failed missing-reservation repair must preserve aggregate stock counters");
+ const noStockReserveCountAfter=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='reserve'",
+  [reconcileFailureOrder],
+ ))[0].count;
+ assert.equal(noStockReserveCountAfter,noStockReserveCountBefore,
+  "failed missing-reservation repair must not append a reserve movement");
+ const noStockIdempotencyRow=await db.unsafe(
+  "select id from public.inventory_order_reservation_reconciliations where organization_id=$1::uuid and idempotency_key=$2::text",
+  [org,noStockKey],
+ );
+ assert.equal(noStockIdempotencyRow.length,0,
+  "failed missing-reservation repair must not persist an idempotency result");
+
  await as(customer);
  await assert.rejects(
   () => rpc(
