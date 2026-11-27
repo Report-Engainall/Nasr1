@@ -218,7 +218,7 @@ export type ErpSyncBatchTaskResult = {
   status: "complete" | "continuation_required" | "failed";
   pagesCommitted: number | null;
   recordsRead: number | null;
-  counts: ErpPersistCounts;
+  counts: ErpPersistCounts | null;
   errorCode: string | null;
   retryable: boolean;
 };
@@ -1078,8 +1078,12 @@ export async function runIncrementalReadOnlyBatch(input: {
 
   const scopeKeys = new Set<string>();
   for (const task of input.tasks) {
-    if (!task || !task.scope || typeof task.scope !== "object") {
-      throw new ErpConnectorError("INVALID_ERP_SYNC_BATCH", "تحتوي دفعة مزامنة ERP على نطاق غير صالح.");
+    if (!task || !task.scope || typeof task.scope !== "object" ||
+        typeof task.connector?.readPage !== "function" ||
+        typeof task.store?.loadCheckpoint !== "function" ||
+        typeof task.store?.persistPageAtomically !== "function" ||
+        typeof task.store?.resetExpiredCursor !== "function") {
+      throw new ErpConnectorError("INVALID_ERP_SYNC_BATCH", "تحتوي دفعة مزامنة ERP على موصل أو مخزن أو نطاق غير صالح.");
     }
     const taskScope = task.scope;
     if (!UUID_PATTERN.test(taskScope.organizationId) ||
@@ -1110,13 +1114,6 @@ export async function runIncrementalReadOnlyBatch(input: {
   }
 
   const tasks: ErpSyncBatchTaskResult[] = [];
-  const emptyCounts = (): ErpPersistCounts => ({
-    created: 0,
-    updated: 0,
-    unchanged: 0,
-    rejected: 0,
-    conflicted: 0,
-  });
 
   for (const task of input.tasks) {
     try {
@@ -1143,7 +1140,7 @@ export async function runIncrementalReadOnlyBatch(input: {
         status: "failed",
         pagesCommitted: null,
         recordsRead: null,
-        counts: emptyCounts(),
+        counts: null,
         errorCode: error instanceof ErpConnectorError
           ? error.code
           : "ERP_SYNC_UNEXPECTED_FAILURE",
