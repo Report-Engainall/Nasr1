@@ -15,7 +15,10 @@ export type ErpObjectType =
   | "warehouses"
   | "stock_balances"
   | "product_units"
-  | "product_prices";
+  | "product_prices"
+  | "customer_financial_documents"
+  | "customer_payment_receipts"
+  | "customer_statement_entries";
 
 export type ErpCanonicalField =
   | "item_code"
@@ -48,7 +51,29 @@ export type ErpCanonicalField =
   | "warehouse_name"
   | "quantity_on_hand"
   | "quantity_reserved"
-  | "quantity_available";
+  | "quantity_available"
+  | "external_customer_id"
+  | "document_number"
+  | "document_type"
+  | "document_status"
+  | "issue_date"
+  | "due_date"
+  | "total_amount"
+  | "paid_amount"
+  | "outstanding_amount"
+  | "reference"
+  | "receipt_number"
+  | "receipt_date"
+  | "amount"
+  | "payment_status"
+  | "payment_method"
+  | "applied_document_number"
+  | "entry_reference"
+  | "entry_date"
+  | "entry_type"
+  | "debit_amount"
+  | "credit_amount"
+  | "source_document_number";
 
 export type ErpScalar = string | number | boolean | null;
 
@@ -277,6 +302,20 @@ const SAFE_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
     "item_code", "price_list_code", "customer_tier", "currency_code", "unit_code",
     "unit_price", "minimum_quantity", "discount_percent", "is_active",
   ],
+  customer_financial_documents: [
+    "external_customer_id", "document_number", "document_type", "document_status",
+    "issue_date", "due_date", "currency_code", "total_amount", "paid_amount",
+    "outstanding_amount", "reference",
+  ],
+  customer_payment_receipts: [
+    "external_customer_id", "receipt_number", "receipt_date", "currency_code",
+    "amount", "payment_status", "payment_method", "applied_document_number", "reference",
+  ],
+  customer_statement_entries: [
+    "external_customer_id", "entry_reference", "entry_date", "due_date",
+    "currency_code", "entry_type", "debit_amount", "credit_amount",
+    "source_document_number", "description",
+  ],
 };
 
 const REQUIRED_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
@@ -289,6 +328,18 @@ const REQUIRED_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
   ],
   product_units: ["item_code", "unit_code", "base_unit_code", "conversion_factor", "is_base_unit"],
   product_prices: ["item_code", "price_list_code", "currency_code", "unit_price"],
+  customer_financial_documents: [
+    "external_customer_id", "document_number", "document_type", "document_status",
+    "issue_date", "currency_code", "total_amount",
+  ],
+  customer_payment_receipts: [
+    "external_customer_id", "receipt_number", "receipt_date", "currency_code",
+    "amount", "payment_status",
+  ],
+  customer_statement_entries: [
+    "external_customer_id", "entry_reference", "entry_date", "currency_code",
+    "entry_type", "debit_amount", "credit_amount",
+  ],
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -935,6 +986,80 @@ function safeHeaderValue(value: string | null): string | null {
   return clean && clean.length <= 256 && !/[\r\n\u0000-\u001f\u007f]/.test(clean) ? clean : null;
 }
 
+function isCanonicalErpDate(value: ErpScalar | undefined): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+  return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= days;
+}
+
+function canonicalMoneyAtoms(value: ErpScalar | undefined): bigint | null {
+  if (typeof value !== "string" || !/^(0|[1-9][0-9]{0,15})(?:\.([0-9]{1,4}))?$/.test(value)) return null;
+  const [whole, fraction = ""] = value.split(".");
+  return BigInt(whole) * 10_000n + BigInt(fraction.padEnd(4, "0"));
+}
+
+function validateFinancialProjection(
+  objectType: ErpObjectType,
+  fields: Partial<Record<ErpCanonicalField, ErpScalar>>,
+): void {
+  if (!["customer_financial_documents", "customer_payment_receipts", "customer_statement_entries"].includes(objectType)) return;
+
+  if (typeof fields.external_customer_id !== "string" ||
+      !/^[A-Za-z0-9._:/-]{1,160}$/.test(fields.external_customer_id) ||
+      typeof fields.currency_code !== "string" ||
+      !/^[A-Z]{3}$/.test(fields.currency_code)) {
+    throw new ErpConnectorError("INVALID_ERP_FINANCIAL_IDENTITY", "هوية العميل الخارجي أو العملة في المستند المالي غير صالحة.");
+  }
+
+  const amountFields: ErpCanonicalField[] = objectType === "customer_financial_documents"
+    ? ["total_amount", "paid_amount", "outstanding_amount"]
+    : objectType === "customer_payment_receipts"
+      ? ["amount"]
+      : ["debit_amount", "credit_amount"];
+  for (const field of amountFields) {
+    if (fields[field] === undefined || fields[field] === null) continue;
+    if (canonicalMoneyAtoms(fields[field]) === null) {
+      throw new ErpConnectorError("INVALID_ERP_FINANCIAL_AMOUNT", "المبالغ المالية يجب أن تصل كسلاسل عشرية معيارية غير سالبة ولا تتجاوز أربع خانات.");
+    }
+  }
+
+  const dateFields: ErpCanonicalField[] = objectType === "customer_financial_documents"
+    ? ["issue_date", "due_date"]
+    : objectType === "customer_payment_receipts"
+      ? ["receipt_date"]
+      : ["entry_date", "due_date"];
+  for (const field of dateFields) {
+    if (fields[field] !== undefined && fields[field] !== null && !isCanonicalErpDate(fields[field])) {
+      throw new ErpConnectorError("INVALID_ERP_FINANCIAL_DATE", "تاريخ المستند المالي يجب أن يكون تاريخ ISO-8601 صالحًا بصيغة YYYY-MM-DD.");
+    }
+  }
+
+  if (objectType === "customer_financial_documents") {
+    if (!["invoice", "credit_note", "debit_note"].includes(String(fields.document_type)) ||
+        !["draft", "posted", "partial", "paid", "overdue", "voided", "cancelled", "reversed"].includes(String(fields.document_status)) ||
+        typeof fields.document_number !== "string" || !fields.document_number.trim()) {
+      throw new ErpConnectorError("INVALID_ERP_FINANCIAL_DOCUMENT", "نوع الفاتورة أو حالتها أو رقمها غير معتمد.");
+    }
+  } else if (objectType === "customer_payment_receipts") {
+    if (!["confirmed", "pending", "voided", "reversed"].includes(String(fields.payment_status)) ||
+        typeof fields.receipt_number !== "string" || !fields.receipt_number.trim()) {
+      throw new ErpConnectorError("INVALID_ERP_PAYMENT_RECEIPT", "حالة سند القبض أو رقمه غير معتمد.");
+    }
+  } else {
+    if (!["invoice", "payment", "credit_note", "debit_note", "opening_balance", "adjustment"].includes(String(fields.entry_type)) ||
+        typeof fields.entry_reference !== "string" || !fields.entry_reference.trim()) {
+      throw new ErpConnectorError("INVALID_ERP_STATEMENT_ENTRY", "نوع أو مرجع حركة كشف الحساب غير معتمد.");
+    }
+    const debit = canonicalMoneyAtoms(fields.debit_amount);
+    const credit = canonicalMoneyAtoms(fields.credit_amount);
+    if (debit === null || credit === null || (debit > 0n && credit > 0n)) {
+      throw new ErpConnectorError("INVALID_ERP_STATEMENT_ENTRY", "يجب أن تحتوي حركة الكشف على مبلغ مدين أو دائن واحد فقط وبقيمة عشرية معيارية.");
+    }
+  }
+}
+
 function validateCanonicalCandidate(record: ErpCanonicalRecord, scope: ErpSyncScope): ErpCanonicalRecord {
   if (record.provider !== scope.provider || record.objectType !== scope.objectType ||
       !isRecord(record.fields)) {
@@ -953,6 +1078,7 @@ function validateCanonicalCandidate(record: ErpCanonicalRecord, scope: ErpSyncSc
       throw new ErpConnectorError("REQUIRED_ERP_FIELD_MISSING", "يفتقد سجل ERP الحقل الإلزامي " + required + ".");
     }
   }
+  validateFinancialProjection(scope.objectType, fields);
   if (scope.objectType === "stock_balances") {
     const onHand = fields.quantity_on_hand;
     const reserved = fields.quantity_reserved;
