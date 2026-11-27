@@ -160,6 +160,7 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
     );
 
     expect(screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" })).toHaveTextContent("الاتصال الخارجي غير مفعّل");
+    expect(screen.getByRole("region", { name: "تشغيل مزامنة قراءة ERP" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" })).toHaveTextContent("لا يوجد موصل خادمي مفعّل");
     expect(screen.queryByRole("region", { name: "تصدير بيانات الأغبري الحالية إلى Onyx" })).not.toBeInTheDocument();
     expect(mocks.fetchActiveInventoryWarehouses).not.toHaveBeenCalled();
