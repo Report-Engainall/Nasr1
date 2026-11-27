@@ -240,6 +240,31 @@ describe("customer retention intelligence", () => {
     });
   });
 
+  it("withholds full-population conclusions when the coverage evidence period differs", () => {
+    const { customers, sales } = baseline();
+    const metrics = [
+      ...customers.flatMap(item => [item.ordersCurrentPeriod, item.ordersPreviousPeriod]),
+      ...sales.map(item => item.sales),
+    ];
+    const coverageEvidence: EvidenceRecord = {
+      id: "coverage:customers",
+      source: { kind: "RPC", name: "test.customer_retention.coverage", version: "1.0.0" },
+      sourceTimestamp: "2026-11-25T23:50:00.000Z",
+      asOf,
+      period: previousPeriod,
+      status: "VERIFIED",
+      completeness: "COMPLETE",
+      quality: "ACCEPTABLE",
+      warnings: [],
+    };
+    const result = build(customers, sales, {
+      evidenceRecords: [coverageEvidence, ...metrics.map(evidence)],
+    });
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.population.total).toBeNull();
+    expect(result.warnings).toContain("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
+  });
+
   it("withholds population-level conclusions when the aggregate is truncated", () => {
     const { customers, sales } = baseline();
     const result = build(customers, sales, { truncated: true });
