@@ -181,9 +181,17 @@ export type ErpPersistResult = {
   counts: ErpPersistCounts;
   duplicatePage: boolean;
 };
+export type ErpStagedRecordDisposition =
+  | "created"
+  | "updated"
+  | "unchanged"
+  | "rejected"
+  | "conflicted";
+
 export type ErpStagedPreviewRecord = {
   externalId: string;
   sourceUpdatedAt: string;
+  lastDisposition: ErpStagedRecordDisposition | null;
   fields: Partial<Record<ErpCanonicalField, ErpScalar>>;
 };
 
