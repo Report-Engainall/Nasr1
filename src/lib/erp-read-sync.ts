@@ -108,8 +108,9 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
         !isRecord(item.fields)) {
       throw new Error("أحد سجلات معاينة ERP غير صالح.");
     }
-    const disposition = item.lastDisposition;
-    if (disposition !== null && disposition !== "created" && disposition !== "updated" &&
+    const disposition = item.last_disposition;
+    if (disposition !== null && disposition !== undefined &&
+        disposition !== "created" && disposition !== "updated" &&
         disposition !== "unchanged" && disposition !== "rejected" && disposition !== "conflicted") {
       throw new Error("حالة سجل ERP المرحلي غير معتمدة.");
     }
@@ -122,7 +123,7 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
       }
       fields[key] = fieldValue;
     }
-    return { externalId: item.externalId, sourceUpdatedAt: item.sourceUpdatedAt, lastDisposition: disposition, fields };
+    return { externalId: item.externalId, sourceUpdatedAt: item.sourceUpdatedAt, lastDisposition: disposition ?? null, fields };
   });
   return {
     records,
