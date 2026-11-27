@@ -94,6 +94,32 @@ describe("decision outcome transition policy", () => {
     })).toThrow("invalid_decision_outcome");
   });
 
+  it.each([
+    ["ten fractional digits", "2026-11-26T12:00:00.1234567890Z"],
+    ["hour beyond 23", "2026-11-26T25:00:00.000Z"],
+    ["minute beyond 59", "2026-11-26T12:60:00.000Z"],
+    ["second beyond 59", "2026-11-26T12:00:60.000Z"],
+    ["UTC offset beyond 14 hours", "2026-11-26T12:00:00.000+14:01"],
+  ])("rejects invalid event timestamp precision or range: %s", (_label, at) => {
+    const result = transitionDecisionOutcome(outcome(), event("SUBMIT_FOR_REVIEW", { at }));
+    expect(result).toMatchObject({ ok: false, reason: "INVALID_EVENT" });
+  });
+
+  it.each([
+    ["ten fractional digits", "2026-11-26T12:00:00.1234567890Z"],
+    ["hour beyond 23", "2026-11-26T25:00:00.000Z"],
+    ["unsupported UTC offset", "2026-11-26T12:00:00.000+15:00"],
+  ])("rejects invalid decision creation timestamp precision: %s", (_label, createdAt) => {
+    expect(() => createDecisionOutcome({
+      id: "outcome-invalid-clock",
+      candidateId: "decision-1",
+      proposedBy: actor,
+      owner: "operations",
+      expectedOutcome: "نتيجة متوقعة",
+      createdAt,
+    })).toThrow("invalid_decision_outcome");
+  });
+
   it("rejects an event dated before the outcome was created", () => {
     const current = outcome();
     const result = transitionDecisionOutcome(current, event("SUBMIT_FOR_REVIEW", {

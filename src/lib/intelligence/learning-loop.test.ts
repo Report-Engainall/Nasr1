@@ -171,7 +171,14 @@ describe("decision outcome learning precision and dimensional safety", () => {
 
 describe("decision learning strict evidence clocks", () => {
  it("rejects measured-at timestamps with an impossible day or missing timezone", () => {
-  for (const measuredAt of ["2026-02-31T00:00:00.000Z", "2026-11-26T00:00:00.000"]) {
+  for (const measuredAt of [
+   "2026-02-31T00:00:00.000Z",
+   "2026-11-26T00:00:00.000",
+   "2026-11-26T12:00:00.1234567890Z",
+   "2026-11-26T25:00:00.000Z",
+   "2026-11-26T12:60:00.000Z",
+   "2026-11-26T12:00:00.000+14:01",
+  ]) {
    expect(() => evaluateDecisionLearning({
     id: "invalid-measurement-clock",
     measuredAt,
@@ -189,7 +196,13 @@ describe("decision learning strict evidence clocks", () => {
  it("withholds measured variance when source evidence has an impossible or timezone-less timestamp", () => {
   const expected = metric("expected", "1.00");
   const actual = metric("actual", "2.00");
-  for (const sourceTimestamp of ["2026-02-31T00:00:00.000Z", "2026-11-25T23:50:00.000"]) {
+  for (const sourceTimestamp of [
+   "2026-02-31T00:00:00.000Z",
+   "2026-11-25T23:50:00.000",
+   "2026-11-25T23:50:00.1234567890Z",
+   "2026-11-25T25:50:00.000Z",
+   "2026-11-25T23:50:00.000+15:00",
+  ]) {
    const invalidEvidence = { ...evidence(expected), sourceTimestamp };
    const result = evaluateDecisionLearning({
     id: "learning-fixture",
