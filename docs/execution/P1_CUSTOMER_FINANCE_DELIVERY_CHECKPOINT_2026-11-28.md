@@ -21,10 +21,13 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Payment-history Excel revalidates before workbook generation.
 - Source mismatch updates the displayed source notice and blocks stale output. Resolver failure clears the trusted source and blocks document output.
 - Added helper tests for unchanged APP_ONLY revision, ONYX cutover and resolver failure.
+- Added route-level `/invoices` regressions for source cutover to ONYX after `get_customer_invoice_pdf`, and for resolver failure after detail read; both assert the stale invoice identifier, line prices and totals are not rendered.
 
 ## Branch and ownership
-- Implementation commit: `71a7653ca4581b5325852cb2d245ca28acc5d4d5` (first parent `02a0144b06953618b81575dbb212e833ef1faf5d`). The source changes are committed as one atomic tree update on the P1 branch.
-- The checkpoint-only follow-up is based on implementation commit `71a7653ca4581b5325852cb2d245ca28acc5d4d5`; it is applied with a non-forced expected-SHA lease.
+- Implementation commit: `71a7653ca4581b5325852cb2d245ca28acc5d4d5` (first parent `02a0144b06953618b81575dbb212e833ef1faf5d`).
+- Checkpoint trace commit: `d8e8c3d408ac612663df2806dfb3f4855c8f3744`.
+- Invoice detail route regression commit: `4e631a06569948ceb3bbf73d0c8bc9dd71c55d5d` (adds both source-cutover and resolver-failure test cases).
+- All updates use non-forced, expected-SHA branch leases; no force push.
 - Changed files: `src/lib/customer-financial-source.ts`, `src/lib/customer-financial-source.test.ts`, `src/components/CustomerWorkflows.tsx`, and this checkpoint.
 - P1 does not write production data, post payments, move inventory, call live ERP endpoints, add secrets, deploy or merge to `main`.
 
@@ -35,8 +38,9 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 
 ## Acceptance
 - New unit tests cover same-revision APP_ONLY approval, ONYX cutover and unavailable resolver.
-- P1 run `46080902577` on the starting head was pending; P2 Playwright run `46080902639` was queued. Neither was a PASS.
-- New code head requires fresh exact-SHA Vitest, strict TypeScript, build and P2 browser gates. No PASS is claimed until relevant jobs are terminal SUCCESS.
+- New route regressions cover invoice detail source cutover to ONYX and resolver failure after the detail RPC.
+- At code-head `4e631a06569948ceb3bbf73d0c8bc9dd71c55d5`, the workflow/check-run listing had not yet surfaced a run. Earlier-head P1 run `46080902577` was pending and P2 Playwright run `46080902639` was queued; these do not prove acceptance of the new SHA.
+- Exact final-head Vitest, strict TypeScript, build and P2 browser gates must be terminal SUCCESS. No PASS is claimed for an absent, queued, pending, cancelled, skipped or blocked job.
 
 ## Safety and release
 - `main` remains `12b0db37a97128a19073f907ba12fb700251802b`.
