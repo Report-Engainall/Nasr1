@@ -95,7 +95,7 @@ describe('purchase orders page',()=>{
     fireEvent.change(screen.getByLabelText('الحالة'),{target:{value:'submitted'}});
     fireEvent.click(screen.getByRole('button',{name:/تصدير نتائج Excel/}));
     expect(exportMocks.download).toHaveBeenCalledWith([submittedOrder],'معتمد للتوريد');
-    expect(await screen.findByText(/تم تجهيز ملف Excel للنتائج الظاهرة/)).toBeInTheDocument();
+    expect(await screen.findByText(/تم تجهيز ملف Excel لكل النتائج المطابقة للفلاتر الحالية/)).toBeInTheDocument();
   });
 
   it('searches order lines with Arabic digits and exports every matching record', async () => {

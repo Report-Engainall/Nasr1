@@ -30,7 +30,7 @@ export function normalizePurchaseOrderSearch(value: string): string {
     .replace(/ـ/g, '')
     .replace(/[٠-٩۰-۹]/g, (digit) => ARABIC_SEARCH_DIGITS[digit] ?? digit)
     .toLocaleLowerCase('ar')
-    .replace(/s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 

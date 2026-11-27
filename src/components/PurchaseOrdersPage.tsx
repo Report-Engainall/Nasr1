@@ -339,7 +339,7 @@ function PurchaseOrderRecordsPanel({
         </div>
         <label className="po-field no-print">الحالة
           <select
-            aria-label="حالة أمر الشراء"
+            aria-label="الحالة"
             value={filters.status}
             onChange={(event) => onFiltersChange({ status: event.target.value as PurchaseOrderFilterCriteria['status'] })}
           >
@@ -667,7 +667,7 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId, initialReceiptId }:
       : null,
     filters.dateFrom ? 'من: ' + filters.dateFrom : null,
     filters.dateTo ? 'إلى: ' + filters.dateTo : null,
-    filters.sortOrder === 'newest' ? 'الأحدث أولاً' : 'الأقدم أولاً',
+    filters.sortOrder === 'oldest' ? 'الأقدم أولاً' : null,
   ].filter(Boolean).join(' · ');
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, pageCount));
