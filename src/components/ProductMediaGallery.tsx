@@ -6,6 +6,7 @@ import type {
 } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { ProductPlaceholderArtwork } from "@/components/ProductPlaceholderArtwork";
+import { isSafeStorefrontImageUrl } from "@/lib/storefront-image-url";
 
 type ProductMediaGalleryProps = {
   productName: string;
@@ -18,11 +19,7 @@ type ProductMediaGalleryProps = {
 const SWIPE_THRESHOLD = 40;
 
 function normalizeImageUrls(imageUrls: readonly string[]): string[] {
-  return Array.from(new Set(
-    imageUrls.filter((url): url is string =>
-      typeof url === "string" && url.trim() === url && /^https:\/\//i.test(url),
-    ),
-  ));
+  return Array.from(new Set(imageUrls.filter(isSafeStorefrontImageUrl)));
 }
 
 /**
