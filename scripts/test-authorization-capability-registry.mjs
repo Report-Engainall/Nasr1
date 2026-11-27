@@ -730,6 +730,7 @@ const manager=actors.get("manager"),admin=actors.get("admin");
     {label:"staff",roles:["staff"]},
     {label:"accountant",roles:["accountant"]},
     {label:"customer_manager",roles:["customer_manager"]},
+    {label:"legacy mixed customer+staff",roles:["customer","staff"]},
     {label:"restricted/no role",roles:[]}
   ];
   for(const roleCase of profileRoleDenialCases) {
