@@ -199,7 +199,7 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
 function csvCell(value: unknown): string {
   let text = value === null || value === undefined ? "" : String(value);
   // Prevent spreadsheet formula execution from user-controlled text fields.
-  if (/^[\\s\\u0000-\\u001F]*[=+\\-@]/.test(text)) text = "'" + text;
+  if (/^[\s\u0000-\u001F]*[=+\-@]/.test(text)) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 }
 
@@ -233,12 +233,12 @@ export function buildDailyDecisionCsv(records: DecisionMemoryRecord[]): string {
       [...new Set(evidenceIds)].join(" | "),
     ];
   });
-  return [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
+  return "\uFEFF" + [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
 }
 
 export function downloadDailyDecisionCsv(records: DecisionMemoryRecord[]): void {
   if (records.length === 0) return;
-  const blob = new Blob(["\\uFEFF", buildDailyDecisionCsv(records)], {
+  const blob = new Blob([buildDailyDecisionCsv(records)], {
     type: "text/csv;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
