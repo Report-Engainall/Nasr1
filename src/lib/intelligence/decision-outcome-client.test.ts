@@ -410,6 +410,33 @@ describe("persisted decision outcome client", () => {
 });
 
 
+const rankedCandidateSnapshotForClockTests = {
+  schemaVersion: "1.0.0" as const,
+  candidateId: outcome.candidateId,
+  ruleId: outcome.ruleId,
+  ruleVersion: outcome.ruleVersion,
+  priority: "P0" as const,
+  priorityScore: 400,
+  what: "متابعة التحصيل",
+  why: "يوجد مستحق مثبت",
+  risk: "تأخر التحصيل",
+  soWhat: "قد يتأخر التدفق النقدي",
+  whatNext: "راجع الفواتير",
+  owner: "مسؤول التحصيل",
+  expectedOutcome: outcome.expectedOutcome,
+  impact: null,
+  impactStatus: "WITHHELD" as const,
+  impactReason: "لا يوجد أثر مالي مثبت",
+  proof: {
+    evidenceIds: ["invoice:one"],
+    metricKeys: ["cashflow.expected_collections"],
+    asOf: "2026-10-31T10:00:00.000Z",
+    formulaVersions: ["cashflow.collection@1.0.0"],
+  },
+  createdAt: outcome.createdAt,
+  expiresAt: null,
+};
+
 async function expectInvalidPersistedOutcome(value: unknown) {
   rpc.mockResolvedValueOnce({ data: { items: [value], total: 1 }, error: null });
   await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
@@ -470,28 +497,28 @@ describe("decision outcome strict evidence clock and lifecycle chronology", () =
     await expectInvalidPersistedOutcome({
       ...outcome,
       candidateSnapshot: {
-        ...rankedCandidateSnapshot,
-        proof: { ...rankedCandidateSnapshot.proof, asOf: "2026-10-31T10:00:00.000" },
+        ...rankedCandidateSnapshotForClockTests,
+        proof: { ...rankedCandidateSnapshotForClockTests.proof, asOf: "2026-10-31T10:00:00.000" },
       },
     });
     await expectInvalidPersistedOutcome({
       ...outcome,
       candidateSnapshot: {
-        ...rankedCandidateSnapshot,
-        proof: { ...rankedCandidateSnapshot.proof, asOf: "2026-10-31T10:01:00.000Z" },
+        ...rankedCandidateSnapshotForClockTests,
+        proof: { ...rankedCandidateSnapshotForClockTests.proof, asOf: "2026-10-31T10:01:00.000Z" },
       },
     });
     await expectInvalidPersistedOutcome({
       ...outcome,
       candidateSnapshot: {
-        ...rankedCandidateSnapshot,
+        ...rankedCandidateSnapshotForClockTests,
         expiresAt: "2026-02-30T10:00:00.000Z",
       },
     });
     await expectInvalidPersistedOutcome({
       ...outcome,
       candidateSnapshot: {
-        ...rankedCandidateSnapshot,
+        ...rankedCandidateSnapshotForClockTests,
         expiresAt: "2026-10-31T09:59:59.999Z",
       },
     });
