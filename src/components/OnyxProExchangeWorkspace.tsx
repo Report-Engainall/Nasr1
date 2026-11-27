@@ -215,12 +215,42 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
 
       {notice && <div role="status" aria-live="polite" className="privacy-note"><ShieldCheck size={17} /><span>{notice}</span></div>}
 
+      <section className="panel" style={{ display: "grid", gap: 12 }} aria-label="حالة تكامل الأنظمة المحاسبية">
+        <div className="panel-head">
+          <div>
+            <h2>مركز تكامل الأنظمة المحاسبية</h2>
+            <p>الحالة المعتمدة من وظائف التطبيق الحالية؛ لا يُفترض وجود اتصال خارجي لم يتم اختباره.</p>
+          </div>
+          <ShieldCheck size={22} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
+          <article style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 7 }}>
+            <strong>Onyx Pro</strong>
+            <span role="status" style={{ fontSize: 13, fontWeight: 700 }}>المزامنة المباشرة غير متاحة في التطبيق الحالي</span>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.8 }}>
+              المتاح هو تبادل ملفات وقوالب من خلال مسارات الاستيراد والتصدير واللقطات الحالية. تصدير البيانات هنا يقرأ قاعدة الأغبري ولا يرسلها تلقائيًا إلى خادم Onyx.
+            </p>
+          </article>
+          <article style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 7 }}>
+            <strong>المتكامل المحاسبي</strong>
+            <span role="status" style={{ fontSize: 13, fontWeight: 700 }}>لا يوجد موصل خادمي مفعّل في التطبيق الحالي</span>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.8 }}>
+              لم يُثبت بعد عقد API أو قناة تبادل معتمدة لهذا الإصدار؛ لذلك لا تُعرض مزامنة أو اختبار اتصال على أنهما متاحان.
+            </p>
+          </article>
+        </div>
+        <div className="privacy-note" role="note">
+          تفعيل المزامنة الآلية يتطلب التحقق من إصدار النظام ووحداته المرخصة، ووثائق واجهة رسمية أو قناة ملفات معتمدة، ثم إعداد أسرار الاتصال خادميًا واختبار القراءة والمطابقة ومنع التكرار. لا تُرسل الفواتير أو سندات القبض أو القيود إلى ERP من هذه الشاشة حاليًا.
+        </div>
+      </section>
+
+
       {canManageImports && (
-        <section className="panel" style={{ display: "grid", gap: 12 }} aria-label="تصدير سجلات أونكس الحية">
+        <section className="panel" style={{ display: "grid", gap: 12 }} aria-label="تصدير بيانات الأغبري الحالية إلى Onyx">
           <div className="panel-head">
             <div>
-              <h2>تصدير سجلات النظام الحية</h2>
-              <p>إنشاء Excel متعدد الأوراق أو CSV من بيانات الأصناف والعملاء والمستودعات وأرصدة المخزون الفعلية للمؤسسة، مع إمكانية تحديد نطاق المستودعات.</p>
+              <h2>تصدير بيانات الأغبري الحالية إلى Onyx</h2>
+              <p>قراءة الأصناف والعملاء والمستودعات وأرصدة المخزون من قاعدة الأغبري الحالية، ثم إعداد Excel أو CSV قابل للتبادل. هذا تصدير من الأغبري وليس قراءة مباشرة من نظام Onyx.</p>
             </div>
             <FileSpreadsheet size={23} />
           </div>
