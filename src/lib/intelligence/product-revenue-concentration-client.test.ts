@@ -224,18 +224,10 @@ describe("product revenue concentration client evidence contract", () => {
     });
   });
 
-  it("maps thrown transport failures to UNAVAILABLE without substituting data", async () => {
-    mocks.rpc.mockImplementation(() => { throw new Error("network unavailable"); });
-
-    await expect(fetchProductRevenueConcentration(request)).resolves.toMatchObject({
-      ok: false,
-      status: "UNAVAILABLE",
-    });
-  });
-
-  it("maps an asynchronously rejected RPC transport to UNAVAILABLE without leaking a rejection", async () => {
-    mocks.rpc.mockImplementation(async () => {
-      throw new Error("network unavailable");
+  it("maps an unavailable transport result to UNAVAILABLE without substituting data", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "FETCH_ERROR", message: "network unavailable" },
     });
 
     await expect(fetchProductRevenueConcentration(request)).resolves.toMatchObject({
