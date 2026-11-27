@@ -200,11 +200,14 @@ async function main() {
       "has_function_privilege('service_role','public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean)','EXECUTE') as service_persist," +
       "has_function_privilege('anon','public.reset_erp_sync_expired_cursor(uuid,text,bigint)','EXECUTE') as anon_reset," +
       "has_function_privilege('authenticated','public.reset_erp_sync_expired_cursor(uuid,text,bigint)','EXECUTE') as auth_reset," +
-      "has_function_privilege('service_role','public.reset_erp_sync_expired_cursor(uuid,text,bigint)','EXECUTE') as service_reset",
+      "has_function_privilege('service_role','public.reset_erp_sync_expired_cursor(uuid,text,bigint)','EXECUTE') as service_reset," +
+      "has_function_privilege('anon','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as anon_preview," +
+      "has_function_privilege('authenticated','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as auth_preview," +
+      "has_function_privilege('service_role','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as service_preview",
   );
   assert.deepEqual(
     Object.values(rpcPrivileges[0]),
-    [false,false,true,false,false,true,false,false,true],
+    [false,false,true,false,false,true,false,false,true,false,false,true],
     "ERP checkpoint RPC ACLs must grant EXECUTE only to service_role",
   );
   const initialized = await loadCheckpoint(baseScope);
@@ -761,6 +764,61 @@ async function main() {
   assert.equal((await loadCheckpoint(statementScope)).version, 1,
     "invalid dual-sided statement entry must not advance its checkpoint");
 
+  const invoicePreviewRows = await db.unsafe(
+    "select public.list_erp_sync_staged_records(" +
+      "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::integer) as result",
+    [
+      invoiceScope.organizationId,
+      scopeKey(invoiceScope),
+      invoiceScope.provider,
+      invoiceScope.companyExternalId,
+      invoiceScope.branchExternalId,
+      invoiceScope.warehouseExternalId,
+      invoiceScope.currencyCode,
+      invoiceScope.objectType,
+      20,
+      0,
+    ],
+  );
+  const invoicePreview = asJson(invoicePreviewRows[0].result);
+  assert.equal(invoicePreview.total, 1);
+  assert.equal(invoicePreview.records.length, 1);
+  assert.equal(invoicePreview.records[0].external_id, "ONYX-INVOICE-1001");
+  assert.equal(asJson(invoicePreview.records[0].fields).total_amount, "1250.7500");
+  assert.equal(asJson(invoicePreview.records[0].fields).currency_code, "YER");
+  assert.equal(Object.prototype.hasOwnProperty.call(invoicePreview.records[0], "idempotency_key"), false,
+    "preview must not expose internal idempotency keys");
+
+  await expectSql(
+    "ERP staged preview cannot be rebound to another company metadata",
+    () => db.unsafe(
+      "select public.list_erp_sync_staged_records(" +
+        "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::integer)",
+      [
+        invoiceScope.organizationId, scopeKey(invoiceScope), invoiceScope.provider,
+        "another-company", invoiceScope.branchExternalId, invoiceScope.warehouseExternalId,
+        invoiceScope.currencyCode, invoiceScope.objectType, 20, 0,
+      ],
+    ),
+    "23505",
+  );
+
+  await setRole("authenticated");
+  await expectSql(
+    "authenticated users cannot invoke the service-role ERP staged preview RPC",
+    () => db.unsafe(
+      "select public.list_erp_sync_staged_records(" +
+        "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::integer)",
+      [
+        invoiceScope.organizationId, scopeKey(invoiceScope), invoiceScope.provider,
+        invoiceScope.companyExternalId, invoiceScope.branchExternalId,
+        invoiceScope.warehouseExternalId, invoiceScope.currencyCode,
+        invoiceScope.objectType, 20, 0,
+      ],
+    ),
+    "42501",
+  );
+  await setRole("service_role");
 
   await db.unsafe("reset role");
 
