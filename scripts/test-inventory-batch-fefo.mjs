@@ -323,6 +323,11 @@ async function main(){
   error => String(error?.code)==="42501",
   "customer must not invoke the manager-only inventory reallocation RPC",
  );
+ await assert.rejects(
+  () => rpc("select public.list_orders_with_expired_fefo_reservations(50,0) result"),
+  error => String(error?.code)==="42501",
+  "customer must not read the manager-only expired reservation work queue",
+ );
 
  const reallocationPrivileges=await db.unsafe(
   "select " +
