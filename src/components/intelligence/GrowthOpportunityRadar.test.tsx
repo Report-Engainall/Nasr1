@@ -222,6 +222,8 @@ describe("GrowthOpportunityRadar", () => {
     }]);
 
     expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toContain("تنبيه التغطية");
+    expect(csv).toContain('"5","-60","COUNT"');
     expect(csv).toContain('"\'=HYPERLINK(""https://example.invalid"",""open"")"');
     expect(csv).toContain('"retention-evidence-1 | retention-evidence-2"');
     expect(csv).toContain('"customer.orders.current | customer.orders.baseline"');
