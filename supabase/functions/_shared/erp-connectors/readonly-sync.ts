@@ -13,7 +13,9 @@ export type ErpObjectType =
   | "products"
   | "customers"
   | "warehouses"
-  | "stock_balances";
+  | "stock_balances"
+  | "product_units"
+  | "product_prices";
 
 export type ErpCanonicalField =
   | "item_code"
@@ -27,6 +29,15 @@ export type ErpCanonicalField =
   | "brand_name"
   | "unit_code"
   | "unit_name"
+  | "base_unit_code"
+  | "conversion_factor"
+  | "is_base_unit"
+  | "price_list_code"
+  | "customer_tier"
+  | "currency_code"
+  | "unit_price"
+  | "minimum_quantity"
+  | "discount_percent"
   | "is_active"
   | "customer_code"
   | "business_name"
@@ -219,6 +230,13 @@ const SAFE_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
     "item_code", "warehouse_code", "quantity_on_hand",
     "quantity_reserved", "quantity_available",
   ],
+  product_units: [
+    "item_code", "unit_code", "base_unit_code", "conversion_factor", "is_base_unit", "is_active",
+  ],
+  product_prices: [
+    "item_code", "price_list_code", "customer_tier", "currency_code", "unit_code",
+    "unit_price", "minimum_quantity", "discount_percent", "is_active",
+  ],
 };
 
 const REQUIRED_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
@@ -229,6 +247,8 @@ const REQUIRED_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
     "item_code", "warehouse_code", "quantity_on_hand",
     "quantity_reserved", "quantity_available",
   ],
+  product_units: ["item_code", "unit_code", "base_unit_code", "conversion_factor", "is_base_unit"],
+  product_prices: ["item_code", "price_list_code", "currency_code", "unit_price"],
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -608,6 +628,24 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
       if ([onHand, reserved, available].some((value) => typeof value !== "number" || value < 0) ||
           Math.abs((onHand as number) - (reserved as number) - (available as number)) > 0.001) {
         throw new ErpConnectorError("INVALID_ERP_STOCK_BALANCE", "رصيد ERP لا يحقق الموجود = المحجوز + المتاح.");
+      }
+    }
+    if (this.contract.objectType === "product_units") {
+      const factor = fields.conversion_factor;
+      if (typeof factor !== "number" || factor <= 0 || factor > 1_000_000_000 ||
+          typeof fields.is_base_unit !== "boolean" ||
+          (fields.is_base_unit && Math.abs(factor - 1) > 0.000001)) {
+        throw new ErpConnectorError("INVALID_ERP_UNIT_CONVERSION", "معامل تحويل وحدة ERP يجب أن يكون موجبًا، ومعامل الوحدة الأساسية يساوي 1.");
+      }
+    }
+    if (this.contract.objectType === "product_prices") {
+      const price = fields.unit_price;
+      const minimum = fields.minimum_quantity;
+      const discount = fields.discount_percent;
+      if (typeof price !== "number" || price < 0 ||
+          (minimum != null && (typeof minimum !== "number" || minimum < 0)) ||
+          (discount != null && (typeof discount !== "number" || discount < 0 || discount > 100))) {
+        throw new ErpConnectorError("INVALID_ERP_PRICE", "سعر ERP أو الحد الأدنى أو نسبة الخصم غير صالحة.");
       }
     }
     const scopeKey = [
