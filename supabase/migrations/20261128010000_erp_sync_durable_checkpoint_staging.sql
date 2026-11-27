@@ -112,7 +112,7 @@ AS $function$
 DECLARE
   v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
 BEGIN
-  IF auth.uid() IS NOT NULL OR coalesce(auth.role(),'')<>'service_role' THEN
+  IF coalesce(auth.role(),'')<>'service_role' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP checkpoint access required';
   END IF;
   IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
@@ -206,7 +206,7 @@ DECLARE
   v_conflicted integer:=0;
   v_page_cursor_hash text;
 BEGIN
-  IF auth.uid() IS NOT NULL OR coalesce(auth.role(),'')<>'service_role' THEN
+  IF coalesce(auth.role(),'')<>'service_role' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP staging writer required';
   END IF;
   IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
@@ -489,7 +489,7 @@ AS $function$
 DECLARE
   v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
 BEGIN
-  IF auth.uid() IS NOT NULL OR coalesce(auth.role(),'')<>'service_role' THEN
+  IF coalesce(auth.role(),'')<>'service_role' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP checkpoint reset required';
   END IF;
   IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
