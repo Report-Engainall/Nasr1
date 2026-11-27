@@ -203,7 +203,6 @@ DECLARE
   v_unchanged integer:=0;
   v_rejected integer:=0;
   v_conflicted integer:=0;
-  v_inserted boolean;
   v_page_cursor_hash text;
 BEGIN
   IF auth.uid() IS NOT NULL OR coalesce(auth.role(),'')<>'service_role' THEN
@@ -632,8 +631,7 @@ COMMIT;
      AND r.scope_key=p_scope_key
      AND r.page_fingerprint=p_page_fingerprint;
   IF FOUND THEN
-    v_page_cursor_hash:=CASE WHEN p_next_cursor_ciphertext IS NULL THEN NULL
-      ELSE encode(digest(p_next_cursor_ciphertext,'sha256'),'hex') END;
+    v_page_cursor_hash:=p_next_cursor_ciphertext_sha256;
     IF v_receipt.response_sha256 IS DISTINCT FROM p_response_sha256
        OR v_receipt.http_status IS DISTINCT FROM p_http_status
        OR v_receipt.external_request_id IS DISTINCT FROM p_external_request_id
@@ -717,8 +715,7 @@ COMMIT;
     END IF;
   END LOOP;
 
-  v_page_cursor_hash:=CASE WHEN p_next_cursor_ciphertext IS NULL THEN NULL
-    ELSE encode(digest(p_next_cursor_ciphertext,'sha256'),'hex') END;
+  v_page_cursor_hash:=p_next_cursor_ciphertext_sha256;
 
   UPDATE public.erp_sync_checkpoints
      SET version=version+1,
