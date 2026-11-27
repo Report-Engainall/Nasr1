@@ -176,10 +176,14 @@ export async function fetchStorefrontCatalogPage(input: {
     : 24;
   const pageSize = Math.min(100, Math.max(1, requestedPageSize));
   const search = normalizeCatalogSearchQuery(input.search).slice(0, MAX_CATALOG_SEARCH_LENGTH);
+  const categoryId = input.categoryId?.trim() || null;
   const brandId = input.brandId ?? null;
   const unit = input.unit?.trim() || null;
   const productId = input.productId ?? null;
   const priceDisplayableOnly = input.priceDisplayableOnly ?? false;
+  if (categoryId !== null && !UUID.test(categoryId)) {
+    throw new Error('معرّف التصنيف المستخدم في تصفية الكتالوج غير صالح.');
+  }
   if ((brandId !== null && !UUID.test(brandId)) || (productId !== null && !UUID.test(productId))) {
     throw new Error('معرّف العلامة أو المنتج المستخدم في تصفية الكتالوج غير صالح.');
   }
@@ -191,7 +195,7 @@ export async function fetchStorefrontCatalogPage(input: {
   }
   const { data, error } = await invokeCatalogRpc('get_storefront_catalog_page', {
     p_search: search,
-    p_category_id: input.categoryId,
+    p_category_id: categoryId,
     p_page: page,
     p_page_size: pageSize,
     p_available_only: input.availableOnly,
