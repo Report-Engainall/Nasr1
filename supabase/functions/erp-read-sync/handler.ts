@@ -49,6 +49,7 @@ type RequestInput = {
 type ProviderConfig = {
   connection: ErpConnection;
   contract: ErpReadContract;
+  allowedScopes: Array<{ company_external_id: string; branch_external_ids: string[]; warehouse_external_ids?: string[]; currency_codes?: string[] }>;
 };
 
 const PROVIDERS = ["onyx_pro", "al_mutakamel"] as const;
@@ -166,6 +167,7 @@ function readProviderConfig(
   const accessToken = read("API_TOKEN");
   const allowedHosts = read("API_ALLOWED_HOSTS").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
   const contractsJson = read("READ_CONTRACTS_JSON");
+  const allowedScopesJson = read("ALLOWED_SCOPES_JSON");
   const licenseSetting = read("LICENSE_CONFIRMED");
   const endpointSetting = read("ENDPOINT_CONFIRMED");
   const licensed = licenseSetting === "true" ? true : licenseSetting === "false" ? false : null;
@@ -173,10 +175,12 @@ function readProviderConfig(
   const sandboxAvailable = read("SANDBOX_AVAILABLE") === "true";
 
   let contractValue: unknown;
+  let allowedScopesValue: unknown;
   try {
     contractValue = contractsJson ? JSON.parse(contractsJson) : null;
+    allowedScopesValue = allowedScopesJson ? JSON.parse(allowedScopesJson) : null;
   } catch {
-    throw new ErpConnectorError("ERP_PROVIDER_CONTRACT_INVALID", "تعريف عقد مزود ERP على الخادم غير صالح.");
+    throw new ErpConnectorError("ERP_PROVIDER_CONTRACT_INVALID", "تعريف عقد أو نطاقات مزود ERP على الخادم غير صالح.");
   }
   const contract = isRecord(contractValue) ? contractValue[objectType] : null;
   const contractPresent = isRecord(contract) &&
@@ -184,12 +188,19 @@ function readProviderConfig(
     contract.objectType === objectType &&
     typeof contract.apiVersion === "string" && Boolean(contract.apiVersion.trim()) &&
     typeof contract.officialDocumentationUrl === "string" && Boolean(contract.officialDocumentationUrl.trim());
+  const allowedScopes = Array.isArray(allowedScopesValue) ? allowedScopesValue.filter((entry) =>
+    isRecord(entry) &&
+    typeof entry.company_external_id === "string" && entry.company_external_id.trim().length > 0 &&
+    Array.isArray(entry.branch_external_ids) && entry.branch_external_ids.every((item) => typeof item === "string" && item.trim().length > 0) &&
+    (entry.warehouse_external_ids === undefined || (Array.isArray(entry.warehouse_external_ids) && entry.warehouse_external_ids.every((item) => typeof item === "string" && item.trim().length > 0))) &&
+    (entry.currency_codes === undefined || (Array.isArray(entry.currency_codes) && entry.currency_codes.every((item) => typeof item === "string" && /^[A-Z]{3}$/.test(item))))
+  ) as Array<{ company_external_id: string; branch_external_ids: string[]; warehouse_external_ids?: string[]; currency_codes?: string[] }> : [];
 
   const capability = evaluateErpReadCapability({
     officialContractPresent: contractPresent,
     licensed,
     endpointEnabled,
-    credentialsAvailable: Boolean(accessToken && baseUrl && allowedHosts.length),
+    credentialsAvailable: Boolean(accessToken && baseUrl && allowedHosts.length && allowedScopes.length > 0),
     sandboxAvailable,
   });
   if (capability !== "READY_FOR_SANDBOX") {
@@ -219,7 +230,7 @@ function readProviderConfig(
     maxRetryDelayMs: 2_000,
     maxResponseBytes: 2 * 1024 * 1024,
   };
-  return { connection, contract: contract as ErpReadContract };
+  return { connection, contract: contract as ErpReadContract, allowedScopes };
 }
 
 function parseBearerToken(request: Request): string | null {
@@ -311,6 +322,15 @@ export function createErpReadSyncHandler(
       }
 
       const provider = readProviderConfig(input.provider, input.objectType, profile.organization_id, dependencies.getEnv);
+      const requestedScope = provider.allowedScopes.find((allowed) =>
+        allowed.company_external_id === input.companyExternalId &&
+        allowed.branch_external_ids.includes(input.branchExternalId) &&
+        (input.warehouseExternalId === null || allowed.warehouse_external_ids === undefined || allowed.warehouse_external_ids.includes(input.warehouseExternalId)) &&
+        (input.currencyCode === null || allowed.currency_codes === undefined || allowed.currency_codes.includes(input.currencyCode))
+      );
+      if (!requestedScope) {
+        throw new ErpConnectorError("ERP_PROVIDER_SCOPE_NOT_ALLOWED", "الشركة أو الفرع أو المستودع أو العملة خارج نطاق اتصال ERP المعتمد للمؤسسة.");
+      }
       const store = dependencies.createCheckpointStore({
         supabaseUrl: url,
         serviceRoleKey,
