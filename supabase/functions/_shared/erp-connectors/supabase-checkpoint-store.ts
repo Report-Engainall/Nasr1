@@ -1,7 +1,12 @@
 import {
   ErpConnectorError,
+  ERP_SAFE_FIELDS,
   type ErpCanonicalRecord,
   type ErpCheckpoint,
+  type ErpScalar,
+  type ErpStagedPreview,
+  type ErpStagedPreviewRecord,
+  type ErpStagedRecordReader,
   type ErpPersistResult,
   type ErpSourceReceipt,
   type ErpSyncCheckpointStore,
@@ -135,6 +140,62 @@ function toPublicCheckpoint(value: RpcCheckpoint, cursor: string | null): ErpChe
   };
 }
 
+function parseStagedPreview(
+  value: unknown,
+  objectType: ErpSyncScope["objectType"],
+  requestedLimit: number,
+  requestedOffset: number,
+): ErpStagedPreview {
+  if (!isRecord(value) || !Array.isArray(value.records)) {
+    throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "استجابة معاينة ERP لا تحتوي قائمة سجلات صالحة.");
+  }
+  const total = value.total;
+  const limit = value.limit;
+  const offset = value.offset;
+  const checkpointVersion = value.checkpoint_version;
+  if (!Number.isSafeInteger(total) || Number(total) < 0 ||
+      limit !== requestedLimit || offset !== requestedOffset ||
+      !Number.isSafeInteger(checkpointVersion) || Number(checkpointVersion) < 0) {
+    throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "بيانات صفحات معاينة ERP أو إصدار نقطة الاستئناف غير صالحة.");
+  }
+  const allowed = new Set(ERP_SAFE_FIELDS[objectType]);
+  const records: ErpStagedPreviewRecord[] = value.records.map((raw): ErpStagedPreviewRecord => {
+    if (!isRecord(raw) || typeof raw.external_id !== "string" ||
+        typeof raw.source_updated_at !== "string" || !Number.isFinite(Date.parse(raw.source_updated_at)) ||
+        !isRecord(raw.fields)) {
+      throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "أحد سجلات معاينة ERP لا يطابق عقد الإسقاط المرحلي.");
+    }
+    const externalId = cleanScopeText(raw.external_id, "preview_external_id");
+    const fields: Partial<Record<keyof typeof ERP_SAFE_FIELDS[typeof objectType][number], ErpScalar>> = {};
+    for (const [key, fieldValue] of Object.entries(raw.fields)) {
+      if (!allowed.has(key as typeof ERP_SAFE_FIELDS[typeof objectType][number]) ||
+          !(fieldValue === null || typeof fieldValue === "string" ||
+            typeof fieldValue === "boolean" ||
+            (typeof fieldValue === "number" && Number.isFinite(fieldValue)))) {
+        throw new ErpConnectorError("ERP_STAGING_PREVIEW_UNSAFE_FIELD", "معاينة ERP تحتوي حقلًا أو قيمة خارج الإسقاط المسموح.");
+      }
+      fields[key as keyof typeof ERP_SAFE_FIELDS[typeof objectType][number]] = fieldValue as ErpScalar;
+    }
+    return {
+      externalId,
+      sourceUpdatedAt: raw.source_updated_at,
+      fields: fields as ErpStagedPreviewRecord["fields"],
+    };
+  });
+  if (records.length > requestedLimit || records.length > Number(total)) {
+    throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "عدد سجلات معاينة ERP تجاوز الحد المطلوب.");
+  }
+  return {
+    records,
+    total: Number(total),
+    limit: requestedLimit,
+    offset: requestedOffset,
+    checkpointVersion: Number(checkpointVersion),
+    pendingWatermark: timestampOrNull(value.pending_watermark, "pending_watermark"),
+    completedWatermark: timestampOrNull(value.completed_watermark, "completed_watermark"),
+  };
+}
+
 function parseCounts(value: unknown): ErpPersistResult["counts"] {
   if (!isRecord(value)) {
     throw new ErpConnectorError("ERP_PERSIST_RESPONSE_INVALID", "استجابة حفظ صفحة ERP لا تحتوي عدادات قبول.");
@@ -160,7 +221,7 @@ function parseCounts(value: unknown): ErpPersistResult["counts"] {
  * PostgreSQL RPCs whose transaction commits staging rows, page receipts and checkpoint
  * advancement atomically.
  */
-export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
+export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore, ErpStagedRecordReader {
   private readonly baseUrl: URL;
   private readonly fetcher: typeof fetch;
   private readonly serviceRoleKey: string;
@@ -208,7 +269,7 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
       objectType: scope.objectType,
     };
     if (!["onyx_pro", "al_mutakamel"].includes(canonicalScope.provider) ||
-        !["products", "customers", "warehouses", "stock_balances", "product_units", "product_prices"].includes(canonicalScope.objectType) ||
+        !Object.prototype.hasOwnProperty.call(ERP_SAFE_FIELDS, canonicalScope.objectType) ||
         (canonicalScope.currencyCode !== null && !/^[A-Z]{3}$/.test(canonicalScope.currencyCode))) {
       throw new ErpConnectorError("INVALID_ERP_SCOPE", "مزود ERP أو نوع البيانات أو العملة في النطاق غير معتمد.");
     }
@@ -378,6 +439,26 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore {
       counts: parseCounts(result.counts),
       duplicatePage: result.duplicate_page,
     };
+  }
+
+  async listStagedRecords(input: {
+    scope: ErpSyncScope;
+    limit?: number;
+    offset?: number;
+  }): Promise<ErpStagedPreview> {
+    const limit = input.limit ?? 20;
+    const offset = input.offset ?? 0;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50 ||
+        !Number.isInteger(offset) || offset < 0 || offset > 5000) {
+      throw new ErpConnectorError("INVALID_ERP_PREVIEW_LIMIT", "حدود معاينة سجلات ERP يجب أن تكون بين 1 و50 سجلًا، وبداية لا تتجاوز 5000.");
+    }
+    const args = await this.scopeArguments(input.scope);
+    const result = await this.rpc("list_erp_sync_staged_records", {
+      ...args,
+      p_limit: limit,
+      p_offset: offset,
+    });
+    return parseStagedPreview(result, input.scope.objectType, limit, offset);
   }
 
   async resetExpiredCursor(input: {
