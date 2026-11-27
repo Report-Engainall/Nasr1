@@ -38,8 +38,8 @@ const concurrentDb = postgres(connectionString, {
   idle_timeout: 5,
   connect_timeout: 10,
 });
-const organizationA = randomUUID();
-const organizationB = randomUUID();
+let organizationA;
+let organizationB;
 const provider = "onyx_pro";
 const objectType = "products";
 const baseScope = {
@@ -171,6 +171,12 @@ function financialRecord(externalId, sourceUpdatedAt, fields) {
 }
 
 async function main() {
+  const organizations = await db.unsafe(
+    "select id::text as id from public.organizations where is_active=true order by id limit 2",
+  );
+  assert.equal(organizations.length, 2, "ERP PostgreSQL 17 acceptance requires two real active tenant organizations");
+  organizationA = organizations[0].id;
+  organizationB = organizations[1].id;
   await setRole("authenticated");
   await expectSql(
     "authenticated user cannot initialize ERP checkpoint",
@@ -504,9 +510,69 @@ async function main() {
   const providerCheckpoint = await loadCheckpoint(providerScope);
   assert.equal(providerCheckpoint.version, 0, "ERP provider is an independent checkpoint dimension");
 
+  await db.unsafe("reset role");
+  const [records, receipts, checkpoints] = await Promise.all([
+    db.unsafe(
+      "select organization_id::text,scope_key,external_id,fields from public.erp_sync_staged_records " +
+      "where organization_id in ($1::uuid,$2::uuid) order by organization_id",
+      [organizationA, organizationB],
+    ),
+    db.unsafe(
+      "select organization_id::text,scope_key,count(*)::integer as pages from public.erp_sync_page_receipts " +
+      "where organization_id in ($1::uuid,$2::uuid) group by organization_id,scope_key",
+      [organizationA, organizationB],
+    ),
+    db.unsafe(
+      "select organization_id::text,scope_key,version,cursor_ciphertext,completed_watermark from public.erp_sync_checkpoints " +
+      "where organization_id in ($1::uuid,$2::uuid) order by organization_id,scope_key",
+      [organizationA, organizationB],
+    ),
+  ]);
+  const baseRecord = records.find(row => row.organization_id === organizationA &&
+    row.scope_key === scopeKey(baseScope) && row.external_id === "ONYX-ITEM-000001");
+  const tenantRecord = records.find(row => row.organization_id === organizationB &&
+    row.scope_key === scopeKey(tenantScope));
+  assert.ok(baseRecord, "the main scope contains its own accepted product projection");
+  assert.ok(tenantRecord, "the second tenant contains a distinct projection");
+  assert.equal(asJson(baseRecord.fields).name, "Product version two",
+    "stale and same-time-conflicting projections must not overwrite the latest accepted record");
+  assert.notEqual(baseRecord.organization_id, tenantRecord.organization_id);
+  assert.equal(records.filter(row => row.organization_id === organizationA).length, 8,
+    "base, concurrent replay, version-race winner and four company/branch/warehouse/currency scopes stage exactly eight rows");
+
+  const receiptFor = (scope) => receipts.find(row =>
+    row.organization_id === scope.organizationId && row.scope_key === scopeKey(scope)
+  )?.pages ?? 0;
+  assert.equal(receiptFor(baseScope), 6,
+    "replay, rejected input, stale writer and source conflicts must not create duplicate base receipts");
+  assert.equal(receiptFor(concurrentScope), 1,
+    "two concurrent identical page requests create one receipt");
+  assert.equal(receiptFor(versionRaceScope), 1,
+    "two different writers with the same expected version create one receipt");
+  for (const isolated of isolatedScopes) {
+    assert.equal(receiptFor(isolated), 1, "each ERP scope dimension persists its own receipt");
+  }
+  assert.equal(receiptFor(tenantScope), 1);
+
+  const checkpointFor = (scope) => checkpoints.find(row =>
+    row.organization_id === scope.organizationId && row.scope_key === scopeKey(scope)
+  );
+  assert.equal(Number(checkpointFor(baseScope)?.version), 7);
+  assert.equal(new Date(checkpointFor(baseScope)?.completed_watermark).getTime(), new Date(timestamp2).getTime());
+  assert.equal(checkpointFor(baseScope)?.cursor_ciphertext, null);
+  assert.equal(Number(checkpointFor(concurrentScope)?.version), 1);
+  assert.equal(Number(checkpointFor(versionRaceScope)?.version), 1);
+  for (const isolated of isolatedScopes) {
+    assert.equal(Number(checkpointFor(isolated)?.version), 1);
+  }
+  assert.equal(Number(checkpointFor(tenantScope)?.version), 1);
+  assert.equal(Number(checkpointFor(objectScope)?.version), 0);
+  assert.equal(Number(checkpointFor(providerScope)?.version), 0);
+
+  await setRole("service_role");
   // Financial ERP projections are staged in their own object scopes. Amounts are
   // decimal strings, currencies stay attached to each row, and no app ledger is posted.
-  const financeOrganization = randomUUID();
+  const financeOrganization = organizationA;
   const invoiceScope = { ...baseScope, organizationId: financeOrganization, objectType: "customer_financial_documents" };
   assert.equal((await loadCheckpoint(invoiceScope)).version, 0);
   const invoice = financialRecord("ONYX-INVOICE-1001", timestamp3, {
@@ -695,64 +761,8 @@ async function main() {
   assert.equal((await loadCheckpoint(statementScope)).version, 1,
     "invalid dual-sided statement entry must not advance its checkpoint");
 
+
   await db.unsafe("reset role");
-  const [records, receipts, checkpoints] = await Promise.all([
-    db.unsafe(
-      "select organization_id::text,scope_key,external_id,fields from public.erp_sync_staged_records " +
-      "where organization_id in ($1::uuid,$2::uuid) order by organization_id",
-      [organizationA, organizationB],
-    ),
-    db.unsafe(
-      "select organization_id::text,scope_key,count(*)::integer as pages from public.erp_sync_page_receipts " +
-      "where organization_id in ($1::uuid,$2::uuid) group by organization_id,scope_key",
-      [organizationA, organizationB],
-    ),
-    db.unsafe(
-      "select organization_id::text,scope_key,version,cursor_ciphertext,completed_watermark from public.erp_sync_checkpoints " +
-      "where organization_id in ($1::uuid,$2::uuid) order by organization_id,scope_key",
-      [organizationA, organizationB],
-    ),
-  ]);
-  const baseRecord = records.find(row => row.organization_id === organizationA &&
-    row.scope_key === scopeKey(baseScope) && row.external_id === "ONYX-ITEM-000001");
-  const tenantRecord = records.find(row => row.organization_id === organizationB &&
-    row.scope_key === scopeKey(tenantScope));
-  assert.ok(baseRecord, "the main scope contains its own accepted product projection");
-  assert.ok(tenantRecord, "the second tenant contains a distinct projection");
-  assert.equal(asJson(baseRecord.fields).name, "Product version two",
-    "stale and same-time-conflicting projections must not overwrite the latest accepted record");
-  assert.notEqual(baseRecord.organization_id, tenantRecord.organization_id);
-  assert.equal(records.filter(row => row.organization_id === organizationA).length, 8,
-    "base, concurrent replay, version-race winner and four company/branch/warehouse/currency scopes stage exactly eight rows");
-
-  const receiptFor = (scope) => receipts.find(row =>
-    row.organization_id === scope.organizationId && row.scope_key === scopeKey(scope)
-  )?.pages ?? 0;
-  assert.equal(receiptFor(baseScope), 6,
-    "replay, rejected input, stale writer and source conflicts must not create duplicate base receipts");
-  assert.equal(receiptFor(concurrentScope), 1,
-    "two concurrent identical page requests create one receipt");
-  assert.equal(receiptFor(versionRaceScope), 1,
-    "two different writers with the same expected version create one receipt");
-  for (const isolated of isolatedScopes) {
-    assert.equal(receiptFor(isolated), 1, "each ERP scope dimension persists its own receipt");
-  }
-  assert.equal(receiptFor(tenantScope), 1);
-
-  const checkpointFor = (scope) => checkpoints.find(row =>
-    row.organization_id === scope.organizationId && row.scope_key === scopeKey(scope)
-  );
-  assert.equal(Number(checkpointFor(baseScope)?.version), 7);
-  assert.equal(new Date(checkpointFor(baseScope)?.completed_watermark).getTime(), new Date(timestamp2).getTime());
-  assert.equal(checkpointFor(baseScope)?.cursor_ciphertext, null);
-  assert.equal(Number(checkpointFor(concurrentScope)?.version), 1);
-  assert.equal(Number(checkpointFor(versionRaceScope)?.version), 1);
-  for (const isolated of isolatedScopes) {
-    assert.equal(Number(checkpointFor(isolated)?.version), 1);
-  }
-  assert.equal(Number(checkpointFor(tenantScope)?.version), 1);
-  assert.equal(Number(checkpointFor(objectScope)?.version), 0);
-  assert.equal(Number(checkpointFor(providerScope)?.version), 0);
 
   // Direct SQL access is intentionally absent even for service_role; writes are RPC-only.
   await db.unsafe("set role service_role");
@@ -772,8 +782,8 @@ async function main() {
     [organizationA, organizationB],
   );
   await db.unsafe(
-    "delete from public.erp_sync_checkpoints where organization_id in ($1::uuid,$2::uuid,$3::uuid)",
-    [organizationA, organizationB, financeOrganization],
+    "delete from public.erp_sync_checkpoints where organization_id in ($1::uuid,$2::uuid)",
+    [organizationA, organizationB],
   );
   console.log("ERP_SYNC_CHECKPOINT_POSTGRES17_PASS: service-role-only RPC ACLs, RLS, tenant/company/branch/warehouse/currency/object/provider isolation, encrypted cursor storage, immutable receipts, concurrent duplicate replay, competing-version CAS, injected post-staging receipt failure with full rollback, row idempotency, stale/conflict ordering, completed watermark preservation, invoice/receipt/statement staging, exact decimal-string validation and financial debit-credit exclusivity.");
 }
