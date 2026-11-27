@@ -420,7 +420,7 @@ describe("production intelligence workspace inventory screens", () => {
       ok: true,
       data: {
         id: "retention-board-fixture",
-        asOf: "2026-10-30T10:00:00.000Z",
+        asOf,
         period: { from: "2026-10-01", to: "2026-10-29" },
         previousPeriod: { from: "2026-09-01", to: "2026-09-30" },
         status: "VERIFIED",
@@ -441,7 +441,7 @@ describe("production intelligence workspace inventory screens", () => {
           action: "REACTIVATE",
           activity: "INACTIVE",
           daysSinceLastOrder: 100,
-          lastOrderAt: "2026-07-21T10:00:00.000Z",
+          lastOrderAt: "2026-07-23T09:00:00.000Z",
           orderCountCurrent: 0,
           orderCountPrevious: 1,
           reason: "لم يظهر طلب منذ أكثر من 90 يوماً؛ راجع سبب الانقطاع قبل تقديم عرض استعادة.",
@@ -455,7 +455,18 @@ describe("production intelligence workspace inventory screens", () => {
         withheldCustomerCount: 0,
         warnings: [],
       },
-      growthInputs: { evidenceRecords: [], metrics: [], signals: [], sourceSnapshotVerified: true },
+      growthInputs: {
+        evidenceRecords: [
+          evidence("evidence:retention:current", "retention.source", asOf, period),
+          evidence("evidence:retention:previous", "retention.source", asOf, { from: "2026-09-01", to: "2026-09-30" }),
+        ],
+        metrics: [
+          metric("metric:retention:current", "customer.orders.current", 0, "COUNT", ["evidence:retention:current"], period),
+          metric("metric:retention:previous", "customer.orders.previous", 1, "COUNT", ["evidence:retention:previous"], { from: "2026-09-01", to: "2026-09-30" }),
+        ],
+        signals: [],
+        sourceSnapshotVerified: true,
+      },
     });
     render(<IntelligenceWorkspace />);
 
@@ -465,6 +476,8 @@ describe("production intelligence workspace inventory screens", () => {
     expect(card).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
     expect(card).toHaveTextContent("evidence:retention:current");
     expect(card).toHaveTextContent("customer.orders.current");
+    const claims = screen.getByRole("region", { name: "جوازات أدلة الادعاءات" });
+    expect(await within(claims).findByText(/إعادة تنشيط العميل/)).toBeInTheDocument();
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
 
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
