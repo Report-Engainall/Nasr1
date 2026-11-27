@@ -4,12 +4,58 @@
 
 ## Current repository observation
 
-- Repository: `Report-Engainall/Nasr1`; branch: `main`; this is the sole source of truth.
-- Latest `main` commit observed before this directive: `7ba44ef10e752318adc9d55f8448f44846958da5` — `docs(acceptance): record cart P2 completion and independent pagination CI issue`.
-- The existing checkpoint below still records prior #671/#668/#670 gates. It is historical evidence until each PR head, owner, mergeability and exact-SHA CI state is re-fetched. Do not inherit old IN_PROGRESS/PASS claims.
-- Current open PR search surfaced #678, #681, #679, #680, #605, #677, #670, #668, #675, #671, #602, #585, #669, #637, #541, #507, #559, #563, #599, #583, #574, #538, #533, #561, #547, #509, #526, #497, #492 and #490. This is a discovery snapshot, not approval to merge. Reconcile the PRs relevant to each owned path before creating new work.
-- Existing Onyx work must be preserved and reconciled first: #538 (supported-sheet import) and #605 (inventory mutation-window acceptance), plus the existing `INTEGRATION-001`, `DLV-009`, 27-column Onyx export profile, import snapshot/apply/rollback, and `/admin/onyx` / `/admin/import` screens. P4 must not recreate these; isolate only the missing automated connector/sync functionality.
-- No production Supabase writes, remote migrations, Edge deployment, secrets changes, external ERP mutations, Vercel deployment/quota use, Bolt or Lovable actions are authorized by this directive. Keep release NO-GO until canonical gates and owner release approval pass.
+- Repository: `Report-Engainall/Nasr1`; branch: `main`; sole source of truth.
+- **Observed live main HEAD:** `8605561aaba9fb501f264677abcbf0ccc2b085ad`.
+- Exact post-merge main checks at this SHA: **Vitest/strict TypeScript SUCCESS**, **authenticated E2E infrastructure SUCCESS**, **public UI Chromium SUCCESS**; isolated local Supabase/PostgreSQL 17/Chromium acceptance is **IN_PROGRESS** (job `140736582170`, 14/70 steps at last observation); hosted customer/order/tenant E2E is **SKIPPED**, not PASS.
+- No production Supabase writes, remote migrations, Edge deployment, secrets changes, external ERP mutations, Vercel deployment/quota use, Bolt or Lovable actions were performed. Release remains **NO-GO**.
+
+## Merged during this execution
+
+| PR | Merge commit | Implemented / accepted scope | Exact-SHA evidence and remaining boundary |
+|---|---|---|---|
+| #678 | `4444d0d54ce4d2ec2f2d8f80dde3d5ff3060a594` | Corrected the shared customer-order Playwright pagination fixture from obsolete `Range` headers to the actual PostgREST `offset/limit` contract; preserved lowercase Latin `ilike` order-number search coverage. | Exact PR head `7fc49f01774eed984895c2cc21970d3dee4a827b`: P1, infrastructure, Chromium and local Supabase/PostgreSQL 17 acceptance SUCCESS (69/69 local steps, zero failures). #677 closed as superseded; its unique lowercase-search assertion was retained in #678. |
+| #683 | `f0c911923b785cdaaf6e823b271f538c56fd7cd3` | Added truthful connector-readiness states inside the existing `OnyxProExchangeWorkspace`; corrected the export label to show it exports Aghbari data, not a live Onyx database; no fake sync or ERP-write button. | Exact PR head `c1b2490f2e9096b2a0d15cebdee10e83d8291879`: Vitest/strict TypeScript, production build, infrastructure, public Chromium and local Supabase acceptance SUCCESS. Customer/tenant hosted E2E SKIPPED. |
+| #687 | `8605561aaba9fb501f264677abcbf0ccc2b085ad` | Consolidated P3 customer-retention, daily-decision lifecycle/evidence, dead-stock and system-health engine/UI work (11 unique source/test files); did not create parallel engines or add backend/schema writes. #682 intentionally closed by repository owner as superseded by #687. | Exact PR head `329b762d148488b812ede4c67c274bf6bad8ce42`: Vitest/strict TypeScript, infrastructure and public Chromium SUCCESS. Local Supabase/PostgreSQL 17 acceptance is still running on the merged main SHA (job `140736582170`); do not call P3 fully post-merge accepted until it finishes. Hosted customer/tenant E2E SKIPPED. |
+
+## Current exact-SHA gates — re-fetch before every merge
+
+1. **PR #602 — inventory transfer replay / PostgreSQL 17 acceptance.**
+   - Current branch head after safe two-parent sync with main: `3af4b250295a87b302fcf7bda839df0d7573f998`; GitHub reports mergeable.
+   - Unique paths only: PG17 acceptance workflow, its execution checkpoint, and `supabase/tests/inventory_transfer_replay_endpoint_guard.sql`. No application migration or production mutation.
+   - Prior head `0eed9faec12d67283f886c394005526708575109` passed PG17, public Chromium, infrastructure and local Supabase acceptance (69 successful steps, no failed steps). Those results do **not** transfer to the synchronized head.
+   - New-head Vitest/strict TypeScript is IN_PROGRESS; public Chromium and PostgreSQL 17 acceptance are QUEUED; local Supabase job has started (43/70 steps at last observation). Merge only after exact new-head required checks become terminal SUCCESS.
+
+2. **PR #605 — Onyx inventory snapshot mutation-window acceptance.**
+   - Current branch head after safe two-parent sync with main: `393baeb850cb22b1d814374997104a8789b31feb`; GitHub reports mergeable.
+   - Unique paths only: PG17 acceptance workflow, its execution checkpoint, and `supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql`. It proves stale snapshot apply is rejected after inventory mutation and rollback is rejected after later stock movement; the guard preserves quantities, movements and audit evidence.
+   - Previous head `a2b758468f9942a38affb0053f5b29dd79c9a929` passed its dedicated PostgreSQL 17 test, public Chromium, infrastructure and local Supabase acceptance (69 successful steps, no failed steps). Those results do **not** transfer to the synchronized head.
+   - New-head P1/P2/PG17 checks are QUEUED at last observation. Wait for and review all exact-new-head checks before merge.
+
+3. **PR #679 — customer statement strict timestamps and immutable receipt reprints.**
+   - Current branch head after safe two-parent sync with main: `62014c7f189f983aed296543ae32b7793d2dc892`; GitHub reports mergeable.
+   - Five unique paths: strict timestamp parser/tests, finance receipt renderer/unit test, and the finance task-print E2E. The parser rejects impossible Gregorian dates, invalid 24-hour times and timezone offsets beyond ISO ±14:00.
+   - Root cause fixed: a saved receipt's print header now uses immutable server `paid_at`, not the wall clock on each reprint. The Playwright retry now reuses its one saved fixture receipt instead of posting the same split receipt twice into the same disposable local database.
+   - Prior head `3e878e44c5b4bb554e91456b0fb51b3897dcbd69` passed 246 Vitest files / 1,957 tests, P1/P4 strict TypeScript and production build; public Chromium and infrastructure also passed. These results do **not** transfer to the synchronized head.
+   - New-head Vitest is IN_PROGRESS (4/10 steps at last observation); P2 and public Chromium are QUEUED. Merge only after new-head Vitest, TypeScript/build, Chromium and local database/print acceptance are successful.
+
+4. **PR #680 — canonical currency identity in anomaly detection.**
+   - Old head `e4a6d49c4a3d9f5ff29b6fcd3da3c94244f26605` passed P1, TypeScript and public Chromium but failed the full local P2 print acceptance because the shared customer-receipt print test was not stable across reprints/retries. The failure was isolated to receipt-print chronology and repeated test-fixture posting, not to the currency-identity engine.
+   - Keep this PR open and do not merge its failed head. After #679 is merged, synchronize #680 with latest main, preserve only its two unique anomaly-detection source/test files, take the fixed shared finance/E2E files from main, and rerun every required check on the new exact SHA.
+
+## P4 — vendor capability evidence and integration boundary
+
+- **Onyx Pro — official inbound financial import is documented.** Onyx's `Import Financial Data` solution accepts transactions from external applications through text files, Excel or an intermediate database; its published functions include mapping accounts, currencies, cash, banks, customers and vendors, defining external document types, and importing into journal entries or journal vouchers. This is a supported file/intermediate-data integration candidate, subject to the company's installed version, licensed module, approved templates, posting controls and test environment. It is not proof of an available public REST API. Official source: https://onyxproerp.com/en/import-financial-data-solutions/
+- **Al-Mutakamel Plus — external integration and first-party apps are documented at product level.** YemenSoft describes configurable integration with external POS/CRM systems; its Operations app is described as online-connected to Al-Mutakamel Plus for receipts and sales invoices; its Ultimate Store claims direct integration with Onyx or Al-Mutakamel Plus for sales and inventory. These statements identify official vendor channels worth evaluating, but do not expose an API schema, protocol, licence status or third-party credentials. Official source: https://yemensoft.com/ar-motakamel-plus-erp-solutions/
+- The current Aghbari XLSX/CSV Onyx export reads Aghbari's own database. It is **not** a live Onyx read or automatic two-way sync. The current Onyx workspace says so explicitly.
+- **External connector prerequisites still UNKNOWN:** actual Onyx/Al-Mutakamel edition/version at the company, licensed modules, official web-service/API/interface contract, template samples and versioning, endpoint/network access, service account and a vendor-approved sandbox. No endpoint, protocol or credential may be invented. P4 must continue local adapter/mapping/reconciliation work that is already grounded in existing supported file contracts, while keeping real ERP transport disabled until these prerequisites are provided.
+
+## Safety and release boundary
+
+- Keep production database identity/runtime unverified until the exact running application's target is proven. No remote migrations, data writes, RPC deployment or Edge deployment without explicit owner authorization.
+- Never expose supplier cost, margins, ledger details or another customer's account through the client.
+- `APP_ONLY`, `ONYX`, and `MUTAKAMEL` balances must remain distinct; only the server chooses the source.
+- Hosted customer/order/tenant E2E marked SKIPPED is not PASS. QUEUED/IN_PROGRESS tests remain open gates.
+- Release remains NO-GO until required business paths, exact-SHA security/financial/inventory checks, post-merge checks and authorized runtime verification are complete.
 
 ## Four owners — exact boundaries
 
