@@ -310,7 +310,7 @@ function DecisionOutcomeActions({
   if (outcome.state === "EXECUTED") {
     return (
       <div className="mt-3 flex flex-wrap gap-2">
-        {proof ? (
+        {proof && measurementKind === "CURRENCY" ? (
           <button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "MEASURE", { proof })}>
             اعتماد قياس {currency ?? "المصدر"}
           </button>

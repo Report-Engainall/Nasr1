@@ -29,7 +29,7 @@ interface ConcentrationEvidence {
   asOf: string;
 }
 const CURRENCY = /^[A-Z]{3}$/;
-const DAY = /^\\d{4}-\\d{2}-\\d{2}$/;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
 
 function validDay(value: string): boolean {
@@ -52,7 +52,7 @@ function validAdjacentEqualPeriods(earlier: DecisionOutcomeDisplayPeriod, later:
     earlierTo - earlierFrom === laterTo - laterFrom;
 }
 function parseConcentrationEvidence(id: string): ConcentrationEvidence | null {
-  const match = /^rpc:(product-revenue-concentration|supplier-posted-payable-activity):([A-Z]{3}):(\\d{4}-\\d{2}-\\d{2}):(\\d{4}-\\d{2}-\\d{2}):(.+)$/.exec(id);
+  const match = /^rpc:(product-revenue-concentration|supplier-posted-payable-activity):([A-Z]{3}):(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2}):(.+)$/.exec(id);
   if (!match || !CURRENCY.test(match[2]) ||
       !validDay(match[3]) || !validDay(match[4]) ||
       match[3] > match[4] || !validInstant(match[5])) return null;
@@ -72,8 +72,8 @@ function parseConcentrationEvidence(id: string): ConcentrationEvidence | null {
 export function buildDecisionOutcomeDisplayScope(
   outcome: DecisionOutcomeDisplaySource,
 ): DecisionOutcomeDisplayScope {
-  const productMatch = /^finance\\.product-concentration\\.review-increase\\.([A-Z]{3})$/.exec(outcome.ruleId);
-  const supplierMatch = /^finance\\.supplier-concentration\\.review-increase\\.([A-Z]{3})$/.exec(outcome.ruleId);
+  const productMatch = /^finance\.product-concentration\.review-increase\.([A-Z]{3})$/.exec(outcome.ruleId);
+  const supplierMatch = /^finance\.supplier-concentration\.review-increase\.([A-Z]{3})$/.exec(outcome.ruleId);
   const concentration = productMatch || supplierMatch;
   if (concentration) {
     const domain = productMatch ? "product" : "supplier";
@@ -108,7 +108,7 @@ export function buildDecisionOutcomeDisplayScope(
     };
   }
 
-  const cashflowMatch = /^cashflow\\.expected_collections:([A-Z]{3}):(\\d{4}-\\d{2}-\\d{2}):(\\d{4}-\\d{2}-\\d{2})$/.exec(outcome.candidateId);
+  const cashflowMatch = /^cashflow\.expected_collections:([A-Z]{3}):(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/.exec(outcome.candidateId);
   if (cashflowMatch && CURRENCY.test(cashflowMatch[1]) &&
       validDay(cashflowMatch[2]) && validDay(cashflowMatch[3]) &&
       cashflowMatch[2] <= cashflowMatch[3]) {
