@@ -110,6 +110,10 @@ const SOURCE_DOMAIN: Record<string, ClaimDomain> = {
 
 const unique = (values: string[]): string[] => [...new Set(values.filter((value) => value.trim().length > 0))];
 const validTime = (value: string): boolean => timestampMicroseconds(value) !== null;
+const sameInstant = (left: string, right: string): boolean => {
+  const leftMicros = timestampMicroseconds(left);
+  return leftMicros !== null && leftMicros === timestampMicroseconds(right);
+};
 const validConfidence = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
 
 function atLeastReview(status: EvidenceStatus): EvidenceStatus {
@@ -155,7 +159,7 @@ function metricEvidenceIsValid(
   const ids = metric.lineage?.evidenceIds ?? [];
   if (metric.status !== "VERIFIED" || metric.completeness !== "COMPLETE" ||
       metric.quality !== "ACCEPTABLE" || metric.value === null ||
-      metric.asOf !== passport.asOf || !validTime(metric.asOf) ||
+      !sameInstant(metric.asOf, passport.asOf) || !validTime(metric.asOf) ||
       !validTime(metric.lineage?.calculatedAt ?? "") ||
       timestampMicroseconds(metric.lineage?.calculatedAt)! > timestampMicroseconds(passport.generatedAt)! ||
       !metric.lineage?.formulaId.trim() || !metric.lineage?.formulaVersion.trim() ||
@@ -167,7 +171,7 @@ function metricEvidenceIsValid(
     source.status === "VERIFIED" &&
     source.completeness === "COMPLETE" &&
     source.quality === "ACCEPTABLE" &&
-    source.asOf === metric.asOf &&
+    sameInstant(source.asOf, metric.asOf) &&
     validTime(source.sourceTimestamp) &&
     timestampMicroseconds(source.sourceTimestamp)! <= timestampMicroseconds(metric.asOf)! &&
     (!metric.period || samePeriod(source.period, metric.period)) &&
@@ -194,7 +198,7 @@ function validClaimConfidence(
     source.status === "VERIFIED" &&
     source.completeness === "COMPLETE" &&
     source.quality === "ACCEPTABLE" &&
-    source.asOf === passport.asOf &&
+    sameInstant(source.asOf, passport.asOf) &&
     validTime(source.sourceTimestamp) &&
     timestampMicroseconds(source.sourceTimestamp)! <= timestampMicroseconds(passport.asOf)! &&
     (!first || samePeriod(source.period, first.period))
@@ -222,7 +226,7 @@ function validCausalStudy(
     metric.status !== "VERIFIED" ||
     metric.completeness !== "COMPLETE" ||
     metric.quality !== "ACCEPTABLE" ||
-    metric.asOf !== first.asOf ||
+    !sameInstant(metric.asOf, first.asOf) ||
     !samePeriod(metric.period, first.period) ||
     ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") &&
       metric.currency !== first.currency)
@@ -238,7 +242,7 @@ function validCausalStudy(
       source.status === "VERIFIED" &&
       source.completeness === "COMPLETE" &&
       source.quality === "ACCEPTABLE" &&
-      source.asOf === passport.asOf &&
+      sameInstant(source.asOf, passport.asOf) &&
       validTime(source.sourceTimestamp) &&
       timestampMicroseconds(source.sourceTimestamp)! <= timestampMicroseconds(passport.asOf)! &&
       samePeriod(source.period, first.period));
