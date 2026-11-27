@@ -91,7 +91,7 @@ test.describe("profile Auth session isolation — disposable local Supabase only
     expect(profileA.customerCode).toMatch(/^P2E2EA/);
     expect(profileA.businessName).toBe("P2 Local E2E Customer A");
     expect(profileA.status).toBe("approved");
-    await expect(page.getByLabel("البريد الإلكتروني").last()).toHaveValue(emailA);
+    await expect(page.getByText(emailA, { exact: true })).toBeVisible();
     await expect(page.getByLabel("اسم الشركة")).toHaveValue("P2 Local E2E Customer A");
     await expect(page.getByText(/رقم العميل: P2E2EA/)).toBeVisible();
 
@@ -112,14 +112,14 @@ test.describe("profile Auth session isolation — disposable local Supabase only
     expect(profileB.status).toBe("approved");
     expect(profileB.businessName).not.toContain(unsavedDraft);
 
-    await expect(page.getByLabel("البريد الإلكتروني").last()).toHaveValue(emailB);
+    await expect(page.getByText(emailB, { exact: true })).toBeVisible();
     await expect(page.getByLabel("اسم الشركة")).toHaveValue("P2 Local E2E Customer B");
     await expect(page.getByText(/رقم العميل: P2E2EB/)).toBeVisible();
     await expect(page.getByText(/رقم العميل: P2E2EA/)).toHaveCount(0);
 
     await page.reload();
     await expect(page.getByRole("heading", { name: "ملفي الشخصي" })).toBeVisible();
-    await expect(page.getByLabel("البريد الإلكتروني").last()).toHaveValue(emailB);
+    await expect(page.getByText(emailB, { exact: true })).toBeVisible();
     await expect(page.getByLabel("اسم الشركة")).toHaveValue("P2 Local E2E Customer B");
     const reloadedProfileB = await readCurrentCustomerProfile(page);
     expect(reloadedProfileB.subject).toBe(profileB.subject);
