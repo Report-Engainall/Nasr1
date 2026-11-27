@@ -107,7 +107,7 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
       pendingWatermark: null,
       completedWatermark: null,
     })),
-    listRecentPageReceipts: vi.fn(async () => ({
+    listRecentPageReceipts: vi.fn(async (input) => ({
       records: [{
         pageNumber: 1,
         httpStatus: 200,
@@ -121,8 +121,8 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
         completedWatermark: "2026-11-28T00:30:00Z",
       }],
       total: 1,
-      limit: 10,
-      offset: 0,
+      limit: input.limit ?? 10,
+      offset: input.offset ?? 0,
       checkpointVersion: 1,
       hasCursor: false,
     })),
