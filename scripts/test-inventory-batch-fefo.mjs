@@ -212,6 +212,7 @@ async function main(){
  // roll back: no partial release movement, no lower aggregate reserve, no audit.
  const failedReplacementReceipt=await receipt(manager,"FEFO-ATOMIC-FAIL-"+suffix,
   (await db.unsafe("select to_char((pg_catalog.now() at time zone 'UTC')::date+2,'YYYY-MM-DD') d"))[0].d);
+ assert.ok(failedReplacementReceipt.receiptId,"a real received batch must exist before the insufficient-stock scenario");
  await as(manager);
  const order4=(await rpc(
   "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
