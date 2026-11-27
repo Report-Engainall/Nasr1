@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -78,6 +78,16 @@ const STAFF = {
   isStaff: true,
 };
 
+const PROFILE_FIXTURE = {
+  business_name: "شركة الاختبار",
+  contact_name: "مسؤول الاختبار",
+  phone: "777123456",
+  email: "account@example.test",
+  customer_code: "C-TEST",
+  status: "approved" as const,
+  updated_at: "2026-11-01T10:00:00.000Z",
+};
+
 const CUSTOMER_B = {
   id: "33333333-3333-4333-8333-333333333333",
   profileId: "f3333333-3333-4333-8333-333333333333",
@@ -102,15 +112,7 @@ describe("My Aghbari customer account navigation", () => {
     mocks.signOutCurrent.mockReset().mockResolvedValue(undefined);
     mocks.signOutOtherSessions.mockReset().mockResolvedValue(undefined);
     mocks.signOutEverywhere.mockReset().mockResolvedValue(undefined);
-    mocks.fetchAccountProfile.mockReset().mockResolvedValue({
-      business_name: "شركة الاختبار",
-      contact_name: "مسؤول الاختبار",
-      phone: "777123456",
-      email: "account@example.test",
-      customer_code: "C-TEST",
-      status: "approved",
-      updated_at: "2026-11-01T10:00:00.000Z",
-    });
+    mocks.fetchAccountProfile.mockReset().mockResolvedValue(PROFILE_FIXTURE);
     mocks.saveAccountProfile.mockReset();
   });
 
@@ -316,4 +318,50 @@ describe("My Aghbari customer account navigation", () => {
       expect(document.querySelector(`a[href="${route.path}"]`)).toBeNull();
     }
   });
+  it("keeps the company editor hidden while loading and reveals it after a valid profile arrives", async () => {
+    let resolveProfile!: (value: typeof PROFILE_FIXTURE) => void;
+    const pendingProfile = new Promise<typeof PROFILE_FIXTURE>((resolve) => {
+      resolveProfile = resolve;
+    });
+    mocks.fetchAccountProfile.mockReturnValueOnce(pendingProfile);
+
+    render(<CustomerAccountProfilePage />);
+
+    expect(screen.getByText("جار تحميل بيانات الشركة...")).toHaveAttribute("role", "status");
+    expect(screen.queryByLabelText("اسم الشركة")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "حفظ بيانات الشركة" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveProfile(PROFILE_FIXTURE);
+    });
+
+    expect(await screen.findByLabelText("اسم الشركة")).toHaveValue("شركة الاختبار");
+    expect(screen.getByRole("button", { name: "حفظ بيانات الشركة" })).toBeEnabled();
+    expect(screen.queryByText("جار تحميل بيانات الشركة...")).not.toBeInTheDocument();
+  });
+
+  it("saves the company draft against the loaded version and refreshes the visible profile", async () => {
+    const savedProfile = {
+      ...PROFILE_FIXTURE,
+      business_name: "شركة الأغبري المحدّثة",
+      updated_at: "2026-11-27T04:00:00.000Z",
+    };
+    mocks.saveAccountProfile.mockResolvedValueOnce(savedProfile);
+
+    render(<CustomerAccountProfilePage />);
+    const businessName = await screen.findByLabelText("اسم الشركة");
+    fireEvent.change(businessName, { target: { value: savedProfile.business_name } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات الشركة" }));
+
+    expect(await screen.findByText("تم حفظ بيانات الشركة في الحساب.")).toBeInTheDocument();
+    expect(mocks.saveAccountProfile).toHaveBeenCalledWith({
+      businessName: savedProfile.business_name,
+      contactName: PROFILE_FIXTURE.contact_name,
+      phone: PROFILE_FIXTURE.phone,
+      email: PROFILE_FIXTURE.email,
+    }, PROFILE_FIXTURE.updated_at);
+    expect(screen.getByLabelText("اسم الشركة")).toHaveValue(savedProfile.business_name);
+    expect(screen.getByText(/آخر تحديث:/)).toBeInTheDocument();
+  });
+
 });
