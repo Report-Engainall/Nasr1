@@ -97,12 +97,11 @@ async function loadCheckpoint(scope) {
 
 async function persistPage(input) {
   const nextCursor = input.nextCursor ?? null;
-  const nextCursorSha256 = nextCursor === null ? null : sha256(nextCursor);
   const rows = await db.unsafe(
     "select public.persist_erp_sync_page_atomically(" +
       "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text," +
-      "$9::bigint,$10::text,$11::integer,$12::text,$13::text,$14::jsonb,$15::text,$16::text," +
-      "$17::timestamptz,$18::timestamptz,$19::boolean) as result",
+      "$9::bigint,$10::text,$11::integer,$12::text,$13::text,$14::jsonb,$15::text," +
+      "$16::timestamptz,$17::timestamptz,$18::boolean) as result",
     [
       input.scope.organizationId,
       scopeKey(input.scope),
@@ -119,7 +118,6 @@ async function persistPage(input) {
       input.responseSha256,
       JSON.stringify(input.records),
       nextCursor,
-      nextCursorSha256,
       input.pendingWatermark ?? null,
       input.completedWatermark ?? null,
       input.completed,
@@ -201,8 +199,11 @@ async function main() {
   assert.ok(committed1.checkpoint.cursor_ciphertext.includes("initial-page"));
   assert.ok(!committed1.checkpoint.cursor_ciphertext.includes("private-provider-cursor"));
 
-  const replay = await persistPage(first);
-  assert.equal(replay.duplicate_page, true, "lost-response replay must be deduplicated before checkpoint CAS");
+  const replay = await persistPage({
+    ...first,
+    nextCursor: cursorCiphertext("initial-page-reencrypted-with-fresh-aes-gcm-iv"),
+  });
+  assert.equal(replay.duplicate_page, true, "the same page must replay despite fresh randomized cursor ciphertext");
   assert.equal(replay.checkpoint.version, 1);
   assert.deepEqual(replay.counts, { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 });
 
