@@ -16,6 +16,20 @@ const complete = {
     pending_watermark: null,
     completed_watermark: "2026-11-28T00:45:00Z",
   },
+  preview: {
+    records: [{
+      externalId: "ERP-INVOICE-1001",
+      sourceUpdatedAt: "2026-11-28T00:45:00Z",
+      fields: { document_number: "INV-1001", currency_code: "YER", total_amount: "1250.7500" },
+    }],
+    total: 1,
+    limit: 20,
+    offset: 0,
+    checkpointVersion: 12,
+    pendingWatermark: null,
+    completedWatermark: "2026-11-28T00:45:00Z",
+  },
+  preview_error: null,
 };
 
 describe("ERP read-sync client contract", () => {
@@ -70,6 +84,28 @@ describe("ERP read-sync client contract", () => {
     };
     await expect(runErpReadSync(request)).resolves.toEqual(complete);
     expect(mocks.invoke).toHaveBeenCalledWith("erp-read-sync", { body: request });
+  });
+
+  it("rejects a staged preview that contains a field outside the server-approved projection", () => {
+    expect(() => parseErpReadSyncResult({
+      ...complete,
+      preview: {
+        records: [{
+          externalId: "ERP-INVOICE-1001",
+          sourceUpdatedAt: "2026-11-28T00:45:00Z",
+          fields: { document_number: "INV-1001", supplier_cost: "1.00" },
+        }],
+        total: 1, limit: 20, offset: 0, checkpointVersion: 12,
+        pendingWatermark: null, completedWatermark: "2026-11-28T00:45:00Z",
+      },
+    })).toThrow();
+  });
+
+  it("accepts a successful sync when the separate preview read was unavailable", () => {
+    const result = parseErpReadSyncResult({ ...complete, preview: null, preview_error: "ERP_STAGING_PREVIEW_FAILED" });
+    expect(result.status).toBe("complete");
+    expect(result.preview).toBeNull();
+    expect(result.preview_error).toBe("ERP_STAGING_PREVIEW_FAILED");
   });
 
   it("maps known provider readiness and tenant-scope failures to safe Arabic messages", () => {
