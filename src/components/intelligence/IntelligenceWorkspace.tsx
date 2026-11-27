@@ -1016,23 +1016,30 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   }, [data, cashflowMetrics, cashOpeningForSnapshot]);
   const claimEvidenceSourcePassport = useMemo<EvidencePassportData | null>(() => {
     if (!evidencePassport) return null;
-    if (!inventoryData) return evidencePassport;
+    if (!inventoryData && !retentionResult?.ok) return evidencePassport;
     const candidateMetrics: MetricSnapshot[] = [
-      ...inventoryData.deadStockProducts.flatMap((product) => [
-        product.availableQuantity,
-        product.unitCost,
-        product.soldQuantityWindow,
-        product.averageInventoryWindow,
-      ].filter((metric): metric is MetricSnapshot => metric !== null)),
-      ...inventoryData.replenishmentProducts.flatMap((product) => [
-        product.availableToPromise,
-        product.reorderPoint,
-        product.soldQuantityWindow,
-        product.supplierLeadTimeDays,
-        product.incomingPurchaseQuantity,
-        product.minimumOrderQuantity ?? null,
-        product.orderMultiple ?? null,
-      ].filter((metric): metric is MetricSnapshot => metric !== null)),
+      ...(inventoryData ? [
+        ...inventoryData.deadStockProducts.flatMap((product) => [
+          product.availableQuantity,
+          product.unitCost,
+          product.soldQuantityWindow,
+          product.averageInventoryWindow,
+        ].filter((metric): metric is MetricSnapshot => metric !== null)),
+        ...inventoryData.replenishmentProducts.flatMap((product) => [
+          product.availableToPromise,
+          product.reorderPoint,
+          product.soldQuantityWindow,
+          product.supplierLeadTimeDays,
+          product.incomingPurchaseQuantity,
+          product.minimumOrderQuantity ?? null,
+          product.orderMultiple ?? null,
+        ].filter((metric): metric is MetricSnapshot => metric !== null)),
+      ] : []),
+      ...(retentionResult?.ok &&
+          retentionResult.data.asOf === evidencePassport.asOf &&
+          retentionResult.growthInputs.sourceSnapshotVerified
+        ? retentionResult.growthInputs.metrics
+        : []),
     ];
     const metricsById = new Map<string, MetricSnapshot>();
     const conflictingMetrics: MetricSnapshot[] = [];
@@ -1041,14 +1048,23 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       if (!previous) metricsById.set(metric.id, metric);
       else if (JSON.stringify(previous) !== JSON.stringify(metric)) conflictingMetrics.push(metric);
     }
+    const retentionEvidence = retentionResult?.ok &&
+        retentionResult.data.asOf === evidencePassport.asOf &&
+        retentionResult.growthInputs.sourceSnapshotVerified
+      ? retentionResult.growthInputs.evidenceRecords
+      : [];
     return buildEvidencePassport({
       id: "intelligence-claim-evidence:" + evidencePassport.asOf,
       generatedAt: evidencePassport.generatedAt,
       asOf: evidencePassport.asOf,
-      evidenceRecords: [...evidencePassport.evidenceRecords, ...inventoryData.evidenceRecords],
+      evidenceRecords: [
+        ...evidencePassport.evidenceRecords,
+        ...(inventoryData?.evidenceRecords ?? []),
+        ...retentionEvidence,
+      ],
       metrics: [...evidencePassport.metrics, ...metricsById.values(), ...conflictingMetrics],
     });
-  }, [evidencePassport, inventoryData]);
+  }, [evidencePassport, inventoryData, retentionResult]);
 
   const cashflowForecast = useMemo(() => {
     if (!data) return null;
@@ -1226,18 +1242,28 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   }, [inventoryData, replenishmentReport]);
 
   const customerRetentionDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
-    if (!retentionResult?.ok) return [];
+    // Never mix an older customer cohort with the current finance/inventory decision snapshot.
+    if (!retentionResult?.ok || !evidencePassport ||
+        retentionResult.data.asOf !== evidencePassport.asOf ||
+        !retentionResult.growthInputs.sourceSnapshotVerified) return [];
     const candidates = buildCustomerRetentionDecisionCandidates({
-      asOf: retentionResult.data.asOf,
+      asOf: evidencePassport.asOf,
       queue: retentionResult.actionQueue,
     });
-    return candidates.map(decision => ({
-      decision,
-      proof: null,
-      candidateId: decision.id,
-      metricIds: [],
-    }));
-  }, [retentionResult]);
+    return candidates.map(decision => {
+      const sourceAction = retentionResult.actionQueue.actions.find(action =>
+        action.evidenceIds.length === decision.proof.evidenceIds.length &&
+        action.evidenceIds.every(id => decision.proof.evidenceIds.includes(id)) &&
+        action.metricKeys.every(key => decision.proof.metricKeys.includes(key))
+      );
+      return {
+        decision,
+        proof: null,
+        candidateId: decision.id,
+        metricIds: sourceAction?.metricIds ?? [],
+      };
+    });
+  }, [retentionResult, evidencePassport]);
 
   const claimEvidencePassports = useMemo(() => {
     if (!claimEvidenceSourcePassport) return [];
