@@ -42,6 +42,7 @@ import {
   type CashflowMeasurementProof,
   type CashflowScheduleResult,
 } from "@/lib/intelligence/cashflow-schedule-client";
+import { buildDecisionOutcomeDisplayScope } from "@/lib/intelligence/decision-outcome-display";
 import {
   commandDecisionOutcome,
   createDecisionOutcomeProposal,
@@ -92,10 +93,6 @@ const stateLabels: Record<DecisionOutcomeView["state"], string> = {
   PROPOSED: "مقترح", IN_REVIEW: "قيد المراجعة", APPROVED: "معتمد", REJECTED: "مرفوض",
   DEFERRED: "مؤجل", ASSIGNED: "مُعيّن", EXECUTING: "قيد التنفيذ", EXECUTED: "بانتظار القياس", MEASURED: "مقاس",
 };
-function currencyFromCandidate(candidateId: string): string | null {
-  const parts = candidateId.split(":");
-  return parts[0] === "cashflow.expected_collections" && /^[A-Z]{3}$/.test(parts[1] ?? "") ? parts[1] : null;
-}
 function candidateIdFor(currency: string, period: { from: string; to: string }): string {
   return "cashflow.expected_collections:" + currency + ":" + period.from + ":" + period.to;
 }
@@ -205,11 +202,17 @@ function DecisionOutcomeCard({
   onReasonChange: (id: string, value: string) => void;
   onTransition: DecisionTransitionHandler;
 }) {
-  const currency = currencyFromCandidate(outcome.candidateId);
-  const candidatePeriod = outcome.candidateId.split(":").slice(2).join(":");
-  const proof = measurementMetrics.find((item) =>
-    item.currency === currency && item.period.from + ":" + item.period.to === candidatePeriod,
-  );
+  const scope = buildDecisionOutcomeDisplayScope(outcome);
+  const currency = scope.currency;
+  // Ratio decisions must never borrow a same-currency cashflow proof to become "measured".
+  const proof = scope.measurementKind === "CURRENCY" && currency
+    ? measurementMetrics.find((item) =>
+        item.currency === currency &&
+        scope.period !== null &&
+        item.period.from === scope.period.from &&
+        item.period.to === scope.period.to,
+      )
+    : undefined;
 
   return (
     <article className="rounded-xl border p-4" aria-label={"قرار " + outcome.id}>
@@ -221,7 +224,11 @@ function DecisionOutcomeCard({
         <span className="rounded-full border px-3 py-1 text-xs">{stateLabels[outcome.state]} · v{outcome.version}</span>
       </header>
       <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-        <p>النطاق: {currency ?? "غير محدد"} · {candidatePeriod.split(":").join(" — ")}</p>
+        <p>النطاق: {scope.label} · العملة: {currency ?? "غير محددة"}</p>
+        {scope.period ? <p>الفترة: {scope.period.from} — {scope.period.to}</p> : null}
+        {scope.baselinePeriod ? <p>الفترة المقارنة: {scope.baselinePeriod.from} — {scope.baselinePeriod.to}</p> : null}
+        {scope.asOf ? <p>لقطة المصدر: {scope.asOf}</p> : null}
+        {scope.sourceNote ? <p className="text-xs text-muted-foreground sm:col-span-2">{scope.sourceNote}</p> : null}
         <p>الأحداث المحفوظة: {outcome.eventCount} · آخر تحديث: {formatDay(outcome.updatedAt.slice(0, 10))}</p>
         {outcome.measuredOutcome ? <p className="font-semibold">النتيجة المقاسة: {formatMoney(outcome.measuredOutcome.value, outcome.measuredOutcome.currency)} · {outcome.measuredOutcome.asOf}</p> : null}
         {outcome.reason ? <p>السبب: {outcome.reason}</p> : null}
@@ -235,13 +242,20 @@ function DecisionOutcomeCard({
         outcome={outcome}
         proof={proof}
         currency={currency}
+        measurementKind={scope.measurementKind}
         busy={busy}
         anyBusy={anyBusy}
         profileId={profileId}
         actionReason={actionReason}
         onTransition={onTransition}
       />
-      {outcome.state === "EXECUTED" && !proof ? <p className="mt-2 text-xs text-muted-foreground">القياس محجوب: لا توجد حزمة إثبات كاملة للعملة والفترة المطابقتين تماماً.</p> : null}
+      {outcome.state === "EXECUTED" && !proof ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {scope.measurementKind === "RATIO"
+            ? "اكتمل التنفيذ وبقيت متابعة الاتجاه؛ هذا المؤشر نسبة تركّز وليس مبلغاً نقدياً، وخادم القياس الحالي لا يقبل تحويله إلى نتيجة مالية. لا يُستخدم إثبات التحصيل النقدي لقياسه."
+            : "القياس محجوب: لا توجد حزمة إثبات كاملة للعملة والفترة المطابقتين تماماً."}
+        </p>
+      ) : null}
       <footer className="mt-3 border-t pt-2 text-xs text-muted-foreground">
         <DecisionOutcomeHistory events={outcome.history} />
       </footer>
@@ -253,6 +267,7 @@ function DecisionOutcomeActions({
   outcome,
   proof,
   currency,
+  measurementKind,
   busy,
   anyBusy,
   profileId,
@@ -262,6 +277,7 @@ function DecisionOutcomeActions({
   outcome: DecisionOutcomeView;
   proof: CashflowMeasurementProof | undefined;
   currency: string | null;
+  measurementKind: "CURRENCY" | "RATIO" | "UNKNOWN";
   busy: boolean;
   anyBusy: boolean;
   profileId: string | undefined;
@@ -294,9 +310,11 @@ function DecisionOutcomeActions({
   if (outcome.state === "EXECUTED") {
     return (
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn primary" type="button" disabled={disabled || !proof} onClick={() => proof && onTransition(outcome, "MEASURE", { proof })}>
-          قياس من مصدر {currency ?? "غير متاح"}
-        </button>
+        {proof ? (
+          <button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "MEASURE", { proof })}>
+            اعتماد قياس {currency ?? "المصدر"}
+          </button>
+        ) : null}
         {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
       </div>
     );
