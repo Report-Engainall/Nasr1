@@ -181,6 +181,30 @@ export type ErpPersistResult = {
   counts: ErpPersistCounts;
   duplicatePage: boolean;
 };
+export type ErpStagedPreviewRecord = {
+  externalId: string;
+  sourceUpdatedAt: string;
+  fields: Partial<Record<ErpCanonicalField, ErpScalar>>;
+};
+
+export type ErpStagedPreview = {
+  records: ErpStagedPreviewRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+  checkpointVersion: number;
+  pendingWatermark: string | null;
+  completedWatermark: string | null;
+};
+
+export interface ErpStagedRecordReader {
+  listStagedRecords(input: {
+    scope: ErpSyncScope;
+    limit?: number;
+    offset?: number;
+  }): Promise<ErpStagedPreview>;
+}
+
 
 /**
  * P2 implements this boundary with the canonical tenant-scoped staging RPC/table.
@@ -317,6 +341,8 @@ const SAFE_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
     "source_document_number", "description",
   ],
 };
+
+export const ERP_SAFE_FIELDS: Readonly<Record<ErpObjectType, readonly ErpCanonicalField[]>> = SAFE_FIELDS;
 
 const REQUIRED_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
   products: ["item_code", "name"],
