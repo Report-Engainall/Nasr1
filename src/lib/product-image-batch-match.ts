@@ -96,7 +96,7 @@ function productImageFilenameOrder(fileName: string, productItemCode: string): r
   const productKey = normalizeProductImageItemCode(productItemCode);
   if (normalizeProductImageItemCode(fileCode) === productKey) return [0, 0];
 
-  const numberedSuffix = fileCode.match(/(?:__|\\s*\\()\\s*([2-9]\\d*)\\)?$/u);
+  const numberedSuffix = fileCode.match(/(?:__|\s*\()\s*([2-9]\d*)\)?$/u);
   if (numberedSuffix?.index !== undefined) {
     const baseCode = fileCode.slice(0, numberedSuffix.index).trim();
     if (normalizeProductImageItemCode(baseCode) === productKey) {
