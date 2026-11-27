@@ -34,7 +34,7 @@ const complete = {
 
 describe("ERP read-sync client contract", () => {
   it("parses a completed source snapshot with exact counters and watermarks", () => {
-    expect(parseErpReadSyncResult(complete)).toEqual(complete);
+    expect(parseErpReadSyncResult(complete, "customer_financial_documents")).toEqual(complete);
   });
 
   it("parses a resumable page without exposing the opaque cursor", () => {
@@ -47,7 +47,7 @@ describe("ERP read-sync client contract", () => {
         pending_watermark: "2026-11-28T00:50:00Z",
         completed_watermark: "2026-11-28T00:45:00Z",
       },
-    });
+    }, "customer_financial_documents");
     expect(result.status).toBe("continuation_required");
     expect(result.checkpoint.has_cursor).toBe(true);
     expect(JSON.stringify(result)).not.toContain("cursor_ciphertext");
@@ -98,11 +98,11 @@ describe("ERP read-sync client contract", () => {
         total: 1, limit: 20, offset: 0, checkpointVersion: 12,
         pendingWatermark: null, completedWatermark: "2026-11-28T00:45:00Z",
       },
-    })).toThrow();
+    }, "customer_financial_documents")).toThrow();
   });
 
   it("accepts a successful sync when the separate preview read was unavailable", () => {
-    const result = parseErpReadSyncResult({ ...complete, preview: null, preview_error: "ERP_STAGING_PREVIEW_FAILED" });
+    const result = parseErpReadSyncResult({ ...complete, preview: null, preview_error: "ERP_STAGING_PREVIEW_FAILED" }, "customer_financial_documents");
     expect(result.status).toBe("complete");
     expect(result.preview).toBeNull();
     expect(result.preview_error).toBe("ERP_STAGING_PREVIEW_FAILED");
