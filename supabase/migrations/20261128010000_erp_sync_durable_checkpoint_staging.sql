@@ -188,6 +188,7 @@ DECLARE
   v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
   v_receipt public.erp_sync_page_receipts%ROWTYPE;
   v_record jsonb;
+  v_record_field_count integer;
   v_fields jsonb;
   v_allowed_fields text[];
   v_invalid_field text;
@@ -258,8 +259,13 @@ BEGIN
   FOR v_record IN
     SELECT entry.value FROM pg_catalog.jsonb_array_elements(p_records) AS entry(value)
   LOOP
-    IF pg_catalog.jsonb_typeof(v_record) IS DISTINCT FROM 'object'
-       OR (SELECT count(*) FROM pg_catalog.jsonb_object_keys(v_record))<>4
+    IF pg_catalog.jsonb_typeof(v_record) IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP staged record must be a JSON object';
+    END IF;
+
+    SELECT count(*) INTO v_record_field_count
+      FROM pg_catalog.jsonb_object_keys(v_record);
+    IF v_record_field_count<>4
        OR pg_catalog.jsonb_typeof(v_record->'external_id') IS DISTINCT FROM 'string'
        OR pg_catalog.jsonb_typeof(v_record->'source_updated_at') IS DISTINCT FROM 'string'
        OR pg_catalog.jsonb_typeof(v_record->'idempotency_key') IS DISTINCT FROM 'string'
@@ -374,6 +380,11 @@ BEGIN
   END IF;
   IF p_completed IS FALSE AND p_completed_watermark IS DISTINCT FROM v_checkpoint.completed_watermark THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='incomplete ERP pages must preserve the completed watermark';
+  END IF;
+  IF p_completed IS FALSE AND v_checkpoint.pending_watermark IS NOT NULL
+     AND (p_pending_watermark IS NULL OR p_pending_watermark<v_checkpoint.pending_watermark)
+  THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='incomplete ERP pages cannot move the pending watermark backwards';
   END IF;
 
   FOR v_record IN
