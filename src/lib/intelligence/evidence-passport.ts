@@ -3,13 +3,17 @@ import { timestampMicroseconds } from "./product-revenue-concentration-client";
 export interface BuildEvidencePassportInput {id:string;generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[]}
 const validTime=(value:unknown):value is string=>timestampMicroseconds(value)!==null;
 const unique=(v:string[])=>[...new Set(v.filter(Boolean))];
-function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>,expectedAsOf:string):MetricSnapshot {
+function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>,expectedAsOf:string,expectedGeneratedAt:string):MetricSnapshot {
  const ids=metric.lineage?.evidenceIds??[], warnings=[...(metric.warnings??[])];
  const downgrade=(status:EvidenceStatus,warning:string,completeness=metric.completeness):MetricSnapshot=>({...metric,status,completeness,warnings:unique([...warnings,warning])});
  if(!validTime(metric.lineage?.calculatedAt)){
   if(metric.status==="VERIFIED")return downgrade("NEEDS_REVIEW","METRIC_CALCULATION_TIMESTAMP_INVALID","PARTIAL");
   return {...metric,warnings:unique([...warnings,"METRIC_CALCULATION_TIMESTAMP_INVALID"])};
  }
+ if(timestampMicroseconds(metric.lineage.calculatedAt)!>timestampMicroseconds(expectedGeneratedAt)!)
+  return metric.status==="VERIFIED"
+    ? downgrade("NEEDS_REVIEW","METRIC_CALCULATED_AFTER_REPORT_GENERATION","PARTIAL")
+    : {...metric,warnings:unique([...warnings,"METRIC_CALCULATED_AFTER_REPORT_GENERATION"])};
  if(metric.status!=="VERIFIED") return metric;
  if(!ids.length)return downgrade("UNVERIFIED","NO_SOURCE_LINEAGE");
  if(ids.some(id=>duplicates.has(id)))return downgrade("UNVERIFIED","AMBIGUOUS_EVIDENCE_ID");
@@ -62,7 +66,7 @@ export function buildEvidencePassport(input:BuildEvidencePassportInput):Evidence
   throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps");
  if(timestampMicroseconds(input.asOf)!>timestampMicroseconds(input.generatedAt)!)
   throw new Error("asOf cannot be after generatedAt");
- const metrics=input.metrics.map(m=>normalize(m,records,duplicates,input.asOf));
+ const metrics=input.metrics.map(m=>normalize(m,records,duplicates,input.asOf,input.generatedAt));
  const warnings=unique([...input.evidenceRecords.flatMap(r=>r.warnings??[]),...metrics.flatMap(m=>m.warnings??[]),...(duplicates.size?["DUPLICATE_EVIDENCE_RECORD_ID"]:[])]);
  return {id:input.id,generatedAt:input.generatedAt,asOf:input.asOf,status:statusRollup(metrics.map(m=>m.status)),completeness:completenessRollup(metrics),evidenceRecords:input.evidenceRecords,metrics,warnings};
 }
