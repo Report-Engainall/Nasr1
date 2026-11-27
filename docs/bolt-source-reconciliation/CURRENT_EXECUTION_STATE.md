@@ -1,39 +1,40 @@
-# LIVE EXECUTION RESUME — 2026-11-27 03:10 UTC
+# LIVE EXECUTION RESUME — 2026-11-27 05:20 UTC
 
 > Sole live execution pointer. Resume from the first next action. Do not repeat the OSS selection below or rebuild accepted components.
 
 - Repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Current `main` SHA: `4465bf39a5f6eede4ace970cbc13133228b2513a`.
-- PR #650 https://github.com/Report-Engainall/Nasr1/pull/650 is **MERGED** into `main` as `4465bf39a5f6eede4ace970cbc13133228b2513a` (squash). The tested PR head was `4566157e9c4a0661f9cc75eaff65dbc5ed4cfa11`; expected-head protection was used.
-- #650 exact-head P1 run `45930475197`: **SUCCESS**, 11/11 steps; Vitest, strict TypeScript and production build passed.
-- #650 exact-head P2 run `45930475289`: **SUCCESS** on exact head `4566157e9c4a0661f9cc75eaff65dbc5ed4cfa11`. Local PostgreSQL 17/Supabase/Chromium job `140283774461`: 68 steps, 66 SUCCESS, 2 conditional SKIPPED, 0 failures. Public UI smoke and authenticated infrastructure gate SUCCESS. The separate customer/tenant external E2E job `140282993481` was **SKIPPED**, not PASS. The local tests do not prove hosted auth or the real customer A→B transition inside `/profile`.
-- #650 source scope: mobile finance workspace width/scroll assertions, failure diagnostics, and /profile company-editor loading/versioned-save component regression coverage. No SQL, RPC, RLS, Auth, finance posting or inventory mutation was changed.
-- Post-merge exact-main workflows are queued on `4465bf39a5f6eede4ace970cbc13133228b2513a`: P1 `45932332432`; P2 `45932332568`. These are not PASS yet; close them before claiming post-merge verification.
-- DLV-002 remains **OPEN**. P2 must still run a disposable local Supabase Auth Chromium fixture: customer A edits an unsaved company draft, signs out, customer B signs in and sees only B's profile; include staff/admin and restricted-role separation, same-user `sessionRevision`, and 360px/1280px layout. Component tests do not substitute for this browser proof.
-- DLV-001 requirement→screen/action/service/RPC/Edge/tenant-scope/migration/exact-SHA crosswalk remains **OPEN**.
-- DLV-003 product catalogue/detail/discovery/admin acceptance remains **OPEN** beyond the accepted image-uploader lifecycle. Original product-image associations remain **0/114** until the owner supplies original assets mapped by SKU. Do not fabricate, hotlink, or rebuild the uploader/gallery.
-- Release remains **NO-GO**: hosted customer/profile Auth E2E, effective production Supabase target identity, hosted Edge deployment and original product imagery are not proven. No production DB/Storage writes, deployment, Bolt/Vercel usage or paid AI calls were performed.
-
-## Reuse decision — OSS quick check for 2026-11-27
-
-- Uppy React: MIT. Official React docs: https://uppy.io/docs/react/ ; license: https://github.com/transloadit/uppy/blob/main/LICENSE.
-- React Dropzone: MIT. License: https://github.com/react-dropzone/react-dropzone/blob/master/LICENSE.
-- Decision: do not add either dependency. Nasr1 already has the domain-specific uploader, SKU matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. Do not repeat OSS search next session unless the design changes.
+- Current `main` SHA: `775ce9c3179e51abbf3023a98eae907fc790b2c1`.
+- This P3 execution round merged **seven** accepted PRs:
+  - #643 anomaly engine rejects numeric-looking `TEXT` metrics: merge `0a3aa73668a41b6e3d8a8b18c98f0aba0c75e8d4`.
+  - #645 growth opportunity evidence hardening: merge `633e9619658b8328e24e047520d75a89aa9d5273`.
+  - #646 demand forecast numeric-unit admission and sample safeguards: merge `fecd506ef661ea14dba965be8574eb51794c78fd`.
+  - #647 supplier payable activity/trend snapshot clock validation: merge `014218e1d3349143aecc65866bb6c652ee97306e`.
+  - #648 receivable aging evidence reconciliation and arithmetic checks: merge `7f4064b8d52cc4cef49917f37bbe1cd07ddb85d3`.
+  - #636 replenishment decision values now reconcile to exact source metrics, units, periods, formula registry and full evidence set: merge `5f7617fd33a5f712ae50ecb12b0593b701035217`.
+  - #639 supplier actual lead times and on-time flags reconcile to submitted/received/promised timestamps at sub-second precision: merge `775ce9c3179e51abbf3023a98eae907fc790b2c1`.
+- Exact-head acceptance for #636: P1 and P2 PASS; isolated PostgreSQL 17/Supabase and Chromium local acceptance PASS; hosted customer/tenant isolation was **SKIPPED**.
+- Exact-head acceptance for #639: P1 and P2 PASS; public UI, authenticated infrastructure gate and local PostgreSQL 17/Supabase/Chromium job PASS; hosted customer/tenant isolation was **SKIPPED**.
+- #651 remains open at head `2b4346629e3bc0f0e2a3f990f6175948ece2ff42`: P1 run `45931811576` PASS; P2 `45931811590` is still running the local Supabase/Chromium acceptance (latest active: finance document and operational-task print).
+- #631 remains open at head `a7454af75bcc67b962b12b334210aadb530d2c5c`: P1 run `45931854445` PASS; P2 `45931854444` is still running local Supabase/Chromium acceptance (latest active: checkout replay after a committed response is lost).
+- #637 remains open at head `0d656ec28d06a0b882e3269eb70e3384530925ef`. Changes include absolute-instant ordering for timezone-offset decision records, strict report/coverage clocks, matching coverage-evidence period, and five new regressions. The preceding head `04a5887` failed Vitest/P1 because TypeScript could not preserve the nullable `asOfTime` narrowing inside the coverage callback; this was corrected by capturing the validated value before the callback. Latest exact-head P1 `45932470566` and P2 `45932470539` are QUEUED, not PASS.
+- Do not merge #631, #637 or #651 until P1 and P2 are terminal-success on each exact current PR head. External hosted Auth/tenant jobs are still SKIPPED where indicated; local isolated proof does not replace hosted proof.
+- OSS quick-check is already recorded below: Uppy React and React Dropzone are MIT but were not added because the existing domain-specific uploader already covers the required lifecycle. The current app already uses Radix UI, TanStack Query/Router, Recharts, Zod and other established packages. No new dependency was introduced in this round.
+- No production database/storage mutation, deployment, paid API, Bolt credit or Vercel credit was used.
+- Release remains **NO-GO** until hosted authenticated tenant/session isolation, actual production Supabase target identity, hosted Edge deployment and original product images are verified. Original image associations remain 0/114 until owner assets are mapped by SKU.
 
 ## First next actions
 
-1. Close post-merge P1 `45932332432` and P2 `45932332568` on exact `main` SHA `4465bf39a5f6eede4ace970cbc13133228b2513a`. Queued/in-progress/skipped is not PASS.
-2. P2: implement and run the dedicated local Auth A→B browser fixture for `/profile` described above. Do not query or write an unidentified production Supabase project.
-3. P1: continue DLV-003 product catalogue/detail/discovery/admin gaps from the current code. Preserve existing search, server pagination, privacy projections, detail/reviews/questions, and accepted uploader. Do not duplicate existing work.
-4. Continue DLV-001/002 traceability and screen-state coverage only where evidence is still missing.
+1. Close exact-head P2 #651 (`45931811590`) and #631 (`45931854444`); if either fails, inspect the failed step, fix only that scope and rerun.
+2. Run #637 P1/P2 on exact head `0d656ec28d06a0b882e3269eb70e3384530925ef`; fix any test/type failure before merge.
+3. Merge #651, #631 and #637 only after their current heads have P1/P2 success; record merge SHAs and verify the resulting `main` head.
+4. Continue the remaining P3 engine gaps from the current code; don't repeat OSS discovery unless the integration design changes.
 
 ## Delivery discipline
 
-- `main` only as source of truth; merge accepted P1 work and keep the cursor current.
+- `main` only as source of truth; merge accepted P1/P2 work with expected-head protection.
 - Preserve current Supabase/RLS/services; no parallel accounting, inventory, CRM, Storage or AI systems.
 - IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
 - No production mutation, deployment, Bolt/Vercel usage or paid AI calls without explicit authorization.
-
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
 
