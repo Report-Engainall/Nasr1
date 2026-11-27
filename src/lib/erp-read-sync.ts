@@ -23,9 +23,12 @@ export type ErpReadSyncRequest = {
   max_records?: number;
 };
 
+export type ErpReadSyncDisposition = "created" | "updated" | "unchanged" | "rejected" | "conflicted";
+
 export type ErpReadSyncPreviewRecord = {
   externalId: string;
   sourceUpdatedAt: string;
+  lastDisposition: ErpReadSyncDisposition | null;
   fields: Record<string, string | number | boolean | null>;
 };
 
@@ -105,6 +108,11 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
         !isRecord(item.fields)) {
       throw new Error("أحد سجلات معاينة ERP غير صالح.");
     }
+    const disposition = item.lastDisposition;
+    if (disposition !== null && disposition !== "created" && disposition !== "updated" &&
+        disposition !== "unchanged" && disposition !== "rejected" && disposition !== "conflicted") {
+      throw new Error("حالة سجل ERP المرحلي غير معتمدة.");
+    }
     const fields: Record<string, string | number | boolean | null> = {};
     for (const [key, fieldValue] of Object.entries(item.fields)) {
       if (!allowedFields.has(key) ||
@@ -114,7 +122,7 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
       }
       fields[key] = fieldValue;
     }
-    return { externalId: item.externalId, sourceUpdatedAt: item.sourceUpdatedAt, fields };
+    return { externalId: item.externalId, sourceUpdatedAt: item.sourceUpdatedAt, lastDisposition: disposition, fields };
   });
   return {
     records,
