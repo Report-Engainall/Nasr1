@@ -460,6 +460,26 @@ export function DailyDecisionBoard({
         </div>
       ) : null}
 
+      <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+        <p>
+          وقت تكوين لقطة المصدر: <strong className="font-medium text-foreground">
+            {Number.isFinite(Date.parse(result.generatedAt))
+              ? new Date(result.generatedAt).toLocaleString("ar-YE")
+              : "وقت المصدر غير صالح"}
+          </strong>
+        </p>
+        <p className="mt-1">إصدار سياسة الذاكرة: <span dir="ltr">{result.policyVersion}</span></p>
+      </div>
+
+      {result.warnings.length > 0 ? (
+        <section className="space-y-1 rounded-lg border p-3" aria-label="تحذيرات مصدر القرارات">
+          <h3 className="text-xs font-semibold">تحفظات مصدر القرار</h3>
+          {result.warnings.map((warning, index) => (
+            <p key={String(index) + warning} className="break-words text-xs text-muted-foreground">{warning}</p>
+          ))}
+        </section>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <article className="min-w-0 rounded-lg bg-muted/40 p-3">
           <p className="text-xs text-muted-foreground">قرارات محفوظة</p>
