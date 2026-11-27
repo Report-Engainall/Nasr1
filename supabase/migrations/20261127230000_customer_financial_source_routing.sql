@@ -797,9 +797,39 @@ COMMENT ON FUNCTION public.get_customer_account_statement() IS
 REVOKE ALL ON FUNCTION public.get_customer_account_statement_app_only_internal() FROM PUBLIC,anon,authenticated;
 
 
--- Keep direct PostgREST invoice metadata/line reads on the same server-selected ledger.
--- Existing permissive customer/staff policies remain in place; these RESTRICTIVE
--- policies narrow all authenticated SELECT paths without removing finance staff access.
+-- The source-binding tables intentionally revoke direct SELECT from authenticated.
+-- This narrowly scoped SECURITY DEFINER predicate exposes only a boolean decision for
+-- the current customer's own invoice rows and never returns the binding or ERP account ref.
+CREATE OR REPLACE FUNCTION public.customer_app_only_invoice_read_allowed(
+  p_customer_id uuid,
+  p_organization_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+  SELECT auth.uid() IS NOT NULL
+     AND p_customer_id IS NOT NULL
+     AND p_organization_id IS NOT NULL
+     AND p_customer_id = public.current_customer_id()
+     AND p_organization_id = public.current_organization_id()
+     AND public.current_customer_can('invoices.read')
+     AND EXISTS (
+       SELECT 1
+         FROM public.customer_financial_source_bindings b
+        WHERE b.organization_id = p_organization_id
+          AND b.customer_id = p_customer_id
+          AND b.source_mode = 'APP_ONLY'
+          AND b.source_status = 'active'
+     )
+$function$;
+REVOKE ALL ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) TO authenticated;
+COMMENT ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) IS
+  'Boolean-only source predicate for the current customer's invoice RLS; does not disclose source mode, binding metadata or external account references.';
+
 ALTER TABLE public.customer_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customer_invoice_items ENABLE ROW LEVEL SECURITY;
 
@@ -811,18 +841,7 @@ CREATE POLICY customer_invoice_financial_source_read_guard
   TO authenticated
   USING (
     public.is_staff()
-    OR (
-      customer_id = public.current_customer_id()
-      AND organization_id = public.current_organization_id()
-      AND EXISTS (
-        SELECT 1
-          FROM public.customer_financial_source_bindings b
-         WHERE b.organization_id = customer_invoices.organization_id
-           AND b.customer_id = customer_invoices.customer_id
-           AND b.source_mode = 'APP_ONLY'
-           AND b.source_status = 'active'
-      )
-    )
+    OR public.customer_app_only_invoice_read_allowed(customer_id, organization_id)
   );
 
 DROP POLICY IF EXISTS customer_invoice_item_financial_source_read_guard ON public.customer_invoice_items;
@@ -836,21 +855,16 @@ CREATE POLICY customer_invoice_item_financial_source_read_guard
     OR EXISTS (
       SELECT 1
         FROM public.customer_invoices i
-        JOIN public.customer_financial_source_bindings b
-          ON b.organization_id = i.organization_id
-         AND b.customer_id = i.customer_id
        WHERE i.id = customer_invoice_items.invoice_id
          AND i.organization_id = customer_invoice_items.organization_id
-         AND i.customer_id = public.current_customer_id()
-         AND b.source_mode = 'APP_ONLY'
-         AND b.source_status = 'active'
+         AND public.customer_app_only_invoice_read_allowed(i.customer_id, i.organization_id)
     )
   );
 
 COMMENT ON POLICY customer_invoice_financial_source_read_guard ON public.customer_invoices IS
-  'Restricts customer direct invoice metadata reads to the active APP_ONLY source; finance staff remain subject to existing permissive tenant/role policies.';
+  'Restricts customer direct invoice metadata reads to the active APP_ONLY source through a boolean-only SECURITY DEFINER guard; finance staff remain subject to existing permissive tenant/role policies.';
 COMMENT ON POLICY customer_invoice_item_financial_source_read_guard ON public.customer_invoice_items IS
-  'Restricts customer direct invoice-line reads to the active APP_ONLY source; finance staff remain subject to existing permissive tenant/role policies.';
+  'Restricts customer direct invoice-line reads to the active APP_ONLY source through the invoice source guard; finance staff remain subject to existing permissive tenant/role policies.';
 
 
 -- The existing customer invoice PDF is a separate financial-document entry point.
