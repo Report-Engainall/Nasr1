@@ -334,6 +334,9 @@ export function buildCustomerRetentionDecisionCandidates(input: {
     const priority = action.priority === "HIGH" ? "P1" as const
       : action.priority === "MEDIUM" ? "P2" as const : "P3" as const;
     const priorityScore = priority === "P1" ? 300 : priority === "P2" ? 200 : 100;
+    const customerLabel = customerRef.length > 14
+      ? customerRef.slice(0, 7) + "…" + customerRef.slice(-4)
+      : customerRef;
     const actionText = action.action === "REACTIVATE" ? "إعادة تنشيط العميل"
       : action.action === "PREVENT_CHURN" ? "منع فقدان العميل"
       : action.action === "REENGAGE" ? "إعادة التفاعل مع العميل"
@@ -345,7 +348,7 @@ export function buildCustomerRetentionDecisionCandidates(input: {
       ruleVersion: "1.0.0",
       priority,
       priorityScore,
-      what: actionText + " · " + customerRef,
+      what: actionText + " · " + customerLabel,
       why: action.reason + " طلبات الفترة الحالية: " + action.orderCountCurrent +
         "؛ السابقة: " + action.orderCountPrevious + ".",
       soWhat: action.action === "REACTIVATE"
