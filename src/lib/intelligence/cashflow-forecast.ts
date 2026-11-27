@@ -1,4 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
+import {timestampMicroseconds} from "./product-revenue-concentration-client";
 import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
 import type {DataCompleteness,DataQuality,EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
@@ -21,12 +22,8 @@ function parseDay(day:string):string|null {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return null;
  const d=new Date(day+"T00:00:00.000Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===day?day:null;
 }
-function strictTimestamp(value:unknown):number|null {
- if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value))return null;
- const day=parseDay(value.slice(0,10));
- if(day===null)return null;
- const parsed=Date.parse(value);
- return Number.isFinite(parsed)?parsed:null;
+function strictTimestamp(value:unknown):bigint|null {
+ return timestampMicroseconds(value);
 }
 function statusOf(status:EvidenceStatus,completeness:DataCompleteness,quality:DataQuality):EvidenceStatus {
  if(status==="UNVERIFIED"||quality==="INVALID")return "UNVERIFIED";
@@ -57,10 +54,10 @@ function resolveCashflowPointStatus(
 
 /** Forecasts scheduled movements only; no probability, sales extrapolation or assumed collection rate. */
 export function buildCashflowForecast(input:BuildCashflowForecastInput):CashflowForecast {
- const generatedAtMs=strictTimestamp(input.generatedAt),asOfMs=strictTimestamp(input.asOf);
- if(generatedAtMs===null||asOfMs===null||asOfMs>generatedAtMs)
+ const generatedAtMicros=strictTimestamp(input.generatedAt),asOfMicros=strictTimestamp(input.asOf);
+ if(generatedAtMicros===null||asOfMicros===null||asOfMicros>generatedAtMicros)
   throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps and asOf cannot be after generatedAt");
- const day=new Date(asOfMs).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
+ const day=new Date(Date.parse(input.asOf)).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
  const metrics=[...input.openingBalances,...input.entries.map(e=>e.amount)];
  const passport=buildEvidencePassport({id:"cashflow:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const duplicates=new Set<string>(),metricCounts=new Map<string,number>();
@@ -80,8 +77,8 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  }
  const validEntries=input.entries.map(entry=>{
   const metric=byId.get(entry.amount.id),dueDate=parseDay(entry.dueDate),amountMinor=metric?decimalToMinorUnits(metric.value,2):null;
-  const calculatedAtMs=metric?strictTimestamp(metric.lineage.calculatedAt):null;
-  const calculationClockValid=calculatedAtMs!==null&&calculatedAtMs<=generatedAtMs;
+  const calculatedAtMicros=metric?strictTimestamp(metric.lineage.calculatedAt):null;
+  const calculationClockValid=calculatedAtMicros!==null&&calculatedAtMicros<=generatedAtMicros;
   const valid=Boolean(metric&&calculationClockValid&&metric.status==="VERIFIED"&&metric.unit==="CURRENCY"&&
     typeof metric.currency==="string"&&ISO_CURRENCY.test(metric.currency)&&metric.currency===entry.amount.currency&&metric.asOf===input.asOf&&
     metric.completeness==="COMPLETE"&&metric.quality==="ACCEPTABLE"&&metric.lineage.evidenceIds.length&&
@@ -106,8 +103,8 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  const currencies=new Set<string>([...openingCurrencies.keys(),...scheduledCurrencies]);
  for(const currency of [...currencies].sort()){
   const opening=openingCurrencies.get(currency);
-  const openingCalculatedAtMs=opening?strictTimestamp(opening.lineage.calculatedAt):null;
-  const openingCalculationClockValid=openingCalculatedAtMs!==null&&openingCalculatedAtMs<=generatedAtMs;
+  const openingCalculatedAtMicros=opening?strictTimestamp(opening.lineage.calculatedAt):null;
+  const openingCalculationClockValid=openingCalculatedAtMicros!==null&&openingCalculatedAtMicros<=generatedAtMicros;
   const openingMinor=opening?decimalToMinorUnits(opening.value,2,true):null;
   const openingValue=openingMinor===null?null:minorUnitsToNumber(openingMinor,2);
   const openingValid=Boolean(opening&&!duplicateOpening.has(currency)&&opening.status==="VERIFIED"&&opening.unit==="CURRENCY"&&opening.currency===currency&&
