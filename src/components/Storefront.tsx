@@ -1457,7 +1457,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               cartProductDetailsState.error ? (
                 <StorefrontCartRestoreFailure
                   error={cartProductDetailsState.error}
-                  items={cart.map(({ product, quantity }) => ({ productId: product.id, quantity }))}
+                  items={cart.map(({ product, quantity }) => ({
+                    productId: product.id,
+                    quantity,
+                    lastKnownName: product.name,
+                    lastKnownItemCode: product.item_code,
+                    lastKnownUnit: product.unit,
+                  }))}
                   onRetry={() => setCartProductRetryCount((current) => current + 1)}
                   onRemove={requestCartRemoval}
                 />
