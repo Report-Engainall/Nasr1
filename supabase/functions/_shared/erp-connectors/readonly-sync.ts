@@ -1135,16 +1135,16 @@ export async function runIncrementalReadOnlyBatch(input: {
         retryable: false,
       });
     } catch (error) {
+      const safeConnectorError = error instanceof ErpConnectorError &&
+        /^[A-Z][A-Z0-9_]{0,63}$/.test(error.code);
       tasks.push({
         objectType: task.scope.objectType,
         status: "failed",
         pagesCommitted: null,
         recordsRead: null,
         counts: null,
-        errorCode: error instanceof ErpConnectorError
-          ? error.code
-          : "ERP_SYNC_UNEXPECTED_FAILURE",
-        retryable: error instanceof ErpConnectorError && error.retryable,
+        errorCode: safeConnectorError ? error.code : "ERP_SYNC_UNEXPECTED_FAILURE",
+        retryable: safeConnectorError && error.retryable,
       });
     }
   }
