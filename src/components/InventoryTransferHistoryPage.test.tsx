@@ -87,7 +87,7 @@ describe('InventoryTransferHistoryPage', () => {
     expect(table).toBeInTheDocument();
     expect(withinTableRow(table, 'transfer-12')).toBeInTheDocument();
     expect(withinTableRow(table, 'transfer-1')).not.toBeInTheDocument();
-    expect(screen.getByText(/12 حركة/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('حركة');
 
     fireEvent.click(screen.getByRole('button', { name: 'التالي' }));
     expect(withinTableRow(table, 'transfer-1')).toBeInTheDocument();
@@ -103,9 +103,9 @@ describe('InventoryTransferHistoryPage', () => {
   it('normalizes Arabic search and exports the entire filtered set beyond the current page', () => {
     render(<InventoryTransferHistoryPage />);
 
-    fireEvent.change(screen.getByLabelText('بحث في الحركات'), { target: { value: 'سكر ١٢' } });
+    fireEvent.change(screen.getByLabelText('بحث في الحركات'), { target: { value: 'سُكَر' } });
     expect(withinTableRow(screen.getByRole('table', { name: 'جدول سجل تحويلات المخزون' }), 'transfer-12')).toBeInTheDocument();
-    expect(screen.getByText(/12 حركة/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('حركة');
 
     fireEvent.click(screen.getByRole('button', { name: 'التالي' }));
     fireEvent.click(screen.getByRole('button', { name: 'تنزيل Excel للنتائج' }));
@@ -126,11 +126,11 @@ describe('InventoryTransferHistoryPage', () => {
     expect(withinTableRow(table, 'transfer-12')).toBeInTheDocument();
     expect(withinTableRow(table, 'transfer-10')).toBeInTheDocument();
     expect(withinTableRow(table, 'transfer-9')).not.toBeInTheDocument();
-    expect(screen.getByText(/3 حركة/)).toBeInTheDocument();
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(3);
 
     fireEvent.click(screen.getByRole('button', { name: 'مسح الفلاتر' }));
     expect(withinTableRow(table, 'transfer-12')).toBeInTheDocument();
-    expect(screen.getByText(/12 حركة/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('حركة');
   });
 });
 

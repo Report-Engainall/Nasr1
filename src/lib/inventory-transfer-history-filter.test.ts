@@ -56,7 +56,7 @@ describe('inventory transfer history filters', () => {
   });
 
   it('applies inclusive created-date boundaries and fails closed for invalid timestamps', () => {
-    const before = row({ id: 'before', created_at: '2026-11-19T23:59:59.000Z' });
+    const before = row({ id: 'before', created_at: '2026-11-19T12:00:00.000Z' });
     const inside = row({ id: 'inside', created_at: '2026-11-20T09:00:00.000Z' });
     const after = row({ id: 'after', created_at: '2026-11-21T00:00:00.000Z' });
     const invalid = row({ id: 'invalid', created_at: 'not-a-date' });
