@@ -243,6 +243,93 @@ async function main() {
   assert.equal(appOnlyReceiptPrint.allocations.length, 2,
     "APP_ONLY receipt print reconciles both saved invoice allocations");
 
+  const customerReceiptOptions = await rpc(customerDb,
+    "select public.get_my_customer_payment_receipt_print_options(50,0) as result");
+  assert.equal(customerReceiptOptions.limit, 50);
+  assert.equal(customerReceiptOptions.offset, 0);
+  assert.ok(customerReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
+    "APP_ONLY customer can list the saved receipt belonging to its own account");
+  assert.ok(customerReceiptOptions.receipts.every(row => row.customer_code === customerProfile.customer_code || row.id === sourceTestReceiptId),
+    "customer receipt selector is scoped to the authenticated customer");
+  const customerReceiptPrint = await rpc(customerDb,
+    "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result",
+    [sourceTestReceiptId]);
+  assert.equal(customerReceiptPrint.receipt.id, sourceTestReceiptId);
+  assert.equal(customerReceiptPrint.receipt.allocation_count, 2);
+  assert.equal(customerReceiptPrint.customer.id, customerId);
+  assert.equal(customerReceiptPrint.allocations.length, 2,
+    "customer print returns both verified saved invoice allocations");
+  assert.deepEqual(Object.keys(customerReceiptPrint.customer).sort(),
+    ["business_name","contact_name","customer_code","id"].sort(),
+    "customer print DTO excludes profile, tenant and internal identity fields");
+  assert.equal(customerReceiptPrint.receipt.reference, "FIN-SOURCE-RECEIPT");
+  await expectFailure(
+    "customer receipt history rejects an out-of-range page limit",
+    rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(101,0) as result"),
+    "22023",
+    "limit of 1..100",
+  );
+  assert.ok(!(await rpc(foreignCustomerDb,
+    "select public.get_my_customer_payment_receipt_print_options(50,0) as result"))
+    .receipts.some(row => row.id === sourceTestReceiptId),
+    "another tenant's customer receipt never appears in the foreign customer's selector");
+  await expectFailure(
+    "another tenant's customer cannot print this customer's receipt",
+    rpc(foreignCustomerDb,
+      "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result",
+      [sourceTestReceiptId]),
+    "P0002",
+    "not found for this account",
+  );
+
+  // Prove the print RPC keeps the APP_ONLY binding locked until its transaction ends.
+  await customerDb.begin(async tx => {
+    await setIdentity(tx, customerProfile.auth_user_id, customerProfile.email);
+    const lockedPrint = await rpc(tx,
+      "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result",
+      [sourceTestReceiptId]);
+    assert.equal(lockedPrint.receipt.id, sourceTestReceiptId);
+    await expectFailure(
+      "source cutover cannot take an exclusive binding lock during customer receipt printing",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId, customerId],
+      ),
+      "55P03",
+    );
+  });
+
+  // A corrupt/missing allocation must not print. The fixture deletion rolls back.
+  const rollbackMarker = "ROLLBACK_CUSTOMER_RECEIPT_ALLOCATION_FIXTURE";
+  let allocationFixtureRolledBack = false;
+  try {
+    await db.begin(async tx => {
+      const removed = await tx.unsafe(
+        "delete from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid and invoice_id=$4::uuid returning id",
+        [sourceTestReceiptId, orgId, customerId, sourceTestSecondInvoiceId],
+      );
+      assert.equal(removed.length, 1, "one disposable receipt allocation is removed for the corruption test");
+      await setIdentity(tx, customerProfile.auth_user_id, customerProfile.email);
+      await expectFailure(
+        "customer receipt printer rejects a missing invoice allocation",
+        rpc(tx, "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result", [sourceTestReceiptId]),
+        "22023",
+        "receipt allocations do not reconcile",
+      );
+      throw new Error(rollbackMarker);
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== rollbackMarker) throw error;
+    allocationFixtureRolledBack = true;
+  }
+  assert.equal(allocationFixtureRolledBack, true, "receipt allocation corruption fixture is rolled back");
+  const restoredReceiptAllocations = await db.unsafe(
+    "select count(*)::integer as count from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestReceiptId, orgId, customerId],
+  );
+  assert.equal(restoredReceiptAllocations[0].count, 2, "the persisted receipt remains unchanged after the rejected print fixture");
+
+
   const appPaymentSourceDecision = await rpc(managerDb,
     "select public.staff_customer_app_only_financial_rows_read_allowed($1::uuid,$2::uuid) as result",
     [customerId, orgId]);
@@ -444,6 +531,20 @@ async function main() {
   const approved = await reviewSource(accountantDb, requestId, "approve", "verified opening ledger and currency totals match");
   assert.equal(approved.status, "approved");
   assert.equal(approved.source_mode, "ONYX");
+
+  await expectFailure(
+    "ONYX customer cannot list APP_ONLY receipts through the customer RPC",
+    rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(50,0) as result"),
+    "55000",
+    "APP_ONLY customer receipt history",
+  );
+  await expectFailure(
+    "ONYX customer cannot print an APP_ONLY receipt through the customer RPC",
+    rpc(customerDb, "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result", [sourceTestReceiptId]),
+    "55000",
+    "APP_ONLY customer receipt print",
+  );
+
   assert.equal(approved.revision, 2);
   const approvalReplay = await reviewSource(accountantDb, requestId, "approve", "verified opening ledger and currency totals match");
   assert.equal(approvalReplay.replayed, true);
@@ -595,6 +696,20 @@ async function main() {
   assert.equal(mutakamelApproved.revision, 3);
 
   await expectFailure(
+    "MUTAKAMEL customer cannot list APP_ONLY receipts through the customer RPC",
+    rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(50,0) as result"),
+    "55000",
+    "APP_ONLY customer receipt history",
+  );
+  await expectFailure(
+    "MUTAKAMEL customer cannot print an APP_ONLY receipt through the customer RPC",
+    rpc(customerDb, "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result", [sourceTestReceiptId]),
+    "55000",
+    "APP_ONLY customer receipt print",
+  );
+
+
+  await expectFailure(
     "staff Customer 360 cannot return an APP_ONLY finance snapshot after MUTAKAMEL cutover",
     rpc(managerDb, "select public.get_staff_customer_360($1::uuid) as result", [customerId]),
     "55000",
@@ -633,6 +748,31 @@ async function main() {
   const appOnlyApproved = await reviewSource(accountantDb, appOnlyRequest.request_id, "approve", "all external balances reconciled to the app ledger before cutover");
   assert.equal(appOnlyApproved.source_mode, "APP_ONLY");
   assert.equal(appOnlyApproved.revision, 4);
+
+  await serviceDb.unsafe(
+    "update public.customer_financial_source_bindings set source_status='suspended' where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId, customerId],
+  );
+  try {
+    await expectFailure(
+      "suspended APP_ONLY customer cannot list receipts",
+      rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(50,0) as result"),
+      "55000",
+      "APP_ONLY customer receipt history",
+    );
+    await expectFailure(
+      "suspended APP_ONLY customer cannot print receipts",
+      rpc(customerDb, "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result", [sourceTestReceiptId]),
+      "55000",
+      "APP_ONLY customer receipt print",
+    );
+  } finally {
+    await serviceDb.unsafe(
+      "update public.customer_financial_source_bindings set source_status='active' where organization_id=$1::uuid and customer_id=$2::uuid",
+      [orgId, customerId],
+    );
+  }
+
 
   const finalResolver = await rpc(customerDb, "select public.get_my_customer_financial_source() as result");
   assert.equal(finalResolver.source_mode, "APP_ONLY");

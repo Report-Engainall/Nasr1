@@ -85,6 +85,8 @@ a production migration is deployed.
 | `record_customer_financial_source_sync(uuid,uuid,text,text,timestamptz,text,integer,text[],text)` | `service_role` only | Exact evidence replay, active source/account binding, same-tenant scope and monotonic `source_as_of` watermark. |
 | `get_customer_account_statement()` | `authenticated` | Server selects source. APP_ONLY uses the pre-existing app ledger; ONYX/MUTAKAMEL fail closed until their authorized reader exists. No source blending or app-ledger fallback. |
 | `get_customer_invoice_pdf(uuid)` | `authenticated` | Own-customer invoice only; source is locked during read and external-mode customers cannot read APP_ONLY invoices. |
+| `get_my_customer_payment_receipt_print_options(integer,integer)` | `authenticated` customer | Customer-derived profile/org/customer; APP_ONLY + active binding held `FOR SHARE`; bounded 1..100 page of that customer's saved receipt headers only. |
+| `get_my_customer_payment_receipt_print_data(uuid)` | `authenticated` customer | Own receipt only; source binding held `FOR SHARE`; validates 2..50 distinct same-currency invoice allocations, positive amounts and exact header sum before returning the print DTO. No payment write. |
 
 The reconciliation payload uses one object per currency, with canonical decimal strings
 (not JavaScript floating-point values), for example:

@@ -1527,6 +1527,377 @@ BEGIN
 END;
 $function$;
 
+
+-- Customer-only receipt history and printing. This is deliberately separate
+-- from the finance-staff receipt selector and printer above.
+CREATE OR REPLACE FUNCTION public.get_my_customer_payment_receipt_print_options(
+  p_limit integer DEFAULT 50,
+  p_offset integer DEFAULT 0
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_profile uuid := public.current_profile_id();
+  v_customer uuid := public.current_customer_id();
+  v_org uuid := public.current_organization_id();
+  v_profile_org uuid;
+  v_source_mode text;
+  v_source_status text;
+  v_organization_name text;
+  v_total bigint;
+  v_receipts jsonb;
+BEGIN
+  IF auth.uid() IS NULL
+     OR v_profile IS NULL
+     OR v_customer IS NULL
+     OR v_org IS NULL
+     OR NOT (
+       public.current_customer_can('statement.read')
+       OR public.current_customer_can('invoices.read')
+     ) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='active customer with invoice or statement read permission required for receipt history';
+  END IF;
+
+  SELECT p.organization_id
+    INTO v_profile_org
+    FROM public.profiles p
+    JOIN public.organizations o
+      ON o.id=p.organization_id
+     AND o.is_active=true
+   WHERE p.id=v_profile
+     AND p.auth_user_id=auth.uid()
+     AND p.is_active=true
+     AND p.organization_id=v_org;
+  IF v_profile_org IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='active customer organization context required for receipt history';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.customers c
+     WHERE c.id=v_customer
+       AND c.organization_id=v_org
+       AND c.profile_id=v_profile
+       AND c.status='approved'
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='customer is outside the active organization for receipt history';
+  END IF;
+
+  -- Keep the binding lock through the page read so a source cutover cannot
+  -- interleave the APP_ONLY receipt snapshot.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=v_org
+     AND b.customer_id=v_customer
+   FOR SHARE;
+  IF NOT FOUND
+     OR v_source_mode IS DISTINCT FROM 'APP_ONLY'
+     OR v_source_status IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION USING ERRCODE='55000',
+      MESSAGE='APP_ONLY customer receipt history is unavailable for this financial source';
+  END IF;
+
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100
+     OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 10000000 THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='customer receipt page must use a limit of 1..100 and offset of 0..10000000';
+  END IF;
+
+  SELECT NULLIF(pg_catalog.btrim(o.name),'')
+    INTO v_organization_name
+    FROM public.organizations o
+   WHERE o.id=v_org
+     AND o.is_active=true;
+  IF v_organization_name IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='P0002',
+      MESSAGE='active organization identity is unavailable for customer receipt printing';
+  END IF;
+
+  -- A materialized scoped set gives count and page the same statement snapshot.
+  WITH scoped_receipts AS MATERIALIZED (
+    SELECT
+      r.id,
+      r.receipt_number,
+      c.customer_code,
+      COALESCE(
+        NULLIF(pg_catalog.btrim(c.business_name),''),
+        NULLIF(pg_catalog.btrim(c.contact_name),''),
+        'عميل غير مسمى'
+      ) AS customer_name,
+      r.currency,
+      r.total_amount,
+      r.allocation_count,
+      r.paid_at,
+      r.payment_method,
+      r.reference
+    FROM public.customer_payment_receipts r
+    JOIN public.customers c
+      ON c.id=r.customer_id
+     AND c.organization_id=r.organization_id
+    WHERE r.organization_id=v_org
+      AND r.customer_id=v_customer
+  ),
+  page_receipts AS (
+    SELECT *
+      FROM scoped_receipts
+     ORDER BY paid_at DESC,id DESC
+     LIMIT p_limit
+     OFFSET p_offset
+  )
+  SELECT
+    (SELECT pg_catalog.count(*) FROM scoped_receipts),
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'id',page.id::text,
+          'receipt_number',page.receipt_number::text,
+          'customer_code',page.customer_code,
+          'customer_name',page.customer_name,
+          'currency',page.currency,
+          'total_amount',page.total_amount::text,
+          'allocation_count',page.allocation_count,
+          'paid_at',page.paid_at,
+          'payment_method',page.payment_method,
+          'reference',page.reference
+        )
+        ORDER BY page.paid_at DESC,page.id DESC
+      )
+      FROM page_receipts page
+    ),'[]'::jsonb)
+    INTO v_total,v_receipts;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'organization_name',v_organization_name,
+    'receipts',v_receipts,
+    'total',v_total,
+    'limit',p_limit,
+    'offset',p_offset,
+    'has_more',v_total>(p_offset::bigint+p_limit::bigint)
+  );
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.get_my_customer_payment_receipt_print_options(integer,integer) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.get_my_customer_payment_receipt_print_options(integer,integer) TO authenticated;
+COMMENT ON FUNCTION public.get_my_customer_payment_receipt_print_options(integer,integer) IS
+  'Customer-only paged APP_ONLY receipt selector. Derives identity from the authenticated customer and locks the source binding during the snapshot.';
+
+CREATE OR REPLACE FUNCTION public.get_my_customer_payment_receipt_print_data(
+  p_receipt_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_profile uuid := public.current_profile_id();
+  v_customer uuid := public.current_customer_id();
+  v_org uuid := public.current_organization_id();
+  v_profile_org uuid;
+  v_source_mode text;
+  v_source_status text;
+  v_receipt public.customer_payment_receipts%ROWTYPE;
+  v_organization_name text;
+  v_customer_document jsonb;
+  v_allocations jsonb;
+  v_allocation_count integer;
+  v_distinct_invoice_count integer;
+  v_allocation_total numeric(15,2);
+  v_invalid_allocation_count integer;
+BEGIN
+  IF auth.uid() IS NULL
+     OR v_profile IS NULL
+     OR v_customer IS NULL
+     OR v_org IS NULL
+     OR NOT (
+       public.current_customer_can('statement.read')
+       OR public.current_customer_can('invoices.read')
+     ) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='active customer with invoice or statement read permission required for receipt printing';
+  END IF;
+
+  SELECT p.organization_id
+    INTO v_profile_org
+    FROM public.profiles p
+    JOIN public.organizations o
+      ON o.id=p.organization_id
+     AND o.is_active=true
+   WHERE p.id=v_profile
+     AND p.auth_user_id=auth.uid()
+     AND p.is_active=true
+     AND p.organization_id=v_org;
+  IF v_profile_org IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='active customer organization context required for receipt printing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.customers c
+     WHERE c.id=v_customer
+       AND c.organization_id=v_org
+       AND c.profile_id=v_profile
+       AND c.status='approved'
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='customer is outside the active organization for receipt printing';
+  END IF;
+
+  IF p_receipt_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='customer payment receipt id is required';
+  END IF;
+
+  -- Lock before resolving the receipt. Maker/checker cutover uses an exclusive
+  -- lock on this row, so this read and an approved source switch serialize.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=v_org
+     AND b.customer_id=v_customer
+   FOR SHARE;
+  IF NOT FOUND
+     OR v_source_mode IS DISTINCT FROM 'APP_ONLY'
+     OR v_source_status IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION USING ERRCODE='55000',
+      MESSAGE='APP_ONLY customer receipt print is unavailable for this financial source';
+  END IF;
+
+  SELECT r.*
+    INTO v_receipt
+    FROM public.customer_payment_receipts r
+   WHERE r.id=p_receipt_id
+     AND r.organization_id=v_org
+     AND r.customer_id=v_customer;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002',
+      MESSAGE='customer payment receipt was not found for this account';
+  END IF;
+
+  -- Validate the complete allocation set before exposing a printable snapshot.
+  SELECT
+    pg_catalog.count(*)::integer,
+    pg_catalog.count(DISTINCT cp.invoice_id)::integer,
+    COALESCE(pg_catalog.sum(cp.amount),0)::numeric(15,2),
+    pg_catalog.count(*) FILTER (
+      WHERE cp.amount<=0
+         OR cp.organization_id IS DISTINCT FROM v_org
+         OR cp.customer_id IS DISTINCT FROM v_customer
+         OR invoice.id IS NULL
+         OR invoice.currency IS DISTINCT FROM v_receipt.currency
+    )::integer
+    INTO
+      v_allocation_count,
+      v_distinct_invoice_count,
+      v_allocation_total,
+      v_invalid_allocation_count
+    FROM public.customer_payments cp
+    LEFT JOIN public.customer_invoices invoice
+      ON invoice.id=cp.invoice_id
+     AND invoice.organization_id=cp.organization_id
+     AND invoice.customer_id=cp.customer_id
+   WHERE cp.receipt_id=v_receipt.id;
+
+  IF v_receipt.receipt_number IS NULL
+     OR v_receipt.currency IS NULL
+     OR v_receipt.total_amount<=0
+     OR v_receipt.allocation_count NOT BETWEEN 2 AND 50
+     OR v_allocation_count<>v_receipt.allocation_count
+     OR v_distinct_invoice_count<>v_allocation_count
+     OR v_invalid_allocation_count<>0
+     OR v_allocation_total IS DISTINCT FROM v_receipt.total_amount THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='receipt allocations do not reconcile to the saved receipt header; printing was denied';
+  END IF;
+
+  SELECT pg_catalog.jsonb_build_object(
+    'id',c.id::text,
+    'customer_code',c.customer_code,
+    'business_name',c.business_name,
+    'contact_name',c.contact_name
+  )
+    INTO v_customer_document
+    FROM public.customers c
+   WHERE c.id=v_customer
+     AND c.organization_id=v_org
+     AND c.profile_id=v_profile
+     AND c.status='approved';
+  IF v_customer_document IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='P0002',
+      MESSAGE='customer identity is unavailable for receipt printing';
+  END IF;
+
+  SELECT NULLIF(pg_catalog.btrim(o.name),'')
+    INTO v_organization_name
+    FROM public.organizations o
+   WHERE o.id=v_org
+     AND o.is_active=true;
+  IF v_organization_name IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='P0002',
+      MESSAGE='active organization identity is unavailable for customer receipt printing';
+  END IF;
+
+  SELECT COALESCE(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object(
+        'invoice_number',invoice.invoice_number,
+        'invoice_issued_at',invoice.issued_at,
+        'currency',invoice.currency,
+        'amount',cp.amount::text
+      )
+      ORDER BY invoice.issued_at,invoice.invoice_number,cp.id
+    ),
+    '[]'::jsonb
+  )
+    INTO v_allocations
+    FROM public.customer_payments cp
+    JOIN public.customer_invoices invoice
+      ON invoice.id=cp.invoice_id
+     AND invoice.organization_id=cp.organization_id
+     AND invoice.customer_id=cp.customer_id
+   WHERE cp.receipt_id=v_receipt.id
+     AND cp.organization_id=v_org
+     AND cp.customer_id=v_customer;
+
+  IF pg_catalog.jsonb_array_length(v_allocations)<>v_receipt.allocation_count THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='receipt allocation details are incomplete; printing was denied';
+  END IF;
+
+  -- The DTO contains only this customer's saved receipt and its invoice allocations.
+  RETURN pg_catalog.jsonb_build_object(
+    'organization_name',v_organization_name,
+    'receipt',pg_catalog.jsonb_build_object(
+      'id',v_receipt.id::text,
+      'receipt_number',v_receipt.receipt_number::text,
+      'currency',v_receipt.currency,
+      'total_amount',v_receipt.total_amount::text,
+      'allocation_count',v_receipt.allocation_count,
+      'payment_method',v_receipt.payment_method,
+      'reference',v_receipt.reference,
+      'paid_at',v_receipt.paid_at
+    ),
+    'customer',v_customer_document,
+    'allocations',v_allocations
+  );
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.get_my_customer_payment_receipt_print_data(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.get_my_customer_payment_receipt_print_data(uuid) TO authenticated;
+COMMENT ON FUNCTION public.get_my_customer_payment_receipt_print_data(uuid) IS
+  'Customer-only APP_ONLY receipt print DTO. Derives the customer and tenant from the session, locks the financial source, validates all allocations and performs no write.';
+
+
 -- Reassert the existing Customer 360 finance projection with the selected-source guard.
 -- This SECURITY DEFINER RPC must not return the APP_ONLY ledger after external cutover.
 CREATE OR REPLACE FUNCTION public.get_staff_customer_360(p_customer_id uuid)

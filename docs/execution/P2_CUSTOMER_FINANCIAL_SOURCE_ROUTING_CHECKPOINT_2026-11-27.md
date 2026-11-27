@@ -97,3 +97,15 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Acceptance commit `541bb5fa4f68460e26f424f328b78f8e712f59a2`: manager can read the actual seeded invoice header and item in APP_ONLY; both return zero rows under ONYX and MUTAKAMEL; both become readable again only after maker/checker approves the APP_ONLY return. Policy-catalog assertions verify the helper is in both restrictive policies.
 - This extends the already implemented PDF RPC binding lock and source-isolated receipt, direct payment, and Customer 360 contracts. It does not grant new direct table privileges; it narrows RLS behavior only.
 - Exact test head `541bb5fa4f68460e26f424f328b78f8e712f59a2` remains pending CI; older run results are not accepted for it.
+
+ 
+## Customer self-service receipt retrieval — 2026-11-28
+
+- Extended the existing #697 migration with customer-only `get_my_customer_payment_receipt_print_options(integer,integer)` and `get_my_customer_payment_receipt_print_data(uuid)`; the staff-only receipt functions remain unchanged.
+- Both RPCs derive profile, organization and customer from the authenticated session, require an active approved customer with `statement.read` or `invoices.read`, and fail closed for missing, suspended, ONYX or MUTAKAMEL source bindings. The source binding is locked `FOR SHARE` during both page and print reads.
+- The customer selector is limited to 100 rows and returns only the current customer's receipt headers. Print data is constrained by receipt ID + derived tenant/customer and validates 2..50 distinct invoice allocations, positive amounts, customer/tenant/currency consistency, exact allocation count and exact total before rendering.
+- The customer DTO excludes profile IDs, tenant IDs, internal payment IDs, notes and idempotency data. No customer-facing payment creation or mutation is exposed.
+- The existing PG17 source-routing acceptance now covers customer receipt list/print success, cross-tenant denial, ONYX and MUTAKAMEL no-fallback, suspended-source denial, row-lock serialization, out-of-range pagination and a missing-allocation corruption fixture that is rolled back before exit.
+- This work extends the RPC contract used by P1's existing customer receipt component; it adds no route, parallel screen, staff privilege or new migration file. The existing P2 workflow already executes this acceptance script after isolated local seeding.
+- Exact-head acceptance for this update is pending. Previous runs and results are not transferable to the new commit. No production/hosted database mutation, remote migration, ERP request, deployment, secret, paid service or external write was performed.
+- Next code action: address only a concrete failure reproduced by the exact-head P2/PostgreSQL 17 run; otherwise hand the two customer RPC contracts to P1 for exact-head UI verification and merge coordination.
