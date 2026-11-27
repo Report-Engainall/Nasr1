@@ -811,6 +811,100 @@ describe("server-side ERP read connector contract", () => {
   });
 });
 
+describe("ERP customer financial projections", () => {
+  async function readFinancialProjection(
+    objectType: ErpSyncScope["objectType"],
+    fields: Record<string, string | number | boolean | null>,
+  ) {
+    const contract: ErpReadContract = {
+      ...productContract,
+      objectType,
+      fieldPaths: Object.fromEntries(Object.keys(fields).map((field) => [field, [field]])) as ErpReadContract["fieldPaths"],
+    };
+    const connector = new OfficialJsonErpReadConnector(connection, contract, {
+      fetcher: vi.fn(async () => jsonResponse({
+        data: {
+          items: [{
+            id: "ERP-FINANCE-ROW-001",
+            updated_at: "2026-11-28T00:30:00Z",
+            ...fields,
+          }],
+        },
+        meta: { next_cursor: null },
+      })),
+    });
+    const store = new InMemoryCheckpointStore();
+    const result = await runIncrementalReadOnlySync({
+      connector,
+      store,
+      scope: { ...scope, objectType },
+      maxPages: 1,
+      maxRecords: 10,
+    });
+    return { result, store };
+  }
+
+  it("accepts customer invoices only with currency-bound canonical decimal strings", async () => {
+    const { result, store } = await readFinancialProjection("customer_financial_documents", {
+      external_customer_id: "ONYX-CUSTOMER-001",
+      document_number: "INV-1001",
+      document_type: "invoice",
+      document_status: "posted",
+      issue_date: "2026-11-27",
+      due_date: "2026-12-10",
+      currency_code: "YER",
+      total_amount: "1250.7500",
+      paid_amount: "250.7500",
+      outstanding_amount: "1000.0000",
+    });
+    expect(result.status).toBe("complete");
+    expect(store.committed[0].records[0].fields.total_amount).toBe("1250.7500");
+    expect(store.committed[0].records[0].fields.currency_code).toBe("YER");
+  });
+
+  it("rejects numeric floating point money before it reaches the checkpoint store", async () => {
+    const { result, store } = await readFinancialProjection("customer_financial_documents", {
+      external_customer_id: "ONYX-CUSTOMER-001",
+      document_number: "INV-FLOAT",
+      document_type: "invoice",
+      document_status: "posted",
+      issue_date: "2026-11-27",
+      currency_code: "YER",
+      total_amount: 1250.75,
+    }).then(() => ({ result: null, store: null })).catch((error: unknown) => ({ result: error, store: null }));
+    expect(result).toMatchObject({ code: "INVALID_ERP_FINANCIAL_AMOUNT" });
+    expect(store).toBeNull();
+  });
+
+  it("accepts confirmed customer receipts as independent currency-scoped records", async () => {
+    const { result, store } = await readFinancialProjection("customer_payment_receipts", {
+      external_customer_id: "ONYX-CUSTOMER-001",
+      receipt_number: "RCPT-1001",
+      receipt_date: "2026-11-28",
+      currency_code: "USD",
+      amount: "50.0000",
+      payment_status: "confirmed",
+      payment_method: "bank_transfer",
+      applied_document_number: "INV-1001",
+    });
+    expect(result.status).toBe("complete");
+    expect(store.committed[0].records[0].fields.currency_code).toBe("USD");
+    expect(store.committed[0].records[0].fields.amount).toBe("50.0000");
+  });
+
+  it("rejects a statement entry that debits and credits the same amount", async () => {
+    await expect(readFinancialProjection("customer_statement_entries", {
+      external_customer_id: "ONYX-CUSTOMER-001",
+      entry_reference: "ENTRY-DUAL",
+      entry_date: "2026-11-28",
+      currency_code: "YER",
+      entry_type: "adjustment",
+      debit_amount: "10.00",
+      credit_amount: "10.00",
+    })).rejects.toMatchObject({ code: "INVALID_ERP_STATEMENT_ENTRY" });
+  });
+});
+
 describe("incremental ERP sync checkpoint orchestration", () => {
   it("normalizes database timestamps with UTC offsets before calculating the overlap", async () => {
     const store = new InMemoryCheckpointStore(checkpoint({
