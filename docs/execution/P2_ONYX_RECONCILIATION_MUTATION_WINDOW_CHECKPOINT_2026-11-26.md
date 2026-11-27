@@ -5,7 +5,14 @@ Role: P2 — inventory transactions, PostgreSQL 17 and audit integrity
 PR: #605 — https://github.com/Report-Engainall/Nasr1/pull/605
 Branch: `p2/onyx-reconciliation-mutation-window-pg17-20261126`
 
-## Latest head after the P1 PostgREST fixture repair
+## Latest synchronization to moving main — 2026-11-27
+- `main` advanced to `f0c911923b785cdaaf6e823b271f538c56fd7cd3` through merge #683 (`feat(onyx): expose verified ERP connector readiness in existing workspace`) and the P1 PostgREST offset/limit fixture updates.
+- P2 branch synchronized by non-force, two-parent merge commit `66b4f7fd37efb7a02546046cf08561fb8c412ce2`, with expected ref protection. Current compare: **30 ahead / 0 behind**, exactly three P2-owned changed paths: this checkpoint, `.github/workflows/onyx-inventory-asof-postgres17.yml`, and `supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql`. No E2E fixture path remains in this PR diff; main's helper blob is the accepted P1 blob `b8505a706773062c49ce0cceef76d76e19166117`.
+- Exact-current-head Onyx PG17 [run 46065135482](https://github.com/Report-Engainall/Nasr1/actions/runs/46065135482) and P2 critical paths [run 46065135503](https://github.com/Report-Engainall/Nasr1/actions/runs/46065135503) were **QUEUED** after synchronization. Earlier Onyx dedicated PG17 PASS on `00d444...` is historical to that pre-sync head and is not carried to `66b4...`.
+- At sync, PR #605 was **mergeable=true**, **draft=false**. P1 owns final review and merge; P2 does not merge.
+- Next: wait for exact-head PG17 Onyx mutation-window acceptance, then inspect P2 local authenticated/browser result. No live ERP, production database or inventory mutation was executed.
+
+## Historical head after the P1 PostgREST fixture repair
 - P1 added the pagination fixture correction in commit `9aeed0785d90f34b39a98f961ddf5746cf701912` (the branch's only P1-owned file is `e2e/helpers/customer-orders-keyboard-test.ts`); the test mock now observes PostgREST `offset`/`limit` rather than assuming a `Range` header.
 - Current PR #605 code-bearing test head: `9aeed0785d90f34b39a98f961ddf5746cf701912`; comparison with `main` `348da8e756201fc103089cf4a5a690a4132528b7` is **27 ahead / 0 behind** with four changed paths (three P2-owned and that one P1 fixture file). At the previous read GitHub reported the PR mergeable; P1 retains review/merge authority.
 - Dedicated Onyx PG17 workflow [run 46063832177](https://github.com/Report-Engainall/Nasr1/actions/runs/46063832177): **SUCCESS** on exact head `9aeed...`.
