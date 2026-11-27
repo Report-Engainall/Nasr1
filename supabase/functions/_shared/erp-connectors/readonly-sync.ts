@@ -363,7 +363,15 @@ function validateTimestamp(value: unknown): string {
   if (!Number.isFinite(date.getTime())) {
     throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "تاريخ تحديث سجل ERP غير صالح.");
   }
-  return date.toISOString();
+  const normalized = date.toISOString();
+  const normalizedMatch = ISO_TIMESTAMP_PATTERN.exec(normalized);
+  if (!normalizedMatch || Number(normalizedMatch[1]) < 1) {
+    throw new ErpConnectorError(
+      "INVALID_SOURCE_TIMESTAMP_RANGE",
+      "تحويل تاريخ ERP إلى UTC يتجاوز نطاق السنوات المدعوم من نقطة المزامنة.",
+    );
+  }
+  return normalized;
 }
 
 function getPath(value: unknown, path: readonly string[], label: string): unknown {
