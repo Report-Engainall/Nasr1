@@ -9,10 +9,12 @@ function input(overrides: {
   asOf?: string;
   sourceTimestamp?: string;
   metricAsOf?: string;
+  sourceAsOf?: string;
   calculatedAt?: string;
 } = {}): BuildEvidencePassportInput {
   const asOf = overrides.asOf ?? AS_OF;
   const metricAsOf = overrides.metricAsOf ?? asOf;
+  const sourceAsOf = overrides.sourceAsOf ?? metricAsOf;
   return {
     id: "passport-test",
     generatedAt: overrides.generatedAt ?? GENERATED_AT,
@@ -21,7 +23,7 @@ function input(overrides: {
       id: "source:1",
       source: { kind: "RPC", name: "test.evidence_passport", version: "1.0.0" },
       sourceTimestamp: overrides.sourceTimestamp ?? "2026-11-26T11:55:00.000Z",
-      asOf: metricAsOf,
+      asOf: sourceAsOf,
       period: null,
       status: "VERIFIED",
       completeness: "COMPLETE",
@@ -55,6 +57,17 @@ describe("evidence passport strict clock contract", () => {
     const result = buildEvidencePassport(input());
     expect(result.status).toBe("VERIFIED");
     expect(result.metrics[0]).toMatchObject({ status: "VERIFIED", completeness: "COMPLETE" });
+  });
+
+  it("accepts equivalent report, metric and source as-of instants with different valid UTC offsets", () => {
+    const result = buildEvidencePassport(input({
+      asOf: "2026-11-26T09:00:00.000000Z",
+      metricAsOf: "2026-11-26T12:00:00.000000+03:00",
+      sourceAsOf: "2026-11-26T11:00:00.000000+02:00",
+      sourceTimestamp: "2026-11-26T08:55:00.000000Z",
+    }));
+    expect(result.status).toBe("VERIFIED");
+    expect(result.metrics[0].status).toBe("VERIFIED");
   });
 
   it.each([
