@@ -573,6 +573,47 @@ async function main() {
   assert.equal(new Set(isolatedResults.map(item => item.scope_key)).size, isolatedScopes.length,
     "company, branch, warehouse and currency each contribute to the canonical scope key");
 
+  // Empty pages are still durable source receipts and must retain the full scope identity.
+  const emptyPageScopeA = { ...baseScope, warehouseExternalId: "warehouse-empty-a", currencyCode: "USD" };
+  const emptyPageScopeB = { ...baseScope, warehouseExternalId: "warehouse-empty-b", currencyCode: "YER" };
+  const sharedEmptyPageFingerprint = sha256("same-empty-page-fingerprint-across-scopes");
+  const sharedEmptyPageResponse = sha256("same-empty-page-response-across-scopes");
+  assert.notEqual(scopeKey(emptyPageScopeA), scopeKey(emptyPageScopeB));
+  assert.equal((await loadCheckpoint(emptyPageScopeA)).version, 0);
+  assert.equal((await loadCheckpoint(emptyPageScopeB)).version, 0);
+  const emptyPageEnvelope = {
+    expectedVersion: 0,
+    pageFingerprint: sharedEmptyPageFingerprint,
+    responseSha256: sharedEmptyPageResponse,
+    records: [],
+    nextCursor: null,
+    pendingWatermark: null,
+    completedWatermark: timestamp3,
+    completed: true,
+    externalRequestId: "local-erp-empty-page",
+  };
+  const emptyPageCommitA = await persistPage({ ...emptyPageEnvelope, scope: emptyPageScopeA });
+  const emptyPageCommitB = await persistPage({ ...emptyPageEnvelope, scope: emptyPageScopeB });
+  assert.equal(emptyPageCommitA.duplicate_page, false);
+  assert.equal(emptyPageCommitB.duplicate_page, false,
+    "same empty page fingerprint is not a replay across warehouse/currency scopes");
+  assert.equal(emptyPageCommitA.checkpoint.version, 1);
+  assert.equal(emptyPageCommitB.checkpoint.version, 1);
+  assert.deepEqual(emptyPageCommitA.counts, { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 });
+  assert.deepEqual(emptyPageCommitB.counts, { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 });
+  const emptyPreviewA = await previewStagedRecords(emptyPageScopeA);
+  const emptyPreviewB = await previewStagedRecords(emptyPageScopeB);
+  assert.equal(emptyPreviewA.total, 0, "empty page must not synthesize staging rows");
+  assert.equal(emptyPreviewB.total, 0, "second empty scope must not synthesize staging rows");
+  const emptyReceiptsA = await previewPageReceipts(emptyPageScopeA);
+  const emptyReceiptsB = await previewPageReceipts(emptyPageScopeB);
+  assert.equal(emptyReceiptsA.total, 1);
+  assert.equal(emptyReceiptsB.total, 1);
+  assert.equal(emptyReceiptsA.records[0].records_received, 0);
+  assert.equal(emptyReceiptsB.records[0].records_received, 0);
+  assert.equal(emptyReceiptsA.records[0].completed, true);
+  assert.equal(emptyReceiptsB.records[0].completed, true);
+
   const objectScope = { ...baseScope, objectType: "customers" };
   const objectCheckpoint = await loadCheckpoint(objectScope);
   assert.equal(objectCheckpoint.version, 0, "object type is an independent checkpoint dimension");
@@ -622,6 +663,8 @@ async function main() {
   for (const isolated of isolatedScopes) {
     assert.equal(receiptFor(isolated), 1, "each ERP scope dimension persists its own receipt");
   }
+  assert.equal(receiptFor(emptyPageScopeA), 1);
+  assert.equal(receiptFor(emptyPageScopeB), 1);
   assert.equal(receiptFor(tenantScope), 1);
 
   const checkpointFor = (scope) => checkpoints.find(row =>
