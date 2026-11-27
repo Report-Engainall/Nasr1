@@ -490,6 +490,25 @@ function validateContract(connection: ErpConnection, contract: ErpReadContract):
   if (contract.pageSizeParameter && !/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(contract.pageSizeParameter)) {
     throw new ErpConnectorError("INVALID_PROVIDER_CONTRACT", "معامل حجم الصفحة غير صالح.");
   }
+  const cursorExpiredStatuses = contract.cursorExpiredHttpStatuses;
+  const reservedHttpStatuses = new Set([401, 403, 408, 425, 429]);
+  if (
+    cursorExpiredStatuses !== undefined &&
+    (!Array.isArray(cursorExpiredStatuses) ||
+      cursorExpiredStatuses.length > 8 ||
+      new Set(cursorExpiredStatuses).size !== cursorExpiredStatuses.length ||
+      cursorExpiredStatuses.some((status) =>
+        !Number.isInteger(status) ||
+        status < 400 ||
+        status >= 500 ||
+        reservedHttpStatuses.has(status)
+      ))
+  ) {
+    throw new ErpConnectorError(
+      "INVALID_PROVIDER_CONTRACT",
+      "حالات انتهاء مؤشر ERP يجب أن تكون حالات 4xx موثقة، دون حالات المصادقة أو الصلاحيات أو إعادة المحاولة.",
+    );
+  }
   const allowedFields = new Set(SAFE_FIELDS[contract.objectType]);
   for (const [field, sourcePath] of Object.entries(contract.fieldPaths)) {
     if (!allowedFields.has(field as ErpCanonicalField) || !sourcePath?.length) {
@@ -808,12 +827,6 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
         cleanup();
         throw new ErpConnectorError("ERP_REDIRECT_BLOCKED", "تم رفض إعادة توجيه اتصال ERP لحماية نطاق المضيف المعتمد.", { httpStatus: response.status });
       }
-      const expiredStatuses = this.contract.cursorExpiredHttpStatuses ?? [410];
-      if (expiredStatuses.includes(response.status)) {
-        await response.body?.cancel().catch(() => undefined);
-        cleanup();
-        throw new ErpConnectorError("ERP_CURSOR_EXPIRED", "انتهت صلاحية مؤشر المزامنة؛ ستتم إعادة القراءة من آخر watermark مكتمل.", { httpStatus: response.status });
-      }
       if (response.status === 401) {
         await response.body?.cancel().catch(() => undefined);
         cleanup();
@@ -823,6 +836,12 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
         await response.body?.cancel().catch(() => undefined);
         cleanup();
         throw new ErpConnectorError("ERP_PERMISSION_DENIED", "حساب الربط لا يملك صلاحية قراءة الكائن المطلوب.", { httpStatus: 403 });
+      }
+      const expiredStatuses = this.contract.cursorExpiredHttpStatuses ?? [410];
+      if (expiredStatuses.includes(response.status)) {
+        await response.body?.cancel().catch(() => undefined);
+        cleanup();
+        throw new ErpConnectorError("ERP_CURSOR_EXPIRED", "انتهت صلاحية مؤشر المزامنة؛ ستتم إعادة القراءة من آخر watermark مكتمل.", { httpStatus: response.status });
       }
       if ([408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
         const retryAfter = parseRetryAfter(response.headers.get("retry-after"), this.now(), this.maxRetryDelayMs);
