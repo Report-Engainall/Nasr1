@@ -1,14 +1,15 @@
 # LIVE EXECUTION RESUME — 2026-11-27
 
-> Sole live execution pointer. Start from the first open acceptance gate below. Do not repeat accepted work or the OSS review.
+> Sole live execution pointer. Start from the first open exact-SHA gate below. Do not repeat accepted work or the OSS review. Historical sections below this boundary remain evidence history.
 
 ## Canonical state
 
 - Official repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Verified `main` SHA: `c8a4a63b448ed53e10b968aa903dea7983d8e500` (PR #667).
-- Application remains TanStack Start. Preserve current Supabase, RLS, tenant scope, service/RPC architecture and role model. Do not rebuild existing workflows.
+- Last verified application/source main SHA: `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` (PR #633 merge). Subsequent `main` changes are acceptance-matrix/checkpoint-only documentation commits; no application, SQL, test or workflow source changed after #633.
+- Current checkpoint refresh starts from main HEAD `e0132a6dc1ab6d73b7e77aec2a9f889a09c58aa7`; the checkpoint update itself is documentation-only.
+- Application remains TanStack Start. Preserve current Supabase, RLS, tenant scope, service/RPC architecture and role model.
 - No production Supabase writes, remote migrations, production Storage mutations, Edge deployment, paid AI provider, Bolt, Vercel or Lovable actions were performed.
-- Hosted customer/order/tenant E2E is explicitly **SKIPPED**, not PASS. Production target identity and hosted runtime acceptance remain unverified; release stays **NO-GO**.
+- Hosted customer/order/tenant E2E is explicitly **SKIPPED**, not PASS. Production target identity/runtime acceptance remain unverified; release stays **NO-GO**.
 
 ## Merged during the current execution
 
@@ -20,44 +21,47 @@
 | #662 | `11487fda71c1ba145f468ba55ed4250d3542588b` | Demand forecast rejects UTC offsets outside ISO ±14:00; P1/P2 SUCCESS |
 | #661 | `c94e8eb67c962e9e265d50f25606ef0b4d283a68` | Anomaly detection rejects invalid UTC offsets; P1/P2 SUCCESS |
 | #663 | `63cd257e842cc930552b1d519076482f31072cb5` | Process bottleneck analytics strict timestamps; P1/P2 SUCCESS |
-| #653 | `b6fc95431014df101fbfc05a0dcac07281e647da` | Server-side customer-role guard for account-profile RPCs; P1/P2/PG17 SUCCESS. Test keeps revision typed in PostgreSQL to preserve microseconds and stale-writer rejection |
+| #653 | `b6fc95431014df101fbfc05a0dcac07281e647da` | Server-side customer-role guard for account-profile RPCs; P1/P2/PG17 SUCCESS |
 | #666 | `668e576afba21c311b5657899eef7cb8e25b64cc` | Strict UTC timestamps for task-intelligence reports; exact-head P1/P2 SUCCESS |
 | #664 | `3b25afb70b5cf6760b4b52745b152e296378b344` | Unified safe public image URL policy across catalog cards/gallery/product facts; P1 and local PG17/Storage/Chromium P2 SUCCESS |
-| #667 | `c8a4a63b448ed53e10b968aa903dea7983d8e500` | Corrected page-two task count: displayed inclusive 11–20 is capped at ten rows; exact-head P1/P2 SUCCESS |
+| #667 | `c8a4a63b448ed53e10b968aa903dea7983d8e500` | Corrected page-two task count; exact-head P1/P2 SUCCESS |
+| #633 | `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` | Task-quality review PostgreSQL 17 acceptance; exact-head P1/P2 SUCCESS, local PG17 authorization/idempotency/tenant/append-only and local Chromium SUCCESS. Hosted authenticated E2E SKIPPED. |
 
 ## Next active gates — do not skip
 
-1. **PR #633 — task-quality review PostgreSQL 17 acceptance.** Current head: `2693787e93cfd0af26f421fb48ebb9b697417a2f`; latest P1 run `46044825176` and P2 run `46044825150` were both IN_PROGRESS at this checkpoint. Compare to current main: 21 commits ahead / 1 behind, with four relevant paths (P2 workflow, checkpoint, finance-task-print spec, task-quality authorization script). The prior head's P2 failure was an outdated product-image browser test/print expectation, not the task-quality SQL test. The new head includes current-main synchronization; wait for exact-head P1 and full local PostgreSQL 17/Chromium P2 to become terminal. Preserve `scripts/test-task-quality-review-authorization.mjs`, tenant isolation, idempotency, typed stale snapshot and append-only audit checks. Do not merge without fresh P1/P2 SUCCESS.
-2. **PR #641 — supplier invoice three-way accounting PostgreSQL 17 acceptance.** Current branch head remains `2935941fe2748215ccefb4ddb1bad1f730eed62e`, based on old main `317ebca76c4d236a1d0efe0fd5934b028598c72b`; P1 succeeded, but its old full P2 run failed only at the page-two task-print card count (expected 11, received 10). The root test defect is now fixed and merged in #667. P2 owner must sync/rebase onto current main `c8a4a63b448ed53e10b968aa903dea7983d8e500`, preserve supplier invoice three-way accounting tests, and rerun exact-head P1/P2. Feature-specific invoice/receipt/accounting PG17 assertions already passed on the old head; that does not replace a fresh complete P2 run.
-3. Keep other stale branches (#637, #605, #602) open only for their owners to sync/rebase; comments were posted explaining that their old product-image browser failures or missing-test failures predate current-main acceptance. Do not merge stale-head results.
+1. **PR #641 — supplier invoice three-way accounting PostgreSQL 17 acceptance.**
+   - Current PR head before synchronization: `0d8e956638ff8c40ef40c829cc801e668c96a3e6`; prior P1 run `46047016309` and P2 run `46047016325` were SUCCESS on that old head.
+   - After #633 merged, the PR is **diverged** from current main: 16 commits ahead / 24 behind, merge base `f287a3c47b7ade5df23eca8a184d00cbbe700a06`. Its effective diff is still the three intended paths (P2 workflow, supplier-invoice PG17 runner, P2 checkpoint), but the workflow file overlaps #633's new task-quality runner.
+   - P1 posted a sync request on PR #641 (comment ID `7226089264`). P2 must merge/rebase latest main without force-push, preserve both test runners, verify there are no lost/duplicate workflow steps, and rerun exact-head P1 plus full P2/PG17/Chromium. The previous run results must not be transferred to the synchronized SHA. There is no approval review recorded yet; P1 reviews and merges only after fresh exact-head success.
+2. **PR #585 — secure storefront product facts backend contract.**
+   - The existing P1 UI is already mounted on main: `StorefrontProductFacts` in `src/components/Storefront.tsx`, using the shared safe-image policy, and the AdminProducts editor already saves through the existing atomic catalog command. Do not recreate these parts.
+   - The old PR branch is not mergeable as-is and its earlier full P2 critical-path run failed, although its focused product-facts PG17 job passed. P2 must isolate the still-missing backend contract from the old branch, preserve main's later changes, then rerun exact-head P1/P2. P1 will verify the screen/service integration against the accepted server contract.
+3. Keep stale PRs #637, #605 and #602 with their owners for scoped synchronization and fresh acceptance; do not merge old-head results or overwrite newer work.
 
 ## Verified acceptance boundaries
 
-- #664 full local P2 on exact head `0a9ab7993e6fdc6afe7331639056b3ed743d516d`: local PostgreSQL 17, real local Supabase Storage API and Chromium completed SUCCESS, including order persistence/tenant denial, checkout replay, returns/credit memo, Onyx 27-column export, A→B profile sessions, finance/task print, customer-manager financial privacy/audit, revocable device sessions, four-tier product price edit/reload, image primary/gallery placement and retry-only-failed, eight-image cap, cross-tenant/customer denial, category tree, role privacy and AI prompt four-eyes/append-only audit. External hosted customer E2E remained SKIPPED.
-- #667 full local P2 on exact head `893253331e964eb387e562f40310e7ece9d8b45c`: SUCCESS. It proved the print/task pagination assertion now agrees with the displayed 11–20 range and retained all other acceptance steps. External hosted customer E2E remained SKIPPED.
-- #653 exact-head local profile/role PG17 and Chromium tests SUCCESS. SQLSTATE 40001 round-trip issue was fixed without weakening optimistic concurrency.
-- #666 exact-head P2 completed SUCCESS; strict task report timestamps and exact-SHA proof validation passed.
-- No codebase-wide build/deploy or production readiness claim follows from these targeted P1/P2 passes.
-
-## Reuse and open-source decision — do not repeat broad search
-
-- Shared reference catalog and license register already contain pinned ERP/CRM, WMS, BI, storefront, UI candidates and license constraints.
-- Uppy React (MIT) and React Dropzone (MIT) were examined and explicitly rejected for this workflow: Nasr1 already has SKU matching, primary/gallery lifecycle, retry-only-failed behavior, eight-image cap, tenant-safe Storage handler and real local Storage/Chromium acceptance.
-- No new third-party runtime dependency, parallel database, parallel accounting/inventory/CRM subsystem or paid API was added during this execution. Only reuse a component for a concrete gap after checking the shared catalog and current lockfile.
+- #633 exact tested head `c812e8a3a64d9ddcfe21537e2828160f73051467`: P1 run [46047121342](https://github.com/Report-Engainall/Nasr1/actions/runs/46047121342) SUCCESS; P2 run [46047121257](https://github.com/Report-Engainall/Nasr1/actions/runs/46047121257) SUCCESS. Local PostgreSQL 17/Supabase task-quality authorization, idempotency, tenant isolation, stale-snapshot, raw-table denial, append-only and local Chromium acceptance passed. Hosted customer/order/tenant E2E SKIPPED.
+- #641 feature-specific supplier-invoice runner passed on its former exact head; its complete P1/P2 runs are stale after #633 and must be rerun after synchronization.
+- #664 full local P2 on exact head `0a9ab7993e6fdc6afe7331639056b3ed743d516d`: local PostgreSQL 17, local Supabase Storage API and Chromium SUCCESS, including order persistence/tenant denial, checkout replay, returns/credit memo, Onyx export, A→B profile sessions, finance/task print, financial privacy/audit, device revocation, tier prices, product image UI/storage, category tree, role privacy and AI prompt audit. Hosted authenticated E2E remained SKIPPED.
+- #667 full local P2 on exact head `893253331e964eb387e562f40310e7ece9d8b45c`: SUCCESS, including pagination/print assertion correction; hosted authenticated E2E remained SKIPPED.
+- Existing product-facts page and admin editor are source-integrated on main; this does not prove original image coverage or hosted server-runtime acceptance.
+- No codebase-wide build/deploy or production-readiness claim follows from these targeted P1/P2 passes.
 
 ## Remaining product-level blockers
 
 - DLV-001 requirement-to-route/action/service/RPC/Edge/tenant-scope/migration/exact-SHA crosswalk remains OPEN.
-- DLV-002 full route/state acceptance beyond the Auth A→B profile path remains OPEN; preserve the dedicated local auth proof and do not claim hosted tenant isolation.
-- DLV-003 original product image associations remain 0/114 until original image assets are supplied and mapped by SKU. Do not fabricate or hotlink images. Existing image upload lifecycle is accepted; continue with genuine catalog assets and detail/discovery coverage.
-- Production Supabase project identity/runtime, hosted Auth/customer tests and hosted Edge deployment/runtime remain unverified. Release is NO-GO until independently confirmed and explicitly authorized.
+- DLV-002 full route/state acceptance beyond the Auth A→B profile path remains OPEN; preserve its local proof and do not claim hosted tenant isolation.
+- DLV-003 original product image associations remain 0/114 until owner-provided original assets are mapped by SKU. Do not fabricate/hotlink. Existing image upload lifecycle is accepted; continue catalogue/discovery/detail acceptance independently.
+- Production Supabase project identity/runtime, hosted Auth/customer tests and hosted Edge deployment/runtime remain unverified. Release remains NO-GO.
 - Never equate IN_PROGRESS, QUEUED, SKIPPED, BLOCKED or unavailable evidence with PASS.
 
 ## Delivery discipline
 
-- Continue from this cursor and the live main SHA, not old reports. Merge accepted work incrementally with expected-head SHA checks.
+- Continue from this cursor and live main; do not repeat accepted work.
 - P1 owns product integration and main merges; P2 owns schema/RPC/RLS and financial/inventory operations; P3 owns intelligence.
-- Preserve history below this boundary exactly. Update only this live section after each material merge or blocker transition.
+- Keep the canonical acceptance matrix and this single execution pointer current; do not create parallel ledgers.
+- No production writes, remote migrations, Edge deployment, paid service, Vercel, Bolt or Lovable. Hosted external work remains blocked until its target and authorization are proven.
+
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
 
