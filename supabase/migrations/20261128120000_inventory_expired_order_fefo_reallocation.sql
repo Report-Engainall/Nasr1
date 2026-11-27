@@ -847,10 +847,24 @@ BEGIN
    EXIT WHEN v_left<=0;
    v_take:=LEAST(v_left,v_lot.quantity_on_hand-v_lot.quantity_reserved);
    IF v_take<=0 THEN CONTINUE; END IF;
-   UPDATE public.inventory_batches SET quantity_reserved=quantity_reserved+v_take WHERE id=v_lot.batch_id;
-   UPDATE public.inventory_balances SET quantity_reserved=quantity_reserved+v_take,last_movement_at=pg_catalog.statement_timestamp(),updated_at=pg_catalog.statement_timestamp()
-    WHERE id=v_lot.balance_id RETURNING quantity_available INTO v_after;
-   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate stock balance disappeared during reconciliation'; END IF;
+   UPDATE public.inventory_batches
+      SET quantity_reserved=quantity_reserved+v_take
+    WHERE id=v_lot.batch_id
+      AND quantity_on_hand>=quantity_reserved+v_take
+      AND quantity_reserved>=0;
+   IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='replacement batch availability changed during reservation reconciliation';
+   END IF;
+   UPDATE public.inventory_balances
+      SET quantity_reserved=quantity_reserved+v_take,
+          last_movement_at=pg_catalog.statement_timestamp(),
+          updated_at=pg_catalog.statement_timestamp()
+    WHERE id=v_lot.balance_id
+      AND quantity_available>=v_take
+    RETURNING quantity_available INTO v_after;
+   IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate stock availability changed during reservation reconciliation';
+   END IF;
    INSERT INTO public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id)
     VALUES(v_lot.product_id,v_lot.warehouse_id,'reserve',v_take,v_after,'order',v_order.id,'استكمال الحجز الناقص للطلب حسب FEFO: '||v_reason,v_actor,v_lot.batch_id);
    v_allocations:=v_allocations||pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('batch_id',v_lot.batch_id,'product_id',v_lot.product_id,'warehouse_id',v_lot.warehouse_id,'quantity',v_take));
