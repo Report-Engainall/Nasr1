@@ -793,9 +793,9 @@ BEGIN
   WITH ordered AS(SELECT oi.product_id,pg_catalog.sum(oi.quantity)::numeric(15,3) qty FROM public.order_items oi WHERE oi.order_id=v_order.id GROUP BY oi.product_id),
   net AS(SELECT im.product_id,pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) qty
    FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id AND im.movement_type IN ('reserve','release_reservation') GROUP BY im.product_id)
-  SELECT 1 FROM net n LEFT JOIN ordered o ON o.product_id=n.product_id WHERE o.product_id IS NULL OR n.qty<0 OR n.qty>o.qty
+  SELECT 1 FROM net n LEFT JOIN ordered o ON o.product_id=n.product_id WHERE o.product_id IS NULL OR n.qty<0
  ) THEN
-  RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='reservation movement ledger exceeds or conflicts with ordered quantity';
+  RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='reservation movement ledger is negative or references an unlinked ordered product';
  END IF;
  SELECT coalesce(pg_catalog.array_agg(DISTINCT oi.product_id ORDER BY oi.product_id),ARRAY[]::uuid[])
   INTO v_products FROM public.order_items oi WHERE oi.order_id=v_order.id;
@@ -840,8 +840,7 @@ BEGIN
   SELECT coalesce(pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END),0)::numeric(15,3)
    INTO v_reserved FROM public.inventory_movements im
   WHERE im.reference_type='order' AND im.reference_id=v_order.id AND im.product_id=v_product AND im.movement_type IN ('reserve','release_reservation');
-  v_missing:=v_ordered-v_reserved;
-  IF v_missing<0 THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='order net reservation exceeds ordered quantity'; END IF;
+  v_missing:=greatest(v_ordered-v_reserved,0);
   v_left:=v_missing;
   FOR v_lot IN
    SELECT b.id batch_id,b.product_id,b.warehouse_id,b.quantity_on_hand,b.quantity_reserved,ib.id balance_id
@@ -960,9 +959,9 @@ BEGIN
    WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) qty
    FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id
    AND im.movement_type IN ('reserve','release_reservation') GROUP BY im.product_id)
-  SELECT 1 FROM net n LEFT JOIN ordered o ON o.product_id=n.product_id WHERE o.product_id IS NULL OR n.qty<0 OR n.qty<o.qty
+  SELECT 1 FROM net n LEFT JOIN ordered o ON o.product_id=n.product_id WHERE o.product_id IS NULL OR n.qty<0
  ) THEN
-  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order has a missing reservation; use the incomplete-reservation repair action instead';
+  RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='reservation movement ledger is negative or references an unlinked ordered product';
  END IF;
 
  SELECT coalesce(pg_catalog.array_agg(DISTINCT oi.product_id ORDER BY oi.product_id),ARRAY[]::uuid[])
@@ -1013,8 +1012,7 @@ BEGIN
     WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END),0)::numeric(15,3) INTO v_reserved
    FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id
     AND im.product_id=v_product AND im.movement_type IN ('reserve','release_reservation');
-  v_excess:=v_reserved-v_ordered;
-  IF v_excess<0 THEN RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order has a missing reservation; excess release refused'; END IF;
+  v_excess:=greatest(v_reserved-v_ordered,0);
   v_left:=v_excess;
 
   -- Release least-urgent lots first (no-expiry and latest expiry first),
