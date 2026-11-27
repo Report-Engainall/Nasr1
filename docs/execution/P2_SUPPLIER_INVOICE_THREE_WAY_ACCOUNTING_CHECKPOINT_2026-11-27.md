@@ -46,6 +46,8 @@ Base SHA: `317ebca76c4d236a1d0efe0fd5934b028598c72b`
 - The first failure was in the acceptance scenario, not a business-rule defect: it swapped a tax asset account with a price-variance expense account and then expected the idempotency fingerprint conflict. The handoff RPC correctly rejected the mismatched account type earlier than fingerprint evaluation.
 - Corrected scenario now provisions a second valid active tax **asset** account and reuses the same handoff key while changing only the valid tax-account mapping; this reaches and asserts the intended payload-fingerprint conflict. SQLSTATE assertion diagnostics also report the actual server message on failure.
 - Test-only correction commit: `e607296236fee81fb87ec7ea7b711d42549f0598`.
+- The correction explicitly verifies the alternative tax account is active, belongs to the same organization and has account type `asset` before retrying with the changed valid account mapping.
+- Re-run state: `PENDING` on the updated branch head; the previous run's test failure remains recorded above and is not accepted.
 - The corrected script requires a fresh exact-head P1/P2 run. The prior overall run remains `FAIL`; it is not retroactively counted as PASS.
 
 ## Acceptance

@@ -198,6 +198,14 @@ async function main() {
     tax: await createAccount(suffix + "T", "P2 supplier input tax " + suffix, "asset", manager.id),
     alternativeTax: await createAccount(suffix + "T2", "P2 alternative supplier input tax " + suffix, "asset", manager.id),
   };
+  assert.notEqual(accounts.tax, accounts.alternativeTax, "changed-mapping retry must use a distinct valid tax account");
+  const alternativeTaxCheck = await db.unsafe(
+    "select account_type,is_active from public.accounting_accounts where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId, accounts.alternativeTax],
+  );
+  assert.equal(alternativeTaxCheck.length, 1);
+  assert.equal(alternativeTaxCheck[0].account_type, "asset");
+  assert.equal(alternativeTaxCheck[0].is_active, true);
 
   // Exact three-way match, immutable line evidence and no second payable journal.
   const exactSource = await makePostedReceipt(manager, admin, accounts, 100.25, "P2 exact supplier invoice three-way match");
