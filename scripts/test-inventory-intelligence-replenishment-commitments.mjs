@@ -15,7 +15,7 @@ function expectSqlState(label, error, expected) {
 }
 
 function assertSameInstant(label, actual, expected) {
-  const zonedTimestamp = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$/;
+  const zonedTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
   assert.equal(typeof actual, "string", label + " actual timestamp must be a string");
   assert.equal(typeof expected, "string", label + " expected timestamp must be a string");
   assert.match(actual, zonedTimestamp, label + " actual timestamp must include an explicit timezone");
