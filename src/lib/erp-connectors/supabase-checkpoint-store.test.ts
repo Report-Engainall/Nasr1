@@ -230,7 +230,7 @@ describe("SupabaseErpSyncCheckpointStore", () => {
   });
 
   it("resets only the expired cursor and preserves the last completed watermark", async () => {
-    const fetcher = vi.fn(async () => response({
+    const fetcher = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => response({
       version: 5,
       cursor_ciphertext: null,
       pending_watermark: null,
@@ -259,7 +259,8 @@ describe("SupabaseErpSyncCheckpointStore", () => {
       code: "ERP_CHECKPOINT_CONFLICT",
       retryable: true,
     });
-    await expect(result).rejects.not.toThrow(/secret-bearing/);
+    const caught = await result.catch((error: unknown) => error);
+    expect(caught instanceof Error ? caught.message : String(caught)).not.toContain("secret-bearing");
   });
 
   it("fails closed when the stored cursor is tampered or encrypted with a different key", async () => {
