@@ -642,7 +642,7 @@ describe("production intelligence workspace inventory screens", () => {
     expect(productCard).not.toBeNull();
     expect(productCard).toHaveTextContent("75%");
     expect(productCard).toHaveTextContent("80%");
-    expect(productCard).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
+    expect(productCard).toHaveTextContent("لم تُهيأ معادلة أثر معتمدة");
     fireEvent.click(within(productCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
       ruleId: "finance.product-concentration.review-increase.YER",
