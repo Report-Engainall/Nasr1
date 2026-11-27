@@ -24,7 +24,7 @@ vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   createDecisionOutcomeProposal: mocks.createDecisionOutcomeProposal,
 }));
 vi.mock("@/lib/intelligence/unavailable-product-search-demand-client", () => ({
-  createUnavailableProductDemandFollowUpTask: vi.fn(),
+  createUnavailableProductDemandFollowUpTask: mocks.createUnavailableProductDemandFollowUpTask,
 }));
 
 const partialRadar: GrowthOpportunityRadarResult = {
@@ -198,6 +198,12 @@ describe("GrowthOpportunityRadar", () => {
       duplicate: false,
       outcome: {},
     });
+    mocks.createUnavailableProductDemandFollowUpTask.mockReset();
+    mocks.createUnavailableProductDemandFollowUpTask.mockResolvedValue({
+      ok: true,
+      reused: false,
+      taskId: "task-verified",
+    });
   });
   afterEach(() => cleanup());
 
@@ -304,6 +310,38 @@ describe("GrowthOpportunityRadar", () => {
 
     expect(await screen.findByText(/هذا القرار محفوظ مسبقاً/)).toBeInTheDocument();
     expect(mocks.createDecisionOutcomeProposal).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers the purchasing follow-up control when the task request throws", async () => {
+    mocks.createUnavailableProductDemandFollowUpTask.mockRejectedValueOnce(new Error("network failure"));
+    const opportunity = {
+      ...verifiedOpportunity,
+      id: "growth:unavailable-demand:2026-11-13T04:00:00.000Z",
+      kind: "PRODUCT_UNAVAILABLE_DEMAND" as const,
+    };
+    render(<GrowthOpportunityRadar result={{ ...verifiedRadar, opportunities: [opportunity] }} />);
+
+    const button = screen.getByRole("button", { name: "إنشاء مهمة مراجعة للمشتريات" });
+    fireEvent.click(button);
+
+    expect(await screen.findByText(/تعذر تأكيد إنشاء مهمة المراجعة من الخادم/)).toBeInTheDocument();
+    expect(button).toBeEnabled();
+    expect(mocks.createUnavailableProductDemandFollowUpTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes the radar after the server confirms a purchasing follow-up task", async () => {
+    const onRetry = vi.fn();
+    const opportunity = {
+      ...verifiedOpportunity,
+      id: "growth:unavailable-demand:2026-11-14T04:00:00.000Z",
+      kind: "PRODUCT_UNAVAILABLE_DEMAND" as const,
+    };
+    render(<GrowthOpportunityRadar result={{ ...verifiedRadar, opportunities: [opportunity] }} onRetry={onRetry} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "إنشاء مهمة مراجعة للمشتريات" }));
+
+    expect(await screen.findByText(/أُنشئت مهمة مراجعة المشتريات/)).toBeInTheDocument();
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it("does not offer server decision creation without an authenticated manager profile", () => {
