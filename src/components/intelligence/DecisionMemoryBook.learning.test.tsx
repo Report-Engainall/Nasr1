@@ -258,6 +258,8 @@ describe("DecisionMemoryBook outcome learning controls", () => {
     expect(overdueTile).toHaveAttribute("aria-pressed","false");
     fireEvent.click(overdueTile);
     expect(screen.getByText(/فئة طابور المراجعة: مراجعات متأخرة/)).toBeInTheDocument();
+    const openReview=await screen.findByRole("button",{name:"توثيق ذاكرة هذا القرار"});
+    await waitFor(()=>expect(openReview).toHaveAttribute("aria-expanded","true"));
     expect(screen.getByText(/نتائج البحث: 1 من 1 قراراً محمّلاً/)).toBeInTheDocument();
     fireEvent.click(overdueTile);
     expect(screen.queryByText(/فئة طابور المراجعة: مراجعات متأخرة/)).not.toBeInTheDocument();

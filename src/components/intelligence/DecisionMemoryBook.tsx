@@ -76,10 +76,11 @@ function factDraft(snapshot:DecisionMemorySnapshot|null):string {
 function alternativesDraft(snapshot:DecisionMemorySnapshot|null):string {
   return snapshot?.alternatives.map(item=>(snapshot.chosenOptionId===item.id?"* ":"")+item.label+(item.rationale?" | "+item.rationale:"")).join("\n")??"";
 }
-function DecisionMemoryCapture({record,onRetry}:{record:DecisionMemoryRecord;onRetry?:()=>void}){
+function DecisionMemoryCapture({record,onRetry,autoOpen=false}:{record:DecisionMemoryRecord;onRetry?:()=>void;autoOpen?:boolean}){
   const snapshot=record.snapshot;
   const defaultDay=record.createdAt.slice(0,10);
   const [open,setOpen]=useState(false);
+  useEffect(()=>{if(autoOpen)setOpen(true);},[autoOpen]);
   const [problem,setProblem]=useState(snapshot?.problem??"");
   const [factsText,setFactsText]=useState(factDraft(snapshot));
   const [opinionsText,setOpinionsText]=useState(snapshot?.opinions.map(item=>item.text).join("\n")??"");
@@ -328,7 +329,7 @@ function DecisionMemoryCard({record,onRetry,highlight=false}:{record:DecisionMem
     {record.missingFields.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">حقول الذاكرة غير المحفوظة</h4><ul className="mt-1 list-disc ps-5 text-xs">{record.missingFields.map(field=><li key={field}>{missingLabels[field]}</li>)}</ul></section>:null}
     {record.precedents.length?<section><h4 className="text-sm font-semibold">قرارات سابقة من القاعدة نفسها — ضمن الصفحة المحمّلة فقط</h4><ul className="list-disc ps-5 text-xs">{record.precedents.map(item=><li key={item.decisionId}>{item.ruleVersion} · {states[item.state]} · {item.createdAt} · {item.measured?"قياس مسجل":"بلا قياس"}</li>)}</ul></section>:null}
     {record.warnings.map(warning=><p key={warning} className="text-xs text-muted-foreground">{warning}</p>)}
-    <DecisionMemoryCapture record={record} onRetry={onRetry}/>
+    <DecisionMemoryCapture record={record} onRetry={onRetry} autoOpen={highlight}/>
   </article>;
 }
 const DECISION_MEMORY_DISPLAY_PAGE_SIZE = 25;
@@ -551,7 +552,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
               setSelectedReviewKind("ALL");
               setRecordPage(Math.floor(recordIndex/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
               setFocusedDecisionId(item.decisionId);
-            }}>فتح السجل</button>
+            }}>فتح السجل والمراجعة</button>
           </article>;
         })}
         {reviewQueue.items.length>12?<p className="text-xs text-muted-foreground">تُعرض أول 12 مهمة حسب الأولوية؛ توجد {reviewQueue.items.length-12} مهام أخرى ضمن السجلات المحمّلة.</p>:null}
