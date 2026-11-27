@@ -12,6 +12,11 @@ import {
 import { useAuth } from '@/lib/auth';
 import { downloadInventoryTransferHistoryWorkbookXlsx } from '@/lib/inventory-transfer-history-xlsx';
 import { projectInventoryTransferPrintRow } from '@/lib/inventory-transfer-history-print';
+import {
+  filterInventoryTransferHistory,
+  type InventoryTransferHistoryFilters,
+  type InventoryTransferHistorySort,
+} from '@/lib/inventory-transfer-history-filter';
 
 type DraftLine = { productId: string; quantity: string };
 type TransferPreview = { signature: string; draft: ReturnType<typeof normalizeInventoryTransferBatchDraft> };
@@ -313,6 +318,7 @@ function TransferHistoryFilters({
   onWarehouse,
   onDateFrom,
   onDateTo,
+  onClear,
 }: {
   warehouses: TransferWarehouse[];
   search: string;
@@ -323,6 +329,7 @@ function TransferHistoryFilters({
   onWarehouse: (value: string) => void;
   onDateFrom: (value: string) => void;
   onDateTo: (value: string) => void;
+  onClear: () => void;
 }) {
   return (
     <div className="form-grid inventory-transfer-no-print">
@@ -337,6 +344,46 @@ function TransferHistoryFilters({
       </label>
       <label>من تاريخ<input aria-label="من تاريخ" type="date" value={dateFrom} onChange={(event) => onDateFrom(event.target.value)} /></label>
       <label>إلى تاريخ<input aria-label="إلى تاريخ" type="date" value={dateTo} onChange={(event) => onDateTo(event.target.value)} /></label>
+      <button type="button" className="btn outline" onClick={onClear} disabled={!search && warehouseFilter === 'all' && !dateFrom && !dateTo}>مسح الفلاتر</button>
+    </div>
+  );
+}
+
+function InventoryTransferHistoryRowsTable({
+  rows,
+  loading,
+  error,
+}: {
+  rows: InventoryTransferHistoryRow[];
+  loading: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="inventory-transfer-screen-table" aria-label="الحركات الظاهرة">
+      {loading ? <p className="text-muted" role="status">جار تحميل الحركات المسجلة…</p> : null}
+      {!loading && error ? <p className="text-muted">تعذر عرض السجل حتى استعادة الاتصال.</p> : null}
+      {!loading && !error && rows.length === 0 ? <p className="text-muted">لا توجد حركات تحويل تطابق معايير التصفية الحالية.</p> : null}
+      {!loading && !error && rows.length > 0 ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table aria-label="جدول سجل تحويلات المخزون">
+            <thead>
+              <tr><th>التاريخ</th><th>الصنف ورمزه</th><th>من مستودع</th><th>إلى مستودع</th><th>الكمية</th><th>السبب</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{dateText(row.created_at)}</td>
+                  <td><strong>{row.product_name ?? 'صنف غير متاح'}</strong><small className="inventory-transfer-code">{row.item_code ?? '—'}{row.unit ? ' · ' + row.unit : ''}</small></td>
+                  <td>{row.source_warehouse_name ?? 'مستودع غير متاح'}</td>
+                  <td>{row.destination_warehouse_name ?? 'مستودع غير متاح'}</td>
+                  <td>{quantityText(row.quantity)}</td>
+                  <td>{row.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -386,6 +433,8 @@ function InventoryTransferPrintSheet({
 function InventoryTransferHistoryPanel({
   warehouses,
   rows,
+  printRows,
+  totalRows,
   loading,
   error,
   exportError,
@@ -396,13 +445,23 @@ function InventoryTransferHistoryPanel({
   warehouseFilter,
   dateFrom,
   dateTo,
+  sort,
+  page,
+  pageSize,
+  pageCount,
   onSearch,
   onWarehouse,
   onDateFrom,
   onDateTo,
+  onClearFilters,
+  onSort,
+  onPage,
+  onPageSize,
 }: {
   warehouses: TransferWarehouse[];
   rows: InventoryTransferHistoryRow[];
+  printRows: InventoryTransferHistoryRow[];
+  totalRows: number;
   loading: boolean;
   error: string | null;
   exportError: string;
@@ -413,10 +472,18 @@ function InventoryTransferHistoryPanel({
   warehouseFilter: string;
   dateFrom: string;
   dateTo: string;
+  sort: InventoryTransferHistorySort;
+  page: number;
+  pageSize: number;
+  pageCount: number;
   onSearch: (value: string) => void;
   onWarehouse: (value: string) => void;
   onDateFrom: (value: string) => void;
   onDateTo: (value: string) => void;
+  onClearFilters: () => void;
+  onSort: (value: InventoryTransferHistorySort) => void;
+  onPage: (value: number) => void;
+  onPageSize: (value: number) => void;
 }) {
   return (
     <section className="panel">
@@ -441,11 +508,39 @@ function InventoryTransferHistoryPanel({
         onWarehouse={onWarehouse}
         onDateFrom={onDateFrom}
         onDateTo={onDateTo}
+        onClear={onClearFilters}
       />
+      <div className="inventory-transfer-history-toolbar inventory-transfer-no-print">
+        <span role="status">{
+          loading
+            ? 'جار تحديث سجل التحويلات…'
+            : totalRows === 0
+              ? 'لا توجد حركات مطابقة'
+              : 'عرض ' + quantityText((page - 1) * pageSize + 1) + '–' + quantityText(Math.min(page * pageSize, totalRows)) + ' من ' + quantityText(totalRows) + ' حركة'
+        }</span>
+        <label>ترتيب السجل
+          <select aria-label="ترتيب سجل التحويلات" value={sort} onChange={(event) => onSort(event.target.value as InventoryTransferHistorySort)}>
+            <option value="newest">الأحدث أولاً</option>
+            <option value="oldest">الأقدم أولاً</option>
+          </select>
+        </label>
+      </div>
       {error ? <div className="form-error" role="alert">{error}</div> : null}
       {exportError ? <div className="form-error" role="alert">{exportError}</div> : null}
-      {loading ? <p className="text-muted">جار تحميل سجل التحويلات المحفوظة...</p> : null}
-      <InventoryTransferPrintSheet rows={rows} loading={loading} error={error} />
+      <InventoryTransferHistoryRowsTable rows={rows} loading={loading} error={error} />
+      <nav className="inventory-transfer-pagination inventory-transfer-no-print" aria-label="ترقيم صفحات تحويلات المخزون">
+        <label>عدد الحركات في الصفحة
+          <select aria-label="عدد الحركات في الصفحة" value={pageSize} onChange={(event) => onPageSize(Number(event.target.value))}>
+            <option value={10}>10</option><option value={25}>25</option><option value={50}>50</option>
+          </select>
+        </label>
+        <span>صفحة {page} من {pageCount}</span>
+        <div className="toolbar-actions">
+          <button type="button" className="btn outline" onClick={() => onPage(page - 1)} disabled={page <= 1 || loading}>السابق</button>
+          <button type="button" className="btn outline" onClick={() => onPage(page + 1)} disabled={page >= pageCount || loading}>التالي</button>
+        </div>
+      </nav>
+      <InventoryTransferPrintSheet rows={printRows} loading={loading} error={error} />
     </section>
   );
 }
@@ -471,6 +566,9 @@ export function InventoryTransferHistoryPage() {
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [historySort, setHistorySort] = useState<InventoryTransferHistorySort>('newest');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyExportError, setHistoryExportError] = useState('');
 
   useEffect(() => {
@@ -505,21 +603,25 @@ export function InventoryTransferHistoryPage() {
     }
   }
 
-  const filteredHistory = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase('ar');
-    return (history ?? []).filter((row) => {
-      const text = [
-        row.item_code, row.product_name, row.source_warehouse_name, row.destination_warehouse_name,
-        row.reason, row.created_by, row.id, row.batch_id,
-      ].filter(Boolean).join(' ').toLocaleLowerCase('ar');
-      if (term && !text.includes(term)) return false;
-      if (warehouseFilter !== 'all' && row.source_warehouse_id !== warehouseFilter && row.destination_warehouse_id !== warehouseFilter) return false;
-      const day = row.created_at.slice(0, 10);
-      if (dateFrom && day < dateFrom) return false;
-      if (dateTo && day > dateTo) return false;
-      return true;
-    });
-  }, [history, search, warehouseFilter, dateFrom, dateTo]);
+  const historyFilters = useMemo<InventoryTransferHistoryFilters>(() => ({
+    search,
+    warehouseId: warehouseFilter,
+    dateFrom,
+    dateTo,
+    sort: historySort,
+  }), [search, warehouseFilter, dateFrom, dateTo, historySort]);
+  const filteredHistory = useMemo(
+    () => filterInventoryTransferHistory(history ?? [], historyFilters),
+    [history, historyFilters],
+  );
+  const historyPageCount = Math.max(1, Math.ceil(filteredHistory.length / historyPageSize));
+  const pageHistory = useMemo(
+    () => filteredHistory.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize),
+    [filteredHistory, historyPage, historyPageSize],
+  );
+  useEffect(() => {
+    setHistoryPage((current) => Math.min(current, historyPageCount));
+  }, [historyPageCount]);
 
   function changeLines(next: DraftLine[] | ((current: DraftLine[]) => DraftLine[])) {
     setDraftLines(next);
@@ -586,7 +688,6 @@ export function InventoryTransferHistoryPage() {
   }
 
   const allWarehouses = warehouses ?? [];
-  const allHistory = filteredHistory;
 
   const handleSourceChange = (value: string) => {
     setSourceWarehouseId(value);
@@ -627,7 +728,7 @@ export function InventoryTransferHistoryPage() {
 
   return (
     <section className="inventory-transfer-page" dir="rtl">
-      <style>{'@page { size: A4 landscape; margin: 10mm; } @media print { body * { visibility: hidden !important; } .inventory-transfer-print, .inventory-transfer-print * { visibility: visible !important; } .inventory-transfer-print { position: absolute; inset: 0; width: 100%; color: #000 !important; background: #fff !important; } .inventory-transfer-no-print { display: none !important; } .inventory-transfer-print table { width: 100%; border-collapse: collapse; font-size: 9px; } .inventory-transfer-print th, .inventory-transfer-print td { border: 1px solid #999 !important; padding: 5px; color: #000 !important; text-align: right; overflow-wrap: anywhere; } }'}</style>
+      <style>{'.inventory-transfer-history-toolbar{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0;color:var(--muted-foreground,#64748b);font-size:13px}.inventory-transfer-history-toolbar label,.inventory-transfer-pagination label{display:flex;align-items:center;gap:8px}.inventory-transfer-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0}.inventory-transfer-screen-table table{width:100%;border-collapse:collapse;min-width:780px}.inventory-transfer-screen-table th,.inventory-transfer-screen-table td{padding:10px 12px;border-bottom:1px solid var(--border,#e2e8f0);text-align:right;vertical-align:top}.inventory-transfer-screen-table th{white-space:nowrap;background:var(--muted,#f8fafc)}.inventory-transfer-code{display:block;color:var(--muted-foreground,#64748b);font-size:11px;margin-top:2px}.inventory-transfer-print{display:none}@page { size: A4 landscape; margin: 10mm; } @media print { body * { visibility: hidden !important; } .inventory-transfer-print, .inventory-transfer-print * { visibility: visible !important; } .inventory-transfer-print { display:block !important; position: absolute; inset: 0; width: 100%; color: #000 !important; background: #fff !important; } .inventory-transfer-no-print { display: none !important; } .inventory-transfer-print table { width: 100%; border-collapse: collapse; font-size: 9px; } .inventory-transfer-print th, .inventory-transfer-print td { border: 1px solid #999 !important; padding: 5px; color: #000 !important; text-align: right; overflow-wrap: anywhere; } }'}</style>
       <TransferPageHeading />
       <TransferBatchForm
         warehouses={allWarehouses}
@@ -656,7 +757,9 @@ export function InventoryTransferHistoryPage() {
       />
       <InventoryTransferHistoryPanel
         warehouses={allWarehouses}
-        rows={allHistory}
+        rows={pageHistory}
+        printRows={filteredHistory}
+        totalRows={filteredHistory.length}
         loading={historyLoading}
         error={historyError}
         exportError={historyExportError}
@@ -667,10 +770,24 @@ export function InventoryTransferHistoryPage() {
         warehouseFilter={warehouseFilter}
         dateFrom={dateFrom}
         dateTo={dateTo}
-        onSearch={setSearch}
-        onWarehouse={setWarehouseFilter}
-        onDateFrom={setDateFrom}
-        onDateTo={setDateTo}
+        sort={historySort}
+        page={historyPage}
+        pageSize={historyPageSize}
+        pageCount={historyPageCount}
+        onSearch={(value) => { setSearch(value); setHistoryPage(1); }}
+        onWarehouse={(value) => { setWarehouseFilter(value); setHistoryPage(1); }}
+        onDateFrom={(value) => { setDateFrom(value); setHistoryPage(1); }}
+        onDateTo={(value) => { setDateTo(value); setHistoryPage(1); }}
+        onClearFilters={() => {
+          setSearch('');
+          setWarehouseFilter('all');
+          setDateFrom('');
+          setDateTo('');
+          setHistoryPage(1);
+        }}
+        onSort={(value) => { setHistorySort(value); setHistoryPage(1); }}
+        onPage={(value) => setHistoryPage(Math.max(1, Math.min(historyPageCount, value)))}
+        onPageSize={(value) => { setHistoryPageSize(value); setHistoryPage(1); }}
       />
     </section>
   );
