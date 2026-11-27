@@ -3,6 +3,9 @@ import { Package, Trash2 } from "lucide-react";
 export type StorefrontCartRestoreFailureItem = {
   productId: string;
   quantity: number;
+  lastKnownName?: string | null;
+  lastKnownItemCode?: string | null;
+  lastKnownUnit?: string | null;
 };
 
 export type StorefrontCartRestoreFailureProps = {
@@ -40,13 +43,18 @@ export function StorefrontCartRestoreFailure({
         <div className="sf-cart-list" role="group" aria-label="الأصناف المحفوظة محليًا">
           {items.map((item) => {
             const shortId = item.productId.slice(-8);
+            const savedName = item.lastKnownName?.trim() || null;
+            const savedItemCode = item.lastKnownItemCode?.trim() || shortId;
+            const savedUnit = item.lastKnownUnit?.trim() || null;
             return (
               <div className="sf-cart-row" key={item.productId}>
                 <div className="sf-cart-info">
                   <div className="sf-cart-img"><Package size={20} aria-hidden="true" /></div>
                   <div>
-                    <strong>صنف محفوظ — لم يتم التحقق من بياناته</strong>
-                    <span>معرّف الصنف: <bdi>{shortId}</bdi></span>
+                    <strong>{savedName ?? 'صنف محفوظ — لم يتم التحقق من اسمه'}</strong>
+                    <span>الاسم محفوظ سابقًا؛ لم يتم التحقق من مطابقته للكتالوج الحالي</span>
+                    <span>رمز الصنف المحفوظ: <bdi>{savedItemCode}</bdi></span>
+                    {savedUnit && <small>الوحدة المحفوظة سابقًا: <bdi>{savedUnit}</bdi></small>}
                     <small>الكمية المحفوظة: <bdi>{item.quantity}</bdi></small>
                   </div>
                 </div>
