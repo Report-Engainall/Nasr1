@@ -338,6 +338,13 @@ function validateTimestamp(value: unknown): string {
   const hour = Number(match[4]);
   const minute = Number(match[5]);
   const second = Number(match[6]);
+  const fractionalDigits = match[7] ?? "";
+  if (fractionalDigits.length > 6) {
+    throw new ErpConnectorError(
+      "INVALID_SOURCE_TIMESTAMP_PRECISION",
+      "دقة تاريخ ERP تتجاوز ست خانات ميكروثانية يدعمها PostgreSQL.",
+    );
+  }
   const daysInMonth = [
     31,
     year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28,
@@ -370,6 +377,13 @@ function validateTimestamp(value: unknown): string {
       "INVALID_SOURCE_TIMESTAMP_RANGE",
       "تحويل تاريخ ERP إلى UTC يتجاوز نطاق السنوات المدعوم من نقطة المزامنة.",
     );
+  }
+
+  // JavaScript Date normalizes only milliseconds. Retain the remaining three
+  // digits explicitly so PostgreSQL's microsecond timestamp precision is not lost.
+  if (fractionalDigits.length > 3) {
+    const microseconds = fractionalDigits.padEnd(6, "0");
+    return normalized.slice(0, -1) + microseconds.slice(3) + "Z";
   }
   return normalized;
 }
@@ -962,14 +976,57 @@ function validateCheckpoint(value: ErpCheckpoint): ErpCheckpoint {
   return { ...value, completedWatermark, pendingWatermark };
 }
 
+function timestampToEpochMicros(value: string): bigint {
+  const normalized = validateTimestamp(value);
+  const match = ISO_TIMESTAMP_PATTERN.exec(normalized);
+  if (!match) {
+    throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "تعذر تحويل تاريخ ERP إلى قيمة زمنية دقيقة.");
+  }
+  const wholeSecondEpochMs = Date.parse(normalized.slice(0, 19) + "Z");
+  if (!Number.isFinite(wholeSecondEpochMs)) {
+    throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "تاريخ تحديث سجل ERP خارج النطاق المدعوم.");
+  }
+  const fractionalMicros = (match[7] ?? "").padEnd(6, "0") || "000000";
+  return BigInt(wholeSecondEpochMs) * 1000n + BigInt(fractionalMicros);
+}
+
 function maxTimestamp(...values: Array<string | null>): string | null {
   const valid = values.filter((value): value is string => value !== null);
   if (!valid.length) return null;
-  return valid.reduce((latest, value) => Date.parse(value) > Date.parse(latest) ? value : latest);
+  let latest = validateTimestamp(valid[0]);
+  let latestMicros = timestampToEpochMicros(latest);
+  for (const candidate of valid.slice(1)) {
+    const normalized = validateTimestamp(candidate);
+    const candidateMicros = timestampToEpochMicros(normalized);
+    if (candidateMicros > latestMicros) {
+      latest = normalized;
+      latestMicros = candidateMicros;
+    }
+  }
+  return latest;
 }
 
 function subtractOverlap(watermark: string, overlapMs: number): string {
-  return new Date(Math.max(0, Date.parse(watermark) - overlapMs)).toISOString();
+  const minimumSupportedMicros = BigInt(Date.parse("0001-01-01T00:00:00.000Z")) * 1000n;
+  const requestedMicros = timestampToEpochMicros(watermark) - BigInt(overlapMs) * 1000n;
+  const targetMicros = requestedMicros < minimumSupportedMicros
+    ? minimumSupportedMicros
+    : requestedMicros;
+
+  // Split at millisecond precision for Date, then append the exact microsecond remainder.
+  let epochMillis = targetMicros / 1000n;
+  let subMillisecondMicros = targetMicros % 1000n;
+  if (subMillisecondMicros < 0n) {
+    epochMillis -= 1n;
+    subMillisecondMicros += 1000n;
+  }
+  const date = new Date(Number(epochMillis));
+  if (!Number.isFinite(date.getTime())) {
+    throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP_RANGE", "تعذر حساب نافذة تداخل watermark ضمن النطاق المدعوم.");
+  }
+  const normalized = date.toISOString();
+  if (subMillisecondMicros === 0n) return normalized;
+  return normalized.slice(0, -1) + subMillisecondMicros.toString().padStart(3, "0") + "Z";
 }
 
 export async function runIncrementalReadOnlySync(input: {
