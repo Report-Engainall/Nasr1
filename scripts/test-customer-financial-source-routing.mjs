@@ -199,12 +199,16 @@ async function main() {
     [sourceTestSecondInvoiceId, orgId, customerId, sourceTestSecondOrderId, sourceTestSecondInvoiceNumber],
   );
 
+  // Build the JSONB array in PostgreSQL to keep the fixture's JSON type explicit
+  // across the postgres.js unsafe-parameter boundary. This exercises the same RPC
+  // payload contract without relying on driver-specific text-to-json coercion.
   const seededReceipt = await rpc(accountantDb,
-    "select public.record_customer_payment_allocation($1::jsonb,'cash',$2::uuid,'FIN-SOURCE-RECEIPT','source routing acceptance fixture') as result",
-    [JSON.stringify([
-      { invoice_id: sourceTestInvoiceId, amount: "5.00" },
-      { invoice_id: sourceTestSecondInvoiceId, amount: "7.00" },
-    ]), randomUUID()],
+    "select public.record_customer_payment_allocation(" +
+      "jsonb_build_array(" +
+        "jsonb_build_object('invoice_id',$1::uuid,'amount','5.00')," +
+        "jsonb_build_object('invoice_id',$2::uuid,'amount','7.00')" +
+      "),'cash',$3::uuid,'FIN-SOURCE-RECEIPT','source routing acceptance fixture') as result",
+    [sourceTestInvoiceId, sourceTestSecondInvoiceId, randomUUID()],
   );
   const sourceTestReceiptId = seededReceipt.receipt_id;
   assert.ok(sourceTestReceiptId, "a real two-invoice customer receipt is atomically saved");

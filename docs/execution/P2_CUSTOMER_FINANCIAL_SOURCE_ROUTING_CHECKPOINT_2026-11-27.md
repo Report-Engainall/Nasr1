@@ -130,3 +130,12 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - No payment/receipt/allocation/balance/journal writes were added. Staff and customer printing remain APP_ONLY-only and no fallback to ONYX/MUTAKAMEL was introduced.
 
 - Staff receipt-history pagination now derives the total count, ordered page and `has_more` from one pair of materialized CTEs in a single SQL statement, eliminating the previous separate-count/page snapshot race. PG17 acceptance inspects the installed function definition for both scoped and page materialization.
+
+## 2026-11-28 — PostgreSQL 17 receipt fixture correction
+
+- Exact P2 workflow run `46079322825` checked out head `aa9a5b0631ea47d4bd9da77a6a9615e2aaa86745`. The complete local migration reset succeeded on PostgreSQL 17, confirming the earlier parser failure was no longer present.
+- The next source-routing acceptance step failed at the fixture call to `record_customer_payment_allocation` with `22023: a payment receipt requires between 2 and 50 invoice allocations`. The test passed a JSON string as a `$1::jsonb` parameter even though the payment RPC contract requires a JSON array.
+- Corrected the disposable test fixture to construct exactly two allocation objects with PostgreSQL `jsonb_build_array/jsonb_build_object`, while keeping invoice UUIDs parameterized. No business rule, production RPC or monetary validation was weakened.
+- Public read-only Storefront Chromium smoke passed on the same SHA. Authenticated local E2E stopped at the failed finance test; remaining dependent steps were skipped. Exact-head P1 admin verification was queued when inspected.
+- No production/hosted database, remote migration, ERP call, deployment, paid service or secret was used.
+- Required next gate: rerun the isolated PostgreSQL 17 migration + source-routing test and all relevant P2/P1 exact-head checks on the new commit. Do not transfer the old run's partial results to it.
