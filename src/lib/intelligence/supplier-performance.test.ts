@@ -197,6 +197,38 @@ describe("supplier performance evidence contract", () => {
     expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
   });
 
+  it("rejects a recent order whose reported lead time does not reconcile to its timestamps", () => {
+    const input = snapshot();
+    input.suppliers[0].recentOrders[2].actualLeadDays = 3;
+
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
+  it("accepts PostgreSQL two-decimal lead-time rounding with offset and microsecond timestamps", () => {
+    const input = snapshot();
+    input.suppliers[0].recentOrders[3].submittedAt = "2026-11-02T12:00:00.000000+03:00";
+    input.suppliers[0].recentOrders[3].lastReceivedAt = "2026-11-03T12:07:12.000000+03:00";
+    input.suppliers[0].recentOrders[3].actualLeadDays = 1.01;
+
+    expect(parseSupplierPerformanceSnapshot(input)).not.toBeNull();
+  });
+
+  it("does not round a microsecond below the half-cent boundary up to the next hundredth", () => {
+    const input = snapshot();
+    input.suppliers[0].recentOrders[3].submittedAt = "2026-11-02T12:00:00.000000+03:00";
+    input.suppliers[0].recentOrders[3].lastReceivedAt = "2026-11-03T12:07:11.999999+03:00";
+    input.suppliers[0].recentOrders[3].actualLeadDays = 1.01;
+
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
+  it("rejects an on-time flag that contradicts the awarded delivery interval", () => {
+    const input = snapshot();
+    input.suppliers[0].recentOrders[3].onTime = false;
+
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
   it("rejects a latest-submission timestamp that contradicts the included recent orders", () => {
     const input = snapshot();
     input.suppliers[0].latestSubmittedAt = "2026-11-11T09:00:00.000Z";
