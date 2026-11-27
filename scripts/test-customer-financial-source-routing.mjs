@@ -159,7 +159,7 @@ async function main() {
   const sourceTestInvoiceNumber = "FIN-SOURCE-" + randomUUID().slice(0, 8).toUpperCase();
   await db.unsafe(
     "insert into public.orders (id,organization_id,customer_id,order_number,status,notes,created_by,idempotency_key,idempotency_payload_hash) " +
-      "values ($1::uuid,$2::uuid,$3::uuid,$4::text,'pending','financial source RLS test fixture',$5::uuid,$6::uuid,$7::text)",
+      "values ($1::uuid,$2::uuid,$3::uuid,$4::text,'pending','financial source RLS test fixture',$5::uuid,$6::text,$7::text)",
     [sourceTestOrderId, orgId, customerId, "ORD-" + sourceTestInvoiceNumber, customerProfile.id, randomUUID(), "0".repeat(64)],
   );
   await db.unsafe(
