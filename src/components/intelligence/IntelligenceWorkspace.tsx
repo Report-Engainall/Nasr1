@@ -1276,7 +1276,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       metricIds: [metric.id],
       boundaries: metric.warnings,
     }));
-    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions];
+    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions];
     const drivers = actions.flatMap(({ decision, metricIds }) => {
       const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
       return linkedMetricIds.length ? [{
@@ -1301,7 +1301,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
     }] : [];
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
-  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
 
   const dailyDecisionActionSelection = useMemo(() =>
     selectTopDailyDecisionActions(
