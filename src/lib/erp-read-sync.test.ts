@@ -80,6 +80,7 @@ describe("ERP read-sync client contract", () => {
           externalId: "ERP-PRODUCT-001",
           sourceUpdatedAt: "2026-11-28T00:45:00Z",
           lastDisposition: "updated",
+          lastDispositionReason: null,
           fields: { item_code: "000125", name: "منتج" },
         }],
       },
