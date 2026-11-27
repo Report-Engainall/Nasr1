@@ -292,6 +292,26 @@ describe("approved opening balance timestamp contract", () => {
     expect(buildApprovedCashOpeningBalances(source, AS_OF).metrics).toEqual([]);
   });
 
+  it("preserves exact PostgreSQL microseconds for approved opening evidence", () => {
+    const original = workspace();
+    const precise = "2026-11-13T09:00:00.123456Z";
+    const preciseWorkspace = workspace({
+      asOf: precise,
+      evidence: original.evidence.map(item => ({
+        ...item,
+        createdAt: "2026-11-13T08:00:00.123456Z",
+      })),
+      openingBalances: original.openingBalances.map(item => ({
+        ...item,
+        submittedAt: "2026-11-13T08:10:00.123456Z",
+        reviewedAt: "2026-11-13T08:20:00.123456Z",
+      })),
+    });
+    const result = buildApprovedCashOpeningBalances(preciseWorkspace, precise);
+    expect(result.metrics).toHaveLength(1);
+    expect(result.metrics[0].asOf).toBe(precise);
+  });
+
   it("rejects requested, workspace and approval clocks finer than PostgreSQL microseconds", () => {
     expect(buildApprovedCashOpeningBalances(workspace(), "2026-11-13T09:00:00.1234567Z").metrics).toEqual([]);
     const invalidWorkspace = workspace({ asOf: "2026-11-13T09:00:00.1234567Z" });
