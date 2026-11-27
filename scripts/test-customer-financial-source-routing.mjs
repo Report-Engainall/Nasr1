@@ -262,6 +262,11 @@ async function main() {
 
   assert.equal(customerReceiptPrint.allocations.length, 2,
     "customer print returns both verified saved invoice allocations");
+  const printedAllocationTotal = customerReceiptPrint.allocations.reduce(
+    (sum, allocation) => sum + Number(allocation.amount), 0,
+  );
+  assert.equal(printedAllocationTotal, Number(customerReceiptPrint.receipt.total_amount),
+    "the exact printed allocation DTO must sum to the saved receipt total");
   assert.deepEqual(Object.keys(customerReceiptPrint.customer).sort(),
     ["business_name","contact_name","customer_code","id"].sort(),
     "customer print DTO excludes profile, tenant and internal identity fields");
@@ -316,6 +321,24 @@ async function main() {
         [orgId, customerId],
       ),
       "55P03",
+    );
+    await expectFailure(
+      "customer receipt print holds the saved receipt header against concurrent mutation",
+      serviceDb.unsafe(
+        "select id from public.customer_payment_receipts where id=$1::uuid for update nowait",
+        [sourceTestReceiptId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+    await expectFailure(
+      "customer receipt print holds all existing allocation rows against concurrent mutation",
+      serviceDb.unsafe(
+        "select id from public.customer_payments where receipt_id=$1::uuid for update nowait",
+        [sourceTestReceiptId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
     );
   });
 
