@@ -217,6 +217,19 @@ async function main() {
   assert.ok(Array.isArray(appOnlyCustomer360.finance_by_currency),
     "APP_ONLY Customer 360 returns its currency-separated finance projection");
 
+  const appOnlyStaffInvoiceRows = await managerDb.unsafe(
+    "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestInvoiceId, orgId, customerId],
+  );
+  const appOnlyStaffInvoiceItemRows = await managerDb.unsafe(
+    "select id from public.customer_invoice_items where id=$1::uuid and invoice_id=$2::uuid",
+    [sourceTestInvoiceItemId, sourceTestInvoiceId],
+  );
+  assert.equal(appOnlyStaffInvoiceRows.length, 1,
+    "finance staff can read APP_ONLY invoice metadata inside their active tenant");
+  assert.equal(appOnlyStaffInvoiceItemRows.length, 1,
+    "finance staff can read APP_ONLY invoice line metadata inside their active tenant");
+
   const appOnlyReceiptOptions = await rpc(accountantDb,
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.ok(appOnlyReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
@@ -231,7 +244,7 @@ async function main() {
     "APP_ONLY receipt print reconciles both saved invoice allocations");
 
   const appPaymentSourceDecision = await rpc(managerDb,
-    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    "select public.staff_customer_app_only_financial_rows_read_allowed($1::uuid,$2::uuid) as result",
     [customerId, orgId]);
   assert.equal(appPaymentSourceDecision, true,
     "manager source guard permits APP_ONLY allocations inside the active organization");
@@ -244,7 +257,7 @@ async function main() {
   assert.equal(paymentSourcePolicy.length, 1, "payment source restrictive policy must be installed");
   assert.equal(paymentSourcePolicy[0].relrowsecurity, true, "customer_payments RLS must be enabled");
   assert.equal(paymentSourcePolicy[0].polpermissive, false, "payment source policy must be restrictive");
-  assert.ok(paymentSourcePolicy[0].predicate.includes("staff_customer_app_only_payment_read_allowed"),
+  assert.ok(paymentSourcePolicy[0].predicate.includes("staff_customer_app_only_financial_rows_read_allowed"),
     "payment source policy must invoke the server-owned boolean guard");
   const statementAfterReceipt = await rpc(customerDb,
     "select public.get_customer_account_statement() as result");
@@ -461,6 +474,19 @@ async function main() {
     "APP_ONLY Customer 360 finance snapshot",
   );
 
+  const mutakamelStaffInvoiceRows = await managerDb.unsafe(
+    "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestInvoiceId, orgId, customerId],
+  );
+  const mutakamelStaffInvoiceItemRows = await managerDb.unsafe(
+    "select id from public.customer_invoice_items where id=$1::uuid and invoice_id=$2::uuid",
+    [sourceTestInvoiceItemId, sourceTestInvoiceId],
+  );
+  assert.equal(mutakamelStaffInvoiceRows.length, 0,
+    "staff invoice metadata reads remain denied after MUTAKAMEL cutover");
+  assert.equal(mutakamelStaffInvoiceItemRows.length, 0,
+    "staff invoice line reads remain denied after MUTAKAMEL cutover");
+
   const externalInvoiceRows = await customerDb.unsafe(
     "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
     [sourceTestInvoiceId, orgId, customerId],
@@ -471,6 +497,19 @@ async function main() {
   );
   assert.equal(externalInvoiceRows.length, 0, "direct invoice metadata reads are denied for a real APP_ONLY invoice after ONYX cutover");
   assert.equal(externalInvoiceItemRows.length, 0, "direct invoice line reads are denied for a real APP_ONLY invoice after ONYX cutover");
+
+  const externalStaffInvoiceRows = await managerDb.unsafe(
+    "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestInvoiceId, orgId, customerId],
+  );
+  const externalStaffInvoiceItemRows = await managerDb.unsafe(
+    "select id from public.customer_invoice_items where id=$1::uuid and invoice_id=$2::uuid",
+    [sourceTestInvoiceItemId, sourceTestInvoiceId],
+  );
+  assert.equal(externalStaffInvoiceRows.length, 0,
+    "staff invoice metadata reads are denied after ONYX cutover");
+  assert.equal(externalStaffInvoiceItemRows.length, 0,
+    "staff invoice line reads are denied after ONYX cutover");
   await expectFailure(
     "external customer cannot read a real APP_ONLY invoice PDF",
     rpc(customerDb, "select public.get_customer_invoice_pdf($1::uuid) as result", [sourceTestInvoiceId]),
@@ -486,7 +525,7 @@ async function main() {
     "direct finance receipt reads are denied after ONYX cutover");
 
   const onyxPaymentSourceDecision = await rpc(managerDb,
-    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    "select public.staff_customer_app_only_financial_rows_read_allowed($1::uuid,$2::uuid) as result",
     [customerId, orgId]);
   assert.equal(onyxPaymentSourceDecision, false,
     "manager APP_ONLY payment-read guard denies app allocations after ONYX cutover");
@@ -567,7 +606,7 @@ async function main() {
     "APP_ONLY receipt remains excluded after MUTAKAMEL cutover");
 
   const mutakamelPaymentSourceDecision = await rpc(managerDb,
-    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    "select public.staff_customer_app_only_financial_rows_read_allowed($1::uuid,$2::uuid) as result",
     [customerId, orgId]);
   assert.equal(mutakamelPaymentSourceDecision, false,
     "manager APP_ONLY payment-read guard denies app allocations after MUTAKAMEL cutover");
@@ -603,6 +642,19 @@ async function main() {
     [customerId]);
   assert.equal(finalCustomer360.customer.id, customerId,
     "Customer 360 finance projection is restored only after approved APP_ONLY return");
+
+  const finalStaffInvoiceRows = await managerDb.unsafe(
+    "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestInvoiceId, orgId, customerId],
+  );
+  const finalStaffInvoiceItemRows = await managerDb.unsafe(
+    "select id from public.customer_invoice_items where id=$1::uuid and invoice_id=$2::uuid",
+    [sourceTestInvoiceItemId, sourceTestInvoiceId],
+  );
+  assert.equal(finalStaffInvoiceRows.length, 1,
+    "staff invoice metadata access returns only after approved APP_ONLY cutover");
+  assert.equal(finalStaffInvoiceItemRows.length, 1,
+    "staff invoice line access returns only after approved APP_ONLY cutover");
   const finalStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
   assert.equal(JSON.stringify(finalStatement.summary), initialSummary, "source cutover must not synthesize or alter the app ledger");
 
@@ -617,7 +669,7 @@ async function main() {
     "APP_ONLY receipt remains printable after source transitions");
 
   const finalPaymentSourceDecision = await rpc(managerDb,
-    "select public.staff_customer_app_only_payment_read_allowed($1::uuid,$2::uuid) as result",
+    "select public.staff_customer_app_only_financial_rows_read_allowed($1::uuid,$2::uuid) as result",
     [customerId, orgId]);
   assert.equal(finalPaymentSourceDecision, true,
     "manager APP_ONLY payment-read guard is restored only after approved APP_ONLY cutover");
