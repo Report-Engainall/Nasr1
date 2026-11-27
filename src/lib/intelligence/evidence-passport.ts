@@ -24,8 +24,9 @@ function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,dupl
  if(rs.some(s=>s.status==="UNVERIFIED"))return downgrade("UNVERIFIED","SOURCE_UNVERIFIED");
  if(rs.some(s=>s.status==="NEEDS_REVIEW"))return downgrade("NEEDS_REVIEW","SOURCE_NEEDS_REVIEW","PARTIAL");
  if(rs.some(s=>!validTime(s.sourceTimestamp)||!validTime(s.asOf)))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_INVALID","PARTIAL");
- if(metric.asOf!==expectedAsOf)return downgrade("NEEDS_REVIEW","METRIC_AS_OF_MISMATCH","PARTIAL");
- if(rs.some(s=>s.asOf!==metric.asOf))return downgrade("NEEDS_REVIEW","SOURCE_AS_OF_MISMATCH","PARTIAL");
+ const metricAsOfMicros=timestampMicroseconds(metric.asOf);
+ if(metricAsOfMicros===null||metricAsOfMicros!==timestampMicroseconds(expectedAsOf))return downgrade("NEEDS_REVIEW","METRIC_AS_OF_MISMATCH","PARTIAL");
+ if(rs.some(s=>timestampMicroseconds(s.asOf)!==metricAsOfMicros))return downgrade("NEEDS_REVIEW","SOURCE_AS_OF_MISMATCH","PARTIAL");
  if(rs.some(s=>timestampMicroseconds(s.sourceTimestamp)!>timestampMicroseconds(metric.asOf)!))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_AFTER_METRIC_AS_OF","PARTIAL");
  if(metric.period&&rs.some(s=>!s.period||s.period.from!==metric.period?.from||s.period.to!==metric.period?.to))
   return downgrade("NEEDS_REVIEW","SOURCE_PERIOD_MISMATCH","PARTIAL");
