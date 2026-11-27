@@ -182,9 +182,10 @@ describe("parseCustomerPaymentHistoryPayload", () => {
     }
   });
 
-  it("accepts a real leap day and the inclusive ISO ±14:00 offset boundary", () => {
+  it("accepts a real leap day, historical four-digit year and the inclusive ISO ±14:00 boundary", () => {
     for (const paidAt of [
       "2024-02-29T23:59:59.123Z",
+      "0999-12-31T23:59:59Z",
       "2026-11-01T12:00:00+14:00",
       "2026-11-01T12:00:00-14:00",
     ]) {
