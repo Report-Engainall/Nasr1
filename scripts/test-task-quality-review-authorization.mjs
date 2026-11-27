@@ -91,7 +91,7 @@ async function readTask(taskId) {
 async function callReview(client, profile, task, review, eventId, idempotencyKey, reviewType = "ACTIONABILITY") {
   return withActor(client, profile, async (tx) => {
     const timestamp = String(task.updated_at ?? "");
-    const payload = JSON.stringify(review);
+    const payload = db.json(review);
     const envelope = await tx.unsafe(
       "select " +
       "($1::uuid is not null) as task_id_ok," +
@@ -267,7 +267,7 @@ async function main() {
       );
       const rows = await tx.unsafe(
         "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,'ACTIONABILITY',$3::jsonb,$4::text,$5::text)",
-        [foreignTaskId, foreignTask[0].updated_at, JSON.stringify(actionable), runKey + "-foreign", runKey + "-foreign-key"],
+        [foreignTaskId, foreignTask[0].updated_at, db.json(actionable), runKey + "-foreign", runKey + "-foreign-key"],
       );
       return rows;
     }), "42501");
