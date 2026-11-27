@@ -111,3 +111,8 @@ Regenerate a current callable RPC/Edge inventory from active main and the approv
 ### P2 customer receipt print snapshot guarantee (2026-11-28)
 
 `get_my_customer_payment_receipt_print_data(uuid)` returns an APP_ONLY customer-only DTO after a single materialized allocation snapshot passes amount/count/currency reconciliation. It takes an exclusive row lock on the receipt header (blocking concurrent foreign-key KEY SHARE references that could append phantom allocations) and shared locks on existing allocation rows until the caller transaction ends. It performs no write.
+
+
+### P2 staff receipt print snapshot guarantee (2026-11-28)
+
+`get_staff_customer_payment_receipt_print_data(uuid)` now follows the same lock order as customer printing: source binding `FOR SHARE`, receipt header `FOR UPDATE`, existing allocation rows `FOR SHARE`. It reconciles and returns allocations from one materialized SQL snapshot and rejects tenant/customer/currency mismatches. No financial write occurs.
