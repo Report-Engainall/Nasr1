@@ -82,6 +82,23 @@ describe("business health assistant source completeness", () => {
     }))).toMatchObject({ status: "PARTIAL", populationComplete: false, customerCount: null });
   });
 
+  it("requires every ready source to reference the same valid timezone-qualified snapshot", () => {
+    const complete = completeSources();
+    expect(areBusinessHealthAssistantSourcesComplete(complete, "VERIFIED")).toBe(true);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      supplierPostedPayableActivity: { ...complete.supplierPostedPayableActivity, asOf: "2026-11-17T11:59:59.000Z" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      supplierPostedPayableActivity: { ...complete.supplierPostedPayableActivity, asOf: "2026-02-31T12:00:00.000Z" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      inventory: { ...complete.inventory, asOf: "2026-11-17T12:00:00" },
+    }, "VERIFIED")).toBe(false);
+  });
+
   it("does not elevate the complete-source rollup when one important source is partial or missing", () => {
     const complete = completeSources();
     expect(areBusinessHealthAssistantSourcesComplete(complete, "VERIFIED")).toBe(true);
