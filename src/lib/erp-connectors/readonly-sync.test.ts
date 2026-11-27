@@ -544,14 +544,28 @@ describe("server-side ERP read connector contract", () => {
   });
 
   it("rejects oversized and malformed provider pages before exposing records", async () => {
-    const oversized = new OfficialJsonErpReadConnector(connection, productContract, {
-      fetcher: vi.fn(async () => new Response("{}", {
+    let oversizedBodyCancelled = 0;
+    const oversizedFetcher = vi.fn(async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("{}"));
+        },
+        cancel() {
+          oversizedBodyCancelled += 1;
+        },
+      });
+      return new Response(body, {
         status: 200,
         headers: { "content-length": String(5 * 1024 * 1024) },
-      })),
+      });
+    });
+    const oversized = new OfficialJsonErpReadConnector(connection, productContract, {
+      fetcher: oversizedFetcher,
     });
     await expect(oversized.readPage({ cursor: null, modifiedSince: null }))
       .rejects.toMatchObject({ code: "ERP_RESPONSE_TOO_LARGE" });
+    expect(oversizedFetcher).toHaveBeenCalledTimes(1);
+    expect(oversizedBodyCancelled).toBe(1);
 
     const malformed = new OfficialJsonErpReadConnector(connection, productContract, {
       fetcher: vi.fn(async () => jsonResponse({ data: { items: "not-an-array" }, meta: {} })),
