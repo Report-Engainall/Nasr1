@@ -87,15 +87,16 @@ function makeEvidence(id: string, at: string, currency = "YER", status: Evidence
 
 function makeMetric(
   id: string,
-  value: number,
+  value: number | string,
   at: string,
   currency = "YER",
+  unit: MetricSnapshot["unit"] = "CURRENCY",
 ): MetricSnapshot {
   return {
     id: "metric-" + id,
     key: "cashflow.expected_collections",
     value,
-    unit: "CURRENCY",
+    unit,
     currency,
     status: "VERIFIED",
     completeness: "COMPLETE",
@@ -111,6 +112,33 @@ function makeMetric(
     },
     warnings: [],
   };
+}
+
+function measuredBookWithExpectedMetric(expectedMetric: MetricSnapshot) {
+  const id = "decision-measured-metric-guard";
+  const expectedAt = "2026-10-02T00:00:00.000Z";
+  const actualAt = "2026-10-04T00:00:00.000Z";
+  return buildDecisionMemoryBook({
+    generatedAt,
+    outcomes: [
+      makeOutcome(id, {
+        state: "MEASURED",
+        measuredOutcome: { value: 80, currency: "YER", asOf: actualAt },
+      }),
+    ],
+    snapshots: [
+      makeSnapshot(id, {
+        lessonsReviewed: true,
+        lessons: ["تمت مراجعة النتيجة"],
+        expectedMetric,
+        actualMetric: makeMetric("actual-metric-guard", 80, actualAt),
+        evidenceRecords: [
+          makeEvidence("expected-metric-guard", expectedAt),
+          makeEvidence("actual-metric-guard", actualAt),
+        ],
+      }),
+    ],
+  });
 }
 
 function measuredBook(currencyMismatch = false) {
@@ -320,6 +348,26 @@ describe("decision memory evidence engine", () => {
     expect(suggestions[0].status).toBe("DRAFT_REQUIRES_HUMAN_REVIEW");
     expect(suggestions[0].observations[0].evidenceIds).toEqual(["expected-ledger", "actual-ledger"]);
     expect(suggestions[0].calibration.meanSignedDifference).toBe(-20);
+  });
+
+  it("withholds numeric-looking TEXT metrics from decision measurement", () => {
+    const expectedAt = "2026-10-02T00:00:00.000Z";
+    const result = measuredBookWithExpectedMetric(
+      makeMetric("expected-metric-guard", "100.00", expectedAt, "YER", "TEXT"),
+    );
+    expect(result.records[0].metricComparison.status).toBe("WITHHELD");
+    expect(result.records[0].warnings).toContain("EXPECTED_METRIC_WITHHELD:METRIC_UNIT_NOT_NUMERIC");
+    expect(buildDecisionPolicyReviewSuggestions(result.records)).toHaveLength(0);
+  });
+
+  it("rejects scientific-notation numeric strings in decision measurement metrics", () => {
+    const expectedAt = "2026-10-02T00:00:00.000Z";
+    const result = measuredBookWithExpectedMetric(
+      makeMetric("expected-metric-guard", "1e3", expectedAt),
+    );
+    expect(result.records[0].metricComparison.status).toBe("WITHHELD");
+    expect(result.records[0].warnings).toContain("EXPECTED_METRIC_WITHHELD:METRIC_VALUE_OR_EVIDENCE_INVALID");
+    expect(buildDecisionPolicyReviewSuggestions(result.records)).toHaveLength(0);
   });
 
   it("withholds cross-currency comparisons and does not create policy-review suggestions", () => {
