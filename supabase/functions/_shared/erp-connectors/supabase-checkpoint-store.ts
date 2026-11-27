@@ -7,6 +7,7 @@ import {
   type ErpScalar,
   type ErpStagedPreview,
   type ErpStagedPreviewRecord,
+  type ErpStagedRecordDisposition,
   type ErpStagedRecordReader,
   type ErpPersistResult,
   type ErpSourceReceipt,
@@ -177,9 +178,17 @@ function parseStagedPreview(
       }
       fields[key as ErpCanonicalField] = fieldValue as ErpScalar;
     }
+    const disposition = raw.last_disposition;
+    if (disposition !== null &&
+        disposition !== "created" && disposition !== "updated" &&
+        disposition !== "unchanged" && disposition !== "rejected" &&
+        disposition !== "conflicted") {
+      throw new ErpConnectorError("ERP_STAGING_PREVIEW_INVALID", "حالة سجل ERP المرحلي غير معتمدة.");
+    }
     return {
       externalId,
       sourceUpdatedAt: raw.source_updated_at,
+      lastDisposition: disposition as ErpStagedRecordDisposition | null,
       fields: fields as ErpStagedPreviewRecord["fields"],
     };
   });
