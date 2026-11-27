@@ -328,16 +328,16 @@ describe("daily decision generation-clock boundary", () => {
 describe("daily decision action shortlist adapter", () => {
   it("reuses evidence-aware ranking and never compares unlike impact units", () => {
     const yerSmall = decisionCandidate({
-      id: "yer-small", ruleId: "yer-small",
+      id: "yer-small", ruleId: "a-yer-small",
       impact: currencyImpact(1, "YER"), impactStatus: "CALCULATED",
     });
     const countLarge = decisionCandidate({
-      id: "count-large", ruleId: "count-large",
+      id: "count-large", ruleId: "b-count-large",
       impact: { value: 999999, unit: "COUNT", formulaId: "count", formulaVersion: "1", sourceMetricIds: ["count-source"] },
       impactStatus: "CALCULATED",
     });
     const yerLarge = decisionCandidate({
-      id: "yer-large", ruleId: "yer-large",
+      id: "yer-large", ruleId: "c-yer-large",
       impact: currencyImpact(10, "YER"), impactStatus: "CALCULATED",
     });
     const selected = selectTopDailyDecisionActions([
