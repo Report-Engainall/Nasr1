@@ -158,7 +158,7 @@ async function handleCustomerOrdersFixtureRequest(
       const orderNumberFilter = url.searchParams.get("order_number");
       const statusFilter = url.searchParams.get("status");
       const searchToken = orderNumberFilter?.startsWith("ilike.")
-        ? orderNumberFilter.slice("ilike.".length).replace(/^\*/, "").replace(/\*$/, "")
+        ? orderNumberFilter.slice("ilike.".length).replace(/^[%*]+|[%*]+$/g, "")
         : null;
       const visibleRows = searchFixture.rows.filter((row) => {
         const matchesNumber = !searchToken || row.order_number.toLowerCase().includes(searchToken.toLowerCase());
@@ -312,22 +312,22 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect(page.getByText("SO-2026-0028", { exact: true })).toBeVisible();
     await expect(page.getByText("SO-2026-0005", { exact: true })).toHaveCount(0);
     await expect.poll(() => fixture.requests.slice(arabicSearchStart).some((request) =>
-      request.orderNumberFilter === "ilike.*0028*" && request.offset === "0" && request.limit === "25" && request.statusFilter === null,
+      request.orderNumberFilter === "ilike.%0028%" && request.offset === "0" && request.limit === "25" && request.statusFilter === null,
     )).toBe(true);
 
     // Persian and ASCII digits must yield the same server-side numeric token.
     const persianSearchStart = await submitSearch("۰۰۲۹");
     await expect(page.getByText("SO-2026-0029", { exact: true })).toBeVisible();
-    await expect.poll(() => fixture.requests.slice(persianSearchStart).some((request) => request.orderNumberFilter === "ilike.*0029*")).toBe(true);
+    await expect.poll(() => fixture.requests.slice(persianSearchStart).some((request) => request.orderNumberFilter === "ilike.%0029%")).toBe(true);
 
     const asciiSearchStart = await submitSearch("0030");
     await expect(page.getByText("SO-2026-0030", { exact: true })).toBeVisible();
-    await expect.poll(() => fixture.requests.slice(asciiSearchStart).some((request) => request.orderNumberFilter === "ilike.*0030*")).toBe(true);
+    await expect.poll(() => fixture.requests.slice(asciiSearchStart).some((request) => request.orderNumberFilter === "ilike.%0030%")).toBe(true);
 
     // LIKE metacharacters are removed before the query reaches PostgREST.
     const metacharacterSearchStart = await submitSearch("%_2026-0028%");
     await expect(page.getByText("SO-2026-0028", { exact: true })).toBeVisible();
-    await expect.poll(() => fixture.requests.slice(metacharacterSearchStart).some((request) => request.orderNumberFilter === "ilike.*2026-0028*")).toBe(true);
+    await expect.poll(() => fixture.requests.slice(metacharacterSearchStart).some((request) => request.orderNumberFilter === "ilike.%2026-0028%")).toBe(true);
 
     // Partial match, status and exact count are applied to one server query.
     await submitSearch("2026-00");
@@ -336,7 +336,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     const beforeStatus = fixture.requests.length;
     await status.selectOption("pending");
     await expect.poll(() => fixture.requests.slice(beforeStatus).some((request) =>
-      request.orderNumberFilter === "ilike.*2026-00*" && request.statusFilter === "eq.pending" && request.offset === "0" && request.limit === "25",
+      request.orderNumberFilter === "ilike.%2026-00%" && request.statusFilter === "eq.pending" && request.offset === "0" && request.limit === "25",
     )).toBe(true);
     await expect(page.locator("tbody tr")).toHaveCount(15);
     await expect(resultCount).toContainText("١٥");
@@ -361,7 +361,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
 
     const noMatchStart = await submitSearch("NO-MATCH");
     await expect.poll(() => fixture.requests.slice(noMatchStart).some((request) =>
-      request.orderNumberFilter === "ilike.*NO-MATCH*" && request.offset === "0" && request.limit === "25",
+      request.orderNumberFilter === "ilike.%NO-MATCH%" && request.offset === "0" && request.limit === "25",
     )).toBe(true);
     await expect(page.getByText("لا توجد طلبات تطابق رقم البحث.", { exact: true })).toBeVisible();
     await expect(resultCount).toContainText("٠");
