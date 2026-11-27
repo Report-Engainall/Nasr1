@@ -833,6 +833,8 @@ describe("incremental ERP sync checkpoint orchestration", () => {
       ["customers", "failed", "ERP_PERMISSION_DENIED"],
       ["warehouses", "complete", null],
     ]);
+    // A failed object may already have persisted an earlier page; do not fabricate zero counts.
+    expect(batch.tasks[1].counts).toBeNull();
     expect(JSON.stringify(batch)).not.toContain("secret-provider-response-must-not-escape");
     expect(productsStore.committed).toHaveLength(1);
     expect(customersStore.committed).toHaveLength(0);
