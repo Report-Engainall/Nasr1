@@ -119,3 +119,11 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 - The test temporarily increases one local order line to create a visible one-unit shortage so the incomplete-reservation queue exposes its parity fields, then restores the line before subsequent scenarios. This is isolated test-fixture DML only.
 - P1 UI instruction: disable both FEFO reallocation and incomplete-reservation repair whenever either relevant parity flag is false; show a ledger conflict and refresh. Do not treat a batch-parity true value as proof that the warehouse aggregate is healthy.
 - Latest migration commit: `9f9ad2fd3f926a4723c2696d1aaf8c5d92414e39`; latest test update: `a3f2b249fc1d376d2f4ad9d078579e5134aa0574`. CI must run on the final checkpoint SHA; no local PostgreSQL 17 PASS is claimed.
+
+
+## 2026-11-28 — Effective FEFO function override guard correction
+
+- A post-change static audit found that the migration contains an earlier guarded reallocation definition and a later effective replacement definition. The later definition had omitted the atomic `inventory_balances.quantity_available >= v_take` predicate, so PostgreSQL would install the unguarded version despite the earlier fix.
+- Corrected the **effective final definition** to apply the aggregate availability predicate in the same UPDATE that increases `quantity_reserved`; if another transaction or batch/aggregate drift leaves insufficient aggregate availability, the function raises SQLSTATE `40001` and the full transaction rolls back.
+- The existing cross-warehouse acceptance fixture already exercises the exact failure: a replacement lot has batch-level free quantity while its aggregate warehouse balance has no available quantity. Its no-mutation assertions remain the regression gate.
+- This is a confirmed correction to the active function body, not a production operation. Exact-head PostgreSQL 17, Playwright and P1 checks must be rerun against the resulting PR head. No PASS is claimed.
