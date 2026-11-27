@@ -674,6 +674,59 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     expect(replay.counts.created).toBe(0);
   });
 
+  it("resumes from the atomically saved cursor after a committed page acknowledgement is lost", async () => {
+    const store = new InMemoryCheckpointStore();
+    const originalPersist = store.persistPageAtomically.bind(store);
+    let loseFirstAcknowledgement = true;
+    store.persistPageAtomically = async (input) => {
+      const result = await originalPersist(input);
+      if (loseFirstAcknowledgement) {
+        loseFirstAcknowledgement = false;
+        throw new Error("simulated lost acknowledgement");
+      }
+      return result;
+    };
+
+    const inputs: ErpReadPageInput[] = [];
+    const connector: ErpReadConnector = {
+      readPage: async (input) => {
+        inputs.push(input);
+        if (input.cursor === null) {
+          return {
+            records: [record("lost-ack-1", "2026-11-27T10:00:00Z")],
+            nextCursor: "page-after-lost-ack",
+            httpStatus: 200,
+            externalRequestId: "receipt-page-1",
+            responseSha256: "a".repeat(64),
+          };
+        }
+        return {
+          records: [record("lost-ack-2", "2026-11-27T10:01:00Z")],
+          nextCursor: null,
+          httpStatus: 200,
+          externalRequestId: "receipt-page-2",
+          responseSha256: "b".repeat(64),
+        };
+      },
+    };
+
+    await expect(runIncrementalReadOnlySync({ connector, store, scope }))
+      .rejects.toThrow("simulated lost acknowledgement");
+    expect(store.committed).toHaveLength(1);
+    expect(store.state).toMatchObject({ version: 1, cursor: "page-after-lost-ack" });
+
+    const resumed = await runIncrementalReadOnlySync({ connector, store, scope });
+    expect(inputs.map((input) => input.cursor)).toEqual([null, "page-after-lost-ack"]);
+    expect(resumed.status).toBe("complete");
+    expect(resumed.pagesCommitted).toBe(1);
+    expect(resumed.recordsRead).toBe(1);
+    expect(store.committed).toHaveLength(2);
+    expect(store.committed.map((page) => page.records[0].externalId))
+      .toEqual(["lost-ack-1", "lost-ack-2"]);
+    expect(store.committed.map((page) => page.receipt.externalRequestId))
+      .toEqual(["receipt-page-1", "receipt-page-2"]);
+  });
+
   it("does not persist a page that exceeds the remaining run budget when a connector ignores maxRows", async () => {
     const store = new InMemoryCheckpointStore();
     const inputs: ErpReadPageInput[] = [];
