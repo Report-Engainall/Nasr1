@@ -336,6 +336,7 @@ export function GrowthOpportunityRadar({
             : "أُنشئت مهمة مراجعة المشتريات في قائمة المهام."
           : result.message,
       }));
+      if (result.ok) onRetry?.();
     } catch {
       setFollowUpMessages(current => ({
         ...current,
