@@ -51,6 +51,8 @@ import {
 import { fetchProducts, fetchResolvedProductPrices, fetchSettingsMap } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
+import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
+import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
@@ -601,6 +603,8 @@ function Invoices() {
   const [busy, setBusy] = useState(true);
   const [detailBusy, setDetailBusy] = useState(false);
   const [error, setError] = useState("");
+  const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [financialSourceError, setFinancialSourceError] = useState("");
   const [olderInvoicesError, setOlderInvoicesError] = useState("");
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingOlderInvoices, setLoadingOlderInvoices] = useState(false);
@@ -611,8 +615,23 @@ function Invoices() {
   const load = useCallback(async () => {
     setBusy(true);
     setError("");
+    setFinancialSource(null);
+    setFinancialSourceError("");
     setOlderInvoicesError("");
+    setRows([]);
+    setHasMoreInvoices(false);
+    setChosen(null);
+    setItems([]);
     try {
+      let source: CustomerFinancialSource;
+      try {
+        source = await fetchMyCustomerFinancialSource();
+      } catch (cause) {
+        setFinancialSourceError(cause instanceof Error ? cause.message : "تعذر التحقق من مصدر الحساب المالي.");
+        return;
+      }
+      setFinancialSource(source);
+      if (!canReadCustomerAppLedger(source)) return;
       const page = await fetchCustomerInvoicePage();
       if (!page) {
         setError("تعذر تحميل الفواتير. تأكد من نشر ترحيل قاعدة البيانات.");
@@ -865,6 +884,7 @@ function Invoices() {
       title="فواتيري"
       subtitle="مستندات الفوترة الصادرة بعد اعتماد الإدارة. يعرض ملخص الفاتورة تفاصيل الأصناف والكميات، ويضم PDF الأسعار والإجماليات المسموح بها لصلاحية الحساب."
     >
+      <CustomerFinancialSourceNotice source={financialSource} loading={busy && !financialSourceError} error={financialSourceError} />
       <div
         style={{
           ...card,
@@ -892,14 +912,16 @@ function Invoices() {
             جارٍ تحميل الفواتير...
           </p>
         ) : !rows.length ? (
-          <EmptyBox>
-            <FileText size={30} />
-            <p>لا توجد فواتير صادرة بعد.</p>
-            <p style={quiet}>تُصدر الفاتورة عند تأكيد الطلب من فريق الأغبري.</p>
-            <Link to="/orders" className="sf-link">
-              عرض طلباتي
-            </Link>
-          </EmptyBox>
+          canReadCustomerAppLedger(financialSource) ? (
+            <EmptyBox>
+              <FileText size={30} />
+              <p>لا توجد فواتير صادرة بعد.</p>
+              <p style={quiet}>تُصدر الفاتورة عند تأكيد الطلب من فريق الأغبري.</p>
+              <Link to="/orders" className="sf-link">عرض طلباتي</Link>
+            </EmptyBox>
+          ) : (
+            <p role="status" style={{ padding: 18 }}>لا نعرض مستندات دفتر التطبيق لهذا الحساب ما لم يؤكد الخادم أن مصدره APP_ONLY.</p>
+          )
         ) : (
           <table style={tableStyle}>
             <thead>
@@ -1117,11 +1139,30 @@ function Statement() {
   const [xlsxError, setXlsxError] = useState("");
   const [summaryAsOfUtc, setSummaryAsOfUtc] = useState("");
   const [creditDetailsAvailable, setCreditDetailsAvailable] = useState(false);
+  const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [financialSourceError, setFinancialSourceError] = useState("");
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     setXlsxError("");
+    setFinancialSource(null);
+    setFinancialSourceError("");
+    setInvoices([]);
+    setPayments([]);
+    setCredits([]);
+    setStatementSummary(undefined);
+    setSummaryAsOfUtc("");
+    setCreditDetailsAvailable(false);
     try {
+      let source: CustomerFinancialSource;
+      try {
+        source = await fetchMyCustomerFinancialSource();
+      } catch (cause) {
+        setFinancialSourceError(cause instanceof Error ? cause.message : "تعذر التحقق من مصدر الحساب المالي.");
+        return;
+      }
+      setFinancialSource(source);
+      if (!canReadCustomerAppLedger(source)) return;
       const r = await supabase.rpc("get_customer_account_statement");
       if (r.error) throw new Error("تعذر قراءة كشف الحساب. تحقق من نشر مخطط المالية.");
       if (!r.data || typeof r.data !== "object") throw new Error("استجابة كشف الحساب غير مكتملة.");
@@ -1214,6 +1255,7 @@ function Statement() {
   }, []);
 
   const downloadStatementXlsx = useCallback(() => {
+    if (!canReadCustomerAppLedger(financialSource)) return;
     setXlsxBusy(true);
     setXlsxError("");
     try {
@@ -1231,33 +1273,35 @@ function Statement() {
     } finally {
       setXlsxBusy(false);
     }
-  }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable]);
+  }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable, financialSource]);
 
   useEffect(() => {
     void load();
   }, [load]);
+  const appLedgerAvailable = canReadCustomerAppLedger(financialSource);
   const totals = useMemo(
     () => summarizeAccount(invoices as InvoiceAmount[], payments, statementSummary),
     [invoices, payments, statementSummary],
   );
   const statementMayBePartial = isCustomerStatementPossiblyPartial(invoices.length, payments.length, credits.length);
   return (
-    <WorkspaceShell title="كشف الحساب" subtitle="ملخص من الفواتير والمدفوعات المسجلة فقط.">
+    <WorkspaceShell title="كشف الحساب" subtitle="ملخص من مصدر الحساب المالي الذي يحدده الخادم.">
+      <CustomerFinancialSourceNotice source={financialSource} loading={loading && !financialSourceError} error={financialSourceError} />
       <div
         className="no-print"
         style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginBottom: 12 }}
       >
-        <button style={primary} onClick={() => void downloadStatementPdf()} disabled={pdfBusy || loading}>
+        <button style={primary} onClick={() => void downloadStatementPdf()} disabled={!appLedgerAvailable || pdfBusy || loading}>
           <FileText size={15} /> {pdfBusy ? "جارٍ إنشاء PDF..." : "تنزيل PDF عربي"}
         </button>
         <button
           style={secondary}
           onClick={downloadStatementXlsx}
-          disabled={loading || xlsxBusy || !totals.valid || statementSummary === undefined || !summaryAsOfUtc || !creditDetailsAvailable}
+          disabled={!appLedgerAvailable || loading || xlsxBusy || !totals.valid || statementSummary === undefined || !summaryAsOfUtc || !creditDetailsAvailable}
         >
           <FileSpreadsheet size={15} /> {xlsxBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel"}
         </button>
-        <button style={secondary} onClick={() => window.print()} disabled={loading}>
+        <button style={secondary} onClick={() => window.print()} disabled={!appLedgerAvailable || loading}>
           <Printer size={15} /> طباعة من المتصفح
         </button>
       </div>
@@ -1270,7 +1314,9 @@ function Statement() {
         </p>
       )}
       {loading ? (
-        <p role="status">جارٍ تحميل كشف الحساب...</p>
+        <p role="status">جارٍ التحقق من المصدر وتحميل كشف الحساب...</p>
+      ) : !appLedgerAvailable ? (
+        <p role="status">لا نعرض دفتر متجر الأغبري لهذا الحساب؛ تُعرض البيانات فقط عندما يؤكد الخادم أن مصدره APP_ONLY أو تتوفر قراءة مصرح بها للمصدر الخارجي.</p>
       ) : (
         <>
           {!totals.valid && (
@@ -1456,13 +1502,28 @@ function CustomerPayments() {
   const [paidThrough, setPaidThrough] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [financialSourceError, setFinancialSourceError] = useState("");
   const [xlsxError, setXlsxError] = useState("");
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+    setFinancialSource(null);
+    setFinancialSourceError("");
+    setInvoices([]);
+    setPayments([]);
     try {
+      let source: CustomerFinancialSource;
+      try {
+        source = await fetchMyCustomerFinancialSource();
+      } catch (cause) {
+        setFinancialSourceError(cause instanceof Error ? cause.message : "تعذر التحقق من مصدر الحساب المالي.");
+        return;
+      }
+      setFinancialSource(source);
+      if (!canReadCustomerAppLedger(source)) return;
       const result = await supabase.rpc("get_customer_account_statement");
       if (result.error || !result.data || typeof result.data !== "object") {
         throw new Error("تعذر قراءة سجل الدفعات من دفتر الحساب المصرّح به.");
@@ -1490,9 +1551,10 @@ function CustomerPayments() {
     paidThrough,
   }), [invoices, paidFrom, paidThrough, payments, search]);
   const filtered = paymentFilter.items;
+  const appLedgerAvailable = canReadCustomerAppLedger(financialSource);
 
   function downloadPaymentHistoryXlsx() {
-    if (loading || error || paymentFilter.error || filtered.length === 0 || xlsxBusy) return;
+    if (!appLedgerAvailable || loading || error || paymentFilter.error || filtered.length === 0 || xlsxBusy) return;
     setXlsxBusy(true);
     setXlsxError("");
     try {
@@ -1523,13 +1585,14 @@ function CustomerPayments() {
       title="دفعاتي"
       subtitle="حركات الدفعات المسجلة في دفتر حسابك. هذه الشاشة للقراءة فقط ولا تنشئ دفعة أو إيصال سداد."
     >
+      <CustomerFinancialSourceNotice source={financialSource} loading={loading && !financialSourceError} error={financialSourceError} />
       <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link to="/statement" style={secondary}>كشف الحساب</Link>
           <Link to="/invoices" style={secondary}>الفواتير</Link>
         </div>
         <button type="button" style={secondary} onClick={downloadPaymentHistoryXlsx}
-          disabled={loading || Boolean(error) || Boolean(paymentFilter.error) || filtered.length === 0 || xlsxBusy}>
+          disabled={!appLedgerAvailable || loading || Boolean(error) || Boolean(paymentFilter.error) || filtered.length === 0 || xlsxBusy}>
           <FileSpreadsheet size={15} /> {xlsxBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel"}
         </button>
         <button type="button" style={secondary} onClick={() => void load()} disabled={loading}>
@@ -1576,8 +1639,8 @@ function CustomerPayments() {
         {paymentFilter.error && <p role="alert" style={{ ...quiet, color: "#9b4e22", marginTop: 10 }}>{paymentFilter.error}</p>}
       </section>
       {loading ? (
-        <p role="status">جارٍ تحميل الدفعات من دفتر الحساب...</p>
-      ) : !error && !paymentFilter.error && filtered.length === 0 ? (
+        <p role="status">جارٍ التحقق من المصدر وتحميل الدفعات...</p>
+      ) : !appLedgerAvailable ? null : !error && !paymentFilter.error && filtered.length === 0 ? (
         <EmptyBox>{paymentFilter.active ? "لا توجد دفعات تطابق المرشحات الحالية." : "لا توجد دفعات مسجلة ضمن تفاصيل القراءة الحالية."}</EmptyBox>
       ) : !error && !paymentFilter.error ? (
         <section style={{ ...card, padding: 0, overflowX: "auto" }}>
