@@ -263,6 +263,42 @@ describe("SupabaseErpSyncCheckpointStore", () => {
     expect(caught instanceof Error ? caught.message : String(caught)).not.toContain("secret-bearing");
   });
 
+  it("rejects a valid ciphertext transplanted from a different tenant scope", async () => {
+    let ciphertext: string | null = null;
+    const sourceStore = store(vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      ciphertext = String(body.p_next_cursor_ciphertext);
+      return response({
+        checkpoint: checkpoint({ version: 1, cursor_ciphertext: ciphertext }),
+        counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+        duplicate_page: false,
+      });
+    }));
+    await sourceStore.persistPageAtomically({
+      scope,
+      expectedVersion: 0,
+      pageFingerprint: "91".repeat(32),
+      receipt: { httpStatus: 200, externalRequestId: null, responseSha256: "92".repeat(32) },
+      records: [],
+      nextCursor: "tenant-a-private-cursor",
+      pendingWatermark: "2026-11-28T00:30:00Z",
+      completedWatermark: null,
+      completed: false,
+    });
+
+    const otherTenantScope = {
+      ...scope,
+      organizationId: "8e1c5de2-35e0-4bfa-98e7-1c8e5b4f2b7a",
+    };
+    const destinationStore = store(vi.fn(async () => response(checkpoint({
+      version: 1,
+      cursor_ciphertext: ciphertext,
+      pending_watermark: "2026-11-28T00:30:00Z",
+    }))));
+    await expect(destinationStore.loadCheckpoint(otherTenantScope))
+      .rejects.toMatchObject({ code: "ERP_CURSOR_DECRYPT_FAILED" });
+  });
+
   it("fails closed when the stored cursor is tampered or encrypted with a different key", async () => {
     const fetcher = vi.fn(async () => response(checkpoint({
       version: 2,
