@@ -21,6 +21,7 @@ The existing receipt → FEFO reserve → sale pipeline excluded already-expired
 - A server-only idempotency ledger prevents repeated execution. Exact retries return the persisted result; payload reuse with a different order/reason is rejected. A no-op response explicitly reports `no_expired_reservations` and zero quantity.
 - Before releasing an expired batch, reallocation validates that both its reserved counter and its warehouse aggregate reserved counter cover the combined net `reserve - release_reservation` movements of every active order. A shortfall fails closed with SQLSTATE `40001` before any movement or stock counter changes.
 - The worklist's `reservation_matches_batch` compares against the combined active-order reservation ledger for the lot, not only the individual order being displayed; multiple orders sharing one batch cannot each receive a misleading per-order `true`.
+- Before a shipment/delivery transition, the trigger compares net `reserve - release_reservation` quantity per product against the sum of `order_items.quantity`. A mismatch, under-reservation, or unexplained extra reservation fails closed with SQLSTATE `55000`; a full commercial order cannot be marked shipped after only a partial stock sale.
 - Shipment now fails closed with SQLSTATE `55000` while any net outstanding reservation still references an expired lot. Both shipment and cancellation settle only the net outstanding reservation after prior releases; previously released batches are not sold or released twice.
 - Reallocation records an audit event and does not write payments, invoices, receivables, cost postings or journals.
 - Strict execution boundary: `anon` and `service_role` are explicitly denied `EXECUTE`; only `authenticated` can reach the RPC, whose body then enforces manager/admin capability. The idempotency table grants no direct `SELECT` to authenticated or service_role. PG17 acceptance asserts both function and table privileges.
@@ -35,6 +36,7 @@ The existing CI-wired `scripts/test-inventory-batch-fefo.mjs` now covers:
 - Exact retry replay, conflicting idempotency payload rejection, and explicit zero-work response when no expired reservation remains.
 - Release/reserve movement lineage for the same order, shipment sale from the replacement batch (never the expired original), customer-role denial, and aggregate balance ↔ batch subledger parity.
 - Post-reallocation cancellation: after moving a reservation from an expired source lot to a valid replacement lot, cancellation releases only the replacement reservation; the source lot is not released twice, both lot reserved counters return to zero, and the order ends cancelled.
+- Shipment completeness: a two-unit order begins with two units reserved across real FEFO lots; a controlled test-database release reduces the net reservation to one, then shipment is rejected before any sale movement or additional stock mutation. The order remains `processing`.
 - Insufficient replacement stock: the test expires every remaining positive lot, forces reallocation to fail with SQLSTATE `P0001`, then proves the original batch reservation and aggregate reserve total are unchanged and no release movement survived the rolled-back transaction.
 - Shared-lot ledger drift: two active orders reserve the same lot; the disposable fixture under-reports the batch and aggregate reserved counters while keeping their physical subledger totals equal. The worklist flags both orders as mismatched, and reallocation rejects with SQLSTATE `40001` without changing either counter or appending a release movement.
 
@@ -46,6 +48,10 @@ The existing P2 workflow already invokes this FEFO acceptance script on its disp
 - All stock mutations in acceptance are confined to the disposable local PostgreSQL 17 test database.
 - The exact new PR-head CI runs must finish successfully before this code is accepted. Queued, skipped or previous-SHA results do not count as PASS.
 - P1 retains final merge authority; P2 does not merge to `main`.
+
+## Additional P2 hardening on PR #701
+
+Shipment settlement now validates exact net reserved quantity against the complete order lines per product before creating any sale movement. This protects against false full-shipment status and partial stock deduction after reservation release or ledger drift. The PostgreSQL 17 acceptance uses a real two-unit order and real batch movements, then proves a one-unit shortfall cannot ship or mutate stock.
 
 ## Additional P2 hardening on PR #701
 
