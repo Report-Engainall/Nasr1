@@ -312,7 +312,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect.poll(() => fixture.requests.slice(metacharacterSearchStart).some((request) => request.orderNumberFilter === "ilike.*2026-0028*")).toBe(true);
 
     // Partial match, status and exact count are applied to one server query.
-    const partialSearchStart = await submitSearch("2026-00");
+    await submitSearch("2026-00");
     await expect(page.locator("tbody tr")).toHaveCount(25);
     await expect(resultCount).toContainText("٣٠");
     const beforeStatus = fixture.requests.length;
