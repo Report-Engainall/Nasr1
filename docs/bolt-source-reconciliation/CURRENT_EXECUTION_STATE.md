@@ -5,7 +5,7 @@
 ## Canonical state
 
 - Official repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Current observed `main` HEAD: `6647a8cab4805d647c82448f66b7aa2cb16ee59a` (PR #674 merge plus the DLV-003 acceptance-matrix leaf update).
+- Main HEAD immediately before this pointer-only refresh: `6647a8cab4805d647c82448f66b7aa2cb16ee59a` (PR #674 merge plus the DLV-003 matrix leaf). This update changes only the canonical pointer; re-fetch `main` before the next write.
 - Last fully accepted application baseline remains `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` (PR #633). PR #641 adds an isolated PostgreSQL 17 supplier-invoice acceptance runner and workflow only; its exact-head P1/P2 runs passed and it merged at `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`.
 - PR #674 adds the shared predictive-search public-image guard and its focused tests. It merged at `7c20412c77a9c2ef01d99e16a304aaa9e773be37`. Exact PR-head `fbe332cd195188238c45c2662191610e452dd232` passed P1 (full Vitest, P1/P4 TypeScript, production build) and P2 public Chromium UI smoke. The broad P2 local Supabase/PostgreSQL 17 job `46055085516` remained IN_PROGRESS at 43/69 steps at this checkpoint with no failed steps. PR-run tooling exposes pull-request-triggered runs only; a post-merge push-run for SHA `7c20412` is not independently verified here. Do not call this leaf post-merge accepted or mark DO_NOT_REPEAT until its exact merge-SHA acceptance is established.
 - The DLV-003 matrix leaf for predictive-search image privacy is recorded in the canonical matrix. Wider DLV-003 remains OPEN.
