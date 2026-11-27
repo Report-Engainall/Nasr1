@@ -292,6 +292,23 @@ async function main(){
   "customer must not invoke the manager-only inventory reallocation RPC",
  );
 
+ const reallocationPrivileges=await db.unsafe(
+  "select " +
+   "has_function_privilege('anon','public.reallocate_expired_order_reservations(uuid,text,text)','EXECUTE') as anon_execute," +
+   "has_function_privilege('authenticated','public.reallocate_expired_order_reservations(uuid,text,text)','EXECUTE') as authenticated_execute," +
+   "has_function_privilege('service_role','public.reallocate_expired_order_reservations(uuid,text,text)','EXECUTE') as service_execute," +
+   "has_table_privilege('authenticated','public.inventory_order_reservation_reallocations','SELECT') as authenticated_table_read," +
+   "has_table_privilege('service_role','public.inventory_order_reservation_reallocations','SELECT') as service_table_read",
+ );
+ assert.equal(reallocationPrivileges[0].anon_execute,false);
+ assert.equal(reallocationPrivileges[0].authenticated_execute,true,
+  "authenticated callers can reach only the RPC; the function enforces manager/admin capability");
+ assert.equal(reallocationPrivileges[0].service_execute,false,
+  "service_role must not expose the SECURITY DEFINER reallocation API through the Data API");
+ assert.equal(reallocationPrivileges[0].authenticated_table_read,false);
+ assert.equal(reallocationPrivileges[0].service_table_read,false,
+  "the server-only idempotency ledger is not directly readable");
+
  // Compare the previous-day test lot with today, not with its own expiry date.
  const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<(pg_catalog.now() at time zone 'UTC')::date expired from public.inventory_batches where id=$1::uuid",[expiredBatchId]))[0];
  assert.equal(expiredState.expired,true);assert.equal(Number(expiredState.h),1);assert.equal(Number(expiredState.r),0);
