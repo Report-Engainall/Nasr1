@@ -78,20 +78,38 @@ async function createTask(profile, title) {
 
 async function readTask(taskId) {
   const rows = await db.unsafe(
-    "select id::text,organization_id::text,status,task_role,task_type,updated_at " +
+    "select id::text,organization_id::text,status,task_role,task_type,updated_at::text as updated_at " +
     "from public.ai_tasks where id=$1::uuid",
     [taskId],
   );
   assert.equal(rows.length, 1, "fixture task must persist");
+  assert.ok(typeof rows[0].updated_at === "string" && Number.isFinite(Date.parse(rows[0].updated_at)),
+    "fixture task must expose its exact server timestamp as text, preserving PostgreSQL microseconds");
   return rows[0];
 }
 
 async function callReview(client, profile, task, review, eventId, idempotencyKey, reviewType = "ACTIONABILITY") {
   return withActor(client, profile, async (tx) => {
+    const timestamp = String(task.updated_at ?? "");
+    const payload = JSON.stringify(review);
+    const envelope = await tx.unsafe(
+      "select " +
+      "($1::uuid is not null) as task_id_ok," +
+      "($2::timestamptz is not null) as task_timestamp_ok," +
+      "($3::text in ('ACTIONABILITY','RECOMMENDATION_DISPOSITION','ALERT_VALIDATION')) as review_type_ok," +
+      "($4::jsonb is not null and pg_catalog.jsonb_typeof($4::jsonb)='object') as review_payload_ok," +
+      "($5::text is not null and pg_catalog.char_length(pg_catalog.btrim($5::text)) between 1 and 100) as event_id_ok," +
+      "($6::text is not null and pg_catalog.char_length(pg_catalog.btrim($6::text)) between 1 and 100) as idempotency_key_ok",
+      [task.id, timestamp, reviewType, payload, eventId, idempotencyKey],
+    );
+    const checks = envelope[0];
+    const failedFields = Object.entries(checks).filter(([, ok]) => ok !== true).map(([field]) => field);
+    assert.deepEqual(failedFields, [],
+      "task-quality RPC envelope fixture is invalid: " + failedFields.join(", "));
     const rows = await tx.unsafe(
       "select public.record_operational_task_quality_review(" +
       "$1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
-      [task.id, task.updated_at, reviewType, JSON.stringify(review), eventId, idempotencyKey],
+      [task.id, timestamp, reviewType, payload, eventId, idempotencyKey],
     );
     return asJson(rows[0]?.result);
   });
@@ -244,7 +262,7 @@ async function main() {
       );
       const foreignTaskId = String(foreignRows[0].id);
       const foreignTask = await db.unsafe(
-        "select updated_at from public.ai_tasks where id=$1::uuid",
+        "select updated_at::text as updated_at from public.ai_tasks where id=$1::uuid",
         [foreignTaskId],
       );
       const rows = await tx.unsafe(
