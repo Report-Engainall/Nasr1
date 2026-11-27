@@ -157,7 +157,6 @@ describe("SupabaseErpSyncCheckpointStore", () => {
     });
     expect(requestBody.p_next_cursor_ciphertext).not.toBe(rawCursor);
     expect(String(requestBody.p_next_cursor_ciphertext)).toMatch(/^v1:/);
-    expect(requestBody.p_next_cursor_ciphertext_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(String(requestBody.p_next_cursor_ciphertext)).not.toContain(rawCursor);
     expect(requestBody.p_records).toEqual([{
       external_id: record.externalId,
@@ -167,6 +166,50 @@ describe("SupabaseErpSyncCheckpointStore", () => {
     }]);
     expect(JSON.stringify(requestBody)).not.toContain("companyExternalId");
     expect(JSON.stringify(requestBody)).not.toContain(SERVICE_ROLE_KEY);
+  });
+
+  it("treats a re-encrypted replay as the same page and returns the committed cursor", async () => {
+    const ciphertexts: string[] = [];
+    const rawCursor = "opaque-cursor-after-lost-response";
+    const fetcher = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      const ciphertext = String(body.p_next_cursor_ciphertext);
+      ciphertexts.push(ciphertext);
+      return response({
+        checkpoint: checkpoint({
+          version: 1,
+          cursor_ciphertext: ciphertexts[0],
+          pending_watermark: "2026-11-28T00:30:00Z",
+        }),
+        counts: ciphertexts.length === 1
+          ? { created: 1, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 }
+          : { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+        duplicate_page: ciphertexts.length > 1,
+      });
+    });
+    const checkpointStore = store(fetcher);
+    const input = {
+      scope,
+      expectedVersion: 0,
+      pageFingerprint: "a1".repeat(32),
+      receipt: { httpStatus: 200, externalRequestId: "same-page", responseSha256: "a2".repeat(32) },
+      records: [record],
+      nextCursor: rawCursor,
+      pendingWatermark: record.sourceUpdatedAt,
+      completedWatermark: null,
+      completed: false,
+    };
+
+    const first = await checkpointStore.persistPageAtomically(input);
+    const replay = await checkpointStore.persistPageAtomically(input);
+
+    expect(ciphertexts).toHaveLength(2);
+    expect(ciphertexts[0]).not.toBe(ciphertexts[1]);
+    expect(first.duplicatePage).toBe(false);
+    expect(replay.duplicatePage).toBe(true);
+    expect(replay.checkpoint.version).toBe(1);
+    expect(replay.checkpoint.cursor).toBe(rawCursor);
+    expect(replay.counts).toEqual({ created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 });
   });
 
   it("decrypts the database cursor on reload without exposing ciphertext to the sync runner", async () => {
