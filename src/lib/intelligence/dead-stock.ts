@@ -71,13 +71,13 @@ function checkMetric(metric:MetricSnapshot|null,index:Map<string,MetricSnapshot>
 function coverageValid(item:DeadStockProductInput,asOf:string,days:number,evidence:Map<string,EvidenceRecord>):boolean {
  const end=isoDay(asOf.slice(0,10)),from=isoDay(item.movementCoverage.period.from),to=isoDay(item.movementCoverage.period.to);
  if(end===null||from===null||to===null||to!==end||from>end-(days-1)*86400000)return false;
- const ids=item.movementCoverage.evidenceIds,asOfTime=Date.parse(asOf);
+ const ids=item.movementCoverage.evidenceIds,asOfTime=isoInstant(asOf);
  if(item.movementCoverage.status!=="VERIFIED"||item.movementCoverage.completeness!=="COMPLETE"||item.movementCoverage.quality!=="ACCEPTABLE"||
-  !ids.length||new Set(ids).size!==ids.length||!Number.isFinite(asOfTime))return false;
+  !ids.length||new Set(ids).size!==ids.length||asOfTime===null)return false;
  return ids.every(id=>{
-  const record=evidence.get(id),sourceTime=record?Date.parse(record.sourceTimestamp):NaN;
+  const record=evidence.get(id),sourceTime=record?isoInstant(record.sourceTimestamp):null;
   return Boolean(record&&record.status==="VERIFIED"&&record.completeness==="COMPLETE"&&record.quality==="ACCEPTABLE"&&
-   record.asOf===asOf&&Number.isFinite(sourceTime)&&sourceTime<=asOfTime&&
+   record.asOf===asOf&&sourceTime!==null&&sourceTime<=asOfTime&&
    record.period?.from===item.movementCoverage.period.from&&record.period?.to===item.movementCoverage.period.to);
  });
 }
@@ -97,8 +97,8 @@ function classifyProductMovement(
 ): MovementClassification {
   const warnings: string[] = [];
   const current = isoDay(asOf.slice(0, 10));
-  const asOfTime = Date.parse(asOf);
-  const movement = product.lastMovementAt ? Date.parse(product.lastMovementAt) : null;
+  const asOfTime = isoInstant(asOf);
+  const movement = product.lastMovementAt ? isoInstant(product.lastMovementAt) : null;
   let classification: DeadStockClass = "UNKNOWN";
   let daysSinceMovement: number | null = null;
   const movementStatus: EvidenceStatus = historyOkay ? "VERIFIED" : "NEEDS_REVIEW";
@@ -110,7 +110,7 @@ function classifyProductMovement(
   if (product.lastMovementAt === null) {
     return { classification: "ZERO_MOVEMENT", daysSinceMovement, movementStatus, warnings };
   }
-  if (movement === null || !Number.isFinite(movement) || !Number.isFinite(asOfTime) || movement > asOfTime) {
+  if (movement === null || asOfTime === null || movement > asOfTime) {
     warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");
     return { classification, daysSinceMovement, movementStatus: "UNVERIFIED", warnings };
   }
