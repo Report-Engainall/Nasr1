@@ -325,8 +325,10 @@ export function createErpReadSyncHandler(
       const requestedScope = provider.allowedScopes.find((allowed) =>
         allowed.company_external_id === input.companyExternalId &&
         allowed.branch_external_ids.includes(input.branchExternalId) &&
-        (input.warehouseExternalId === null || allowed.warehouse_external_ids === undefined || allowed.warehouse_external_ids.includes(input.warehouseExternalId)) &&
-        (input.currencyCode === null || allowed.currency_codes === undefined || allowed.currency_codes.includes(input.currencyCode))
+        (allowed.warehouse_external_ids === undefined ||
+          (input.warehouseExternalId !== null && allowed.warehouse_external_ids.includes(input.warehouseExternalId))) &&
+        (allowed.currency_codes === undefined ||
+          (input.currencyCode !== null && allowed.currency_codes.includes(input.currencyCode)))
       );
       if (!requestedScope) {
         throw new ErpConnectorError("ERP_PROVIDER_SCOPE_NOT_ALLOWED", "الشركة أو الفرع أو المستودع أو العملة خارج نطاق اتصال ERP المعتمد للمؤسسة.");
