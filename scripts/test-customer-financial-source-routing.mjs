@@ -67,12 +67,23 @@ async function rpc(client, sql, params = []) {
   assert.equal(rows.length, 1, "RPC must return exactly one row");
   return asJson(rows[0].result);
 }
-async function recordReconciliation(requestId, result, asOf, evidenceHash, reference) {
+const matchingCurrencyBalances = {
+  YER: { current_source_balance: "100.00", target_source_balance: "100.0000" },
+  USD: { current_source_balance: "25.50", target_source_balance: "25.50" },
+};
+const mismatchingCurrencyBalances = {
+  YER: { current_source_balance: "100.00", target_source_balance: "99.99" },
+  USD: { current_source_balance: "25.50", target_source_balance: "25.50" },
+};
+
+async function recordReconciliation(requestId, result, asOf, evidenceHash, reference, balancesByCurrency) {
   return rpc(
     serviceDb,
     "select public.record_customer_financial_source_reconciliation_evidence(" +
-      "$1::uuid,$2::timestamptz,$3::text,$4::text,$5::text[],$6::jsonb,$7::text) as result",
-    [requestId, asOf, evidenceHash, result, ["YER", "USD"], JSON.stringify({ invoices: 2, payments: 1, credits: 0 }), reference],
+      "$1::uuid,$2::timestamptz,$3::text,$4::text,$5::text[],$6::jsonb,$7::jsonb,$8::text) as result",
+    [requestId, asOf, evidenceHash, result, ["YER", "USD"],
+      JSON.stringify({ invoices: 2, payments: 1, credits: 0 }),
+      JSON.stringify(balancesByCurrency), reference],
   );
 }
 async function requestSource(client, customerId, mode, externalRef, reason, key, revision) {
@@ -276,7 +287,29 @@ async function main() {
   );
 
   const mismatchTime = await serviceDb.unsafe("select statement_timestamp()-interval '2 minutes' as as_of");
-  const mismatch = await recordReconciliation(requestId, "mismatch", mismatchTime[0].as_of, hash("mismatch"), "ONYX-REF-001");
+  await expectFailure(
+    "matched evidence cannot omit per-currency balance totals",
+    recordReconciliation(requestId, "matched", mismatchTime[0].as_of, hash("missing-balances"), "ONYX-REF-001", null),
+    "22023",
+    "valid provider reconciliation evidence metadata",
+  );
+  await expectFailure(
+    "matched evidence cannot claim equality when any currency balance differs",
+    recordReconciliation(requestId, "matched", mismatchTime[0].as_of, hash("false-match"), "ONYX-REF-001", mismatchingCurrencyBalances),
+    "22023",
+    "valid provider reconciliation evidence metadata",
+  );
+  await expectFailure(
+    "matched evidence must cover every declared currency",
+    recordReconciliation(requestId, "matched", mismatchTime[0].as_of, hash("missing-usd"), "ONYX-REF-001", {
+      YER: matchingCurrencyBalances.YER,
+    }),
+    "22023",
+    "valid provider reconciliation evidence metadata",
+  );
+  const mismatch = await recordReconciliation(
+    requestId, "mismatch", mismatchTime[0].as_of, hash("mismatch"), "ONYX-REF-001", mismatchingCurrencyBalances,
+  );
   assert.equal(mismatch.status, "pending_reconciliation");
   await expectFailure(
     "mismatch reconciliation cannot be approved",
@@ -287,8 +320,19 @@ async function main() {
 
   const matchedTime = await serviceDb.unsafe("select statement_timestamp()-interval '2 minutes' as as_of");
   const matchedHash = hash("matched-onyx");
-  const matchedEvidence = await recordReconciliation(requestId, "matched", matchedTime[0].as_of, matchedHash, "ONYX-REF-001");
+  const matchedEvidence = await recordReconciliation(
+    requestId, "matched", matchedTime[0].as_of, matchedHash, "ONYX-REF-001", matchingCurrencyBalances,
+  );
   assert.equal(matchedEvidence.status, "pending_approval");
+  await expectFailure(
+    "same reconciliation hash cannot be replayed with changed currency balances",
+    recordReconciliation(requestId, "matched", matchedTime[0].as_of, matchedHash, "ONYX-REF-001", {
+      YER: { current_source_balance: "100.00", target_source_balance: "100.01" },
+      USD: matchingCurrencyBalances.USD,
+    }),
+    "22023",
+    "replayed with different metadata",
+  );
   const approved = await reviewSource(accountantDb, requestId, "approve", "verified opening ledger and currency totals match");
   assert.equal(approved.status, "approved");
   assert.equal(approved.source_mode, "ONYX");
@@ -376,7 +420,10 @@ async function main() {
   );
   assert.equal(mutakamelRequest.status, "pending_reconciliation");
   const mutakamelTime = await serviceDb.unsafe("select statement_timestamp()-interval '2 minutes' as as_of");
-  await recordReconciliation(mutakamelRequest.request_id, "matched", mutakamelTime[0].as_of, hash("matched-mutakamel"), "MUT-REF-001");
+  await recordReconciliation(
+    mutakamelRequest.request_id, "matched", mutakamelTime[0].as_of,
+    hash("matched-mutakamel"), "MUT-REF-001", matchingCurrencyBalances,
+  );
   const mutakamelApproved = await reviewSource(managerDb, mutakamelRequest.request_id, "approve", "Mutakamel opening balances and currencies reconciled");
   assert.equal(mutakamelApproved.source_mode, "MUTAKAMEL");
   assert.equal(mutakamelApproved.revision, 3);
@@ -387,7 +434,10 @@ async function main() {
   );
   assert.equal(appOnlyRequest.status, "pending_reconciliation");
   const appOnlyTime = await serviceDb.unsafe("select statement_timestamp()-interval '2 minutes' as as_of");
-  await recordReconciliation(appOnlyRequest.request_id, "matched", appOnlyTime[0].as_of, hash("matched-app-only"), "APP-LEDGER-CUTOVER-001");
+  await recordReconciliation(
+    appOnlyRequest.request_id, "matched", appOnlyTime[0].as_of,
+    hash("matched-app-only"), "APP-LEDGER-CUTOVER-001", matchingCurrencyBalances,
+  );
   const appOnlyApproved = await reviewSource(accountantDb, appOnlyRequest.request_id, "approve", "all external balances reconciled to the app ledger before cutover");
   assert.equal(appOnlyApproved.source_mode, "APP_ONLY");
   assert.equal(appOnlyApproved.revision, 4);

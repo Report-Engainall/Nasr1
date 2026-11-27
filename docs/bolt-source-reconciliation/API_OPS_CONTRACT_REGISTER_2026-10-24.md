@@ -67,6 +67,32 @@ Every RPC/Edge/worker command needs evidence for:
 - Company membership/invitations, customer service/Customer 360, operational tasks and device-session revocation.
 - AI quota/privacy telemetry and deterministic intelligence engines; paid AI spend remains zero.
 
+## Customer financial-source routing contract — P2
+
+The source contract is implemented by migration
+`20261127230000_customer_financial_source_routing.sql` and is accepted only by the
+isolated PostgreSQL 17 test `scripts/test-customer-financial-source-routing.mjs`.
+It is not a claim that ERP transport, an external statement reader, an Edge Function or
+a production migration is deployed.
+
+| RPC | Allowed caller | Required contract |
+|---|---|---|
+| `get_my_customer_financial_source()` | `authenticated` | Own linked customer only; returns server-selected mode/status/freshness; never returns external account reference. |
+| `get_customer_financial_source_for_staff(uuid)` | `authenticated` with finance capability | Same-organization customer only; staff-only response may include the approved external account reference. |
+| `request_customer_financial_source_change(uuid,text,text,text,text,integer)` | `authenticated` with `finance.customer_source.request` | Server-derived tenant/customer; canonical idempotency key + expected binding revision; no customer-controlled source switch. |
+| `record_customer_financial_source_reconciliation_evidence(uuid,timestamptz,text,text,text[],jsonb,jsonb,text)` | `service_role` only | Hash-bound source evidence includes exact current/target decimal balance strings for every declared currency; `matched` is rejected unless every currency balance compares exactly as PostgreSQL `numeric`; changed balance metadata cannot replay under the same hash. |
+| `review_customer_financial_source_change(uuid,text,text)` | `authenticated` with finance capability | Different maker/checker; requires current binding revision and matched reconciliation evidence; atomically changes mode and revision, with audit. |
+| `record_customer_financial_source_sync(uuid,uuid,text,text,timestamptz,text,integer,text[],text)` | `service_role` only | Exact evidence replay, active source/account binding, same-tenant scope and monotonic `source_as_of` watermark. |
+| `get_customer_account_statement()` | `authenticated` | Server selects source. APP_ONLY uses the pre-existing app ledger; ONYX/MUTAKAMEL fail closed until their authorized reader exists. No source blending or app-ledger fallback. |
+| `get_customer_invoice_pdf(uuid)` | `authenticated` | Own-customer invoice only; source is locked during read and external-mode customers cannot read APP_ONLY invoices. |
+
+The reconciliation payload uses one object per currency, with canonical decimal strings
+(not JavaScript floating-point values), for example:
+`{"YER":{"current_source_balance":"100.00","target_source_balance":"100.00"},"USD":{"current_source_balance":"25.50","target_source_balance":"25.50"}}`.
+P4 must compute these values from actual source and target ledgers and provide its source
+receipt; tests use disposable fixtures only. The RPC validates object coverage, exact
+numeric precision and equality before a maker can approve the source transition.
+
 ## Open API-OPS acceptance
 
 - A current-main source-generated semantic inventory for the 349 cached RPCs is not yet checked into main.
