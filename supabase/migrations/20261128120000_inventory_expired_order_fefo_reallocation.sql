@@ -335,6 +335,180 @@ GRANT EXECUTE ON FUNCTION public.reallocate_expired_order_reservations(uuid,text
 COMMENT ON FUNCTION public.reallocate_expired_order_reservations(uuid,text,text) IS
   'Manager-only, idempotent FEFO reallocation of expired order reservations. Appends release/reserve movements, locks order/product/balances/lots atomically, and never posts financial entries.';
 
+CREATE OR REPLACE FUNCTION public.list_orders_with_expired_fefo_reservations(
+  p_limit integer DEFAULT 50,
+  p_offset integer DEFAULT 0
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path=''
+AS $function$
+DECLARE
+  v_actor uuid:=public.current_profile_id();
+  v_org uuid;
+  v_today date:=(pg_catalog.now() AT TIME ZONE 'UTC')::date;
+  v_total bigint;
+  v_orders jsonb;
+BEGIN
+  SELECT p.organization_id
+    INTO v_org
+    FROM public.profiles p
+    JOIN public.organizations o ON o.id=p.organization_id AND o.is_active=true
+   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
+     OR NOT public.is_staff()
+     OR NOT EXISTS (
+       SELECT 1 FROM public.user_roles r
+        WHERE r.profile_id=v_actor AND r.role IN ('admin','manager')
+     ) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='active admin or manager inventory authority is required for expired FEFO order worklist';
+  END IF;
+
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100
+     OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 1000000 THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='expired FEFO worklist page must use limit 1..100 and offset 0..1000000';
+  END IF;
+
+  -- The page and total are derived from one materialized snapshot. No internal
+  -- batch costs, tenant ids, customer contact details, or other private fields
+  -- are returned to the operator worklist.
+  WITH outstanding_expired_lots AS MATERIALIZED (
+    SELECT
+      o.id AS order_id,
+      b.id AS batch_id,
+      b.product_id,
+      b.warehouse_id,
+      b.batch_number,
+      b.expiry_date,
+      pg_catalog.sum(
+        CASE WHEN im.movement_type='reserve' THEN im.quantity
+             WHEN im.movement_type='release_reservation' THEN -im.quantity
+             ELSE 0 END
+      )::numeric(15,3) AS reserved_quantity,
+      b.quantity_reserved AS batch_reserved_quantity
+    FROM public.inventory_movements im
+    JOIN public.orders o
+      ON o.id=im.reference_id
+     AND o.organization_id=v_org
+    JOIN public.inventory_batches b
+      ON b.id=im.inventory_batch_id
+     AND b.organization_id=v_org
+     AND b.product_id=im.product_id
+     AND b.warehouse_id=im.warehouse_id
+    WHERE im.reference_type='order'
+      AND im.movement_type IN ('reserve','release_reservation')
+      AND o.status IN ('confirmed','processing')
+      AND b.expiry_date IS NOT NULL
+      AND b.expiry_date<v_today
+      AND NOT EXISTS (
+        SELECT 1 FROM public.inventory_movements sale
+         WHERE sale.reference_type='order'
+           AND sale.reference_id=o.id
+           AND sale.movement_type='sale'
+      )
+    GROUP BY o.id,b.id,b.product_id,b.warehouse_id,b.batch_number,b.expiry_date,b.quantity_reserved
+    HAVING pg_catalog.sum(
+      CASE WHEN im.movement_type='reserve' THEN im.quantity
+           WHEN im.movement_type='release_reservation' THEN -im.quantity
+           ELSE 0 END
+    )>0
+  ),
+  eligible_orders AS MATERIALIZED (
+    SELECT
+      o.id,
+      o.order_number,
+      o.status,
+      o.created_at,
+      pg_catalog.sum(l.reserved_quantity)::numeric(15,3) AS expired_reserved_quantity,
+      pg_catalog.count(*)::integer AS expired_lot_count,
+      count(DISTINCT l.product_id)::integer AS affected_product_count,
+      pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'batch_id',l.batch_id,
+          'batch_number',l.batch_number,
+          'expiry_date',l.expiry_date,
+          'reserved_quantity',l.reserved_quantity::text,
+          'batch_reserved_quantity',l.batch_reserved_quantity::text,
+          'reservation_matches_batch',l.batch_reserved_quantity>=l.reserved_quantity,
+          'product_id',p.id,
+          'item_code',p.item_code,
+          'product_name',p.name,
+          'warehouse_id',w.id,
+          'warehouse_name',w.name,
+          'replacement_available_quantity',(
+            SELECT coalesce(pg_catalog.sum(replacement.quantity_on_hand-replacement.quantity_reserved),0)::numeric(15,3)::text
+              FROM public.inventory_batches replacement
+              JOIN public.warehouses replacement_warehouse
+                ON replacement_warehouse.id=replacement.warehouse_id
+               AND replacement_warehouse.organization_id=replacement.organization_id
+               AND replacement_warehouse.is_active=true
+             WHERE replacement.organization_id=v_org
+               AND replacement.product_id=l.product_id
+               AND replacement.quantity_on_hand>replacement.quantity_reserved
+               AND (replacement.expiry_date IS NULL OR replacement.expiry_date>=v_today)
+          )
+        )
+        ORDER BY l.expiry_date,l.product_id,l.warehouse_id,l.batch_id
+      ) AS expired_lots
+    FROM public.orders o
+    JOIN outstanding_expired_lots l ON l.order_id=o.id
+    JOIN public.products p
+      ON p.id=l.product_id AND p.organization_id=v_org
+    JOIN public.warehouses w
+      ON w.id=l.warehouse_id AND w.organization_id=v_org
+    GROUP BY o.id,o.order_number,o.status,o.created_at
+  ),
+  page_orders AS MATERIALIZED (
+    SELECT *
+      FROM eligible_orders
+     ORDER BY created_at,o.id
+     LIMIT p_limit
+     OFFSET p_offset
+  )
+  SELECT
+    (SELECT pg_catalog.count(*) FROM eligible_orders),
+    coalesce((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'order_id',page.id,
+          'order_number',page.order_number,
+          'status',page.status,
+          'created_at',page.created_at,
+          'expired_reserved_quantity',page.expired_reserved_quantity::text,
+          'expired_lot_count',page.expired_lot_count,
+          'affected_product_count',page.affected_product_count,
+          'expired_lots',page.expired_lots
+        )
+        ORDER BY page.created_at,page.id
+      )
+      FROM page_orders page
+    ),'[]'::jsonb)
+    INTO v_total,v_orders;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'orders',v_orders,
+    'total',v_total,
+    'limit',p_limit,
+    'offset',p_offset,
+    'has_more',v_total>(p_offset::bigint+p_limit::bigint),
+    'as_of',pg_catalog.statement_timestamp()
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_orders_with_expired_fefo_reservations(integer,integer)
+  FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.list_orders_with_expired_fefo_reservations(integer,integer)
+  TO authenticated;
+
+COMMENT ON FUNCTION public.list_orders_with_expired_fefo_reservations(integer,integer) IS
+  'Manager/admin work queue for confirmed/processing orders with positive net reservations in expired FEFO batches; returns only scoped safe batch facts and in-date replacement availability from one statement snapshot.';
+
 CREATE OR REPLACE FUNCTION public.finalize_order_inventory()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $function$
