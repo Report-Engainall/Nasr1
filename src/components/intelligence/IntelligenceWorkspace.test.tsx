@@ -451,8 +451,8 @@ describe("production intelligence workspace inventory screens", () => {
           metricKeys: ["customer.orders.current", "customer.orders.previous"],
           formulaVersions: ["customer-order-count@1.0.0", "customer-order-count@1.0.0"],
         }],
-        totalActionable: 1,
-        omittedCount: 0,
+        totalActionable: 3,
+        omittedCount: 2,
         withheldCustomerCount: 0,
         warnings: [],
       },
@@ -483,6 +483,12 @@ describe("production intelligence workspace inventory screens", () => {
     expect(card).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
     expect(card).toHaveTextContent("evidence:retention:current");
     expect(card).toHaveTextContent("customer.orders.current");
+    const decisionSummary = await screen.findByText((_, element) =>
+      element?.tagName === "P" &&
+      element.getAttribute("role") === "status" &&
+      Boolean(element.textContent?.includes("يعرض المركز ")),
+    );
+    expect(decisionSummary).toHaveTextContent(/تم إرجاء 2 إجراءً خارج القائمة المختصرة/);
     const claims = screen.getByRole("region", { name: "جوازات أدلة الادعاءات" });
     expect(await within(claims).findByText(/إعادة تنشيط العميل/)).toBeInTheDocument();
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));

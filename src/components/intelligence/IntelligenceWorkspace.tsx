@@ -1303,13 +1303,28 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
   }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
 
-  const dailyDecisionActionSelection = useMemo(() =>
-    selectTopDailyDecisionActions(
+  const dailyDecisionActionSelection = useMemo(() => {
+    const selection = selectTopDailyDecisionActions(
       [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
         .map(action => ({ decision: action.decision, payload: action })),
       10,
-    ),
-  [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
+    );
+    // The retention adapter deliberately keeps a bounded top-50 queue. Include the verified
+    // remainder in the board's total so the shortlist never claims that every decision is visible.
+    const omittedRetentionActions = retentionResult?.ok && evidencePassport &&
+        retentionResult.data.asOf === evidencePassport.asOf &&
+        retentionResult.growthInputs.sourceSnapshotVerified &&
+        retentionResult.actionQueue.status === "VERIFIED" &&
+        retentionResult.actionQueue.withheldCustomerCount === 0
+      ? retentionResult.actionQueue.omittedCount
+      : 0;
+    return {
+      ...selection,
+      totalCandidates: selection.totalCandidates + omittedRetentionActions,
+      omittedCount: selection.omittedCount + omittedRetentionActions,
+    };
+  }, [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
+    customerRetentionDecisionActions, retentionResult, evidencePassport]);
   const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
   const inventoryViewState = inventoryLoading
     ? "loading"
