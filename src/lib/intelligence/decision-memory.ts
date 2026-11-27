@@ -175,7 +175,7 @@ export function searchSimilarDecisionMemory(input: {
     throw new Error("decision_memory_search_input_invalid");
   }
   const target = records.find(record => record.decisionId === decisionId);
-  if (!target || !Number.isFinite(Date.parse(target.createdAt))) return [];
+  if (!target || !validTime(target.createdAt)) return [];
 
   const queryTokens = decisionSearchTokens(query);
   const targetTokens = decisionSearchTokens(decisionRecordSearchText(target) + " " + query);
@@ -185,7 +185,7 @@ export function searchSimilarDecisionMemory(input: {
   return records
     .filter(candidate =>
       candidate.decisionId !== target.decisionId &&
-      Number.isFinite(Date.parse(candidate.createdAt)) &&
+      validTime(candidate.createdAt) &&
       Date.parse(candidate.createdAt) < Date.parse(target.createdAt))
     .map(candidate => {
       const candidateTokens = new Set(decisionSearchTokens(decisionRecordSearchText(candidate)));
@@ -350,7 +350,7 @@ export function buildDecisionPolicyReviewSuggestions(
         !expected || !actual ||
         !record.ruleId.trim() || !record.ruleVersion.trim() ||
         !validPeriod(expected.period) || !validPeriod(actual.period) ||
-        !record.createdAt || !Number.isFinite(Date.parse(record.createdAt)) ||
+        !validTime(record.createdAt) ||
         !validReviewComparisonArithmetic(comparison, expected, actual) ||
         !expected.evidenceIds.length || !actual.evidenceIds.length) {
       continue;
@@ -422,7 +422,15 @@ export function buildDecisionPolicyReviewSuggestions(
 }
 
 function validTime(value: string): boolean {
-  return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
+    return false;
+  }
+  const day = value.slice(0, 10);
+  const dayMillis = Date.parse(day + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dayMillis) &&
+    new Date(dayMillis).toISOString().slice(0, 10) === day;
 }
 function validPeriod(period: EvidencePeriod | null | undefined): period is EvidencePeriod {
   if (!period || !/^\d{4}-\d{2}-\d{2}$/.test(period.from) || !/^\d{4}-\d{2}-\d{2}$/.test(period.to)) return false;
@@ -687,7 +695,7 @@ export function buildDecisionMemoryBook(input: {
         }
       }
       const precedents=input.outcomes.filter(previous=>previous.id!==outcome.id&&previous.ruleId===outcome.ruleId&&
-        validTime(previous.createdAt)&&Date.parse(previous.createdAt)<Date.parse(outcome.createdAt))
+        validTime(previous.createdAt)&&validTime(outcome.createdAt)&&Date.parse(previous.createdAt)<Date.parse(outcome.createdAt))
         .sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
         .map(previous=>({decisionId:previous.id,ruleVersion:previous.ruleVersion,state:previous.state,createdAt:previous.createdAt,
           measured:previous.state==="MEASURED"&&previous.measuredOutcome!==null}));
