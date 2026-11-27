@@ -105,6 +105,20 @@ async function loadCheckpoint(scope, client = db) {
   return asJson(rows[0].result);
 }
 
+async function previewStagedRecords(scope, client = db) {
+  const rows = await client.unsafe(
+    "select public.list_erp_sync_staged_records(" +
+      "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::integer) as result",
+    [
+      scope.organizationId, scopeKey(scope), scope.provider, scope.companyExternalId,
+      scope.branchExternalId, scope.warehouseExternalId, scope.currencyCode,
+      scope.objectType, 20, 0,
+    ],
+  );
+  assert.equal(rows.length, 1);
+  return asJson(rows[0].result);
+}
+
 async function persistPage(input, client = db) {
   const nextCursor = input.nextCursor ?? null;
   const rows = await client.unsafe(
@@ -203,11 +217,14 @@ async function main() {
       "has_function_privilege('service_role','public.reset_erp_sync_expired_cursor(uuid,text,bigint)','EXECUTE') as service_reset," +
       "has_function_privilege('anon','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as anon_preview," +
       "has_function_privilege('authenticated','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as auth_preview," +
-      "has_function_privilege('service_role','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as service_preview",
+      "has_function_privilege('service_role','public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)','EXECUTE') as service_preview," +
+      "has_table_privilege('anon','public.erp_sync_page_record_outcomes','SELECT') as anon_outcomes_read," +
+      "has_table_privilege('authenticated','public.erp_sync_page_record_outcomes','SELECT') as auth_outcomes_read," +
+      "has_table_privilege('service_role','public.erp_sync_page_record_outcomes','SELECT') as service_outcomes_read",
   );
   assert.deepEqual(
     Object.values(rpcPrivileges[0]),
-    [false,false,true,false,false,true,false,false,true,false,false,true],
+    [false,false,true,false,false,true,false,false,true,false,false,true,false,false,false],
     "ERP checkpoint RPC ACLs must grant EXECUTE only to service_role",
   );
   const initialized = await loadCheckpoint(baseScope);
@@ -240,6 +257,8 @@ async function main() {
   assert.equal(committed1.checkpoint.version, 1);
   assert.equal(committed1.counts.created, 1);
   assert.equal(committed1.duplicate_page, false);
+  const createdPreview = await previewStagedRecords(baseScope);
+  assert.equal(createdPreview.records[0].last_disposition, "created");
   assert.ok(committed1.checkpoint.cursor_ciphertext.includes("initial-page"));
   assert.ok(!committed1.checkpoint.cursor_ciphertext.includes("private-provider-cursor"));
 
@@ -401,6 +420,8 @@ async function main() {
   const committed2 = await persistPage(update);
   assert.equal(committed2.checkpoint.version, 2);
   assert.equal(committed2.counts.updated, 1);
+  const updatedPreview = await previewStagedRecords(baseScope);
+  assert.equal(updatedPreview.records[0].last_disposition, "updated");
 
   const staleRecord = page({
     expectedVersion: 2,
@@ -411,6 +432,10 @@ async function main() {
   const committed3 = await persistPage(staleRecord);
   assert.equal(committed3.checkpoint.version, 3);
   assert.equal(committed3.counts.rejected, 1);
+  const rejectedPreview = await previewStagedRecords(baseScope);
+  assert.equal(rejectedPreview.records[0].last_disposition, "rejected");
+  assert.equal(rejectedPreview.records[0].fields.name, "Older source projection",
+    "preview must show the exact rejected source projection rather than the older accepted snapshot");
 
   const sameTimeConflict = page({
     expectedVersion: 3,
@@ -421,6 +446,9 @@ async function main() {
   const committed4 = await persistPage(sameTimeConflict);
   assert.equal(committed4.checkpoint.version, 4);
   assert.equal(committed4.counts.conflicted, 1);
+  const conflictedPreview = await previewStagedRecords(baseScope);
+  assert.equal(conflictedPreview.records[0].last_disposition, "conflicted");
+  assert.equal(conflictedPreview.records[0].fields.name, "Conflicting same-time projection");
 
   const completed = page({
     expectedVersion: 4,
@@ -777,17 +805,10 @@ async function main() {
   assert.equal(unchangedSaved.checkpoint.version, 8);
   assert.equal(unchangedSaved.counts.unchanged, 1);
 
-  const outcomeRows = await db.unsafe(
-    "select page_fingerprint,external_id,disposition from public.erp_sync_page_record_outcomes " +
-    "where organization_id=$1::uuid and scope_key=$2::text order by recorded_at,page_fingerprint",
-    [organizationA, scopeKey(baseScope)],
-  );
-  const outcomesByPage = new Map(outcomeRows.map((row) => [row.page_fingerprint, row.disposition]));
-  assert.equal(outcomesByPage.get(sha256("page:initial-page")), "created");
-  assert.equal(outcomesByPage.get(sha256("page:newer-source-version")), "updated");
-  assert.equal(outcomesByPage.get(sha256("page:stale-source-row")), "rejected");
-  assert.equal(outcomesByPage.get(sha256("page:same-time-source-conflict")), "conflicted");
-  assert.equal(outcomesByPage.get(sha256("page:same-time-unchanged")), "unchanged");
+  const unchangedPreview = await previewStagedRecords(baseScope);
+  assert.equal(unchangedPreview.records[0].last_disposition, "unchanged");
+  assert.equal(unchangedPreview.records[0].fields.name, "Product version two",
+    "after the same-time unchanged replay the accepted projection remains unchanged");
 
   const invoicePreviewRows = await db.unsafe(
     "select public.list_erp_sync_staged_records(" +
