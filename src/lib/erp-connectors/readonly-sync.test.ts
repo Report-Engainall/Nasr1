@@ -674,6 +674,32 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     expect(replay.counts.created).toBe(0);
   });
 
+  it("stops a duplicate non-final page when the checkpoint store makes no progress", async () => {
+    const store = new InMemoryCheckpointStore();
+    store.persistPageAtomically = async () => ({
+      checkpoint: checkpoint(),
+      counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+      duplicatePage: true,
+    });
+    const readPage = vi.fn(async () => ({
+      records: [record("duplicate-stall", "2026-11-27T10:00:00Z")],
+      nextCursor: "cursor-that-would-repeat",
+      httpStatus: 200,
+      externalRequestId: null,
+      responseSha256: "e".repeat(64),
+    }));
+
+    await expect(runIncrementalReadOnlySync({
+      connector: { readPage },
+      store,
+      scope,
+    })).rejects.toMatchObject({ code: "ERP_DUPLICATE_PAGE_NO_PROGRESS" });
+
+    expect(readPage).toHaveBeenCalledTimes(1);
+    expect(store.state).toEqual(checkpoint());
+    expect(store.committed).toHaveLength(0);
+  });
+
   it("resumes from the atomically saved cursor after a committed page acknowledgement is lost", async () => {
     const store = new InMemoryCheckpointStore();
     const originalPersist = store.persistPageAtomically.bind(store);
