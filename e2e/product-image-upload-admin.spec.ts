@@ -496,7 +496,7 @@ test("manager completes the real admin image-upload journey against local Storag
     await manager.reload();
     await expect(manager.getByRole("heading", { name: "إدارة المنتجات", exact: true })).toBeVisible({ timeout: 30_000 });
     await openUploader(manager);
-    await expect(manager.getByLabel("إجمالي الصور الإضافية")).toHaveText("1");
+    await expect(manager.getByLabel("إجمالي الصور الإضافية")).toHaveText("١");
 
     // Fill the remaining seven gallery slots through the same authenticated handler
     // and the actual local Storage API. The ninth gallery request must be rejected.
