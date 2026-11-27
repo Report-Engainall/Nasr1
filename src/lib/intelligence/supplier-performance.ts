@@ -44,7 +44,7 @@ function timestampNanos(value:unknown):bigint|null {
  if(typeof value!=="string")return null;
  const millis=timestampValue(value);
  if(millis===null)return null;
- const fractionMatch=/T\\d{2}:\\d{2}:\\d{2}(?:\\.(\\d+))?/.exec(value);
+ const fractionMatch=/T\d{2}:\d{2}:\d{2}(?:\.(\d+))?/.exec(value);
  const fraction=(fractionMatch?.[1]??"").padEnd(9,"0").slice(0,9);
  const nanosecondFraction=BigInt(fraction||"0");
  const millisecondFraction=BigInt(fraction.slice(0,3).padEnd(3,"0")||"0");
