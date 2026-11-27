@@ -179,7 +179,8 @@ describe("ERP read-only Edge Function handler", () => {
     expect(connection.baseUrl).toBe("https://erp.vendor.example.test/api/v1");
     expect(connection.credential.secret).toBe("server-only-erp-token");
     expect(JSON.stringify(payload)).not.toContain("server-only");
-    expect(JSON.stringify(payload)).not.toContain("cursor");
+    expect(JSON.stringify(payload)).not.toContain("tenant-private-cursor");
+    expect(JSON.stringify(payload)).not.toContain("v1:");
     expect(response.headers.get("access-control-allow-origin")).toBe(origin);
   });
 
