@@ -40,6 +40,14 @@ Base SHA: `317ebca76c4d236a1d0efe0fd5934b028598c72b`
 - Latest test script hardening commit: `2965337f61f651f8bc3bcd25ffc272865a85c18e`.
 - Corrected test script commit: `629ddc10d1e39dd7d039b71d5800163e0b47fe85`.
 
+## First PostgreSQL 17 execution — test-only correction
+- First full local run: [45923927014](https://github.com/Report-Engainall/Nasr1/actions/runs/45923927014), job `140262219865`, exact test step 35.
+- The source migrations, fixtures, PO/receipt source posting, exact invoice replay, payload mismatch denial, duplicate invoice number, quantity ceiling, customer privacy/write denial, independent variance approval and exact/no-adjustment handoff all executed before the first failure.
+- The first failure was in the acceptance scenario, not a business-rule defect: it swapped a tax asset account with a price-variance expense account and then expected the idempotency fingerprint conflict. The handoff RPC correctly rejected the mismatched account type earlier than fingerprint evaluation.
+- Corrected scenario now provisions a second valid active tax **asset** account and reuses the same handoff key while changing only the valid tax-account mapping; this reaches and asserts the intended payload-fingerprint conflict. SQLSTATE assertion diagnostics also report the actual server message on failure.
+- Test-only correction commit: `e607296236fee81fb87ec7ea7b711d42549f0598`.
+- The corrected script requires a fresh exact-head P1/P2 run. The prior overall run remains `FAIL`; it is not retroactively counted as PASS.
+
 ## Acceptance
 - Initial state: `PENDING` exact-head P2 run.
 - PASS requires the new step, complete local P2 Supabase job, P1 verification and strict TypeScript/build to finish on the exact same PR SHA.
