@@ -455,6 +455,28 @@ describe("server-side ERP read connector contract", () => {
     expect(page.records).toHaveLength(1);
   });
 
+  it("retries HTTP 408 and 425 temporary GET failures within the shared budget", async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    const connector = new OfficialJsonErpReadConnector(connection, productContract, {
+      fetcher: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) return new Response("{}", { status: 408 });
+        if (calls === 2) return new Response("{}", { status: 425 });
+        return jsonResponse({
+          data: { items: [sourceProduct("temporary-status-retry")] },
+          meta: { next_cursor: null },
+        });
+      }),
+      sleep: async (value) => { waits.push(value); },
+    });
+
+    const page = await connector.readPage({ cursor: null, modifiedSince: null });
+    expect(calls).toBe(3);
+    expect(waits).toEqual([500, 1000]);
+    expect(page.records.map((item) => item.externalId)).toEqual(["temporary-status-retry"]);
+  });
+
   it("shares one bounded retry budget across HTTP status and response-body failures", async () => {
     const waits: number[] = [];
     const requests: string[] = [];
