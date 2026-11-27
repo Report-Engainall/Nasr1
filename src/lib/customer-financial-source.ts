@@ -64,3 +64,24 @@ export async function fetchMyCustomerFinancialSource(): Promise<CustomerFinancia
   if (error) throw new Error("تعذر التحقق من مصدر الحساب المالي؛ أوقفنا عرض الفواتير والدفعات حتى يتأكد الخادم من المصدر المعتمد.");
   return parseCustomerFinancialSource(data);
 }
+
+
+export async function fetchStaffCustomerFinancialSource(customerId: string): Promise<CustomerFinancialSource> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) {
+    throw new Error("معرف العميل غير صالح للتحقق من مصدر الحساب المالي.");
+  }
+  const { data, error } = await supabase.rpc("get_customer_financial_source_for_staff", {
+    p_customer_id: customerId,
+  });
+  if (error) {
+    throw new Error("تعذر التحقق من مصدر العميل المالي؛ أوقفنا تسجيل الدفعة المحلية حتى يثبت الخادم مصدر الحساب.");
+  }
+  const row = asRecord(data);
+  if (!row) throw new Error("لم يُرجع الخادم مصدرًا ماليًا صالحًا للعميل.");
+  const canReadAppLedger = row.source_mode === "APP_ONLY" &&
+    row.source_status === "active" && row.is_stale === false;
+  return parseCustomerFinancialSource({
+    ...row,
+    can_read_app_ledger: canReadAppLedger,
+  });
+}

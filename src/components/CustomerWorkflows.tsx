@@ -52,7 +52,7 @@ import { fetchProducts, fetchResolvedProductPrices, fetchSettingsMap } from "@/l
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
-import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
+import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
@@ -4038,6 +4038,10 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [latestReceiptId, setLatestReceiptId] = useState<string | null>(null);
+  const [paymentFinancialSource, setPaymentFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [paymentFinancialSourceCustomerId, setPaymentFinancialSourceCustomerId] = useState("");
+  const [paymentFinancialSourceLoading, setPaymentFinancialSourceLoading] = useState(false);
+  const [paymentFinancialSourceError, setPaymentFinancialSourceError] = useState("");
   const [agingReport, setAgingReport] = useState<ReceivablesAgingReport | null>(null);
   const [agingOffset, setAgingOffset] = useState(0);
   const [agingLoading, setAgingLoading] = useState(false);
@@ -4164,6 +4168,42 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
       setInvoiceId(initialInvoiceId);
     }
   }, [initialInvoiceId, invoices]);
+
+  const selectedInvoiceForPayment = invoices.find((invoice) => invoice.id === invoiceId) ?? null;
+  useEffect(() => {
+    let active = true;
+    const customerId = selectedInvoiceForPayment?.customer_id ?? "";
+    setPaymentFinancialSource(null);
+    setPaymentFinancialSourceCustomerId(customerId);
+    setPaymentFinancialSourceError("");
+    if (!customerId) {
+      setPaymentFinancialSourceLoading(false);
+      return () => { active = false; };
+    }
+    setPaymentFinancialSourceLoading(true);
+    void fetchStaffCustomerFinancialSource(customerId)
+      .then((source) => {
+        if (active) setPaymentFinancialSource(source);
+      })
+      .catch((cause) => {
+        if (active) {
+          setPaymentFinancialSource(null);
+          setPaymentFinancialSourceError(
+            cause instanceof Error ? cause.message : "تعذر التحقق من مصدر العميل المالي."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setPaymentFinancialSourceLoading(false);
+      });
+    return () => { active = false; };
+  }, [selectedInvoiceForPayment?.customer_id, selectedInvoiceForPayment?.id]);
+
+  const canRecordSelectedInvoicePayment = Boolean(
+    selectedInvoiceForPayment &&
+    paymentFinancialSourceCustomerId === selectedInvoiceForPayment.customer_id &&
+    canReadCustomerAppLedger(paymentFinancialSource)
+  );
   const outstanding = (i: Invoice): number | null => {
     if (i.status === "void") return 0;
     const raw = i.outstanding_amount;
@@ -4183,6 +4223,11 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
     const invoice = invoices.find((item) => item.id === invoiceId);
     if (!invoice) {
       setError("اختر فاتورة صحيحة قبل تسجيل الدفعة.");
+      return;
+    }
+    if (paymentFinancialSourceLoading || paymentFinancialSourceCustomerId !== invoice.customer_id ||
+        !canReadCustomerAppLedger(paymentFinancialSource)) {
+      setError(paymentFinancialSourceError || "لا يمكن تسجيل دفعة من دفتر الأغبري لهذا العميل؛ تحقق من مصدر الحساب المعتمد أولًا.");
       return;
     }
 
@@ -4382,6 +4427,13 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
           gap: 12,
         }}
       >
+        {selectedInvoiceForPayment && (
+          <CustomerFinancialSourceNotice
+            source={paymentFinancialSourceCustomerId === selectedInvoiceForPayment.customer_id ? paymentFinancialSource : null}
+            loading={paymentFinancialSourceLoading || paymentFinancialSourceCustomerId !== selectedInvoiceForPayment.customer_id}
+            error={paymentFinancialSourceCustomerId === selectedInvoiceForPayment.customer_id ? paymentFinancialSourceError : ""}
+          />
+        )}
         <label>
           الفاتورة
           <select
@@ -4544,7 +4596,7 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
             maxLength={1000}
           />
         </label>
-        <button style={primary} disabled={busy || loading} type="submit">
+        <button style={primary} disabled={busy || loading || paymentFinancialSourceLoading || !canRecordSelectedInvoicePayment} type="submit">
           <Banknote size={16} />
           {busy ? "جارٍ تسجيل الدفعة..." : splitReceipt ? "تسجيل سند القبض وتوزيعه" : "تسجيل الدفعة"}
         </button>
