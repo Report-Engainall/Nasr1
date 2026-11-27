@@ -42,6 +42,13 @@ on:
       - "scripts/test-task-quality-review-authorization.mjs"
       - "scripts/test-decision-policy-learning-candidate.mjs"
       - "scripts/test-erp-sync-checkpoint-store.mjs"
+      - "tsconfig.p4-typecheck.json"
+      - "supabase/functions/_shared/erp-connectors/**"
+      - "supabase/functions/erp-read-sync/**"
+      - "src/lib/erp-connectors/readonly-sync.test.ts"
+      - "src/lib/erp-connectors/supabase-checkpoint-store.test.ts"
+      - "src/lib/erp-connectors/erp-read-sync-handler.test.ts"
+      - "supabase/migrations/20261128010000_erp_sync_durable_checkpoint_staging.sql"
       - "e2e/**"
       - "playwright.config.ts"
       - "tsconfig.p2-e2e-typecheck.json"
@@ -465,6 +472,8 @@ jobs:
             echo "::warning::Package cache returned HTTP 429; retrying after ${delay}s (attempt ${attempt}/3)."
             sleep "$delay"
           done
+      - name: Strict TypeScript check for ERP connector, Edge handler and staged preview contracts
+        run: bunx tsc --noEmit -p tsconfig.p4-typecheck.json
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359
         with:
