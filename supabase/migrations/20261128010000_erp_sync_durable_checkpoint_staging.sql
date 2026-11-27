@@ -48,7 +48,7 @@ CREATE TABLE public.erp_sync_page_receipts (
   scope_key text NOT NULL,
   page_fingerprint text NOT NULL CHECK (page_fingerprint ~ '^[0-9a-f]{64}$'),
   response_sha256 text NOT NULL CHECK (response_sha256 ~ '^[0-9a-f]{64}$'),
-  next_cursor_ciphertext_sha256 text,
+  next_cursor_present boolean NOT NULL,
   http_status integer NOT NULL CHECK (http_status BETWEEN 200 AND 299),
   external_request_id text,
   pending_watermark timestamptz,
@@ -65,7 +65,6 @@ CREATE TABLE public.erp_sync_page_receipts (
   PRIMARY KEY (organization_id,scope_key,page_fingerprint),
   FOREIGN KEY (organization_id,scope_key)
     REFERENCES public.erp_sync_checkpoints(organization_id,scope_key) ON DELETE RESTRICT,
-  CHECK (next_cursor_ciphertext_sha256 IS NULL OR next_cursor_ciphertext_sha256 ~ '^[0-9a-f]{64}$'),
   CHECK (external_request_id IS NULL OR (
     length(external_request_id) BETWEEN 1 AND 128
     AND external_request_id !~ '[[:cntrl:]]'
@@ -176,7 +175,6 @@ CREATE OR REPLACE FUNCTION public.persist_erp_sync_page_atomically(
   p_response_sha256 text,
   p_records jsonb,
   p_next_cursor_ciphertext text,
-  p_next_cursor_ciphertext_sha256 text,
   p_pending_watermark timestamptz,
   p_completed_watermark timestamptz,
   p_completed boolean
@@ -206,7 +204,7 @@ DECLARE
   v_unchanged integer:=0;
   v_rejected integer:=0;
   v_conflicted integer:=0;
-  v_page_cursor_hash text;
+
 BEGIN
   IF coalesce(auth.role(),'')<>'service_role' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP staging writer required';
@@ -223,12 +221,9 @@ BEGIN
      OR p_http_status IS NULL OR p_http_status NOT BETWEEN 200 AND 299
      OR p_response_sha256 IS NULL OR p_response_sha256 !~ '^[0-9a-f]{64}$'
      OR p_records IS NULL OR pg_catalog.jsonb_typeof(p_records) IS DISTINCT FROM 'array'
-     OR (p_next_cursor_ciphertext IS NULL AND p_next_cursor_ciphertext_sha256 IS NOT NULL)
      OR (p_next_cursor_ciphertext IS NOT NULL AND (
-          length(p_next_cursor_ciphertext) NOT BETWEEN 1 AND 8192
-          OR p_next_cursor_ciphertext_sha256 IS NULL
-          OR length(p_next_cursor_ciphertext_sha256)<>64
-          OR p_next_cursor_ciphertext_sha256 !~ '^[0-9a-f]{64}'
+          length(p_next_cursor_ciphertext) NOT BETWEEN 20 AND 8192
+          OR left(p_next_cursor_ciphertext,3) IS DISTINCT FROM 'v1:'
         ))
      OR (p_external_request_id IS NOT NULL AND (
           length(p_external_request_id) NOT BETWEEN 1 AND 128
@@ -348,12 +343,11 @@ BEGIN
      AND r.scope_key=p_scope_key
      AND r.page_fingerprint=p_page_fingerprint;
   IF FOUND THEN
-    v_page_cursor_hash:=p_next_cursor_ciphertext_sha256;
     IF v_receipt.response_sha256 IS DISTINCT FROM p_response_sha256
        OR v_receipt.http_status IS DISTINCT FROM p_http_status
        OR v_receipt.external_request_id IS DISTINCT FROM p_external_request_id
        OR v_receipt.records_received IS DISTINCT FROM v_records_received
-       OR v_receipt.next_cursor_ciphertext_sha256 IS DISTINCT FROM v_page_cursor_hash
+       OR v_receipt.next_cursor_present IS DISTINCT FROM (p_next_cursor_ciphertext IS NOT NULL)
        OR v_receipt.completed IS DISTINCT FROM p_completed
        OR v_receipt.pending_watermark IS DISTINCT FROM p_pending_watermark
        OR v_receipt.completed_watermark IS DISTINCT FROM p_completed_watermark
@@ -441,7 +435,6 @@ BEGIN
     END IF;
   END LOOP;
 
-  v_page_cursor_hash:=p_next_cursor_ciphertext_sha256;
 
   UPDATE public.erp_sync_checkpoints
      SET version=version+1,
@@ -454,12 +447,12 @@ BEGIN
 
   INSERT INTO public.erp_sync_page_receipts(
     organization_id,scope_key,page_fingerprint,response_sha256,
-    next_cursor_ciphertext_sha256,http_status,external_request_id,pending_watermark,completed_watermark,records_received,
+    next_cursor_present,http_status,external_request_id,pending_watermark,completed_watermark,records_received,
     created_count,updated_count,unchanged_count,rejected_count,conflicted_count,
     completed,committed_version
   ) VALUES (
     p_organization_id,p_scope_key,p_page_fingerprint,p_response_sha256,
-    v_page_cursor_hash,p_http_status,nullif(btrim(coalesce(p_external_request_id,'')),''),p_pending_watermark,p_completed_watermark,
+    (p_next_cursor_ciphertext IS NOT NULL),p_http_status,nullif(btrim(coalesce(p_external_request_id,'')),''),p_pending_watermark,p_completed_watermark,
     v_records_received,v_created,v_updated,v_unchanged,v_rejected,v_conflicted,
     p_completed,v_checkpoint.version
   );
@@ -529,10 +522,10 @@ END
 $function$;
 
 REVOKE ALL ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) FROM PUBLIC,anon,authenticated;
-REVOKE ALL ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,text,timestamptz,timestamptz,boolean) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,text,timestamptz,timestamptz,boolean) TO service_role;
+GRANT EXECUTE ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) TO service_role;
 GRANT EXECUTE ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) TO service_role;
 
 COMMIT;
