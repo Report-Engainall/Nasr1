@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { fetchCashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
 import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
 import { CustomerRetentionActionQueuePanel } from "@/components/intelligence/CustomerRetentionActionQueuePanel";
+import { buildCustomerRetentionDecisionCandidates } from "@/lib/intelligence/customer-retention";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
 import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/replenishment-decisions";
@@ -1224,6 +1225,20 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     });
   }, [inventoryData, replenishmentReport]);
 
+  const customerRetentionDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
+    if (!retentionResult?.ok) return [];
+    const candidates = buildCustomerRetentionDecisionCandidates({
+      asOf: retentionResult.data.asOf,
+      queue: retentionResult.actionQueue,
+    });
+    return candidates.map(decision => ({
+      decision,
+      proof: null,
+      candidateId: decision.id,
+      metricIds: [],
+    }));
+  }, [retentionResult]);
+
   const claimEvidencePassports = useMemo(() => {
     if (!claimEvidenceSourcePassport) return [];
     const observations = claimEvidenceSourcePassport.metrics.map((metric) => ({
@@ -1264,11 +1279,11 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
 
   const dailyDecisionActionSelection = useMemo(() =>
     selectTopDailyDecisionActions(
-      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions]
+      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
         .map(action => ({ decision: action.decision, payload: action })),
       10,
     ),
-  [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
+  [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
   const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
   const inventoryViewState = inventoryLoading
     ? "loading"
