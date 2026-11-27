@@ -483,7 +483,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const lastTaskOnSecondPage = Math.min(totalTaskCount, 20);
     const expectedSecondPageStatus = `عرض ${(11).toLocaleString("ar-YE")}–${lastTaskOnSecondPage.toLocaleString("ar-YE")} من ${totalTaskCount.toLocaleString("ar-YE")} مهمة`;
     await expect(taskPagination.getByRole("status")).toHaveText(expectedSecondPageStatus);
-    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(totalTaskCount - 10);
+    // Page 2 displays the inclusive range 11–20, so its rendered row count is capped at ten.
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(lastTaskOnSecondPage - 10);
     await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ١");
     const taskStatusFilter = manager.getByRole("combobox", { name: "الحالة", exact: true });

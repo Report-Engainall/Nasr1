@@ -4,8 +4,8 @@ Repository: `Report-Engainall/Nasr1`
 Role: P2 — PostgreSQL, RPC authorization, tenant isolation, idempotency and audit integrity
 Synchronized `main`: `317ebca76c4d236a1d0efe0fd5934b028598c72b`
 Branch: `p2/task-quality-review-pg17-20261127`
-Last code-bearing sync SHA: `1ceb9dc818e1c69394daa7f3c63f8fd5ee3ed5be`
-Latest pre-checkpoint branch SHA: `d2a9b91f90d5c7d61f2b90502a15a2e8124a7d1d`
+Last code-bearing parent SHA: `df004ae9429d56c3a435952f4e017892f570bc24`
+Latest test-correction commit: pending commit creation; P2 owns only test/checkpoint changes.
 Status: PENDING exact-head PostgreSQL 17 acceptance. The checkpoint-only update must receive its own P1/P2 run before the PR can be handed off as accepted.
 
 ## Implementation delivered
@@ -44,3 +44,13 @@ Status: PENDING exact-head PostgreSQL 17 acceptance. The checkpoint-only update 
 - No hosted target or production environment is contacted; no paid infrastructure or external API is used.
 - No quality-review PASS is claimed until the final exact-head run completes.
 - **P3 alone owns integration/merge into `main` and updates the global state, acceptance matrix and integration log. P2 owns this checkpoint and supplies evidence only.**
+
+
+## Latest browser acceptance diagnostics — SHA `df004ae9429d56c3a435952f4e017892f570bc24`
+- P1 on this SHA: PASS.
+- P2 infrastructure, public Chromium, local migration replay, local fixture creation and task-quality review authorization: PASS.
+- Local PostgreSQL 17 transaction/security checks through task quality, inventory, purchasing, FEFO/COGS, Onyx and source-backed finance: PASS.
+- Authenticated Chromium order persistence/tenant denial, stock-count XLSX, purchase-order XLSX and checkout replay: PASS.
+- The first complete local attempt on code SHA `df004ae9429d56c3a435952f4e017892f570bc24` exposed one test assertion error in `e2e/finance-task-print.spec.ts`: pagination status correctly reported page 2 as 11–20 (10 visible cards), but the assertion expected `totalTaskCount - 10` (11 cards when the tenant total is 21). The rendered UI and page-range label agreed on 10; the test calculation was wrong.
+- Corrected the assertion to `lastTaskOnSecondPage - 10`, which is the count of the displayed inclusive range. No UI, application data, SQL, RPC or authorization code changed.
+- Full exact-head P2/P1 rerun remains required after this correction; prior runs are diagnostic only. Hosted customer/order/tenant E2E remains SKIPPED.
