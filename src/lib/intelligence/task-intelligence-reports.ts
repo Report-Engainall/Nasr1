@@ -259,6 +259,8 @@ export function parseTaskIntelligenceReport(
 
   const periodFrom = period.from as string;
   const periodTo = period.to as string;
+  const visibleRoles = scope.visibleRoles as TaskIntelligenceRole[];
+  const visibleRoleSet = new Set(visibleRoles);
   const roleSummaries = row.roleSummaries.map(parseRoleSummary);
   const sourceBreakdown = row.sourceBreakdown.map(parseSourceSummary);
   const weeklyTrend = row.weeklyTrend.map(parseWeeklyPoint);
@@ -267,8 +269,11 @@ export function parseTaskIntelligenceReport(
     sourceBreakdown.some(item => item === null) ||
     weeklyTrend.some(item => item === null) ||
     managerRisks.some(item => item === null) ||
-    roleSummaries.length !== scope.visibleRoles.length ||
+    roleSummaries.length !== visibleRoles.length ||
     new Set((roleSummaries as TaskIntelligenceRoleSummary[]).map(item => item.taskRole)).size !== roleSummaries.length ||
+    (roleSummaries as TaskIntelligenceRoleSummary[]).some(item => !visibleRoleSet.has(item.taskRole)) ||
+    (sourceBreakdown as TaskIntelligenceSourceSummary[]).some(item => !visibleRoleSet.has(item.taskRole)) ||
+    (managerRisks as TaskIntelligenceManagerRisk[]).some(item => !visibleRoleSet.has(item.taskRole)) ||
     (expectedKind === "MANAGER" && !scope.managerViewAvailable)) return null;
 
   const riskTotal = scope.managerRiskTotalCount;
