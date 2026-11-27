@@ -769,19 +769,28 @@ BEGIN
     NOT EXISTS(
       SELECT 1
         FROM (
-          SELECT unbatched_ledger.warehouse_id
-            FROM public.inventory_movements unbatched_ledger
-            JOIN public.orders active_order
-              ON active_order.id=unbatched_ledger.reference_id AND active_order.organization_id=v_org
-           WHERE unbatched_ledger.reference_type='order'
-             AND unbatched_ledger.product_id=g.product_id
-             AND unbatched_ledger.inventory_batch_id IS NOT NULL
-             AND unbatched_ledger.movement_type IN ('reserve','release_reservation')
-             AND active_order.status IN ('confirmed','processing')
-             AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
-               WHERE sale.reference_type='order' AND sale.reference_id=active_order.id AND sale.movement_type='sale')
-           GROUP BY unbatched_ledger.warehouse_id
-          HAVING pg_catalog.sum(unbatched_ledger.quantity)>0
+          SELECT active_by_order.warehouse_id
+            FROM (
+              SELECT unbatched_ledger.warehouse_id,unbatched_ledger.reference_id,
+                     pg_catalog.sum(CASE WHEN unbatched_ledger.movement_type='reserve' THEN unbatched_ledger.quantity
+                       WHEN unbatched_ledger.movement_type='release_reservation' THEN -unbatched_ledger.quantity
+                       ELSE 0 END)::numeric(15,3) AS reserved_quantity
+                FROM public.inventory_movements unbatched_ledger
+                JOIN public.orders active_order
+                  ON active_order.id=unbatched_ledger.reference_id AND active_order.organization_id=v_org
+               WHERE unbatched_ledger.reference_type='order'
+                 AND unbatched_ledger.product_id=g.product_id
+                 AND unbatched_ledger.inventory_batch_id IS NOT NULL
+                 AND unbatched_ledger.movement_type IN ('reserve','release_reservation')
+                 AND active_order.status IN ('confirmed','processing')
+                 AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
+                   WHERE sale.reference_type='order' AND sale.reference_id=active_order.id AND sale.movement_type='sale')
+               GROUP BY unbatched_ledger.warehouse_id,unbatched_ledger.reference_id
+              HAVING pg_catalog.sum(CASE WHEN unbatched_ledger.movement_type='reserve' THEN unbatched_ledger.quantity
+                WHEN unbatched_ledger.movement_type='release_reservation' THEN -unbatched_ledger.quantity
+                ELSE 0 END)>0
+            ) active_by_order
+           GROUP BY active_by_order.warehouse_id
         ) active_warehouses
        WHERE NOT EXISTS(
          SELECT 1 FROM public.inventory_balances present
