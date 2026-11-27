@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminCustomer360 } from "./AdminCustomer360";
 
@@ -101,5 +101,26 @@ describe("AdminCustomer360 financial source gate", () => {
     render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
     await waitFor(() => expect(mocks.fetchSummary).toHaveBeenCalledWith(customerId));
     expect(screen.getByText(/مصدر الحساب المالي: دفتر متجر الأغبري/)).toBeInTheDocument();
+  });
+
+  it("ignores a late financial-source response after the selected customer changes", async () => {
+    const otherCustomerId = "33333333-3333-4333-8333-333333333333";
+    let resolveFirstSource!: (value: typeof appOnlySource) => void;
+    mocks.loadScopedCustomer
+      .mockResolvedValueOnce({ data: { id: customerId }, error: null })
+      .mockResolvedValueOnce({ data: { id: otherCustomerId }, error: null });
+    mocks.fetchFinancialSource.mockImplementation((id: string) => id === customerId
+      ? new Promise<typeof appOnlySource>(resolve => { resolveFirstSource = resolve; })
+      : Promise.resolve(onyxSource));
+
+    const view = render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
+    await waitFor(() => expect(mocks.fetchFinancialSource).toHaveBeenCalledWith(customerId));
+    view.rerender(<AdminCustomer360 customer={{ id: otherCustomerId }} onClose={vi.fn()} />);
+    expect(await screen.findByText(/مصدر الحساب المحدد: Onyx Pro/)).toBeInTheDocument();
+
+    await act(async () => { resolveFirstSource(appOnlySource); });
+
+    expect(screen.getByText(/مصدر الحساب المحدد: Onyx Pro/)).toBeInTheDocument();
+    expect(mocks.fetchSummary).not.toHaveBeenCalled();
   });
 });
