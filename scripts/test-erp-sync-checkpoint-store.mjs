@@ -40,18 +40,13 @@ const concurrentDb = postgres(connectionString, {
 });
 let organizationA;
 let organizationB;
+let baseScope;
 const provider = "onyx_pro";
 const objectType = "products";
-const baseScope = {
-  organizationId: organizationA,
-  provider,
-  companyExternalId: "acceptance-company",
-  branchExternalId: "branch-main",
-  warehouseExternalId: "warehouse-1",
-  currencyCode: "YER",
-  objectType,
-};
-const scopeKey = (scope) => sha256(stableJson({
+const scopeKey = (scope) => {
+  assert.ok(scope && typeof scope.organizationId === "string" && scope.organizationId.trim(),
+    "ERP checkpoint scope must be built only after the active tenant fixture is resolved");
+  return sha256(stableJson({
   provider: scope.provider,
   organizationId: scope.organizationId.toLowerCase(),
   companyExternalId: scope.companyExternalId,
@@ -59,7 +54,8 @@ const scopeKey = (scope) => sha256(stableJson({
   warehouseExternalId: scope.warehouseExternalId,
   currencyCode: scope.currencyCode,
   objectType: scope.objectType,
-}));
+  }));
+};
 const cursorCiphertext = (value) => "v1:acceptance-" + value;
 const timestamp1 = "2026-11-28T00:00:01.000000Z";
 const timestamp2 = "2026-11-28T00:00:02.000000Z";
@@ -165,12 +161,12 @@ async function persistPage(input, client = db) {
   return asJson(rows[0].result);
 }
 
-function stagedRecord(name, sourceUpdatedAt, overrides = {}) {
+function stagedRecord(name, sourceUpdatedAt, overrides = {}, externalId = "ONYX-ITEM-000001") {
   const fields = { item_code: "000001", name, is_active: true, ...overrides };
   return {
-    external_id: "ONYX-ITEM-000001",
+    external_id: externalId,
     source_updated_at: sourceUpdatedAt,
-    idempotency_key: sha256(stableJson({ fields, sourceUpdatedAt })),
+    idempotency_key: sha256(stableJson({ externalId, fields, sourceUpdatedAt })),
     fields,
   };
 }
@@ -205,6 +201,19 @@ async function main() {
   assert.equal(organizations.length, 2, "ERP PostgreSQL 17 acceptance requires two real active tenant organizations");
   organizationA = organizations[0].id;
   organizationB = organizations[1].id;
+  assert.notEqual(organizationA, organizationB,
+    "ERP acceptance requires two distinct active tenant organizations");
+  baseScope = {
+    organizationId: organizationA,
+    provider,
+    companyExternalId: "acceptance-company",
+    branchExternalId: "branch-main",
+    warehouseExternalId: "warehouse-1",
+    currencyCode: "YER",
+    objectType,
+  };
+  assert.equal(baseScope.organizationId, organizationA,
+    "base scope must use the resolved tenant before any scope fingerprint is generated");
   await setRole("authenticated");
   await expectSql(
     "authenticated user cannot initialize ERP checkpoint",

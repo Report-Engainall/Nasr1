@@ -28,3 +28,10 @@ Base head before this P2 contribution: `6a5bd847f9c43eb5bae865c5d0690c9a3972e594
 
 ## Acceptance boundary
 The P2 PostgreSQL 17 suite is required on the exact resulting commit SHA. Queued, in-progress, skipped or previous-SHA results are not PASS. No hosted Supabase target was touched: the runtime database identity remains disputed. No ERP endpoint, live credential, financial write, inventory write, deployment or paid service was used.
+
+## 2026-11-28 — P2 acceptance harness root-cause repair
+
+- The PostgreSQL 17 acceptance script previously constructed `baseScope` at module initialization from `organizationA`, while `organizationA` was assigned only after querying the disposable database. The scope therefore retained `undefined` and `scopeKey()` failed before exercising the persistence RPCs.
+- Moved `baseScope` construction directly after the two distinct active tenant IDs are resolved, added an explicit pre-fingerprint guard and asserted that the two fixtures are distinct.
+- Fixed `stagedRecord()` to honor its existing fourth `externalId` argument and include that identity in its deterministic idempotency digest. The old helper silently discarded supplied external IDs, weakening duplicate-identity assertions.
+- No production SQL rule, P2 RPC contract, ERP transport, inventory/financial posting or external connection was changed. Re-run the full isolated PostgreSQL 17 acceptance on the resulting exact SHA; no earlier run transfers.
