@@ -227,6 +227,17 @@ async function main() {
   );
 
   await setRole("service_role");
+  const receiptHistoryIndex = await db.unsafe(
+    "select indexdef from pg_catalog.pg_indexes " +
+      "where schemaname='public' and indexname='erp_sync_page_receipts_recent_idx'",
+  );
+  assert.equal(receiptHistoryIndex.length, 1, "ERP receipt history must have a dedicated scope index");
+  assert.match(
+    receiptHistoryIndex[0].indexdef,
+    /organization_id,\s*scope_key,\s*recorded_at DESC,\s*committed_version DESC/i,
+    "ERP receipt history index must match its stable newest-first pagination order",
+  );
+
   const rpcPrivileges = await db.unsafe(
     "select " +
       "has_function_privilege('anon','public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text)','EXECUTE') as anon_load," +

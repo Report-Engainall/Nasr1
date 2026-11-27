@@ -72,7 +72,7 @@ CREATE TABLE public.erp_sync_page_receipts (
 );
 
 CREATE INDEX erp_sync_page_receipts_recent_idx
-  ON public.erp_sync_page_receipts(organization_id,scope_key,recorded_at DESC);
+  ON public.erp_sync_page_receipts(organization_id,scope_key,recorded_at DESC,committed_version DESC);
 
 CREATE TABLE public.erp_sync_page_record_outcomes (
   organization_id uuid NOT NULL,
