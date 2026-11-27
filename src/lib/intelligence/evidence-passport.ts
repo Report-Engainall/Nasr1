@@ -1,13 +1,7 @@
 import type {DataCompleteness,EvidencePassport,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 export interface BuildEvidencePassportInput {id:string;generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[]}
-const validTime=(value:unknown):value is string=>{
- if(typeof value!=="string"||
-  !/^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value))return false;
- const year=Number(value.slice(0,4)),month=Number(value.slice(5,7)),day=Number(value.slice(8,10));
- const leap=year%4===0&&(year%100!==0||year%400===0);
- const monthDays=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
- return day<=monthDays[month-1]&&Number.isFinite(Date.parse(value));
-};
+const validTime=(value:unknown):value is string=>timestampMicroseconds(value)!==null;
 const unique=(v:string[])=>[...new Set(v.filter(Boolean))];
 function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>,expectedAsOf:string):MetricSnapshot {
  const ids=metric.lineage?.evidenceIds??[], warnings=[...(metric.warnings??[])];
@@ -28,7 +22,7 @@ function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,dupl
  if(rs.some(s=>!validTime(s.sourceTimestamp)||!validTime(s.asOf)))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_INVALID","PARTIAL");
  if(metric.asOf!==expectedAsOf)return downgrade("NEEDS_REVIEW","METRIC_AS_OF_MISMATCH","PARTIAL");
  if(rs.some(s=>s.asOf!==metric.asOf))return downgrade("NEEDS_REVIEW","SOURCE_AS_OF_MISMATCH","PARTIAL");
- if(rs.some(s=>Date.parse(s.sourceTimestamp)>Date.parse(metric.asOf)))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_AFTER_METRIC_AS_OF","PARTIAL");
+ if(rs.some(s=>timestampMicroseconds(s.sourceTimestamp)!>timestampMicroseconds(metric.asOf)!))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_AFTER_METRIC_AS_OF","PARTIAL");
  if(metric.period&&rs.some(s=>!s.period||s.period.from!==metric.period?.from||s.period.to!==metric.period?.to))
   return downgrade("NEEDS_REVIEW","SOURCE_PERIOD_MISMATCH","PARTIAL");
  if(rs.some(s=>s.completeness!=="COMPLETE"))return downgrade("NEEDS_REVIEW","SOURCE_INCOMPLETE","PARTIAL");
@@ -66,7 +60,7 @@ export function buildEvidencePassport(input:BuildEvidencePassportInput):Evidence
  for(const record of input.evidenceRecords){if(records.has(record.id))duplicates.add(record.id);else records.set(record.id,record)}
  if(!validTime(input.generatedAt)||!validTime(input.asOf))
   throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps");
- if(Date.parse(input.asOf)>Date.parse(input.generatedAt))
+ if(timestampMicroseconds(input.asOf)!>timestampMicroseconds(input.generatedAt)!)
   throw new Error("asOf cannot be after generatedAt");
  const metrics=input.metrics.map(m=>normalize(m,records,duplicates,input.asOf));
  const warnings=unique([...input.evidenceRecords.flatMap(r=>r.warnings??[]),...metrics.flatMap(m=>m.warnings??[]),...(duplicates.size?["DUPLICATE_EVIDENCE_RECORD_ID"]:[])]);
