@@ -82,6 +82,7 @@ CREATE TABLE public.erp_sync_page_record_outcomes (
   source_updated_at timestamptz NOT NULL,
   fields jsonb NOT NULL CHECK (jsonb_typeof(fields)='object'),
   disposition text NOT NULL CHECK (disposition IN ('created','updated','unchanged','rejected','conflicted')),
+  disposition_reason text CHECK (disposition_reason IN ('source_timestamp_older','same_timestamp_payload_mismatch')),
   recorded_at timestamptz NOT NULL DEFAULT statement_timestamp(),
   PRIMARY KEY (organization_id,scope_key,page_fingerprint,external_id),
   FOREIGN KEY (organization_id,scope_key,page_fingerprint)
@@ -224,6 +225,7 @@ DECLARE
   v_rejected integer:=0;
   v_conflicted integer:=0;
   v_disposition text;
+  v_disposition_reason text;
   v_outcomes jsonb:='[]'::jsonb;
 
 BEGIN
@@ -501,6 +503,7 @@ BEGIN
     v_idempotency_key:=v_record->>'idempotency_key';
     v_source_updated_at:=(v_record->>'source_updated_at')::timestamptz;
     v_fields:=v_record->'fields';
+    v_disposition_reason:=NULL;
 
     SELECT s.idempotency_key,s.source_updated_at,s.fields
       INTO v_existing_key,v_existing_updated_at,v_existing_fields
@@ -538,6 +541,7 @@ BEGIN
     ELSIF v_source_updated_at<v_existing_updated_at THEN
       v_rejected:=v_rejected+1;
       v_disposition:='rejected';
+      v_disposition_reason:='source_timestamp_older';
     ELSIF v_fields=v_existing_fields THEN
       UPDATE public.erp_sync_staged_records
          SET idempotency_key=v_idempotency_key,last_seen_at=statement_timestamp()
@@ -547,13 +551,15 @@ BEGIN
     ELSE
       v_conflicted:=v_conflicted+1;
       v_disposition:='conflicted';
+      v_disposition_reason:='same_timestamp_payload_mismatch';
     END IF;
     v_outcomes:=v_outcomes || pg_catalog.jsonb_build_array(
       pg_catalog.jsonb_build_object(
         'external_id',v_external_id,
         'source_updated_at',v_source_updated_at,
         'fields',v_fields,
-        'disposition',v_disposition
+        'disposition',v_disposition,
+        'disposition_reason',v_disposition_reason
       )
     );
   END LOOP;
@@ -581,12 +587,12 @@ BEGIN
   );
 
   INSERT INTO public.erp_sync_page_record_outcomes(
-    organization_id,scope_key,page_fingerprint,external_id,source_updated_at,fields,disposition
+    organization_id,scope_key,page_fingerprint,external_id,source_updated_at,fields,disposition,disposition_reason
   )
   SELECT p_organization_id,p_scope_key,p_page_fingerprint,
-         outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition
+         outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
     FROM pg_catalog.jsonb_to_recordset(v_outcomes) AS outcome(
-      external_id text,source_updated_at timestamptz,fields jsonb,disposition text
+      external_id text,source_updated_at timestamptz,fields jsonb,disposition text,disposition_reason text
     );
 
   RETURN pg_catalog.jsonb_build_object(
@@ -691,7 +697,7 @@ BEGIN
  THEN RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP staged preview scope hash is already bound to different scope metadata'; END IF;
  WITH latest_outcomes AS MATERIALIZED (
    SELECT DISTINCT ON (outcome.external_id)
-          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
      FROM public.erp_sync_page_record_outcomes outcome
     WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
     ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
@@ -700,12 +706,13 @@ BEGIN
    SELECT staged.external_id,
           coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
           coalesce(latest.fields,staged.fields) AS fields,
-          latest.disposition
+          latest.disposition,
+          latest.disposition_reason
      FROM public.erp_sync_staged_records staged
      LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
     WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
    UNION ALL
-   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition,latest.disposition_reason
      FROM latest_outcomes latest
     WHERE latest.disposition IN ('rejected','conflicted')
       AND NOT EXISTS (
@@ -719,7 +726,7 @@ BEGIN
 
  WITH latest_outcomes AS MATERIALIZED (
    SELECT DISTINCT ON (outcome.external_id)
-          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
      FROM public.erp_sync_page_record_outcomes outcome
     WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
     ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
@@ -728,12 +735,13 @@ BEGIN
    SELECT staged.external_id,
           coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
           coalesce(latest.fields,staged.fields) AS fields,
-          latest.disposition
+          latest.disposition,
+          latest.disposition_reason
      FROM public.erp_sync_staged_records staged
      LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
     WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
    UNION ALL
-   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition,latest.disposition_reason
      FROM latest_outcomes latest
     WHERE latest.disposition IN ('rejected','conflicted')
       AND NOT EXISTS (
@@ -747,7 +755,8 @@ BEGIN
      'external_id',page.external_id,
      'source_updated_at',page.source_updated_at,
      'fields',page.fields,
-     'last_disposition',page.disposition)
+     'last_disposition',page.disposition,
+     'last_disposition_reason',page.disposition_reason)
      ORDER BY page.source_updated_at DESC,page.external_id),'[]'::jsonb)
   INTO v_records
   FROM (
