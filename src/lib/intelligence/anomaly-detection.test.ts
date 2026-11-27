@@ -85,6 +85,8 @@ function fixture(options: {
   baselineSamples?: number;
   currentCurrency?: string;
   baselineCurrency?: string;
+  metricUnit?: "CURRENCY" | "CURRENCY_PER_UNIT";
+  metricUnitOfMeasure?: string;
   currentUnit?: "EA" | "CARTON";
   baselineUnit?: "EA" | "CARTON";
   baselinePeriod?: EvidencePeriod;
@@ -106,7 +108,8 @@ function fixture(options: {
     id: "outflow-current",
     key: rule.metricKey,
     value: options.currentValue ?? "125.00",
-    unit: "CURRENCY",
+    unit: options.metricUnit ?? "CURRENCY",
+    ...(options.metricUnit === "CURRENCY_PER_UNIT" ? { unitOfMeasure: options.metricUnitOfMeasure ?? "EA" } : {}),
     currency: currentCurrency,
     period: current,
     evidenceId: "evidence-current",
@@ -115,7 +118,8 @@ function fixture(options: {
     id: "outflow-baseline",
     key: rule.metricKey,
     value: options.baselineValue ?? "100.00",
-    unit: "CURRENCY",
+    unit: options.metricUnit ?? "CURRENCY",
+    ...(options.metricUnit === "CURRENCY_PER_UNIT" ? { unitOfMeasure: options.metricUnitOfMeasure ?? "EA" } : {}),
     currency: baselineCurrency,
     period: baseline,
     evidenceId: "evidence-baseline",
@@ -356,6 +360,43 @@ describe("anomaly metric unit admission", () => {
       { signalId: signal.id, reason: "METRIC_SCOPE_MISMATCH" },
     ]);
     expect(result.status).toBe("NEEDS_REVIEW");
+  });
+});
+
+describe("anomaly currency identity", () => {
+  it.each(["yer", "YER ", "USDT", "1ER"])("withholds a malformed currency code: %s", (currency) => {
+    const result = fixture({ currentCurrency: currency, baselineCurrency: currency });
+    expect(result.anomalies).toHaveLength(0);
+    expect(result.withheld).toMatchObject([{ reason: "INVALID_CURRENCY_IDENTITY" }]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+
+  it.each(["CURRENCY", "CURRENCY_PER_UNIT"] as const)(
+    "requires canonical currency identity for %s metrics",
+    (metricUnit) => {
+      for (const currency of ["yer", "YER ", "USDT", "1ER"]) {
+        const result = fixture({
+          metricUnit,
+          metricUnitOfMeasure: "EA",
+          currentCurrency: currency,
+          baselineCurrency: currency,
+        });
+        expect(result.anomalies).toHaveLength(0);
+        expect(result.withheld).toMatchObject([{ reason: "INVALID_CURRENCY_IDENTITY" }]);
+        expect(result.status).toBe("NEEDS_REVIEW");
+      }
+    },
+  );
+
+  it("continues comparing per-unit currency metrics with a canonical currency and matching UOM", () => {
+    const result = fixture({ metricUnit: "CURRENCY_PER_UNIT", metricUnitOfMeasure: "EA" });
+    expect(result.anomalies).toHaveLength(1);
+    expect(result.anomalies[0]).toMatchObject({
+      currency: "YER",
+      unit: "CURRENCY_PER_UNIT",
+      unitOfMeasure: "EA",
+      changePercentHundredths: 2_500,
+    });
   });
 });
 

@@ -81,8 +81,23 @@ function record(value: unknown): UnknownRecord | null {
 function str(value: unknown, max = 500): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= max;
 }
+function isoDay(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = Date.parse(value + "T00:00:00.000Z");
+  return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+}
+
+/** Parse a real timezone-qualified ISO instant; reject local clocks, calendar overflow and offsets beyond ±14:00. */
+function instant(value: unknown): number | null {
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value) ||
+      !isoDay(value.slice(0, 10))) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function iso(value: unknown): value is string {
-  return typeof value === "string" && Number.isFinite(Date.parse(value));
+  return instant(value) !== null;
 }
 function nullableIso(value: unknown): string | null {
   return value === null ? null : iso(value) ? value : null;
@@ -117,6 +132,10 @@ function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutc
   if (value === null) return null;
   const measured = record(value);
   const period = record(measured?.period);
+  const periodFrom = period?.from;
+  const periodTo = period?.to;
+  const asOfTime = instant(measured?.asOf);
+  const measuredAtTime = instant(measured?.measuredAt);
   if (
     !measured ||
     !str(measured.metricKey, 150) ||
@@ -129,14 +148,12 @@ function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutc
     measured.completeness !== "COMPLETE" ||
     measured.quality !== "ACCEPTABLE" ||
     !period ||
-    !str(period.from, 10) ||
-    !str(period.to, 10) ||
-    !Number.isFinite(Date.parse(period.from)) ||
-    !Number.isFinite(Date.parse(period.to)) ||
-    Date.parse(period.from) > Date.parse(period.to) ||
-    !iso(measured.asOf) ||
-    !iso(measured.measuredAt) ||
-    Date.parse(measured.asOf) > Date.parse(measured.measuredAt) ||
+    !isoDay(periodFrom) ||
+    !isoDay(periodTo) ||
+    periodFrom > periodTo ||
+    asOfTime === null ||
+    measuredAtTime === null ||
+    asOfTime > measuredAtTime ||
     !str(measured.formulaId, 150) ||
     !str(measured.formulaVersion, 80) ||
     !Array.isArray(measured.evidenceIds) ||
@@ -148,7 +165,7 @@ function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutc
   return {
     value: measured.value,
     currency: measured.currency,
-    asOf: measured.asOf,
+    asOf: measured.asOf as string,
   };
 }
 
@@ -170,6 +187,9 @@ function parseCandidateSnapshot(value: unknown): DecisionCandidateSnapshot | nul
     ? { value: impactRaw.value, unit: impactRaw.unit, currency: typeof impactRaw.currency === "string" ? impactRaw.currency : null,
         formulaId: impactRaw.formulaId, formulaVersion: impactRaw.formulaVersion, sourceMetricIds: impactRaw.sourceMetricIds as string[] }
     : raw.impact === null ? null : undefined;
+  const proofAsOfTime = instant(proof.asOf);
+  const createdAtTime = instant(raw.createdAt);
+  const expiresAtTime = raw.expiresAt === null ? null : instant(raw.expiresAt);
   if (priority === null || score === null || raw.schemaVersion !== "1.0.0" || !str(raw.candidateId,150) ||
       !str(raw.ruleId,150) || !str(raw.ruleVersion,80) || raw.priorityScore !== score ||
       !str(raw.what,500) || !str(raw.why,2000) || !str(raw.risk,2000) || !str(raw.soWhat,2000) ||
@@ -177,7 +197,10 @@ function parseCandidateSnapshot(value: unknown): DecisionCandidateSnapshot | nul
       !["CALCULATED","NOT_CONFIGURED","WITHHELD"].includes(String(raw.impactStatus)) ||
       (raw.impactReason !== null && !str(raw.impactReason,2000)) ||
       !evidenceIds || new Set(evidenceIds).size !== evidenceIds.length || !metricKeys || !formulaVersions ||
-      !iso(proof.asOf) || !iso(raw.createdAt) || (raw.expiresAt !== null && !iso(raw.expiresAt)) ||
+      proofAsOfTime === null || createdAtTime === null ||
+      (raw.expiresAt !== null && expiresAtTime === null) ||
+      proofAsOfTime > createdAtTime ||
+      (expiresAtTime !== null && expiresAtTime < createdAtTime) ||
       impact === undefined || (raw.impactStatus === "CALCULATED" && impact === null) ||
       (raw.impactStatus !== "CALCULATED" && impact !== null)) return null;
   return {
@@ -186,8 +209,8 @@ function parseCandidateSnapshot(value: unknown): DecisionCandidateSnapshot | nul
     whatNext: raw.whatNext, owner: raw.owner, expectedOutcome: raw.expectedOutcome, impact,
     impactStatus: raw.impactStatus as DecisionCandidateSnapshot["impactStatus"],
     impactReason: typeof raw.impactReason === "string" ? raw.impactReason : null,
-    proof: { evidenceIds, metricKeys, asOf: proof.asOf, formulaVersions },
-    createdAt: raw.createdAt, expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : null,
+    proof: { evidenceIds, metricKeys, asOf: proof.asOf as string, formulaVersions },
+    createdAt: raw.createdAt as string, expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : null,
   };
 }
 
@@ -202,6 +225,8 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     ? null : parseDecisionMemorySnapshot(raw.memorySnapshot);
   const candidateSnapshot = raw?.candidateSnapshot === null || raw?.candidateSnapshot === undefined
     ? null : parseCandidateSnapshot(raw.candidateSnapshot);
+  const createdAtTime = instant(raw?.createdAt);
+  const updatedAtTime = instant(raw?.updatedAt);
   if (raw?.memorySnapshot !== null && raw?.memorySnapshot !== undefined && !memorySnapshot) return null;
   if (raw?.candidateSnapshot !== null && raw?.candidateSnapshot !== undefined && !candidateSnapshot) return null;
   if (
@@ -211,7 +236,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     typeof raw.state !== "string" || !states.has(raw.state as DecisionOutcomeState) ||
     !Number.isInteger(raw.version) || (raw.version as number) < 1 || (raw.version as number) > 1000 ||
     !str(raw.expectedOutcome, 2000) ||
-    !iso(raw.createdAt) || !iso(raw.updatedAt) || Date.parse(raw.createdAt) > Date.parse(raw.updatedAt) ||
+    createdAtTime === null || updatedAtTime === null || createdAtTime > updatedAtTime ||
     !Number.isInteger(raw.eventCount) || (raw.eventCount as number) < 1 ||
     !Array.isArray(raw.history) || raw.history.length > 1000 ||
     raw.eventCount !== raw.history.length || raw.history.length !== raw.version ||
@@ -227,32 +252,53 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     measuredOutcome === undefined
   ) return null;
 
+  const state = raw.state as DecisionOutcomeState;
+  const approvedAtTime = raw.approvedAt === null ? null : instant(raw.approvedAt);
+  const assignedAtTime = raw.assignedAt === null ? null : instant(raw.assignedAt);
+  const executedAtTime = raw.executedAt === null ? null : instant(raw.executedAt);
+  const measurementRaw = record(raw.measuredOutcome);
+  const measuredAtTime = measuredOutcome && measurementRaw ? instant(measurementRaw.measuredAt) : null;
+  const requiresApproval = ["APPROVED", "ASSIGNED", "EXECUTING", "EXECUTED", "MEASURED"].includes(state);
+  const requiresAssignment = ["ASSIGNED", "EXECUTING", "EXECUTED", "MEASURED"].includes(state);
+  const requiresExecution = ["EXECUTED", "MEASURED"].includes(state);
+  if (
+    requiresApproval !== (approvedAtTime !== null) ||
+    requiresAssignment !== (assignedAtTime !== null) ||
+    requiresExecution !== (executedAtTime !== null) ||
+    (approvedAtTime !== null && (approvedAtTime < createdAtTime || approvedAtTime > updatedAtTime)) ||
+    (assignedAtTime !== null && (approvedAtTime === null || assignedAtTime < approvedAtTime || assignedAtTime > updatedAtTime)) ||
+    (executedAtTime !== null && (assignedAtTime === null || executedAtTime < assignedAtTime || executedAtTime > updatedAtTime)) ||
+    (measuredOutcome !== null && (executedAtTime === null || measuredAtTime === null ||
+      measuredAtTime < executedAtTime || measuredAtTime > updatedAtTime))
+  ) return null;
+
   const history: DecisionOutcomeEventView[] = [];
   const eventIds = new Set<string>();
-  let priorAt = Date.parse(raw.createdAt);
+  let priorAt = createdAtTime;
   for (let index = 0; index < raw.history.length; index += 1) {
     const event = record(raw.history[index]);
     const actor = record(event?.actor);
     const expectedVersion = index + 1;
+    const eventAtTime = instant(event?.at);
     if (
       !event || !actor ||
       !str(event.id, 100) || eventIds.has(event.id) ||
       typeof event.type !== "string" || !Object.prototype.hasOwnProperty.call(eventStateByType, event.type) ||
       event.version !== expectedVersion ||
-      !iso(event.at) ||
-      Date.parse(event.at) < priorAt ||
-      Date.parse(event.at) > Date.parse(raw.updatedAt) ||
+      eventAtTime === null ||
+      eventAtTime < priorAt ||
+      eventAtTime > updatedAtTime ||
       !str(actor.id, 80) || !UUID.test(actor.id) ||
       !str(actor.role, 100) ||
       (event.reason !== null && !str(event.reason, 2000))
     ) return null;
     eventIds.add(event.id);
-    priorAt = Date.parse(event.at);
+    priorAt = eventAtTime;
     history.push({
       id: event.id,
       type: event.type,
       version: expectedVersion,
-      at: event.at,
+      at: event.at as string,
       actorRole: actor.role,
       reason: event.reason,
     });
@@ -265,7 +311,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     (raw.state === "MEASURED" && (!raw.executedAt || !raw.assignedAt || !raw.approvedAt)) ||
     (["ASSIGNED", "EXECUTING", "EXECUTED"].includes(String(raw.state)) && (!raw.approvedAt || !raw.assignedAt)) ||
     (raw.state === "EXECUTED" && !raw.executedAt) ||
-    (measuredOutcome && Date.parse(measuredOutcome.asOf) > Date.parse(raw.updatedAt))
+    (measuredOutcome && instant(measuredOutcome.asOf)! > updatedAtTime)
   ) return null;
 
   return {
@@ -279,8 +325,8 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     ownerLabel: owner.label,
     expectedOutcome: raw.expectedOutcome,
     reason: typeof raw.reason === "string" ? raw.reason : null,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
+    createdAt: raw.createdAt as string,
+    updatedAt: raw.updatedAt as string,
     approvedAt: raw.approvedAt,
     assignedAt: raw.assignedAt,
     executedAt: raw.executedAt,
