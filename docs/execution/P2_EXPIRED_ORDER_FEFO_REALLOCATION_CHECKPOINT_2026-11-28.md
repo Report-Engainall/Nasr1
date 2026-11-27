@@ -13,6 +13,7 @@ The existing receipt → FEFO reserve → sale pipeline excluded already-expired
 ## Delivered function and transaction changes
 
 - Added manager/admin-only RPC `reallocate_expired_order_reservations(uuid,text,text)`.
+- Added manager/admin-only paginated RPC `list_orders_with_expired_fefo_reservations(integer,integer)` for the warehouse work queue. It returns only confirmed/processing orders with positive net expired reservations, safe order/product/warehouse/batch fields, whether batch reserved quantity reconciles, and current non-expired replacement availability. Total, page rows and `has_more` come from one materialized statement snapshot.
 - The RPC derives tenant and actor from the authenticated active profile; it never accepts a caller-supplied organization ID.
 - It validates the order remains `confirmed` / `processing` and has no sale movement, takes the order row lock, shares the same product reservation advisory lock as `reserve_order_inventory()`, and locks same-tenant balances and lot rows in deterministic order.
 - It calculates outstanding reservation per batch from immutable movement evidence: `reserve - release_reservation`. Only expired batches with a positive outstanding reservation are moved.
@@ -26,6 +27,7 @@ The existing receipt → FEFO reserve → sale pipeline excluded already-expired
 
 The existing CI-wired `scripts/test-inventory-batch-fefo.mjs` now covers:
 - A confirmed/processing order reserved on a previously valid lot whose expiry later passes.
+- The manager work queue returns the order and exact expired lot before reallocation, exposes in-date replacement availability, validates pagination and removes the order from the queue after successful reallocation. Customer-role access to the work queue is denied.
 - Shipment denial and unchanged order status while the reservation is expired.
 - Manager reallocation into a new, earlier-valid FEFO lot.
 - Exact retry replay, conflicting idempotency payload rejection, and explicit zero-work response when no expired reservation remains.
