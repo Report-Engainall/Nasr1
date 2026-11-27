@@ -37,12 +37,15 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 - The dedicated P2 workflow invokes `node scripts/test-customer-financial-source-routing.mjs` after isolated local seeding.
 
 ## Exact-SHA status
-- Exact code/test head: `181acdf7410f4b57557b2f2b7a2afa5b3d2b1458`.
+- Exact code/test head after the latest payment-boundary update: `968c16ad32c4cba61f63488e3bfa1e73cbfd4fcb`.
 - The former compound reconciliation-validation expression has been replaced in the current branch history by ordered envelope checks, currency-key coverage checks, a bounded per-currency loop, decimal validation before numeric casts, and exact numeric equality for matched results. Evidence hash replay still compares the full balance payload and metadata.
 - The existing invoice security is retained: boolean-only customer_app_only_invoice_read_allowed, restrictive RLS on invoice headers/items, and a source-binding FOR SHARE lock in get_customer_invoice_pdf; no duplicate invoice service was introduced.
 - This execution additionally source-binds the existing customer receipt paths: receipt list count/page only include active APP_ONLY bindings; a boolean-only customer_app_only_receipt_read_allowed protects direct table RLS; the existing print-data RPC is VOLATILE and takes FOR SHARE on the source binding before returning the saved receipt/allocation snapshot.
+- Direct invoice list access is covered by the invoice-header restrictive RLS policy; invoice detail and `/api/invoice-pdf/$invoiceId` both call the same customer-bound `get_customer_invoice_pdf` RPC, which checks APP_ONLY and locks the binding. The route does not use a service-role bypass.
+- Direct `customer_payments` table SELECT is already revoked by the established financial-column privacy migration. This update explicitly enables RLS and adds a restrictive staff/source policy as defense-in-depth, preserving the existing `is_staff` + active-organization boundary. The P2 test checks the policy catalog and the boolean helper; it no longer assumes a SELECT grant that the product intentionally does not provide.
 - The P2 acceptance script now creates a real two-invoice receipt through record_customer_payment_allocation, proves it appears and prints under APP_ONLY, is hidden/denied after ONYX and MUTAKAMEL cutovers, and becomes printable again only after the approved APP_ONLY return. Statement-summary comparison is taken after the fixture receipt is posted.
-- Exact-head workflows for 181acdf7410f4b57557b2f2b7a2afa5b3d2b1458: PG17 run 46075109090 QUEUED; P2 critical paths 46075109143 QUEUED; P1 admin context verification 46075109144 QUEUED. No PASS is claimed yet.
+- The same acceptance verifies the direct staff payment RLS is enabled and RESTRICTIVE; `staff_customer_app_only_payment_read_allowed` returns true for manager + APP_ONLY and false after ONYX/MUTAKAMEL, then true only after the approved return cutover. Direct table SELECT is not granted, so the test does not simulate a nonexistent permission.
+- Earlier exact-head workflows for `181acdf7410f4b57557b2f2b7a2afa5b3d2b1458` and `1be809556e1e4a50b48f6869236a6783935c1ebd` were queued/in progress and are superseded by the latest migration/test edits. No PASS is transferred. CI for the current code/test head `968c16ad32c4cba61f63488e3bfa1e73cbfd4fcb` has not yet surfaced in the GitHub run listing; require a new exact-head PG17/P2/P1 result.
 - Earlier failed PG17 run 46072628890 on superseded head e378f4d3e3a08db8d57669f029a037040c5a1494 is retained as the original syntax-failure evidence only; do not reuse its result for the repaired head.
 - Hosted customer/order/tenant E2E remains outside this local P2 proof; if SKIPPED it is not PASS.
 
@@ -59,7 +62,7 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 - Release remains NO-GO until the complete business path, authorized external transport, required security/finance/inventory gates, post-merge checks and runtime verification are proven.
 
 ## Immediate next action
-Fetch the exact-head workflow runs for 181acdf7410f4b57557b2f2b7a2afa5b3d2b1458; treat every queued, running or skipped job as non-success. Require isolated PostgreSQL 17 migration plus Customer financial source routing PostgreSQL 17 acceptance PASS, P2 critical paths, P1/admin verification, public Chromium and infrastructure checks. Fix only failures reproduced on the current head; after any migration/test change, rerun acceptance on the resulting exact SHA. P1 owns final integration and merge; P2 must not merge or deploy.
+Fetch the exact-head workflow runs for `968c16ad32c4cba61f63488e3bfa1e73cbfd4fcb`; treat every queued, running or skipped job as non-success. Require isolated PostgreSQL 17 migration plus Customer financial source routing PostgreSQL 17 acceptance PASS, P2 critical paths, P1/admin verification, public Chromium and infrastructure checks. Fix only failures reproduced on the current head; after any migration/test change, rerun acceptance on the resulting exact SHA. P1 owns final integration and merge; P2 must not merge or deploy.
 
 ## Latest result-first execution — 2026-11-28
 
@@ -68,3 +71,11 @@ Fetch the exact-head workflow runs for 181acdf7410f4b57557b2f2b7a2afa5b3d2b1458;
 - Receipt test uses a persisted two-invoice receipt and the existing allocation RPC. It verifies the saved receipt identity and allocation count; it does not fabricate balances or mutate a live environment.
 - Commits in this execution: migration/source reader 654452cc60bda041f678c1f034bd98385ffd60b9; matching exact-source acceptance 181acdf7410f4b57557b2f2b7a2afa5b3d2b1458.
 - All test claims remain pending until the three exact-head workflow runs above finish. No production Supabase write, remote migration, live ERP request, deployment, or paid service was used.
+
+## Direct payment ledger source guard — 2026-11-28
+
+- Migration commit `6fb60dbfd1af0bee98aa4ca03fd1d4aaeea6ff2e`: explicitly enables RLS on `public.customer_payments`, adds the boolean-only `staff_customer_app_only_payment_read_allowed(customer_id, organization_id)` helper, and adds the RESTRICTIVE SELECT policy without widening existing grants or roles.
+- Acceptance commit `968c16ad32c4cba61f63488e3bfa1e73cbfd4fcb`: verifies the policy is installed and restrictive, table RLS is enabled, helper returns true only for the manager in the active organization while APP_ONLY, returns false after ONYX and MUTAKAMEL, and returns true after the approved APP_ONLY return.
+- Direct payment SELECT remains intentionally ungranted; the test no longer tries to read the table directly. This protects the explicit RPC-only financial data boundary.
+- The last observed workflow batch was triggered on the prior head `1be809556e1e4a50b48f6869236a6783935c1ebd`: PG17 `46075568672`, P2 `46075568878`, P1 `46075568686`; all were queued at last read and are not evidence for the newer SHA. Exact-head run listing for `968c16a` was empty at checkpoint time.
+- No production write, remote migration, ERP call, deployment, or paid service was used.
