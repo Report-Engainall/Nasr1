@@ -109,6 +109,10 @@ function metricRead(id: string, index: Map<string, MetricSnapshot[]>):
       Date.parse(metric.lineage.calculatedAt) > Date.parse(metric.asOf)) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
+  // Demand inputs must be measured quantities and sample counts; numeric-looking TEXT is not evidence.
+  if (metric.unit !== "QUANTITY" && metric.unit !== "COUNT") {
+    return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
+  }
   const minorUnits = decimalToMinorUnits(metric.value, 6);
   if (minorUnits === null || minorUnits < 0n) return { read: null, reason: "UNSUPPORTED_PRECISION" };
   return { read: { metric, minorUnits }, reason: null };
