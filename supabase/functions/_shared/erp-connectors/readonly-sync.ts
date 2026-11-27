@@ -823,7 +823,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
         cleanup();
         throw new ErpConnectorError("ERP_PERMISSION_DENIED", "حساب الربط لا يملك صلاحية قراءة الكائن المطلوب.", { httpStatus: 403 });
       }
-      if (response.status === 429 || [500, 502, 503, 504].includes(response.status)) {
+      if ([408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
         const retryAfter = parseRetryAfter(response.headers.get("retry-after"), this.now(), this.maxRetryDelayMs);
         await response.body?.cancel().catch(() => undefined);
         cleanup();
