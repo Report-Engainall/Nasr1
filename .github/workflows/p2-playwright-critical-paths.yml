@@ -37,6 +37,7 @@ on:
       - "scripts/test-storefront-product-questions.mjs"
       - "scripts/test-ai-prompt-governance.mjs"
       - "scripts/test-customer-receivable-aging-identity.mjs"
+      - "scripts/test-customer-financial-source-routing.mjs"
       - "scripts/test-inventory-adjustment-v2-authorization.mjs"
       - "scripts/test-decision-outcome-snapshot-required.mjs"
       - "scripts/test-task-quality-review-authorization.mjs"
@@ -415,7 +416,6 @@ jobs:
 
   browser-local-tenant-paths:
     name: Playwright local Supabase order persistence and tenant isolation
-    needs: [public-ui-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -611,6 +611,8 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test APP_ONLY, ONYX and MUTAKAMEL customer financial source cutovers, Maker/Checker and no-ledger-fallback on PostgreSQL 17
+        run: node scripts/test-customer-financial-source-routing.mjs
       - name: Test tenant-safe claim evidence raw drill-down on local PostgreSQL 17
         run: node scripts/test-claim-evidence-drilldown.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
