@@ -127,6 +127,65 @@ function baseline() {
   return { customers, sales };
 }
 
+describe("customer retention report clock integrity", () => {
+  it.each([
+    "2026-11-26T00:00:00",
+    "2026-02-31T00:00:00.000Z",
+    "2026-11-26T25:00:00.000Z",
+  ])("rejects an invalid report asOf timestamp: %s", (invalidAsOf) => {
+    const input = {
+      id: "invalid-retention-clock",
+      asOf,
+      period: currentPeriod,
+      previousPeriod,
+      evidenceRecords: [],
+      coverage: {
+        status: "VERIFIED" as const,
+        completeness: "COMPLETE" as const,
+        quality: "ACCEPTABLE" as const,
+        expectedCustomerCount: 0,
+        returnedCustomerCount: 0,
+        expectedSalesRecordCount: 0,
+        returnedSalesRecordCount: 0,
+        truncated: false,
+        evidenceIds: ["coverage:customers"],
+      },
+      customers: [],
+      salesByCurrency: [],
+    };
+    expect(() => buildCustomerRetentionReport({ ...input, asOf: invalidAsOf }))
+      .toThrow("asOf must be a valid timezone-qualified timestamp");
+  });
+
+  it.each([
+    ["timezone-less coverage evidence", "2026-11-25T23:50:00"],
+    ["impossible coverage evidence date", "2026-02-31T23:50:00.000Z"],
+  ])("withholds full-population conclusions for %s", (_label, sourceTimestamp) => {
+    const { customers, sales } = baseline();
+    const metrics = [
+      ...customers.flatMap(item => [item.ordersCurrentPeriod, item.ordersPreviousPeriod]),
+      ...sales.map(item => item.sales),
+    ];
+    const coverageEvidence: EvidenceRecord = {
+      id: "coverage:customers",
+      source: { kind: "RPC", name: "test.customer_retention.coverage", version: "1.0.0" },
+      sourceTimestamp,
+      asOf,
+      period: currentPeriod,
+      status: "VERIFIED",
+      completeness: "COMPLETE",
+      quality: "ACCEPTABLE",
+      warnings: [],
+    };
+    const result = build(customers, sales, {
+      evidenceRecords: [coverageEvidence, ...metrics.map(evidence)],
+    });
+    expect(result.status).toBe("NEEDS_REVIEW");
+    expect(result.population.total).toBeNull();
+    expect(result.warnings).toContain("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
+  });
+});
+
 describe("customer retention intelligence", () => {
   it("calculates unique cohorts, repeat purchase and activity bands from verified records", () => {
     const { customers, sales } = baseline();
