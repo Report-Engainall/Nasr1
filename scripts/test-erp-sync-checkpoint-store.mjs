@@ -557,8 +557,48 @@ async function main() {
     }),
     "22023",
   );
+  await expectSql(
+    "financial invoice rejects null document status",
+    () => persistPage({
+      ...page({
+        expectedVersion: 1,
+        label: "finance-invoice-null-status",
+        records: [financialRecord("ONYX-INVOICE-NULL-STATUS", timestamp3, {
+          ...invoice.fields,
+          document_number: "INV-NULL-STATUS",
+          document_status: null,
+        })],
+        nextCursor: null,
+        pendingWatermark: null,
+        completedWatermark: timestamp3,
+        completed: true,
+      }),
+      scope: invoiceScope,
+    }),
+    "22023",
+  );
+  await expectSql(
+    "financial invoice rejects impossible calendar dates",
+    () => persistPage({
+      ...page({
+        expectedVersion: 1,
+        label: "finance-invoice-invalid-date",
+        records: [financialRecord("ONYX-INVOICE-INVALID-DATE", timestamp3, {
+          ...invoice.fields,
+          document_number: "INV-INVALID-DATE",
+          issue_date: "2026-02-31",
+        })],
+        nextCursor: null,
+        pendingWatermark: null,
+        completedWatermark: timestamp3,
+        completed: true,
+      }),
+      scope: invoiceScope,
+    }),
+    "22023",
+  );
   assert.equal((await loadCheckpoint(invoiceScope)).version, 1,
-    "invalid financial amount must not advance the invoice checkpoint");
+    "invalid amount, status and date metadata must not advance the invoice checkpoint");
 
   const receiptScope = { ...baseScope, organizationId: financeOrganization, objectType: "customer_payment_receipts" };
   const receipt = financialRecord("ONYX-RECEIPT-1001", timestamp3, {
@@ -609,6 +649,26 @@ async function main() {
     scope: statementScope,
   });
   assert.equal(statementSaved.counts.created, 1);
+  await expectSql(
+    "financial statement entry rejects an impossible calendar date",
+    () => persistPage({
+      ...page({
+        expectedVersion: 1,
+        label: "finance-statement-invalid-date",
+        records: [financialRecord("ONYX-ENTRY-INVALID-DATE", timestamp3, {
+          ...statementEntry.fields,
+          entry_reference: "ENTRY-INVALID-DATE",
+          entry_date: "2026-13-40",
+        })],
+        nextCursor: null,
+        pendingWatermark: null,
+        completedWatermark: timestamp3,
+        completed: true,
+      }),
+      scope: statementScope,
+    }),
+    "22023",
+  );
 
   const dualSidedEntry = financialRecord("ONYX-ENTRY-DUAL-SIDED", timestamp3, {
     ...statementEntry.fields,
