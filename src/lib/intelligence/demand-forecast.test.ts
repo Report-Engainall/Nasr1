@@ -253,3 +253,38 @@ describe("evidence-backed product demand forecast", () => {
     expect(result.withheld).toMatchObject([{ reason: "METRIC_NOT_VERIFIED" }]);
   });
 });
+
+describe("demand forecast ISO timestamp offset contract", () => {
+  function resultAt(timestamp: string) {
+    return buildProductDemandForecast({
+      id: "timestamp-offset-boundary",
+      asOf: timestamp,
+      period: currentPeriod,
+      baselinePeriod,
+      completePopulation: true,
+      evidenceRecords: [],
+      metrics: [],
+      signals: [],
+    });
+  }
+
+  for (const timestamp of [
+    "2026-11-26T16:45:47.000+14:00",
+    "2026-11-26T02:45:47.000-14:00",
+  ]) {
+    it("accepts the ISO maximum UTC offset " + timestamp.slice(-6), () => {
+      expect(resultAt(timestamp).asOf).toBe(timestamp);
+    });
+  }
+
+  for (const timestamp of [
+    "2026-11-26T16:45:47.000+14:01",
+    "2026-11-26T02:45:47.000-14:01",
+    "2026-11-26T16:45:47.000+15:00",
+    "2026-11-26T02:45:47.000-23:59",
+  ]) {
+    it("rejects an ISO UTC offset beyond 14 hours: " + timestamp.slice(-6), () => {
+      expect(() => resultAt(timestamp)).toThrow("demand_forecast_id_or_timestamp_invalid");
+    });
+  }
+});
