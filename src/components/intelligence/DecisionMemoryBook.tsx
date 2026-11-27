@@ -326,6 +326,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [precedentQuery,setPrecedentQuery]=useState("");
   const [recordPage,setRecordPage]=useState(0);
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
+  const [learningTotal,setLearningTotal]=useState(0);
+  const [learningOffset,setLearningOffset]=useState(0);
   const [learningLoading,setLearningLoading]=useState(true);
   const [learningLoadError,setLearningLoadError]=useState("");
   const [learningBusy,setLearningBusy]=useState("");
@@ -339,24 +341,35 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   useEffect(()=>{
     let active=true;
     setLearningLoading(true);
-    void fetchDecisionPolicyLearningCandidates(50,0).then(response=>{
+    void fetchDecisionPolicyLearningCandidates(50,learningOffset).then(response=>{
       if(!active)return;
       if(response.ok){
+        const lastPageOffset=Math.max(0,Math.floor(Math.max(response.total-1,0)/50)*50);
+        if(learningOffset>lastPageOffset){
+          setLearningOffset(lastPageOffset);
+          setLearningCandidates([]);
+          setLearningTotal(response.total);
+          setLearningLoading(false);
+          return;
+        }
         setLearningCandidates(response.items);
+        setLearningTotal(response.total);
         setLearningLoadError("");
       }else{
         setLearningCandidates([]);
+        setLearningTotal(0);
         setLearningLoadError(response.message);
       }
       setLearningLoading(false);
     }).catch(()=>{
       if(!active)return;
       setLearningCandidates([]);
+      setLearningTotal(0);
       setLearningLoadError("تعذر تحميل المرشحات المحفوظة.");
       setLearningLoading(false);
     });
     return ()=>{active=false;};
-  },[learningRefreshKey]);
+  },[learningRefreshKey,learningOffset]);
 
   async function createLearningCandidate(suggestion:ReturnType<typeof buildDecisionPolicyReviewSuggestions>[number]){
     const eligible=result?.status==="VERIFIED"&&result.loadedCount===result.totalCount&&
@@ -381,10 +394,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         return;
       }
       setLearningCreateKeys(current=>{const next={...current};delete next[suggestion.id];return next;});
-      setLearningCandidates(current=>[
-        response.candidate,
-        ...current.filter(candidate=>candidate.id!==response.candidate.id),
-      ]);
+      setLearningOffset(0);
+      setLearningRefreshKey(current=>current+1);
       setLearningActionMessage(response.duplicate
         ?"هذا المصدر مرتبط مسبقاً بالمرشح المحفوظ؛ لم يُنشأ إصدار مكرر."
         :"حُفظ مرشح جديد من الأدلة المصدرية، وأصبح في انتظار الإرسال للمراجعة.");
@@ -425,6 +436,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       setLearningCommandKeys(current=>{const next={...current};delete next[commandKey];return next;});
       setLearningCandidates(current=>current.map(item=>item.id===response.candidate.id?response.candidate:item));
       setLearningReason(current=>({...current,[candidate.id]:""}));
+      setLearningRefreshKey(current=>current+1);
       setLearningActionMessage(eventType==="SUBMIT_FOR_REVIEW"
         ?"أُرسل المرشح للمراجعة المستقلة."
         :eventType==="APPROVE"
@@ -520,6 +532,27 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           <p role="alert" className="text-xs text-destructive">{learningLoadError}</p>
           <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""} onClick={()=>setLearningRefreshKey(value=>value+1)}>إعادة تحميل المرشحات</button>
         </div>:null}
+        {learningTotal>50?(
+          <nav className="flex flex-wrap items-center justify-between gap-2 text-xs" aria-label="صفحات مرشحات التعلم">
+            <span role="status" aria-live="polite">
+              عرض {learningTotal===0?0:learningOffset+1}–{Math.min(learningOffset+learningCandidates.length,learningTotal)} من {learningTotal} مرشحاً · الصفحة {Math.floor(learningOffset/50)+1} من {Math.max(1,Math.ceil(learningTotal/50))}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1.5"
+                disabled={learningLoading||learningBusy!==""||learningOffset===0}
+                onClick={()=>setLearningOffset(value=>Math.max(0,value-50))}
+              >السابق</button>
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1.5"
+                disabled={learningLoading||learningBusy!==""||learningOffset+50>=learningTotal}
+                onClick={()=>setLearningOffset(value=>Math.min(5000,value+50))}
+              >التالي</button>
+            </div>
+          </nav>
+        ):null}
         {learningCandidates.map(candidate=>{
           const snapshot=candidate.candidateSnapshot;
           const context=snapshot.metricContext as {metricKey?:string;unit?:string;currency?:string|null;period?:{from?:string;to?:string};formulaId?:string;formulaVersion?:string}|undefined;

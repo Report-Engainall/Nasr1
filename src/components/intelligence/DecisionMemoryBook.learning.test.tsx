@@ -191,6 +191,27 @@ describe("DecisionMemoryBook outcome learning controls", () => {
     commandCandidate.mockReset();
   });
 
+  it("loads saved learning candidates from the server in pages and preserves the real total", async () => {
+    const firstPage = makeCandidate("DRAFT", 1);
+    const secondPage = { ...makeCandidate("IN_REVIEW", 2), id: "77777777-7777-4777-8777-777777777777" };
+    fetchCandidates
+      .mockResolvedValueOnce({ ok: true, items: [firstPage], total: 51 })
+      .mockResolvedValueOnce({ ok: true, items: [secondPage], total: 51 })
+      .mockResolvedValueOnce({ ok: true, items: [firstPage], total: 51 });
+    render(<DecisionMemoryBook result={emptyCompleteResult} />);
+
+    expect(await screen.findByText("مسودة محفوظة")).toBeInTheDocument();
+    expect(screen.getByText("عرض 1–1 من 51 مرشحاً · الصفحة 1 من 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
+    expect(await screen.findByText("قيد المراجعة المستقلة")).toBeInTheDocument();
+    expect(fetchCandidates).toHaveBeenNthCalledWith(2, 50, 50);
+    expect(screen.getByText("عرض 51–51 من 51 مرشحاً · الصفحة 2 من 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "السابق" }));
+    expect(await screen.findByText("مسودة محفوظة")).toBeInTheDocument();
+    expect(fetchCandidates).toHaveBeenNthCalledWith(3, 50, 0);
+  });
+
   it("creates a server-owned Candidate v2 from the complete suggestion source IDs", async () => {
     createCandidate.mockResolvedValue({ ok: true, duplicate: false, candidate: makeCandidate() });
     render(<DecisionMemoryBook result={emptyCompleteResult} />);
