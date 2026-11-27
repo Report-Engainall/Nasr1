@@ -139,3 +139,10 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Public read-only Storefront Chromium smoke passed on the same SHA. Authenticated local E2E stopped at the failed finance test; remaining dependent steps were skipped. Exact-head P1 admin verification was queued when inspected.
 - No production/hosted database, remote migration, ERP call, deployment, paid service or secret was used.
 - Required next gate: rerun the isolated PostgreSQL 17 migration + source-routing test and all relevant P2/P1 exact-head checks on the new commit. Do not transfer the old run's partial results to it.
+
+## 2026-11-28 — New customer source binding trigger acceptance
+
+- Added a disposable customer-create regression inside the existing financial-source PostgreSQL 17 acceptance. A newly inserted approved customer with no linked profile must receive exactly one `APP_ONLY` / `active` / revision `1` binding from the existing `AFTER INSERT` trigger.
+- The test also proves no ERP external reference, source watermark, sync timestamp, evidence hash, verification timestamp, invoice or payment receipt is synthesized for the new customer.
+- The new-customer and source-binding rows are created inside a transaction intentionally rolled back after assertions; the test verifies neither row remains afterward.
+- No migration, production RPC, customer business data, account balance or ledger write was changed. Exact-head PostgreSQL 17 acceptance remains required.

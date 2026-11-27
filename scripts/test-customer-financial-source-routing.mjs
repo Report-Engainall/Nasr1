@@ -126,6 +126,89 @@ async function main() {
   const foreignCustomerId = foreignCustomers[0].id;
   const orgId = customerProfile.organization_id;
 
+  // New customers must receive exactly one server-created APP_ONLY binding in the
+  // same transaction as the customer row. Keep this fixture in a rollback so the
+  // acceptance run leaves no customer or finance-source residue.
+  const newCustomerFixtureCode = "FSN-" + randomUUID().slice(0, 12).toUpperCase();
+  const newCustomerFixtureIdempotencyMarker = "ROLLBACK_FINANCIAL_SOURCE_NEW_CUSTOMER_FIXTURE";
+  let newCustomerFixtureRolledBack = false;
+  try {
+    await db.begin(async tx => {
+      const insertedCustomer = await tx.unsafe(
+        "insert into public.customers(" +
+          "organization_id,profile_id,customer_code,business_name,contact_name,phone,email," +
+          "tier,credit_limit,current_balance,status,approved_at" +
+        ") values($1::uuid,NULL,$2::text,$3::text,$4::text,$5::text,$6::text," +
+          "'retail',0,0,'approved',statement_timestamp()) returning id::text",
+        [
+          orgId,
+          newCustomerFixtureCode,
+          "Financial Source Trigger Acceptance",
+          "Financial Source Trigger Acceptance",
+          "77" + randomUUID().replace(/-/g, "").slice(0, 7),
+          "financial-source-trigger-" + randomUUID() + "@example.invalid",
+        ],
+      );
+      assert.equal(insertedCustomer.length, 1,
+        "a newly inserted approved customer fixture must persist inside the transaction");
+      const insertedId = insertedCustomer[0].id;
+      const bindings = await tx.unsafe(
+        "select source_mode,source_status,revision,external_account_ref,source_as_of," +
+          "last_synced_at,source_evidence_sha256,verified_at " +
+        "from public.customer_financial_source_bindings " +
+        "where organization_id=$1::uuid and customer_id=$2::uuid",
+        [orgId, insertedId],
+      );
+      assert.equal(bindings.length, 1,
+        "customer AFTER INSERT trigger must create exactly one financial-source binding");
+      assert.equal(bindings[0].source_mode, "APP_ONLY");
+      assert.equal(bindings[0].source_status, "active");
+      assert.equal(bindings[0].revision, 1);
+      assert.equal(bindings[0].external_account_ref, null);
+      assert.equal(bindings[0].source_as_of, null);
+      assert.equal(bindings[0].last_synced_at, null);
+      assert.equal(bindings[0].source_evidence_sha256, null);
+      assert.equal(bindings[0].verified_at, null);
+      const invoiceCount = await tx.unsafe(
+        "select count(*)::integer as count from public.customer_invoices " +
+        "where organization_id=$1::uuid and customer_id=$2::uuid",
+        [orgId, insertedId],
+      );
+      const receiptCount = await tx.unsafe(
+        "select count(*)::integer as count from public.customer_payment_receipts " +
+        "where organization_id=$1::uuid and customer_id=$2::uuid",
+        [orgId, insertedId],
+      );
+      assert.equal(invoiceCount[0].count, 0,
+        "new-customer source trigger must not synthesize an opening invoice");
+      assert.equal(receiptCount[0].count, 0,
+        "new-customer source trigger must not synthesize a payment receipt");
+      throw new Error(newCustomerFixtureIdempotencyMarker);
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== newCustomerFixtureIdempotencyMarker) throw error;
+    newCustomerFixtureRolledBack = true;
+  }
+  assert.equal(newCustomerFixtureRolledBack, true,
+    "new-customer financial-source trigger fixture must roll back after assertions");
+  const [rolledBackCustomer, rolledBackBinding] = await Promise.all([
+    db.unsafe(
+      "select count(*)::integer as count from public.customers " +
+      "where organization_id=$1::uuid and customer_code=$2::text",
+      [orgId, newCustomerFixtureCode],
+    ),
+    db.unsafe(
+      "select count(*)::integer as count from public.customer_financial_source_bindings b " +
+      "join public.customers c on c.id=b.customer_id and c.organization_id=b.organization_id " +
+      "where c.organization_id=$1::uuid and c.customer_code=$2::text",
+      [orgId, newCustomerFixtureCode],
+    ),
+  ]);
+  assert.equal(rolledBackCustomer[0].count, 0,
+    "rolled-back new customer must leave no customer row");
+  assert.equal(rolledBackBinding[0].count, 0,
+    "rolled-back new customer must leave no source binding");
+
   await Promise.all([
     setIdentity(customerDb, customerProfile.auth_user_id, customerProfile.email),
     setIdentity(foreignCustomerDb, foreignProfile.auth_user_id, foreignProfile.email),
