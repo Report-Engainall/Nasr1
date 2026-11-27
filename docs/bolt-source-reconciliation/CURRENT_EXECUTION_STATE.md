@@ -1,52 +1,53 @@
 # LIVE EXECUTION RESUME — 2026-11-27
 
-> Sole live execution pointer. Continue from the first next action below. Historical checkpoints after the marker are preserved verbatim for evidence only; do not resume from them.
+> Sole live execution pointer. Read this block first on the next session. Historical checkpoints after the separator are evidence only; do not resume from them unless the live actions below direct you there.
 
-- Repository: `Report-Engainall/Nasr1`; only truth branch: `main`.
-- Current `main` SHA: `90597e5ba0071bc82cdde14174035b49f3399b51`.
-- Latest accepted feature integrations:
-  - P3 PR #624 merged as `68148f4ded83ed16bdf7a42dda5fad619c7e76b5` — seven Onyx test callbacks corrected to satisfy the reader's void callback contract. Test-only; no workbook or accounting behavior was changed.
-  - P1 PR #625 merged squash as `90597e5ba0071bc82cdde14174035b49f3399b51` — task-quality review centre now recovers from unexpected metric-read exceptions, retains last known good metrics, exposes retry, and ignores stale responses. Focused loading/error/retry/concurrency tests added; P1 verification path filters updated.
-- Ownership: P1 product/UI and sole merger; P2 database/RPC/RLS/transactions/inventory/finance/storage contracts; P3 deterministic intelligence and AI engines.
-- No hosted/production Supabase mutation, production Storage write, deployment, Bolt/Lovable/Vercel action, or paid AI call was performed.
+- Repository: `Report-Engainall/Nasr1`; sole source of truth: `main`.
+- Latest observed `main` before this P3 slice: `d7da98a0a11872c8c263c4dbf26dba258637d95e` (2026-11-27).
+- Active P3 delivery: [PR #643 — reject text metrics from numeric anomaly comparisons](https://github.com/Report-Engainall/Nasr1/pull/643).
+  - Branch: `p3/anomaly-reject-text-metric-20261127`.
+  - Latest code head at cursor update: `c727aaa77df2dd8e940d8eea2f2095896fd64e16`.
+  - Changed application files: `src/lib/intelligence/anomaly-detection.ts` and `src/lib/intelligence/anomaly-detection.test.ts`; this cursor file is the third PR file.
+  - Confirmed defect: numeric-looking values from `TEXT` metrics could pass the anomaly engine's decimal parser and be emitted as numeric anomalies.
+  - Fix: permit only `COUNT`, `RATIO`, `CURRENCY`, `CURRENCY_PER_UNIT`, `QUANTITY`, and `DAYS` in numeric anomaly comparison; withhold `TEXT` as `METRIC_SCOPE_MISMATCH`.
+  - Regression: an end-to-end paired-period fixture with `TEXT` values `125.00` and `100.00` must emit no anomaly, create one withheld item, and set result to `NEEDS_REVIEW`.
+  - P1 workflow path filters already include both source and test files; no CI workflow edit or dependency addition was needed.
+  - Exact-head GitHub Actions workflow runs and combined statuses were empty at the last check. **Acceptance is pending, not PASS.** Do not transfer test results from another SHA.
+- P3 delivery discipline: P1 owns product/UI and final merge authority; P2 owns database/RPC/RLS/transactions/finance/storage; P3 owns deterministic intelligence and AI engines. Do not merge PR #643 directly.
+- Parallel work already visible on GitHub (do not duplicate): #641 supplier-invoice PostgreSQL acceptance (P2), #642 inventory-transfer history UI (P1), #631 incomplete-currency cashflow visibility, #634 dead-stock calculation clock, #636 replenishment source reconciliation, #637 daily decision/customer-retention integration, and #639 supplier delivery measurement reconciliation. Recheck each exact head and CI before acting. PR #620 is already fully behind `main`; #622 is heavily diverged and not a safe merge candidate.
+- Release boundary remains **NO-GO** until the required hosted authenticated customer/order/tenant proof and deployed runtime/database identity are actually established. Local CI or public read-only browser smoke is not hosted production acceptance. Never infer hosted PASS from SKIPPED.
 
-## Accepted execution — PR #624
+## Open-source reuse register — checked 2026-11-27
 
-- P3 Onyx test callback repair accepted on `main` at `68148f4ded83ed16bdf7a42dda5fad619c7e76b5`.
-- Exact-head P1 checks passed; full P2 local acceptance run `45912063978` completed successfully.
-- The local suite used disposable Supabase/PostgreSQL 17 and verified migrations, tenant/role boundaries, idempotent decisions, inventory/FEFO, finance and supplier operations, storefront reviews/questions, Storage constraints, and Chromium order/return/export/print paths.
-- No hosted Supabase or production data acceptance is inferred from the local suite.
+First read this register at the start of a new session. Spend no more than five minutes on new discovery; repeat research only when a concrete missing capability, replacement, or upgrade is being considered. Update this register after any new selection so the next session does not restart the same search.
 
-## Accepted execution — PR #625
+| Existing component in Nasr1 | Verified package version in `package.json` | License / upstream | Reuse decision |
+|---|---:|---|---|
+| Recharts | `^2.15.4` | MIT — https://github.com/recharts/recharts/blob/main/LICENSE | Reuse for existing React analytics charts; do not add another chart engine. |
+| TanStack React Query | `^5.101.1` | MIT — https://github.com/TanStack/query/blob/main/LICENSE | Reuse for async server-state caching and query lifecycle where already wired; do not create a second data cache. |
+| Radix UI React primitives | Existing `@radix-ui/react-*` packages | MIT — https://github.com/radix-ui/primitives/blob/main/LICENSE | Reuse through existing UI wrappers for accessible dialogs, menus, tabs, selects and other controls; preserve Arabic RTL styling. |
+| TanStack Router / Start | Existing `@tanstack/react-router` and `@tanstack/react-start` packages | MIT — https://github.com/TanStack/router/blob/main/LICENSE and https://github.com/TanStack/start/blob/main/LICENSE | Keep the existing file-based routing/runtime; do not introduce a parallel router or app shell. |
 
-- PR #625: https://github.com/Report-Engainall/Nasr1/pull/625
-- Exact tested PR head: `99748365c261e6d6490dfbe8a535101a9df43e9d`; merged squash SHA: `90597e5ba0071bc82cdde14174035b49f3399b51`.
-- Final application diff contained exactly three files: `TaskQualityReviewCenter.tsx`, its focused test, and the existing P1 workflow path filters.
-- Exact-head P1 run `45913116165`: SUCCESS — Vitest, P1 strict TypeScript, P4 strict TypeScript and production build.
-- Exact-head P2 run `45913116054`: SUCCESS — 67/67 steps completed; zero failures. Local PostgreSQL 17 migration replay, product-image Storage handler against real local Supabase Storage, built app, authenticated Chromium order/tenant denial, checkout replay, return/credit memo, XLSX/Onyx exports, finance/task printing, customer-manager financial privacy/audit, device-session revocation, product price reload, admin access matrix, category/privacy lifecycle and AI prompt governance all passed.
-- P2 public read-only browser smoke and authenticated infrastructure gate: SUCCESS. Hosted authenticated customer/order/tenant job: SKIPPED because external test credentials/backend were not configured. Chromium install was skipped because the pinned browser was already cached; failure diagnostics were skipped because no failure occurred.
-- The P2 local runner stopped the local Supabase/application stack and uploaded its E2E traces/report/server log. The suite wrote only to disposable local fixtures, never the hosted project.
-
-## Remaining release blockers and boundaries
-
-- Release status remains **NO-GO**: the authenticated hosted-backend acceptance was skipped, no actual hosted application database has been identified/verified in this execution, and no deployment/runtime proof was performed.
-- DLV-003 remains open only for the authenticated browser journey through the existing product image UI: primary vs gallery placement, gallery limit, failed-file retry, manager/admin authorization and tenant isolation, with a saved receipt from disposable local Storage. The uploader, exact item-code matching, gallery, lifecycle guards and Storage Edge handler already exist; do not rebuild them. The handler-to-local-Storage acceptance has passed, but it is not proof of the user-facing UI journey or hosted Storage.
-- Task-quality reviews: P1 centre recovery is merged and tested. Migration prerequisites `20261106060000`, `20261106070000`, `20261106080000`, `20261106081000` and `20261106090000_operational_task_quality_reviews.sql` remain unapplied to an approved non-production/hosted target. Manager/admin authorization, cross-tenant denial and raw append-only table restrictions still require database runtime acceptance. Do not expose raw review-event rows.
+- These are already-installed open-source components, not new integrations made by PR #643. Their use avoids unnecessary dependencies and migration risk.
+- No new third-party library was needed for the anomaly fix; the existing `financial-precision.ts`, evidence passport, TypeScript types and Vitest are reused.
+- Do not add accounting, inventory, CRM or a second database from an external ERP. Reuse narrow libraries/components only; keep Supabase, RLS and existing business services authoritative.
+- No paid API, AI provider, Vercel deployment, Bolt or Lovable action is part of this P3 slice.
 
 ## First next actions
 
-1. Add a focused authenticated Chromium acceptance for the existing `BulkProductImageUploader` on the active `/admin/products` workspace. Use the P2 job's disposable local Supabase users/product and actual local Storage API; verify primary/gallery roles, the eight-image gallery limit, retry-only-failed behavior, persisted product reload and no cross-tenant access. Preserve the current uploader/gallery/service; add no parallel storage implementation.
-2. Wire that browser proof into the existing P2 local acceptance workflow without weakening its external-infrastructure gate. Capture exact-SHA evidence and clean up every local object/fixture.
-3. Keep task-quality migration/auth acceptance separate and pending until P2 approves a non-production target and validates the listed migrations/RPC/RLS behavior.
-4. Only after the hosted target is explicitly identified and dedicated test credentials are configured may authenticated hosted acceptance run. Until then, keep hosted E2E SKIPPED and release NO-GO.
+1. Refresh GitHub `main` and PR #643 head; the cursor's SHA is a checkpoint, not permission to assume it stayed current.
+2. Obtain P1 Vitest, P1/P4 strict TypeScript and production-build results on the exact PR #643 head. If GitHub Actions still reports no run, diagnose the repository workflow trigger/path behavior; do not label it PASS.
+3. Ask P1 to review and merge only after exact-head acceptance. Until then PR #643 remains open and unmerged.
+4. Continue the next independent P3 task from the open PR list above only after checking current ownership and exact-head checks. Avoid `IntelligenceWorkspace.tsx`, `daily-decisions.ts`, replenishment, supplier-performance, dead-stock and cashflow files while their active PRs remain unresolved.
+5. Keep the reference cursor current in this file; do not create duplicate status reports or restart open-source research without a concrete integration need.
 
-## Delivery discipline
+## Acceptance wording
 
-- `main` is the only truth branch. P1 alone merges accepted work.
-- Use existing modules and migrations; no parallel accounting, inventory, CRM, storage or AI system.
-- All database acceptance before approved hosted target identity is proven must use disposable local PostgreSQL 17/Supabase.
-- IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
-- Preserve this pointer and the existing acceptance matrix; do not create duplicate status reports or resume files.
+- CONTRACT PASS ≠ BROWSER PASS ≠ RUNTIME PROVEN ≠ PRODUCT COMPLETE.
+- `IN_PROGRESS`, `QUEUED`, `SKIPPED`, `BLOCKED`, unavailable evidence, an empty status list, and a created PR are never PASS.
+- P3 unit/contract tests do not prove authenticated tenant isolation or hosted application behavior.
+- Preserve current code, migration, CI and acceptance evidence; no blind migration batches, production mutations, forced branch updates, or history rewrites.
+
 ---
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
