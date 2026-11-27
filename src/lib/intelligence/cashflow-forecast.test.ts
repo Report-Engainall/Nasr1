@@ -163,3 +163,59 @@ describe("cashflow metric generation clock", () => {
   expect(result.points[0]).toMatchObject({openingBalance:100,projectedBalance:100,status:"VERIFIED"});
  });
 });
+
+describe("cashflow report clock integrity", () => {
+  it.each([
+    ["timezone-less generatedAt", "2026-10-30T07:05:00", "2026-10-30T07:00:00Z"],
+    ["impossible generatedAt date", "2026-02-31T07:05:00.000Z", "2026-02-28T07:00:00.000Z"],
+    ["timezone-less asOf", "2026-10-30T07:05:00Z", "2026-10-30T07:00:00"],
+    ["impossible asOf date", "2026-10-30T07:05:00Z", "2026-02-31T07:00:00.000Z"],
+  ])("rejects %s before evaluating any forecast", (_label, generatedAt, asOf) => {
+    const source = base();
+    source.generatedAt = generatedAt;
+    source.asOf = asOf;
+    expect(() => buildCashflowForecast(source)).toThrow(
+      "generatedAt and asOf must be valid timezone-qualified timestamps",
+    );
+  });
+
+  it("rejects an as-of instant later than report generation", () => {
+    const source = base();
+    source.generatedAt = "2026-10-30T07:05:00.000Z";
+    source.asOf = "2026-10-30T07:06:00.000Z";
+    expect(() => buildCashflowForecast(source)).toThrow(
+      "generatedAt and asOf must be valid timezone-qualified timestamps",
+    );
+  });
+});
+
+describe("cashflow forecast currency visibility under incomplete evidence", () => {
+  it("keeps an unverified currency visible without inventing a balance or movements", () => {
+    const scheduled = entry("needs-review-entry", "INFLOW", "2026-11-01", 20);
+    const incompleteEvidence = {
+      ...evidence("needs-review-entry", "YER"),
+      status: "NEEDS_REVIEW" as const,
+      completeness: "PARTIAL" as const,
+    };
+    const result = buildCashflowForecast({
+      ...base([scheduled]),
+      openingBalances: [],
+      evidenceRecords: [incompleteEvidence],
+    });
+    const points = result.points.filter(point => point.currency === "YER");
+    expect(points.map(point => point.horizonDays)).toEqual([7, 30, 90]);
+    for (const point of points) {
+      expect(point).toMatchObject({
+        currency: "YER",
+        openingBalance: null,
+        knownInflows: null,
+        knownOutflows: null,
+        projectedBalance: null,
+        status: "NEEDS_REVIEW",
+        scheduleComplete: false,
+      });
+      expect(point.warnings).toContain("SCHEDULE_ENTRY_NOT_VERIFIED");
+      expect(point.evidenceIds).toContain("needs-review-entry");
+    }
+  });
+});
