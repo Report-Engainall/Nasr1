@@ -88,3 +88,19 @@ export async function fetchStaffCustomerFinancialSource(customerId: string): Pro
     can_read_app_ledger: canReadAppLedger,
   });
 }
+
+
+/**
+ * Bind one customer ledger response to the same server-selected financial-source
+ * revision that authorized its request. Revisions are monotonic across cutovers.
+ */
+export function isSameCustomerFinancialSourceVersion(
+  expected: CustomerFinancialSource,
+  actual: CustomerFinancialSource,
+): boolean {
+  return expected.revision === actual.revision &&
+    expected.source_mode === actual.source_mode &&
+    expected.source_status === actual.source_status &&
+    expected.is_stale === actual.is_stale &&
+    expected.can_read_app_ledger === actual.can_read_app_ledger;
+}

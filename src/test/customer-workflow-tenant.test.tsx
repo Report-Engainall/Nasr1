@@ -944,6 +944,92 @@ describe("customer quote workspace tenant boundary", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
+
+  it("discards a statement projection when the financial source revision changes during the read", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads === 1
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 7, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 8, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            invoices: [{ id: "11111111-1111-4111-8111-111111111111", invoice_number: "INV-CUTOVER-STALE", order_id: "22222222-2222-4222-8222-222222222222", customer_id: "33333333-3333-4333-8333-333333333333", status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null, currency: "YER" }],
+            payments: [],
+            credits: [],
+            summary: null,
+            summary_as_of_utc: "2026-11-28T00:00:00Z",
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/statement");
+
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_account_statement");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي أثناء إعداد كشف الحساب");
+    expect(host?.textContent).not.toContain("INV-CUTOVER-STALE");
+    expect(host?.querySelector('[aria-label="تنزيل Excel"]')).toBeNull();
+  });
+
+  it("discards a payment history projection when its source revision changes before commit", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads === 1
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 11, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "MUTAKAMEL", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 12, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            invoices: [{ id: "44444444-4444-4444-8444-444444444444", invoice_number: "INV-PAYMENT-CUTOVER", currency: "YER" }],
+            payments: [{ id: "55555555-5555-4555-8555-555555555555", invoice_id: "44444444-4444-4444-8444-444444444444", amount: "75.00", paid_at: "2026-11-27T10:00:00Z" }],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/payments");
+
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_account_statement");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي أثناء تحميل سجل الدفعات");
+    expect(host?.textContent).not.toContain("INV-PAYMENT-CUTOVER");
+    expect(host?.querySelector('[aria-label="ترقيم سندات قبض العميل"]')).toBeNull();
+  });
+
   it("keeps barcode scanning open for multiple products and merges repeat scans by each product's order multiple", async () => {
     mocks.user = {
       id: USER_ID,

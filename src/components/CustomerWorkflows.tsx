@@ -53,7 +53,7 @@ import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintAc
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { CustomerPaymentReceiptSelfServiceActions } from "@/components/CustomerPaymentReceiptSelfServiceActions";
 import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
-import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
+import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
@@ -1142,7 +1142,11 @@ function Statement() {
   const [creditDetailsAvailable, setCreditDetailsAvailable] = useState(false);
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
+  const statementReadSequenceRef = useRef(0);
   const load = useCallback(async () => {
+    const requestId = ++statementReadSequenceRef.current;
+    const isCurrentRequest = () => statementReadSequenceRef.current === requestId;
+    let confirmingSource = false;
     setLoading(true);
     setError("");
     setXlsxError("");
@@ -1158,13 +1162,16 @@ function Statement() {
       let source: CustomerFinancialSource;
       try {
         source = await fetchMyCustomerFinancialSource();
+        if (!isCurrentRequest()) return;
       } catch (cause) {
+        if (!isCurrentRequest()) return;
         setFinancialSourceError(cause instanceof Error ? cause.message : "تعذر التحقق من مصدر الحساب المالي.");
         return;
       }
       setFinancialSource(source);
       if (!canReadCustomerAppLedger(source)) return;
       const r = await supabase.rpc("get_customer_account_statement");
+      if (!isCurrentRequest()) return;
       if (r.error) throw new Error("تعذر قراءة كشف الحساب. تحقق من نشر مخطط المالية.");
       if (!r.data || typeof r.data !== "object") throw new Error("استجابة كشف الحساب غير مكتملة.");
       const payload = r.data as {
@@ -1179,6 +1186,15 @@ function Statement() {
         throw new Error("تفاصيل كشف الحساب غير صالحة أو تجاوزت حدود القراءة.");
       }
       const parsedCredits = parseCustomerStatementCreditMemos(payload.credits);
+      confirmingSource = true;
+      const confirmedSource = await fetchMyCustomerFinancialSource();
+      confirmingSource = false;
+      if (!isCurrentRequest()) return;
+      if (!isSameCustomerFinancialSourceVersion(source, confirmedSource)) {
+        setFinancialSource(confirmedSource);
+        setFinancialSourceError("تغير مصدر الحساب المالي أثناء إعداد كشف الحساب؛ لم نعتمد بيانات الدفتر السابق. حدّث الكشف بعد استقرار المصدر.");
+        return;
+      }
       setInvoices(payload.invoices as Invoice[]);
       setPayments(payload.payments as (PaymentAmount & { id?: string; paid_at?: string })[]);
       setCredits(parsedCredits);
@@ -1190,6 +1206,11 @@ function Statement() {
       );
       setStatementSummary(Object.prototype.hasOwnProperty.call(payload, "summary") ? payload.summary : undefined);
     } catch (cause) {
+      if (!isCurrentRequest()) return;
+      if (confirmingSource) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد قراءة كشف الحساب؛ أوقفنا عرض البيانات.");
+      }
       setError(cause instanceof Error ? cause.message : "تعذر قراءة بيانات كشف الحساب.");
       setInvoices([]);
       setPayments([]);
@@ -1198,7 +1219,7 @@ function Statement() {
       setSummaryAsOfUtc("");
       setStatementSummary(undefined);
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, []);
 
@@ -1278,6 +1299,7 @@ function Statement() {
 
   useEffect(() => {
     void load();
+    return () => { statementReadSequenceRef.current += 1; };
   }, [load]);
   const appLedgerAvailable = canReadCustomerAppLedger(financialSource);
   const totals = useMemo(
@@ -1507,10 +1529,14 @@ function CustomerPayments() {
   const [error, setError] = useState("");
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
+  const paymentReadSequenceRef = useRef(0);
   const [xlsxError, setXlsxError] = useState("");
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const load = useCallback(async () => {
+    const requestId = ++paymentReadSequenceRef.current;
+    const isCurrentRequest = () => paymentReadSequenceRef.current === requestId;
+    let confirmingSource = false;
     setLoading(true);
     setError("");
     setFinancialSource(null);
@@ -1521,29 +1547,49 @@ function CustomerPayments() {
       let source: CustomerFinancialSource;
       try {
         source = await fetchMyCustomerFinancialSource();
+        if (!isCurrentRequest()) return;
       } catch (cause) {
+        if (!isCurrentRequest()) return;
         setFinancialSourceError(cause instanceof Error ? cause.message : "تعذر التحقق من مصدر الحساب المالي.");
         return;
       }
       setFinancialSource(source);
       if (!canReadCustomerAppLedger(source)) return;
       const result = await supabase.rpc("get_customer_account_statement");
+      if (!isCurrentRequest()) return;
       if (result.error || !result.data || typeof result.data !== "object") {
         throw new Error("تعذر قراءة سجل الدفعات من دفتر الحساب المصرّح به.");
       }
       const parsed = parseCustomerPaymentHistoryPayload(result.data);
+      confirmingSource = true;
+      const confirmedSource = await fetchMyCustomerFinancialSource();
+      confirmingSource = false;
+      if (!isCurrentRequest()) return;
+      if (!isSameCustomerFinancialSourceVersion(source, confirmedSource)) {
+        setFinancialSource(confirmedSource);
+        setFinancialSourceError("تغير مصدر الحساب المالي أثناء تحميل سجل الدفعات؛ أسقطنا البيانات القديمة ولم نعتمدها.");
+        return;
+      }
       setInvoices(parsed.invoices);
       setPayments(parsed.payments);
     } catch (cause) {
+      if (!isCurrentRequest()) return;
+      if (confirmingSource) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد قراءة الدفعات؛ أوقفنا عرض البيانات.");
+      }
       setInvoices([]);
       setPayments([]);
       setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل الدفعات.");
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { paymentReadSequenceRef.current += 1; };
+  }, [load]);
 
   const invoiceById = useMemo(() => new Map(invoices.map(invoice => [invoice.id, invoice])), [invoices]);
   const paymentFilter = useMemo(() => filterCustomerPaymentHistory({
