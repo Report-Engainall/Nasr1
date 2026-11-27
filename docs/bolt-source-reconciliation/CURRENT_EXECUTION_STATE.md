@@ -1,53 +1,41 @@
 # LIVE EXECUTION RESUME — 2026-11-27
 
-> Sole live execution pointer. Read this block first on the next session. Historical checkpoints after the separator are evidence only; do not resume from them unless the live actions below direct you there.
+> Sole live execution pointer. Resume from the first next action. Historical checkpoints after the marker are preserved verbatim; do not reopen completed work or repeat the OSS selection recorded here.
 
-- Repository: `Report-Engainall/Nasr1`; sole source of truth: `main`.
-- Latest observed `main` at this cursor refresh: `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361` (2026-11-27).
-- Active P3 delivery: [PR #643 — reject text metrics from numeric anomaly comparisons](https://github.com/Report-Engainall/Nasr1/pull/643).
-  - Branch: `p3/anomaly-reject-text-metric-20261127`.
-  - Latest code head at cursor update: `c727aaa77df2dd8e940d8eea2f2095896fd64e16`.
-  - Changed application files: `src/lib/intelligence/anomaly-detection.ts` and `src/lib/intelligence/anomaly-detection.test.ts`; this cursor file is the third PR file.
-  - Confirmed defect: numeric-looking values from `TEXT` metrics could pass the anomaly engine's decimal parser and be emitted as numeric anomalies.
-  - Fix: permit only `COUNT`, `RATIO`, `CURRENCY`, `CURRENCY_PER_UNIT`, `QUANTITY`, and `DAYS` in numeric anomaly comparison; withhold `TEXT` as `METRIC_SCOPE_MISMATCH`.
-  - Regression: an end-to-end paired-period fixture with `TEXT` values `125.00` and `100.00` must emit no anomaly, create one withheld item, and set result to `NEEDS_REVIEW`.
-  - P1 workflow path filters already include both source and test files; no CI workflow edit or dependency addition was needed.
-  - Exact-head GitHub Actions workflow runs and combined statuses were empty at the last check. **Acceptance is pending, not PASS.** Do not transfer test results from another SHA.
-- P3 delivery discipline: P1 owns product/UI and final merge authority; P2 owns database/RPC/RLS/transactions/finance/storage; P3 owns deterministic intelligence and AI engines. Do not merge PR #643 directly.
-- P1 PR #642 was merged into `main` at `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`: inventory-transfer history is now searchable, filterable and paginated with complete filtered export/print.
-- Parallel work still open (do not duplicate): #641 supplier-invoice PostgreSQL acceptance (P2), #631 incomplete-currency cashflow visibility, #634 dead-stock calculation clock, #636 replenishment source reconciliation, #637 daily decision/customer-retention integration, and #639 supplier delivery measurement reconciliation. Recheck each exact head and CI before acting. PR #620 is already fully behind `main`; #622 is heavily diverged and not a safe merge candidate.
-- Release boundary remains **NO-GO** until the required hosted authenticated customer/order/tenant proof and deployed runtime/database identity are actually established. Local CI or public read-only browser smoke is not hosted production acceptance. Never infer hosted PASS from SKIPPED.
+- Repository: `Report-Engainall/Nasr1`; the only source of truth is `main`.
+- Current `main` SHA before this pointer refresh: `aa6771f09f3ae33145d11500564ea24e37fd38d9`.
+- Latest accepted application/test integration #638: PR https://github.com/Report-Engainall/Nasr1/pull/638 merged as `c4e16283d3e0a593e8214b2ec2515d942596fbbe`; tested application SHA `a79a7ca87f588671351da98cc5f35578a48c5123`.
+- #638 exact-SHA P1 run `45927665856` PASS; exact-SHA P2 local Supabase/Storage/Chromium run `45927665865` PASS (66/66 steps, no failures); PostgreSQL 17 product feedback run `45927665860` PASS. Artifacts: local authenticated E2E `15167189286`; public UI smoke `15167456541`.
+- Product-media acceptance leaf: local Storage UI is accepted. It proves primary/gallery placement, retry-only-failed behavior, reload persistence, eight-image cap/rejection and cleanup of ninth, manager allow, customer deny and foreign-tenant deny. Original product images remain **0/114** until owner-supplied source assets are mapped by SKU. Hosted Edge was not deployed or tested.
+- #649: PR https://github.com/Report-Engainall/Nasr1/pull/649 merged as `946ad06588218c62a70d44b01a44510261bd8c9a`. The PR is P1-only regression coverage; no production route/auth/RLS code changed. Its source SHA was `ad75961430c8bc93ed98e1d5642ec936645d9659`.
+- #649 P1 run `45929399558` SUCCESS: Vitest full regression suite, strict TypeScript P1, strict TypeScript P4 and production build; all 11 steps successful, no failures.
+- #649 P2 run `45929399634`: public Storefront smoke job `140278256177` SUCCESS (20 steps); Auth E2E infrastructure gate `140278256304` SUCCESS. The broader isolated local Supabase/PostgreSQL 17 critical-path job `140279055599` passed local service start, full repository migration replay, DB tests, exact-source build/launch and authenticated order persistence/cross-tenant denial. At last observation it was still running the stock-count XLSX Chromium acceptance; do not mark the full P2 run complete until it ends. This suite does not itself prove /profile Auth A→B.
+- New matrix leaf `PROFILE-ROLE-SESSION-ISOLATION-001` records component-level coverage only: staff precedence when identity also carries customer role; customer-company draft clears and correct profile reloads on Auth A→B and same-user sessionRevision change. It is not hosted or authenticated browser proof.
+- DLV-002 roll-up remains OPEN. The accepted admin access-matrix UI leaf and component-level profile leaf do not close every route/role/loading/error/empty/retry state.
+- DLV-001 requirement→screen/action/service/RPC/Edge/tenant-scope/migration/exact-SHA acceptance crosswalk remains OPEN.
+- Release remains **NO-GO**: no hosted authenticated customer/profile A→B E2E was completed; exact production Supabase target has not been proven; hosted Edge runtime not deployed/tested; original product images remain 0/114. No production DB/Storage writes, deployment, Bolt/Lovable/Vercel usage, or paid AI calls were performed.
 
-## Open-source reuse register — checked 2026-11-27
+## Reuse decision — OSS quick check for 2026-11-27
 
-First read this register at the start of a new session. Spend no more than five minutes on new discovery; repeat research only when a concrete missing capability, replacement, or upgrade is being considered. Update this register after any new selection so the next session does not restart the same search.
-
-| Existing component in Nasr1 | Verified package version in `package.json` | License / upstream | Reuse decision |
-|---|---:|---|---|
-| Recharts | `^2.15.4` | MIT — https://github.com/recharts/recharts/blob/main/LICENSE | Reuse for existing React analytics charts; do not add another chart engine. |
-| TanStack React Query | `^5.101.1` | MIT — https://github.com/TanStack/query/blob/main/LICENSE | Reuse for async server-state caching and query lifecycle where already wired; do not create a second data cache. |
-| Radix UI React primitives | Existing `@radix-ui/react-*` packages | MIT — https://github.com/radix-ui/primitives/blob/main/LICENSE | Reuse through existing UI wrappers for accessible dialogs, menus, tabs, selects and other controls; preserve Arabic RTL styling. |
-| TanStack Router / Start | Existing `@tanstack/react-router` and `@tanstack/react-start` packages | MIT — https://github.com/TanStack/router/blob/main/LICENSE and https://github.com/TanStack/start/blob/main/LICENSE | Keep the existing file-based routing/runtime; do not introduce a parallel router or app shell. |
-
-- These are already-installed open-source components, not new integrations made by PR #643. Their use avoids unnecessary dependencies and migration risk.
-- No new third-party library was needed for the anomaly fix; the existing `financial-precision.ts`, evidence passport, TypeScript types and Vitest are reused.
-- Do not add accounting, inventory, CRM or a second database from an external ERP. Reuse narrow libraries/components only; keep Supabase, RLS and existing business services authoritative.
-- No paid API, AI provider, Vercel deployment, Bolt or Lovable action is part of this P3 slice.
+- Uppy React: MIT. Official React docs: https://uppy.io/docs/react/ ; license: https://github.com/transloadit/uppy/blob/main/LICENSE.
+- React Dropzone: MIT. License: https://github.com/react-dropzone/react-dropzone/blob/master/LICENSE.
+- Decision: do NOT add either dependency. Nasr1 already has a domain-specific uploader, SKU matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. A generic dropzone/transfer library would duplicate behavior and would not address the identified Playwright protocol bridge or Arabic numeral mismatch. No package was added. Do not repeat OSS search next session unless design changes.
 
 ## First next actions
 
-1. Refresh GitHub `main` and PR #643 head; the cursor's SHA is a checkpoint, not permission to assume it stayed current.
-2. Obtain P1 Vitest, P1/P4 strict TypeScript and production-build results on the exact PR #643 head. If GitHub Actions still reports no run, diagnose the repository workflow trigger/path behavior; do not label it PASS.
-3. Ask P1 to review and merge only after exact-head acceptance. Until then PR #643 remains open and unmerged.
-4. Continue the next independent P3 task from the open PR list above only after checking current ownership and exact-head checks. Avoid `IntelligenceWorkspace.tsx`, `daily-decisions.ts`, replenishment, supplier-performance, dead-stock and cashflow files while their active PRs remain unresolved.
-5. Keep the reference cursor current in this file; do not create duplicate status reports or restart open-source research without a concrete integration need.
+1. Close the currently running P2 job `140279055599` in workflow run `45929399634`: capture final conclusion, inspect failures/artifacts and record exact state. Its last known active step was Chromium stock-count XLSX acceptance after authenticated order persistence/cross-tenant denial passed.
+2. Add a true disposable local Supabase Auth browser fixture for /profile: authenticate customer A, create an unsaved company draft, sign out, authenticate customer B and prove B's own data loads; verify staff/admin and restricted roles remain separated. Include the same-user sessionRevision transition and /profile 360px/1280px layouts plus loading/error/empty/retry. P1 owns UI/test-only regression; P2 owns authenticated browser fixtures and server authorization.
+3. Keep DLV-002 OPEN until all required routes and actual Auth session/account switching have exact-SHA evidence. Do not infer hosted acceptance from component tests.
+4. Continue DLV-003 product catalogue/detail/discovery acceptance independently. Do not rebuild the accepted uploader. Keep original product image association at 0/114 until owner supplies the actual images/package mapped by SKU.
+5. Continue DLV-001 mapping of every mandatory screen/action to service/RPC/Edge, role/tenant boundary, migration and exact-SHA acceptance.
+6. Keep deployment/release NO-GO until the true hosted target and dedicated test credentials are explicitly identified and approved.
 
-## Acceptance wording
+## Delivery discipline
 
-- CONTRACT PASS ≠ BROWSER PASS ≠ RUNTIME PROVEN ≠ PRODUCT COMPLETE.
-- `IN_PROGRESS`, `QUEUED`, `SKIPPED`, `BLOCKED`, unavailable evidence, an empty status list, and a created PR are never PASS.
-- P3 unit/contract tests do not prove authenticated tenant isolation or hosted application behavior.
-- Preserve current code, migration, CI and acceptance evidence; no blind migration batches, production mutations, forced branch updates, or history rewrites.
+- `main` only; P1 merges accepted work. Avoid duplicate branches/features and repeated checks.
+- Reuse current Supabase/RLS/services; no parallel accounting, inventory, CRM, Storage or AI systems.
+- IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
+- Update this pointer and the existing acceptance matrix only. Do not create duplicate status reports or resume files.
 
 ---
 
