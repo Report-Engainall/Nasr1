@@ -108,12 +108,12 @@ describe("evidence passport strict clock contract", () => {
     expect(result.metrics[0].warnings).not.toContain("METRIC_CALCULATED_AFTER_REPORT_GENERATION");
   });
 
-  it("withholds a metric calculated after report generation", () => {
+  it("withholds an invalid calculation clock while preserving the domain warning contract", () => {
     const result = buildEvidencePassport(input({
-      calculatedAt: "2026-11-26T12:06:00.000Z",
+      calculatedAt: "2026-11-26T12:00:00.000",
     }));
     expect(result.metrics[0].status).toBe("NEEDS_REVIEW");
-    expect(result.metrics[0].warnings).toContain("METRIC_CALCULATED_AFTER_REPORT_GENERATION");
+    expect(result.metrics[0].warnings).toContain("METRIC_CALCULATION_TIMESTAMP_INVALID");
     expect(result.status).toBe("NEEDS_REVIEW");
   });
 });
