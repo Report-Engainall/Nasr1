@@ -194,6 +194,8 @@ describe("cashflow report clock integrity", () => {
     ["impossible generatedAt date", "2026-02-31T07:05:00.000Z", "2026-02-28T07:00:00.000Z"],
     ["timezone-less asOf", "2026-10-30T07:05:00Z", "2026-10-30T07:00:00"],
     ["impossible asOf date", "2026-10-30T07:05:00Z", "2026-02-31T07:00:00.000Z"],
+    ["sub-microsecond generatedAt", "2026-10-30T07:05:00.1234567Z", "2026-10-30T07:00:00.000Z"],
+    ["sub-microsecond asOf", "2026-10-30T07:05:00Z", "2026-10-30T07:00:00.1234567Z"],
   ])("rejects %s before evaluating any forecast", (_label, generatedAt, asOf) => {
     const source = base();
     source.generatedAt = generatedAt;
@@ -261,4 +263,19 @@ describe("cashflow forecast UTC offset ceiling", () => {
     expect(() => buildCashflowForecast({ ...base(), generatedAt: timestamp, asOf: timestamp }))
       .toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
   });
+ it("accepts six-digit PostgreSQL microseconds for the forecast and every source clock",()=>{
+  const source=base();
+  const microsecondAsOf="2026-10-30T07:00:00.123456Z";
+  const withTimestamp=(item:typeof source.openingBalances[number])=>({
+   ...item,asOf:microsecondAsOf,lineage:{...item.lineage,calculatedAt:microsecondAsOf},
+  });
+  const result=buildCashflowForecast({
+   ...source,generatedAt:microsecondAsOf,asOf:microsecondAsOf,
+   openingBalances:source.openingBalances.map(withTimestamp),
+   entries:source.entries.map(entry=>({...entry,amount:withTimestamp(entry.amount)})),
+   evidenceRecords:source.evidenceRecords.map(record=>({...record,asOf:microsecondAsOf,sourceTimestamp:microsecondAsOf})),
+  });
+  expect(result.asOf).toBe(microsecondAsOf);
+ });
+
 });
