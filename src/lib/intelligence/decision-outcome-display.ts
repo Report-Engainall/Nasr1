@@ -30,6 +30,7 @@ interface ConcentrationEvidence {
 }
 const CURRENCY = /^[A-Z]{3}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/;
 const DAY_MS = 86_400_000;
 
 function validDay(value: string): boolean {
@@ -38,7 +39,7 @@ function validDay(value: string): boolean {
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
 }
 function validInstant(value: string): boolean {
-  return value.includes("T") && Number.isFinite(Date.parse(value));
+  return ISO_INSTANT.test(value) && validDay(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
 }
 function validAdjacentEqualPeriods(earlier: DecisionOutcomeDisplayPeriod, later: DecisionOutcomeDisplayPeriod): boolean {
   if (!validDay(earlier.from) || !validDay(earlier.to) ||
@@ -48,8 +49,11 @@ function validAdjacentEqualPeriods(earlier: DecisionOutcomeDisplayPeriod, later:
   const earlierTo = Date.parse(earlier.to + "T00:00:00.000Z");
   const laterFrom = Date.parse(later.from + "T00:00:00.000Z");
   const laterTo = Date.parse(later.to + "T00:00:00.000Z");
+  const earlierDays = (earlierTo - earlierFrom) / DAY_MS + 1;
+  const laterDays = (laterTo - laterFrom) / DAY_MS + 1;
   return earlierTo + DAY_MS === laterFrom &&
-    earlierTo - earlierFrom === laterTo - laterFrom;
+    earlierDays === laterDays &&
+    earlierDays <= 366;
 }
 function parseConcentrationEvidence(id: string): ConcentrationEvidence | null {
   const match = /^rpc:(product-revenue-concentration|supplier-posted-payable-activity):([A-Z]{3}):(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2}):(.+)$/.exec(id);
@@ -100,7 +104,7 @@ export function buildDecisionOutcomeDisplayScope(
       currency,
       period: comparable ? ordered[1].period : null,
       baselinePeriod: comparable ? ordered[0].period : null,
-      asOf: comparable ? proof!.asOf : null,
+      asOf: comparable && proof ? proof.asOf : null,
       sourceNote: comparable
         ? "الإثبات لقطتا RPC تجميعيّتان للفترتين؛ لا تمثلان معرفات فواتير أو قيود منفردة."
         : "تعذر إظهار فترتي المقارنة: مراجع اللقطات المحفوظة غير مكتملة أو غير متطابقة.",

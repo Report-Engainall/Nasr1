@@ -82,6 +82,33 @@ describe("decision outcome display scope", () => {
     });
   });
 
+  it("withholds windows longer than the source RPC's 366-day maximum", () => {
+    const result = buildDecisionOutcomeDisplayScope(savedOutcome(
+      "finance.product-concentration.review-increase.YER",
+      [
+        "rpc:product-revenue-concentration:YER:2024-01-01:2024-12-31:" + asOf,
+        "rpc:product-revenue-concentration:YER:2025-01-01:2025-12-31:" + asOf,
+      ],
+      productMetric,
+    ));
+    expect(result.period).toBeNull();
+    expect(result.baselinePeriod).toBeNull();
+  });
+
+  it("rejects timezone-less snapshot timestamps", () => {
+    const noZone = "2026-10-31T09:00:00";
+    const result = buildDecisionOutcomeDisplayScope(savedOutcome(
+      "finance.product-concentration.review-increase.YER",
+      [
+        "rpc:product-revenue-concentration:YER:2026-08-01:2026-10-31:" + noZone,
+        "rpc:product-revenue-concentration:YER:2026-05-01:2026-07-31:" + noZone,
+      ],
+      productMetric,
+    ));
+    expect(result.period).toBeNull();
+    expect(result.asOf).toBeNull();
+  });
+
   it("does not parse an invalid calendar period or an unrelated rule as concentration", () => {
     const invalid = buildDecisionOutcomeDisplayScope(savedOutcome(
       "finance.product-concentration.review-increase.YER",
