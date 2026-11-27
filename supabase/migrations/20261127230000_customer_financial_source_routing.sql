@@ -914,6 +914,37 @@ COMMENT ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) IS
 ALTER TABLE public.customer_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customer_invoice_items ENABLE ROW LEVEL SECURITY;
 
+
+-- Staff direct reads of app-ledger financial rows must follow the selected customer source.
+CREATE OR REPLACE FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(
+  p_customer_id uuid,
+  p_organization_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+  SELECT auth.uid() IS NOT NULL
+     AND p_customer_id IS NOT NULL
+     AND p_organization_id IS NOT NULL
+     AND p_organization_id = public.current_organization_id()
+     AND public.is_staff()
+     AND EXISTS (
+       SELECT 1
+         FROM public.customer_financial_source_bindings b
+        WHERE b.organization_id = p_organization_id
+          AND b.customer_id = p_customer_id
+          AND b.source_mode = 'APP_ONLY'
+          AND b.source_status = 'active'
+     )
+$function$;
+REVOKE ALL ON FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(uuid,uuid) TO authenticated;
+COMMENT ON FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(uuid,uuid) IS
+  'Boolean-only staff direct-read guard for app-ledger financial rows; preserves existing staff/current-organization scope and requires the active APP_ONLY customer source.';
+
 DROP POLICY IF EXISTS customer_invoice_financial_source_read_guard ON public.customer_invoices;
 CREATE POLICY customer_invoice_financial_source_read_guard
   ON public.customer_invoices
@@ -921,7 +952,9 @@ CREATE POLICY customer_invoice_financial_source_read_guard
   FOR SELECT
   TO authenticated
   USING (
-    (public.is_staff() AND organization_id = public.current_organization_id())
+    (public.is_staff()
+      AND organization_id = public.current_organization_id()
+      AND public.staff_customer_app_only_financial_rows_read_allowed(customer_id, organization_id))
     OR public.customer_app_only_invoice_read_allowed(customer_id, organization_id)
   );
 
@@ -932,13 +965,23 @@ CREATE POLICY customer_invoice_item_financial_source_read_guard
   FOR SELECT
   TO authenticated
   USING (
-    (public.is_staff() AND customer_invoice_items.organization_id = public.current_organization_id())
+    EXISTS (
+      SELECT 1
+        FROM public.customer_invoices staff_invoice
+       WHERE staff_invoice.id = customer_invoice_items.invoice_id
+         AND staff_invoice.organization_id = customer_invoice_items.organization_id
+         AND staff_invoice.organization_id = public.current_organization_id()
+         AND public.is_staff()
+         AND public.staff_customer_app_only_financial_rows_read_allowed(
+           staff_invoice.customer_id,staff_invoice.organization_id)
+    )
     OR EXISTS (
       SELECT 1
-        FROM public.customer_invoices i
-       WHERE i.id = customer_invoice_items.invoice_id
-         AND i.organization_id = customer_invoice_items.organization_id
-         AND public.customer_app_only_invoice_read_allowed(i.customer_id, i.organization_id)
+        FROM public.customer_invoices customer_invoice
+       WHERE customer_invoice.id = customer_invoice_items.invoice_id
+         AND customer_invoice.organization_id = customer_invoice_items.organization_id
+         AND public.customer_app_only_invoice_read_allowed(
+           customer_invoice.customer_id,customer_invoice.organization_id)
     )
   );
 
@@ -1124,38 +1167,6 @@ COMMENT ON FUNCTION public.get_customer_invoice_pdf(uuid) IS
 -- Boolean-only source predicate for existing finance receipt reads. The binding
 -- table remains inaccessible directly to authenticated roles.
 
--- Direct finance-staff payment reads are another APP_ONLY ledger entry point.
--- Preserve the existing is_staff + tenant scope, but make the selected source a
--- restrictive condition so an external source cannot expose old app allocations.
-CREATE OR REPLACE FUNCTION public.staff_customer_app_only_payment_read_allowed(
-  p_customer_id uuid,
-  p_organization_id uuid
-)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = ''
-AS $function$
-  SELECT auth.uid() IS NOT NULL
-     AND p_customer_id IS NOT NULL
-     AND p_organization_id IS NOT NULL
-     AND p_organization_id = public.current_organization_id()
-     AND public.is_staff()
-     AND EXISTS (
-       SELECT 1
-         FROM public.customer_financial_source_bindings b
-        WHERE b.organization_id = p_organization_id
-          AND b.customer_id = p_customer_id
-          AND b.source_mode = 'APP_ONLY'
-          AND b.source_status = 'active'
-     )
-$function$;
-REVOKE ALL ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uuid,uuid) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uuid,uuid) TO authenticated;
-COMMENT ON FUNCTION public.staff_customer_app_only_payment_read_allowed(uuid,uuid) IS
-  'Boolean-only staff payment-read boundary. Preserves existing is_staff/tenant authorization and permits app-ledger allocations only when the server-owned customer source is active APP_ONLY.';
-
 ALTER TABLE public.customer_payments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS customer_payment_financial_source_read_guard
@@ -1166,7 +1177,7 @@ CREATE POLICY customer_payment_financial_source_read_guard
   FOR SELECT
   TO authenticated
   USING (
-    public.staff_customer_app_only_payment_read_allowed(customer_id,organization_id)
+    public.staff_customer_app_only_financial_rows_read_allowed(customer_id,organization_id)
   );
 
 COMMENT ON POLICY customer_payment_financial_source_read_guard
