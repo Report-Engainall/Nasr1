@@ -950,6 +950,12 @@ async function main(){
   error => String(error?.code)==="42501",
   "customer must not reconcile order reservations",
  );
+ await assert.rejects(
+  () => rpc("select public.release_excess_order_reservations($1::uuid,$2::text,$3::text) result",
+   [shortShipmentOrder,"customer-excess-"+randomUUID().replaceAll("-",""),"Customer cannot release order reservation"]),
+  error => String(error?.code)==="42501",
+  "customer must not release excess order reservations",
+ );
 
  const reallocationPrivileges=await db.unsafe(
   "select " +
@@ -985,6 +991,12 @@ async function main(){
    "has_table_privilege('authenticated','public.inventory_order_reservation_reconciliations','SELECT') authenticated_table_read,"+
    "has_table_privilege('service_role','public.inventory_order_reservation_reconciliations','SELECT') service_table_read"
  );
+ const excessReleasePrivileges=await db.unsafe(
+  "select "+
+   "has_function_privilege('anon','public.release_excess_order_reservations(uuid,text,text)','EXECUTE') anon_execute,"+
+   "has_function_privilege('authenticated','public.release_excess_order_reservations(uuid,text,text)','EXECUTE') authenticated_execute,"+
+   "has_function_privilege('service_role','public.release_excess_order_reservations(uuid,text,text)','EXECUTE') service_execute"
+ );
  assert.equal(reconciliationPrivileges[0].anon_execute,false);
  assert.equal(reconciliationPrivileges[0].authenticated_execute,true);
  assert.equal(reconciliationPrivileges[0].service_execute,false);
@@ -994,6 +1006,10 @@ async function main(){
  assert.equal(reconciliationPrivileges[0].authenticated_table_read,false);
  assert.equal(reconciliationPrivileges[0].service_table_read,false,
   "the reconciliation idempotency ledger must remain server-only");
+ assert.equal(excessReleasePrivileges[0].anon_execute,false);
+ assert.equal(excessReleasePrivileges[0].authenticated_execute,true);
+ assert.equal(excessReleasePrivileges[0].service_execute,false,
+  "only authenticated callers may reach excess release; the function body enforces manager/admin");
 
  // Compare the previous-day test lot with today, not with its own expiry date.
  const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<(pg_catalog.now() at time zone 'UTC')::date expired from public.inventory_batches where id=$1::uuid",[expiredBatchId]))[0];
@@ -1003,6 +1019,6 @@ async function main(){
  await assert.rejects(()=>db.unsafe("select * from public.inventory_batches limit 1"),/permission denied/i);
  await assert.rejects(()=>rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]),/inventory\.read_balance capability|warehouse assignment/i);
  await db.unsafe("reset role");
- process.stdout.write("PASS FEFO batches: receipt lot creation/replay, receipt print, FEFO reserve/sale, expired-order reallocation, post-reallocation cancellation, shared-lot ledger guard, shortage rollback, access denial and balance parity\n");
+ process.stdout.write("PASS FEFO batches: receipt lot creation/replay, receipt print, FEFO reserve/sale, expired-order reallocation, incomplete-reservation recovery and shortage rollback, excess-reservation release, full shipment, post-reallocation cancellation, shared-lot ledger guard, access denial and balance parity\n");
 }
 main().catch(e=>{process.stderr.write("FAIL inventory batch FEFO: "+String(e?.stack??e)+"\n");process.exitCode=1;}).finally(async()=>{await db.end({timeout:5}).catch(()=>{});});
