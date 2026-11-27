@@ -1,3 +1,4 @@
+// @ts-ignore Deno resolves npm: package specifiers in the Edge Runtime.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { readBoundedTextBody } from "../_shared/bounded-body.ts";
 import {
