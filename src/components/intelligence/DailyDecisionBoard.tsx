@@ -234,7 +234,11 @@ export function buildDailyDecisionCsv(records: DecisionMemoryRecord[]): string {
       [...new Set(evidenceIds)].join(" | "),
     ];
   });
-  return "\uFEFF" + [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
+  const coverageNote = [
+    "تنبيه التغطية",
+    "هذا الملف يضم السجلات المحمّلة المطابقة للفلاتر فقط؛ عند وجود تحميل جزئي لا يمثل كامل سجل القرارات.",
+  ];
+  return "\uFEFF" + [coverageNote, headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
 }
 
 export function downloadDailyDecisionCsv(records: DecisionMemoryRecord[]): void {
@@ -252,7 +256,7 @@ export function downloadDailyDecisionCsv(records: DecisionMemoryRecord[]): void 
     link.click();
   } finally {
     link.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }
 
