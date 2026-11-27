@@ -8,6 +8,8 @@ import {
   type ErpProviderId,
   type ErpReadConnector,
   type ErpReadContract,
+  type ErpStagedPreview,
+  type ErpStagedRecordReader,
   type ErpSyncCheckpointStore,
 } from "../_shared/erp-connectors/readonly-sync.ts";
 
@@ -30,7 +32,7 @@ export type ErpReadSyncHandlerDependencies = {
     supabaseUrl: string;
     serviceRoleKey: string;
     cursorEncryptionKey: string;
-  }): ErpSyncCheckpointStore;
+  }): ErpSyncCheckpointStore & ErpStagedRecordReader;
   createConnector(connection: ErpConnection, contract: ErpReadContract): ErpReadConnector;
   logError(message: string, context: Record<string, unknown>): void;
 };
@@ -342,28 +344,42 @@ export function createErpReadSyncHandler(
         cursorEncryptionKey,
       });
       const connector = dependencies.createConnector(provider.connection, provider.contract);
+      const syncScope = {
+        organizationId: profile.organization_id,
+        provider: input.provider,
+        objectType: input.objectType,
+        companyExternalId: input.companyExternalId,
+        branchExternalId: input.branchExternalId,
+        warehouseExternalId: input.warehouseExternalId,
+        currencyCode: input.currencyCode,
+      } satisfies ErpSyncScope;
       const result = await runIncrementalReadOnlySync({
         connector,
         store,
-        scope: {
-          organizationId: profile.organization_id,
-          provider: input.provider,
-          objectType: input.objectType,
-          companyExternalId: input.companyExternalId,
-          branchExternalId: input.branchExternalId,
-          warehouseExternalId: input.warehouseExternalId,
-          currencyCode: input.currencyCode,
-        },
+        scope: syncScope,
         overlapMs: 120_000,
         maxPages: input.maxPages,
         maxRecords: input.maxRecords,
       });
+
+      let preview: ErpStagedPreview | null = null;
+      let previewError: string | null = null;
+      try {
+        preview = await store.listStagedRecords({ scope: syncScope, limit: 20, offset: 0 });
+      } catch (previewFailure) {
+        previewError = previewFailure instanceof ErpConnectorError
+          ? previewFailure.code
+          : "ERP_STAGING_PREVIEW_FAILED";
+        dependencies.logError("ERP staged preview failed after sync", { code: previewError });
+      }
 
       return json({
         status: result.status,
         pages_committed: result.pagesCommitted,
         records_read: result.recordsRead,
         counts: result.counts,
+        preview,
+        preview_error: previewError,
         checkpoint: {
           version: result.checkpoint.version,
           has_cursor: result.checkpoint.cursor !== null,
