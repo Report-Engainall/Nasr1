@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
 
 export type CustomerReceivableBucketName =
   | "NOT_DUE" | "OVERDUE_1_30" | "OVERDUE_31_60" | "OVERDUE_61_90" | "OVERDUE_90_PLUS" | "UNKNOWN_DUE_DATE";
@@ -35,10 +36,21 @@ export type CustomerReceivableAgingResult =
 type Row = Record<string, unknown>;
 const isRecord = (value: unknown): value is Row => value !== null && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown, max = 500): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= max;
-const time = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
+const time = (value: unknown): value is string => {
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
+    return false;
+  }
+  const day = value.slice(0, 10);
+  const dayMillis = Date.parse(day + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dayMillis) &&
+    new Date(dayMillis).toISOString().slice(0, 10) === day;
+};
 const numeric = (value: unknown): number | null => {
-  const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
-  return Number.isFinite(parsed) && Math.abs(parsed) <= Number.MAX_SAFE_INTEGER ? parsed : null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const minorUnits = decimalToMinorUnits(value, 2);
+  return minorUnits === null ? null : minorUnitsToNumber(minorUnits, 2);
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const buckets = new Set<CustomerReceivableBucketName>(["NOT_DUE","OVERDUE_1_30","OVERDUE_31_60","OVERDUE_61_90","OVERDUE_90_PLUS","UNKNOWN_DUE_DATE"]);
@@ -63,7 +75,9 @@ function parseItem(value: unknown, asOf: string): CustomerReceivableAgingItem | 
   for (const raw of value.agingBuckets) {
     if (!isRecord(raw) || typeof raw.bucket !== "string" || !buckets.has(raw.bucket as CustomerReceivableBucketName) || seen.has(raw.bucket)) return null;
     const amount = numeric(raw.amount);
-    const evidence = Array.isArray(raw.evidenceIds) && raw.evidenceIds.length <= 50 && raw.evidenceIds.every(id => text(id,500)) ? raw.evidenceIds as string[] : null;
+    // The SQL source bounds invoice, payment and credit evidence arrays to 25 each.
+    const evidence = Array.isArray(raw.evidenceIds) && raw.evidenceIds.length <= 75 &&
+      raw.evidenceIds.every(id => text(id,500)) ? raw.evidenceIds as string[] : null;
     if (amount === null || amount < 0 || !Number.isSafeInteger(raw.invoiceCount) || (raw.invoiceCount as number) < 0 ||
         !Number.isSafeInteger(raw.partiallyPaidCount) || (raw.partiallyPaidCount as number) < 0 ||
         (raw.partiallyPaidCount as number) > (raw.invoiceCount as number) ||
@@ -74,7 +88,13 @@ function parseItem(value: unknown, asOf: string): CustomerReceivableAgingItem | 
   }
   const bucketTotal = parsedBuckets.reduce((sum,row)=>sum+row.amount,0);
   const overdueTotal = parsedBuckets.filter(row=>row.bucket.startsWith("OVERDUE_")).reduce((sum,row)=>sum+row.amount,0);
-  if (Math.abs(bucketTotal-total)>0.011 || Math.abs(overdueTotal-overdue)>0.011) return null;
+  const bucketInvoiceCount = parsedBuckets.reduce((sum,row)=>sum+row.invoiceCount,0);
+  const bucketPartialCount = parsedBuckets.reduce((sum,row)=>sum+row.partiallyPaidCount,0);
+  const bucketOldestAge = parsedBuckets.reduce<number|null>((max,row) =>
+    row.oldestAgeDays === null ? max : max === null ? row.oldestAgeDays : Math.max(max,row.oldestAgeDays), null);
+  if (Math.abs(bucketTotal-total)>0.011 || Math.abs(overdueTotal-overdue)>0.011 ||
+      bucketInvoiceCount !== value.invoiceCount || bucketPartialCount !== value.partiallyPaidCount ||
+      bucketOldestAge !== value.oldestAgeDays) return null;
   return { customerId:value.customerId.toLowerCase(),customerName:value.customerName,customerNameStatus:value.customerNameStatus as CustomerReceivableAgingItem["customerNameStatus"],
     currency:value.currency,totalOutstanding:total,overdueAmount:overdue,invoiceCount:value.invoiceCount as number,
     partiallyPaidCount:value.partiallyPaidCount as number,oldestAgeDays:value.oldestAgeDays as number|null,
