@@ -8,6 +8,15 @@ const org="a0000000-0000-0000-0000-000000000001",product="a1000000-0000-0000-000
 const db=postgres(conn,{max:1,prepare:false,idle_timeout:5});
 function json(v){return typeof v==="string"?JSON.parse(v):v;}
 async function rpc(q,a){return json((await db.unsafe(q,a))[0].result);}
+// Deliberate ledger-drift fixtures bypass only the aggregate-to-batch sync trigger.
+// These mutations run against the disposable local PostgreSQL database as its owner;
+// the trigger is always restored before any RPC is invoked.
+async function withReservationLedgerDriftFixture(mutator){
+ await db.unsafe("reset role");
+ await db.unsafe("alter table public.inventory_balances disable trigger inventory_balances_batch_sync_after_update");
+ try { await mutator(); }
+ finally { await db.unsafe("alter table public.inventory_balances enable trigger inventory_balances_batch_sync_after_update"); }
+}
 async function actor(email){const r=await db.unsafe("select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active limit 1",[org,email.toLowerCase()]);assert.equal(r.length,1);return r[0];}
 async function as(a){
  await db.unsafe("reset role");
@@ -758,15 +767,17 @@ async function main(){
   "update public.order_items set quantity=2 where id=$1::uuid",
   [ledgerOrderAItem.id],
  );
- await db.unsafe(
-  "update public.inventory_batches set expiry_date=$2::date,quantity_reserved=quantity_reserved-1 where id=$1::uuid",
-  [ledgerBatchId,expiredDate],
- );
- await db.unsafe(
-  "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() " +
-  "where product_id=$1::uuid and warehouse_id=$2::uuid",
-  [product,warehouse],
- );
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe(
+   "update public.inventory_batches set expiry_date=$2::date,quantity_reserved=quantity_reserved-1 where id=$1::uuid",
+   [ledgerBatchId,expiredDate],
+  );
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() " +
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",
+   [product,warehouse],
+  );
+ });
 
  await as(manager);
  const ledgerMismatchWorklist=await rpc(
@@ -826,15 +837,17 @@ async function main(){
  // Restore the deliberately corrupted disposable fixture after asserting
  // fail-closed behavior so subsequent independent acceptance scenarios start
  // from reconciled batch and aggregate reserved ledgers.
- await db.unsafe(
-  "update public.inventory_batches set quantity_reserved=quantity_reserved+1 where id=$1::uuid",
-  [ledgerBatchId],
- );
- await db.unsafe(
-  "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
-  "where product_id=$1::uuid and warehouse_id=$2::uuid",
-  [product,warehouse],
- );
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe(
+   "update public.inventory_batches set quantity_reserved=quantity_reserved+1 where id=$1::uuid",
+   [ledgerBatchId],
+  );
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",
+   [product,warehouse],
+  );
+ });
 
  // Isolate aggregate-only drift while the batch subledger remains exact.
  // Both manager queues must identify the warehouse counter as the blocker.
@@ -842,11 +855,13 @@ async function main(){
   "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
   [ledgerBatchId],
  ))[0];
- await db.unsafe(
-  "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() "+
-  "where product_id=$1::uuid and warehouse_id=$2::uuid",
-  [product,warehouse],
- );
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() "+
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",
+   [product,warehouse],
+  );
+ });
  await as(manager);
  const aggregateOnlyExpiredQueue=await rpc(
   "select public.list_orders_with_expired_fefo_reservations(50,0) result",
@@ -877,7 +892,7 @@ async function main(){
    "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
    [ledgerOrderA,"fefo-balance-only-mismatch-"+randomUUID().replaceAll("-",""),"Reject aggregate reservation counter drift"],
   ),
-  error => String(error?.code)==="40001" && String(error?.message).includes("aggregate reserved quantity is below"),
+  error => String(error?.code)==="40001" && String(error?.message).includes("aggregate reserved quantity differs"),
   "reallocation must reject aggregate-only reserved-counter under-reporting before the source lot is released",
  );
  const balanceAfterAggregateOnlyReject=(await db.unsafe(
@@ -892,17 +907,107 @@ async function main(){
   "aggregate-only mismatch must not mutate the warehouse reservation counter");
  assert.equal(movementsAfterAggregateOnlyReject,movementsBeforeAggregateOnlyReject,
   "aggregate-only mismatch must not append a partial release or reserve movement");
- await db.unsafe(
-  "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
-  "where product_id=$1::uuid and warehouse_id=$2::uuid",
-  [product,warehouse],
- );
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",
+   [product,warehouse],
+  );
+ });
  await db.unsafe(
   "update public.order_items set quantity=1 where id=$1::uuid",
   [ledgerOrderAItem.id],
  );
  assert.ok(Number(batchParityAfterRestore.reserved)>=2,
   "fixture must retain the expected shared-lot reservations after aggregate recovery");
+
+ // Prove that over-reported counters are rejected just like under-reported counters.
+ await db.unsafe("update public.order_items set quantity=2 where id=$1::uuid",[ledgerOrderAItem.id]);
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe("update public.inventory_batches set quantity_reserved=quantity_reserved+1 where id=$1::uuid",[ledgerBatchId]);
+ });
+ const batchOverExpired=(await rpc("select public.list_orders_with_expired_fefo_reservations(50,0) result"))
+  .orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(batchOverExpired);
+ assert.equal(batchOverExpired.expired_lots[0].reservation_matches_batch,false);
+ assert.equal(batchOverExpired.expired_lots[0].reservation_matches_balance,true);
+ const batchOverIncomplete=(await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result"))
+  .orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(batchOverIncomplete);
+ assert.equal(batchOverIncomplete.lines[0].reservation_batch_ledger_matches,false);
+ assert.equal(batchOverIncomplete.lines[0].reservation_balance_ledger_matches,true);
+ const batchOverBefore=(await db.unsafe("select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]))[0];
+ const batchOverMovementsBefore=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [ledgerOrderA]
+ ))[0].count;
+ await assert.rejects(
+  ()=>rpc("select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [ledgerOrderA,"fefo-batch-over-"+randomUUID().replaceAll("-",""),"Reject over-reported batch counter"]),
+  error=>String(error?.code)==="40001" && String(error?.message).includes("batch reserved quantity differs"),
+  "reallocation must reject an over-reported batch counter before releasing an expired reservation"
+ );
+ const batchOverAfter=(await db.unsafe("select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]))[0];
+ const batchOverMovementsAfter=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [ledgerOrderA]
+ ))[0].count;
+ assert.equal(batchOverAfter.reserved,batchOverBefore.reserved);
+ assert.equal(batchOverMovementsAfter,batchOverMovementsBefore);
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe("update public.inventory_batches set quantity_reserved=quantity_reserved-1 where id=$1::uuid",[ledgerBatchId]);
+ });
+
+ // Now test an over-reported warehouse aggregate independently of the batch ledger.
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",
+   [product,warehouse]
+  );
+ });
+ const balanceOverExpired=(await rpc("select public.list_orders_with_expired_fefo_reservations(50,0) result"))
+  .orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(balanceOverExpired);
+ assert.equal(balanceOverExpired.expired_lots[0].reservation_matches_batch,true);
+ assert.equal(balanceOverExpired.expired_lots[0].reservation_matches_balance,false);
+ const balanceOverIncomplete=(await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result"))
+  .orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(balanceOverIncomplete);
+ assert.equal(balanceOverIncomplete.lines[0].reservation_batch_ledger_matches,true);
+ assert.equal(balanceOverIncomplete.lines[0].reservation_balance_ledger_matches,false);
+ const balanceOverBefore=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse]
+ ))[0];
+ const balanceOverMovementsBefore=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [ledgerOrderA]
+ ))[0].count;
+ await assert.rejects(
+  ()=>rpc("select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [ledgerOrderA,"fefo-balance-over-"+randomUUID().replaceAll("-",""),"Reject over-reported warehouse aggregate"]),
+  error=>String(error?.code)==="40001" && String(error?.message).includes("aggregate reserved quantity differs"),
+  "reallocation must reject an over-reported warehouse counter before releasing an expired reservation"
+ );
+ const balanceOverAfter=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse]
+ ))[0];
+ const balanceOverMovementsAfter=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
+  [ledgerOrderA]
+ ))[0].count;
+ assert.equal(balanceOverAfter.reserved,balanceOverBefore.reserved);
+ assert.equal(balanceOverMovementsAfter,balanceOverMovementsBefore);
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=quantity_reserved-1,last_movement_at=now(),updated_at=now() "+
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",
+   [product,warehouse]
+  );
+ });
+ await db.unsafe("update public.order_items set quantity=1 where id=$1::uuid",[ledgerOrderAItem.id]);
 
  // Prove atomic rollback in the missing-reservation repair action when a
  // source order has one unit unreserved and no other in-date free lot remains.
