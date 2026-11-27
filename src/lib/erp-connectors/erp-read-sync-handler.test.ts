@@ -113,6 +113,7 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
         fields: { item_code: "000125", name: "منتج تجريبي" },
         lastDisposition: "created",
         lastDispositionReason: null,
+        lastDispositionReason: null,
       }],
       total: 1,
       limit: 20,
