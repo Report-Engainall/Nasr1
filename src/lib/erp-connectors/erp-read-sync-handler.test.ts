@@ -406,6 +406,58 @@ describe("ERP read-only Edge Function handler", () => {
     expect(context.store.listStagedRecords).not.toHaveBeenCalled();
   });
 
+  it("loads a selected bounded page of receipt history without rerunning ERP or writing checkpoints", async () => {
+    const context = buildDependencies();
+    const response = await createErpReadSyncHandler(context.dependencies)(request({
+      ...scopeInput,
+      preview_only: true,
+      receipts_offset: 10,
+      receipts_limit: 5,
+    }));
+    const payload = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload.pages_committed).toBe(0);
+    expect(payload.receipts).toMatchObject({ total: 1, limit: 5, offset: 10 });
+    expect(context.createConnector).not.toHaveBeenCalled();
+    expect(context.store.loadCheckpoint).not.toHaveBeenCalled();
+    expect(context.store.persistPageAtomically).not.toHaveBeenCalled();
+    expect(context.store.listRecentPageReceipts).toHaveBeenCalledWith(expect.objectContaining({
+      limit: 5,
+      offset: 10,
+      scope: expect.objectContaining({ organizationId }),
+    }));
+  });
+
+  it("keeps a successful ERP sync when optional page receipt history is unavailable", async () => {
+    const context = buildDependencies();
+    context.store.listRecentPageReceipts = vi.fn(async () => {
+      throw new Error("receipt history storage unavailable");
+    });
+    const response = await createErpReadSyncHandler(context.dependencies)(request(scopeInput));
+    const payload = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload.status).toBe("complete");
+    expect(payload.receipts).toBeNull();
+    expect(payload.receipts_error).toBe("ERP_PAGE_RECEIPT_HISTORY_FAILED");
+    expect(context.store.persistPageAtomically).toHaveBeenCalled();
+    expect(context.logError).toHaveBeenCalledWith(
+      "ERP page receipt history failed after sync",
+      { code: "ERP_PAGE_RECEIPT_HISTORY_FAILED" },
+    );
+  });
+
+  it("rejects malformed receipt pagination before authentication or storage access", async () => {
+    const context = buildDependencies();
+    const response = await createErpReadSyncHandler(context.dependencies)(request({
+      ...scopeInput, preview_only: true, receipts_offset: 5001,
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "INVALID_ERP_RECEIPT_LIMIT" });
+    expect(context.store.listRecentPageReceipts).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported page and record limits before any provider request", async () => {
     const context = buildDependencies();
     const response = await createErpReadSyncHandler(context.dependencies)(

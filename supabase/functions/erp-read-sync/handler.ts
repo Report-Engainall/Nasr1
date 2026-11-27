@@ -52,6 +52,8 @@ type RequestInput = {
   previewOnly: boolean;
   previewOffset: number;
   previewLimit: number;
+  receiptsOffset: number;
+  receiptsLimit: number;
 };
 
 type ProviderConfig = {
@@ -84,6 +86,8 @@ const REQUEST_KEYS = new Set([
   "preview_only",
   "preview_offset",
   "preview_limit",
+  "receipts_offset",
+  "receipts_limit",
 ]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -154,6 +158,12 @@ function parseRequest(value: unknown): RequestInput {
       !Number.isInteger(previewLimit) || Number(previewLimit) < 1 || Number(previewLimit) > 50) {
     throw new ErpConnectorError("INVALID_ERP_PREVIEW_LIMIT", "حدود معاينة ERP يجب أن تكون بين 1 و50 سجلًا وبداية لا تتجاوز 5000.");
   }
+  const receiptsOffset = value.receipts_offset === undefined ? 0 : value.receipts_offset;
+  const receiptsLimit = value.receipts_limit === undefined ? 10 : value.receipts_limit;
+  if (!Number.isInteger(receiptsOffset) || Number(receiptsOffset) < 0 || Number(receiptsOffset) > 5000 ||
+      !Number.isInteger(receiptsLimit) || Number(receiptsLimit) < 1 || Number(receiptsLimit) > 50) {
+    throw new ErpConnectorError("INVALID_ERP_RECEIPT_LIMIT", "حدود سجل إيصالات ERP يجب أن تكون بين 1 و50 سجلًا وبداية لا تتجاوز 5000.");
+  }
 
   const currencyCode = value.currency_code === undefined || value.currency_code === null
     ? null
@@ -176,6 +186,8 @@ function parseRequest(value: unknown): RequestInput {
     previewOnly,
     previewOffset: Number(previewOffset),
     previewLimit: Number(previewLimit),
+    receiptsOffset: Number(receiptsOffset),
+    receiptsLimit: Number(receiptsLimit),
   };
 }
 
@@ -404,7 +416,9 @@ export function createErpReadSyncHandler(
         let receipts: ErpSyncPageReceiptHistory | null = null;
         let receiptsError: string | null = null;
         try {
-          receipts = await store.listRecentPageReceipts({ scope: syncScope, limit: 10, offset: 0 });
+          receipts = await store.listRecentPageReceipts({
+            scope: syncScope, limit: input.receiptsLimit, offset: input.receiptsOffset,
+          });
         } catch (receiptFailure) {
           receiptsError = receiptFailure instanceof ErpConnectorError
             ? receiptFailure.code
@@ -460,7 +474,9 @@ export function createErpReadSyncHandler(
       let receipts: ErpSyncPageReceiptHistory | null = null;
       let receiptsError: string | null = null;
       try {
-        receipts = await store.listRecentPageReceipts({ scope: syncScope, limit: 10, offset: 0 });
+        receipts = await store.listRecentPageReceipts({
+          scope: syncScope, limit: input.receiptsLimit, offset: input.receiptsOffset,
+        });
       } catch (receiptFailure) {
         receiptsError = receiptFailure instanceof ErpConnectorError
           ? receiptFailure.code
