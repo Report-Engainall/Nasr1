@@ -477,7 +477,9 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='maker-checker requires a reviewer different from the requester';
   END IF;
   IF v_request.status IN ('approved','rejected') THEN
-    IF v_request.reviewed_by=v_actor AND v_request.status=CASE WHEN p_decision='approve' THEN 'approved' ELSE 'rejected' END
+    IF v_request.reviewed_by=v_actor
+       AND ((p_decision='approve' AND v_request.status='approved')
+         OR (p_decision='reject' AND v_request.status='rejected'))
        AND v_request.review_reason=btrim(p_reason) THEN
       RETURN pg_catalog.jsonb_build_object('request_id',v_request.id,'status',v_request.status,'replayed',true);
     END IF;
