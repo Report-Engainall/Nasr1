@@ -20,6 +20,7 @@
     "src/lib/erp-connectors/erp-read-sync-handler.test.ts",
     "supabase/functions/_shared/erp-connectors/readonly-sync.ts",
     "supabase/functions/_shared/erp-connectors/supabase-checkpoint-store.ts",
-    "supabase/functions/erp-read-sync/handler.ts"
+    "supabase/functions/erp-read-sync/handler.ts",
+    "supabase/functions/erp-read-sync/index.ts"
   ]
 }
