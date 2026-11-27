@@ -23,6 +23,7 @@ const result = {
     records: [{
       externalId: "ERP-PRODUCT-001",
       sourceUpdatedAt: "2026-11-28T00:30:00Z",
+      lastDisposition: "created",
       fields: { item_code: "000125", name: "منتج مرحلي", barcode: null },
     }],
     total: 42,
@@ -79,6 +80,7 @@ describe("ErpReadSyncPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("معاينة البيانات المرحلية");
     expect(screen.getByRole("status")).toHaveTextContent("ERP-PRODUCT-001");
     expect(screen.getByRole("status")).toHaveTextContent("اسم الصنف");
+    expect(screen.getByRole("status")).toHaveTextContent("جديد");
     expect(screen.getByRole("status")).toHaveTextContent("42");
   });
 
