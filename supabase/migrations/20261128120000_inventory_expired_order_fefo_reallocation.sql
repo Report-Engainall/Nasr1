@@ -667,9 +667,10 @@ BEGIN
  ),
  gaps AS MATERIALIZED (
   SELECT x.*,coalesce(n.reserved_qty,0)::numeric(15,3) reserved_qty,
-    (x.ordered_qty-coalesce(n.reserved_qty,0))::numeric(15,3) missing_qty
+    greatest(x.ordered_qty-coalesce(n.reserved_qty,0),0)::numeric(15,3) missing_qty,
+    greatest(coalesce(n.reserved_qty,0)-x.ordered_qty,0)::numeric(15,3) excess_qty
    FROM ordered x LEFT JOIN net n ON n.order_id=x.order_id AND n.product_id=x.product_id
-  WHERE x.ordered_qty>coalesce(n.reserved_qty,0)
+  WHERE x.ordered_qty IS DISTINCT FROM coalesce(n.reserved_qty,0)
  ),
  expired AS MATERIALIZED (
   SELECT DISTINCT im.reference_id order_id
@@ -685,11 +686,16 @@ BEGIN
    pg_catalog.sum(g.ordered_qty)::numeric(15,3) ordered_quantity,
    pg_catalog.sum(g.reserved_qty)::numeric(15,3) reserved_quantity,
    pg_catalog.sum(g.missing_qty)::numeric(15,3) missing_quantity,
+   pg_catalog.sum(g.excess_qty)::numeric(15,3) excess_quantity,
+   pg_catalog.bool_or(g.missing_qty>0) has_shortage,
+   pg_catalog.bool_or(g.excess_qty>0) has_excess,
    pg_catalog.count(*)::integer affected_product_count,
    (e.order_id IS NOT NULL) requires_expired_reallocation,
    pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
     'product_id',g.product_id,'item_code',p.item_code,'product_name',p.name,
-    'ordered_quantity',g.ordered_qty::text,'reserved_quantity',g.reserved_qty::text,'missing_quantity',g.missing_qty::text,
+    'ordered_quantity',g.ordered_qty::text,'reserved_quantity',g.reserved_qty::text,
+    'missing_quantity',g.missing_qty::text,'excess_quantity',g.excess_qty::text,
+    'reservation_status',CASE WHEN g.missing_qty>0 THEN 'short' WHEN g.excess_qty>0 THEN 'excess' ELSE 'matched' END,
     'replacement_available_quantity',(
       SELECT coalesce(pg_catalog.sum(b.quantity_on_hand-b.quantity_reserved),0)::numeric(15,3)::text
        FROM public.inventory_batches b JOIN public.warehouses w ON w.id=b.warehouse_id AND w.organization_id=v_org AND w.is_active=true
@@ -706,7 +712,9 @@ BEGIN
   coalesce((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
    'order_id',x.order_id,'order_number',x.order_number,'status',x.status,'created_at',x.created_at,
    'ordered_quantity',x.ordered_quantity::text,'reserved_quantity',x.reserved_quantity::text,
-   'missing_quantity',x.missing_quantity::text,'affected_product_count',x.affected_product_count,
+   'missing_quantity',x.missing_quantity::text,'excess_quantity',x.excess_quantity::text,
+   'has_shortage',x.has_shortage,'has_excess',x.has_excess,
+   'affected_product_count',x.affected_product_count,
    'requires_expired_reallocation',x.requires_expired_reallocation,'lines',x.lines
   ) ORDER BY x.created_at,x.order_id) FROM page x),'[]'::jsonb)
  INTO v_total,v_orders;
@@ -891,6 +899,183 @@ REVOKE ALL ON FUNCTION public.reconcile_incomplete_order_reservations(uuid,text,
 GRANT EXECUTE ON FUNCTION public.reconcile_incomplete_order_reservations(uuid,text,text) TO authenticated;
 COMMENT ON FUNCTION public.reconcile_incomplete_order_reservations(uuid,text,text) IS
  'Manager/admin-only atomic FEFO repair that reserves only the missing order quantity; refuses expiry, ledger drift and insufficient stock.';
+
+CREATE OR REPLACE FUNCTION public.release_excess_order_reservations(
+ p_order_id uuid,p_idempotency_key text,p_reason text
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+ v_actor uuid:=public.current_profile_id(); v_org uuid; v_order public.orders%ROWTYPE;
+ v_existing public.inventory_order_reservation_reconciliations%ROWTYPE;
+ v_key text:=pg_catalog.btrim(coalesce(p_idempotency_key,'')); v_reason text:=nullif(pg_catalog.btrim(coalesce(p_reason,'')),'');
+ v_payload jsonb; v_products uuid[]:=ARRAY[]::uuid[]; v_product uuid;
+ v_ordered numeric(15,3); v_reserved numeric(15,3); v_excess numeric(15,3); v_left numeric(15,3);
+ v_take numeric(15,3); v_after numeric(15,3); v_lot record;
+ v_released numeric(15,3):=0; v_lot_count integer:=0; v_allocations jsonb:='[]'::jsonb;
+ v_result jsonb; v_id uuid;
+BEGIN
+ SELECT p.organization_id INTO v_org FROM public.profiles p
+  JOIN public.organizations o ON o.id=p.organization_id AND o.is_active=true
+  WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+ IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.is_staff()
+    OR NOT EXISTS(SELECT 1 FROM public.user_roles r WHERE r.profile_id=v_actor AND r.role IN ('admin','manager')) THEN
+  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active admin or manager inventory authority is required';
+ END IF;
+ IF p_order_id IS NULL OR v_key !~ '^[A-Za-z0-9_-]{16,128}$'
+    OR v_reason IS NULL OR pg_catalog.char_length(v_reason)>500 THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='order id, valid idempotency key and reason of 1..500 characters are required';
+ END IF;
+ v_payload:=pg_catalog.jsonb_build_object('operation','release_excess','order_id',p_order_id,'reason',v_reason);
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_org::text||':order-reservation-reconcile:'||v_key,0));
+ SELECT x.* INTO v_existing FROM public.inventory_order_reservation_reconciliations x
+  WHERE x.organization_id=v_org AND x.idempotency_key=v_key FOR UPDATE;
+ IF FOUND THEN
+  IF v_existing.request_payload IS DISTINCT FROM v_payload THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='excess reservation release idempotency payload conflict';
+  END IF;
+  RETURN v_existing.result||pg_catalog.jsonb_build_object('idempotent_replay',true);
+ END IF;
+
+ SELECT o.* INTO v_order FROM public.orders o WHERE o.id=p_order_id AND o.organization_id=v_org FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='order was not found in the active organization'; END IF;
+ IF v_order.status NOT IN ('confirmed','processing') THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='only confirmed or processing orders can release excess reservations';
+ END IF;
+ IF EXISTS(SELECT 1 FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id AND im.movement_type='sale') THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='orders with a sale movement cannot release reservations';
+ END IF;
+ IF EXISTS(SELECT 1 FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id
+   AND im.movement_type='reserve' AND im.inventory_batch_id IS NULL) THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservations have no batch lineage and cannot be safely reconciled';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.order_items oi WHERE oi.order_id=v_order.id)
+    OR EXISTS(SELECT 1 FROM public.order_items oi WHERE oi.order_id=v_order.id AND oi.product_id IS NULL) THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order must contain linked product lines to release excess reservations';
+ END IF;
+ IF EXISTS(
+  WITH ordered AS(SELECT oi.product_id,pg_catalog.sum(oi.quantity)::numeric(15,3) qty
+   FROM public.order_items oi WHERE oi.order_id=v_order.id GROUP BY oi.product_id),
+  net AS(SELECT im.product_id,pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+   WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) qty
+   FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id
+   AND im.movement_type IN ('reserve','release_reservation') GROUP BY im.product_id)
+  SELECT 1 FROM net n LEFT JOIN ordered o ON o.product_id=n.product_id WHERE o.product_id IS NULL OR n.qty<0 OR n.qty<o.qty
+ ) THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order has a missing reservation; use the incomplete-reservation repair action instead';
+ END IF;
+
+ SELECT coalesce(pg_catalog.array_agg(DISTINCT oi.product_id ORDER BY oi.product_id),ARRAY[]::uuid[])
+  INTO v_products FROM public.order_items oi WHERE oi.order_id=v_order.id;
+ FOREACH v_product IN ARRAY v_products LOOP
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_org::text||':inventory-batch-reservation:'||v_product::text,0));
+  PERFORM ib.id FROM public.inventory_balances ib JOIN public.warehouses w
+   ON w.id=ib.warehouse_id AND w.organization_id=v_org AND w.is_active=true
+   WHERE ib.product_id=v_product ORDER BY ib.warehouse_id FOR UPDATE OF ib;
+  PERFORM b.id FROM public.inventory_batches b WHERE b.organization_id=v_org AND b.product_id=v_product
+   ORDER BY b.id FOR UPDATE OF b;
+
+  IF EXISTS(
+   SELECT 1 FROM public.inventory_batches b WHERE b.organization_id=v_org AND b.product_id=v_product
+    AND b.quantity_reserved<coalesce((
+     SELECT pg_catalog.sum(x.qty) FROM (
+      SELECT pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+       WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) qty
+      FROM public.inventory_movements im JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+      WHERE im.reference_type='order' AND im.inventory_batch_id=b.id AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
+      GROUP BY im.reference_id HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+       WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
+     ) x
+    ),0)
+  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved quantity is below active order movement ledger'; END IF;
+  IF EXISTS(
+   SELECT 1 FROM public.inventory_balances ib JOIN public.warehouses w ON w.id=ib.warehouse_id AND w.organization_id=v_org
+    WHERE ib.product_id=v_product AND ib.quantity_reserved<coalesce((
+     SELECT pg_catalog.sum(x.qty) FROM (
+      SELECT pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+       WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) qty
+      FROM public.inventory_movements im JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+      WHERE im.reference_type='order' AND im.product_id=ib.product_id AND im.warehouse_id=ib.warehouse_id
+       AND im.inventory_batch_id IS NOT NULL AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
+      GROUP BY im.reference_id HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+       WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
+     ) x
+    ),0)
+  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved quantity is below active order movement ledger'; END IF;
+
+  SELECT coalesce(pg_catalog.sum(oi.quantity),0)::numeric(15,3) INTO v_ordered
+   FROM public.order_items oi WHERE oi.order_id=v_order.id AND oi.product_id=v_product;
+  SELECT coalesce(pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+    WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END),0)::numeric(15,3) INTO v_reserved
+   FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id
+    AND im.product_id=v_product AND im.movement_type IN ('reserve','release_reservation');
+  v_excess:=v_reserved-v_ordered;
+  IF v_excess<0 THEN RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order has a missing reservation; excess release refused'; END IF;
+  v_left:=v_excess;
+
+  -- Release least-urgent lots first (no-expiry and latest expiry first),
+  -- preserving earlier-expiry allocations for the commercial order.
+  FOR v_lot IN
+   SELECT b.id batch_id,b.product_id,b.warehouse_id,b.quantity_reserved,ib.id balance_id,
+    pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+      WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)::numeric(15,3) order_reserved
+   FROM public.inventory_movements im JOIN public.inventory_batches b
+    ON b.id=im.inventory_batch_id AND b.organization_id=v_org
+   JOIN public.inventory_balances ib ON ib.product_id=b.product_id AND ib.warehouse_id=b.warehouse_id
+   JOIN public.warehouses w ON w.id=b.warehouse_id AND w.organization_id=v_org
+   WHERE im.reference_type='order' AND im.reference_id=v_order.id AND im.product_id=v_product
+    AND im.movement_type IN ('reserve','release_reservation') AND im.inventory_batch_id IS NOT NULL
+   GROUP BY b.id,b.product_id,b.warehouse_id,b.quantity_reserved,ib.id,b.expiry_date,b.received_at
+   HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
+     WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
+   ORDER BY b.expiry_date DESC NULLS FIRST,b.received_at DESC,b.id DESC
+   FOR UPDATE OF b,ib
+  LOOP
+   EXIT WHEN v_left<=0;
+   IF v_lot.quantity_reserved<v_lot.order_reserved THEN
+    RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved counter is below this order movement ledger; excess release refused';
+   END IF;
+   v_take:=LEAST(v_left,v_lot.order_reserved);
+   UPDATE public.inventory_batches SET quantity_reserved=quantity_reserved-v_take
+    WHERE id=v_lot.batch_id AND quantity_reserved>=v_take;
+   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved counter changed during excess release'; END IF;
+   UPDATE public.inventory_balances SET quantity_reserved=quantity_reserved-v_take,
+    last_movement_at=pg_catalog.statement_timestamp(),updated_at=pg_catalog.statement_timestamp()
+    WHERE id=v_lot.balance_id AND quantity_reserved>=v_take
+    RETURNING quantity_available INTO v_after;
+   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved counter changed during excess release'; END IF;
+   INSERT INTO public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id)
+    VALUES(v_lot.product_id,v_lot.warehouse_id,'release_reservation',v_take,v_after,'order',v_order.id,
+     'تحرير الحجز الزائد للطلب: '||v_reason,v_actor,v_lot.batch_id);
+   v_allocations:=v_allocations||pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+    'batch_id',v_lot.batch_id,'product_id',v_product,'warehouse_id',v_lot.warehouse_id,'quantity',v_take));
+   v_released:=v_released+v_take; v_lot_count:=v_lot_count+1; v_left:=v_left-v_take;
+  END LOOP;
+  IF v_left>0 THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='excess reservation movement history has no matching batch quantity; release refused'; END IF;
+ END LOOP;
+
+ v_result:=pg_catalog.jsonb_build_object('order_id',v_order.id,'release_status',
+   CASE WHEN v_released>0 THEN 'excess_released' ELSE 'already_matched' END,
+   'released_quantity',v_released,'released_lot_count',v_lot_count,'allocations',v_allocations,'idempotent_replay',false);
+ INSERT INTO public.inventory_order_reservation_reconciliations(organization_id,order_id,idempotency_key,request_payload,result,created_by)
+  VALUES(v_org,v_order.id,v_key,v_payload,v_result,v_actor) RETURNING id INTO v_id;
+ v_result:=v_result||pg_catalog.jsonb_build_object('reconciliation_id',v_id);
+ UPDATE public.inventory_order_reservation_reconciliations SET result=v_result WHERE id=v_id;
+ INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
+  VALUES(v_org,v_actor,'inventory.order_reservation.excess_released','order_reservation_reconciliation',v_id,
+   pg_catalog.jsonb_build_object('order_id',v_order.id),
+   v_result||pg_catalog.jsonb_build_object('reason',v_reason,'idempotency_key',v_key));
+ RETURN v_result;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.release_excess_order_reservations(uuid,text,text) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.release_excess_order_reservations(uuid,text,text) TO authenticated;
+COMMENT ON FUNCTION public.release_excess_order_reservations(uuid,text,text) IS
+ 'Manager/admin-only idempotent correction that releases only net order reservation excess, from least-urgent batches first; preserves actual order quantity and stock on hand.';
 
 CREATE OR REPLACE FUNCTION public.finalize_order_inventory()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
