@@ -408,6 +408,66 @@ describe("production intelligence workspace inventory screens", () => {
   });
   afterEach(() => cleanup());
 
+  it("keeps saved concentration decisions scoped as ratios and never offers cash measurement", async () => {
+    const currentPeriod = { from: "2026-08-01", to: "2026-10-31" };
+    const baselinePeriod = { from: "2026-05-01", to: "2026-07-31" };
+    const candidateId = "finance.product-concentration.review-increase.YER:metric:product.revenue.top5_concentration_change:YER:" + asOf;
+    const ruleId = "finance.product-concentration.review-increase.YER";
+    const outcome = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000088", "متابعة تقييم تركّز المنتجات"),
+      candidateId,
+      ruleId,
+      state: "EXECUTED" as const,
+      version: 6,
+      ownerProfileId: "admin-profile",
+      executedAt: asOf,
+      candidateSnapshot: {
+        schemaVersion: "1.0.0" as const,
+        candidateId,
+        ruleId,
+        ruleVersion: "1.0.0",
+        priority: "P3" as const,
+        priorityScore: 100,
+        what: "مراجعة ارتفاع تركّز مبيعات المنتجات",
+        why: "ارتفعت حصة أعلى خمسة منتجات",
+        risk: "زيادة الاعتماد على مجموعة أصغر",
+        soWhat: "مراجعة مخاطر التوريد",
+        whatNext: "راجع توافر الأصناف والبدائل",
+        owner: "مدير المبيعات والمخزون",
+        expectedOutcome: "متابعة تقييم تركّز المنتجات",
+        impact: null,
+        impactStatus: "NOT_CONFIGURED" as const,
+        impactReason: "NO_APPROVED_IMPACT_FORMULA",
+        proof: {
+          evidenceIds: [
+            "rpc:product-revenue-concentration:YER:" + currentPeriod.from + ":" + currentPeriod.to + ":" + asOf,
+            "rpc:product-revenue-concentration:YER:" + baselinePeriod.from + ":" + baselinePeriod.to + ":" + asOf,
+          ],
+          metricKeys: ["product.revenue.top5_concentration_change:YER"],
+          asOf,
+          formulaVersions: ["nasr1.top5-product-revenue-concentration-period-delta@1.0.0"],
+        },
+        createdAt: asOf,
+        expiresAt: null,
+      },
+    };
+    mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [outcome], total: 1 });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const heading = await within(register).findByRole("heading", { name: "متابعة تقييم تركّز المنتجات" });
+    const card = heading.closest("article");
+    expect(card).not.toBeNull();
+    expect(card).toHaveTextContent("تركيز مبيعات المنتجات");
+    expect(card).toHaveTextContent("YER");
+    expect(card).toHaveTextContent("الفترة: 2026-08-01 — 2026-10-31");
+    expect(card).toHaveTextContent("الفترة المقارنة: 2026-05-01 — 2026-07-31");
+    expect(card).toHaveTextContent("لقطة المصدر: " + asOf);
+    expect(card).toHaveTextContent("لقطتا RPC تجميعيّتان");
+    expect(card).toHaveTextContent("هذا المؤشر نسبة تركّز وليس مبلغاً نقدياً");
+    expect(within(card as HTMLElement).queryByRole("button", { name: /قياس|اعتماد قياس/ })).not.toBeInTheDocument();
+  });
+
   it("loads the complete stabilized decision-memory collection independently from the 50-row register page", async () => {
     const pageRecords = Array.from({ length: 50 }, (_, index) =>
       decisionOutcomeFixture("00000000-0000-4000-8000-" + (index + 1).toString(16).padStart(12, "0"), "قرار الصفحة التشغيلية " + (index + 1)));
