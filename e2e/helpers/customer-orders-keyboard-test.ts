@@ -324,6 +324,13 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     await expect(page.getByText("SO-2026-0030", { exact: true })).toBeVisible();
     await expect.poll(() => fixture.requests.slice(asciiSearchStart).some((request) => request.orderNumberFilter === "ilike.%0030%")).toBe(true);
 
+    // ilike must remain case-insensitive when a customer types a Latin SKU-like order fragment.
+    const caseInsensitiveSearchStart = await submitSearch("so-2026-0027");
+    await expect(page.getByText("SO-2026-0027", { exact: true })).toBeVisible();
+    await expect.poll(() => fixture.requests.slice(caseInsensitiveSearchStart).some((request) =>
+      request.orderNumberFilter === "ilike.%so-2026-0027%" && request.offset === "0" && request.limit === "25",
+    )).toBe(true);
+
     // LIKE metacharacters are removed before the query reaches PostgREST.
     const metacharacterSearchStart = await submitSearch("%_2026-0028%");
     await expect(page.getByText("SO-2026-0028", { exact: true })).toBeVisible();
