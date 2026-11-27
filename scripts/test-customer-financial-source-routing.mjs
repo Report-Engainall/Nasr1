@@ -117,8 +117,8 @@ async function main() {
   assert.equal(manager.organization_id, customerProfile.organization_id, "customer and finance operators must share the target tenant");
 
   const [customers, foreignCustomers] = await Promise.all([
-    db.unsafe("select id::text,organization_id::text from public.customers where profile_id=$1::uuid and status='approved'", [customerProfile.id]),
-    db.unsafe("select id::text,organization_id::text from public.customers where profile_id=$1::uuid and status='approved'", [foreignProfile.id]),
+    db.unsafe("select id::text,organization_id::text,customer_code from public.customers where profile_id=$1::uuid and status='approved'", [customerProfile.id]),
+    db.unsafe("select id::text,organization_id::text,customer_code from public.customers where profile_id=$1::uuid and status='approved'", [foreignProfile.id]),
   ]);
   assert.equal(customers.length, 1, "primary E2E profile must own exactly one approved customer account");
   assert.equal(foreignCustomers.length, 1, "foreign E2E profile must own exactly one approved customer account");
@@ -249,7 +249,7 @@ async function main() {
   assert.equal(customerReceiptOptions.offset, 0);
   assert.ok(customerReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
     "APP_ONLY customer can list the saved receipt belonging to its own account");
-  assert.ok(customerReceiptOptions.receipts.every(row => row.customer_code === customerProfile.customer_code || row.id === sourceTestReceiptId),
+  assert.ok(customerReceiptOptions.receipts.every(row => row.customer_code === customers[0].customer_code),
     "customer receipt selector is scoped to the authenticated customer");
   const customerReceiptPrint = await rpc(customerDb,
     "select public.get_my_customer_payment_receipt_print_data($1::uuid) as result",
@@ -257,12 +257,32 @@ async function main() {
   assert.equal(customerReceiptPrint.receipt.id, sourceTestReceiptId);
   assert.equal(customerReceiptPrint.receipt.allocation_count, 2);
   assert.equal(customerReceiptPrint.customer.id, customerId);
+  assert.equal(customerReceiptPrint.customer.customer_code, customers[0].customer_code,
+    "customer print DTO is bound to the resolved customer account code");
+
   assert.equal(customerReceiptPrint.allocations.length, 2,
     "customer print returns both verified saved invoice allocations");
   assert.deepEqual(Object.keys(customerReceiptPrint.customer).sort(),
     ["business_name","contact_name","customer_code","id"].sort(),
     "customer print DTO excludes profile, tenant and internal identity fields");
   assert.equal(customerReceiptPrint.receipt.reference, "FIN-SOURCE-RECEIPT");
+
+  const customerReceiptRpcPrivileges = await db.unsafe(
+    "select " +
+      "has_function_privilege('authenticated','public.get_my_customer_payment_receipt_print_options(integer,integer)','EXECUTE') as auth_options," +
+      "has_function_privilege('anon','public.get_my_customer_payment_receipt_print_options(integer,integer)','EXECUTE') as anon_options," +
+      "has_function_privilege('authenticated','public.get_my_customer_payment_receipt_print_data(uuid)','EXECUTE') as auth_print," +
+      "has_function_privilege('anon','public.get_my_customer_payment_receipt_print_data(uuid)','EXECUTE') as anon_print," +
+      "(select prosecdef from pg_catalog.pg_proc where oid='public.get_my_customer_payment_receipt_print_options(integer,integer)'::regprocedure) as options_security_definer," +
+      "(select prosecdef from pg_catalog.pg_proc where oid='public.get_my_customer_payment_receipt_print_data(uuid)'::regprocedure) as print_security_definer",
+  );
+  assert.equal(customerReceiptRpcPrivileges[0].auth_options, true);
+  assert.equal(customerReceiptRpcPrivileges[0].auth_print, true);
+  assert.equal(customerReceiptRpcPrivileges[0].anon_options, false);
+  assert.equal(customerReceiptRpcPrivileges[0].anon_print, false);
+  assert.equal(customerReceiptRpcPrivileges[0].options_security_definer, true);
+  assert.equal(customerReceiptRpcPrivileges[0].print_security_definer, true);
+
   await expectFailure(
     "customer receipt history rejects an out-of-range page limit",
     rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(101,0) as result"),
