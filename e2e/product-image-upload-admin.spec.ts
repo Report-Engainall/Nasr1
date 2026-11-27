@@ -376,11 +376,14 @@ test("manager completes the real admin image-upload journey against local Storag
     await manager.getByRole("button", { name: "رفع الصور المطابقة", exact: true }).click();
 
     const resultRegion = manager.getByRole("region", { name: "نتائج رفع الصور", exact: true });
-    await expect(resultRegion.getByRole("status")).toContainText("تعذر 1", { timeout: 45_000 });
+    const batchSummary = resultRegion.locator('span[role="status"]');
+    // The result region also contains per-file paragraphs with role=status.
+    // Target the batch summary span explicitly to avoid an ambiguous role locator.
+    expect(harness.injectedGalleryFailure()).toBe(true);
+    await expect(batchSummary).toContainText("نجح 1 · تعذر 1", { timeout: 45_000 });
     await expect(resultRegion).toContainText("الصورة الرئيسية");
     await expect(resultRegion).toContainText("صورة إضافية");
     await expect(manager.getByRole("button", { name: "إعادة محاولة الصور الفاشلة (1)", exact: true })).toBeEnabled();
-    expect(harness.injectedGalleryFailure()).toBe(true);
 
     const afterFirstAttempt = await readProductMedia(harness.service);
     expect(afterFirstAttempt.product.image_url).toMatch(/^https:\/\/storage\.local\.test\//);
@@ -389,7 +392,7 @@ test("manager completes the real admin image-upload journey against local Storag
     expect(afterFirstAttempt.media).toHaveLength(0);
 
     await manager.getByRole("button", { name: "إعادة محاولة الصور الفاشلة (1)", exact: true }).click();
-    await expect(resultRegion.getByRole("status")).toContainText("تعذر 0", { timeout: 45_000 });
+    await expect(batchSummary).toContainText("نجح 2 · تعذر 0", { timeout: 45_000 });
     await expect(resultRegion.getByRole("alert")).toHaveCount(0);
     const afterRetry = await readProductMedia(harness.service);
     expect(afterRetry.product.image_url).toBeTruthy();
