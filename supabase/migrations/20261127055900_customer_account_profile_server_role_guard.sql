@@ -7,26 +7,36 @@ BEGIN;
 CREATE OR REPLACE FUNCTION public.assert_customer_account_profile_actor()
 RETURNS uuid
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
   v_uid uuid := auth.uid();
-  v_profile uuid := public.current_profile_id();
+  v_profile uuid;
 BEGIN
-  IF v_uid IS NULL OR v_profile IS NULL THEN
+  IF v_uid IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'authenticated customer required';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.profiles p
-    WHERE p.id = v_profile
-      AND p.auth_user_id = v_uid
-      AND p.is_active = true
-      AND p.organization_id = public.current_organization_id()
-  ) THEN
+  v_profile := public.current_profile_id();
+  IF v_profile IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'active customer profile is required';
+  END IF;
+
+  -- Role assignment locks this same profile row FOR UPDATE before replacing user_roles.
+  -- Hold a shared lock until the caller's RPC ends so a role revocation cannot race
+  -- between the customer-role check and the profile read/write.
+  SELECT p.id
+    INTO v_profile
+  FROM public.profiles p
+  WHERE p.id = v_profile
+    AND p.auth_user_id = v_uid
+    AND p.is_active = true
+    AND p.organization_id = public.current_organization_id()
+  FOR SHARE;
+
+  IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'active customer profile is required';
   END IF;
 
