@@ -595,6 +595,60 @@ async function main() {
   );
   assert.equal(appOnlyInvoiceRows.length, 1, "APP_ONLY customer can read a real own invoice row");
   assert.equal(appOnlyInvoiceItemRows.length, 1, "APP_ONLY customer can read a real own invoice line");
+
+  // Direct invoice and invoice-line RLS reads must hold the active source binding
+  // FOR SHARE until the transaction ends. This serializes them with the exclusive
+  // binding lock taken by Maker/Checker source cutover.
+  await customerDb.begin(async tx => {
+    await setIdentity(tx, customerProfile.auth_user_id, customerProfile.email);
+    const lockedCustomerInvoices = await tx.unsafe(
+      "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+      [sourceTestInvoiceId, orgId, customerId],
+    );
+    assert.equal(lockedCustomerInvoices.length, 1,
+      "customer RLS invoice read returns the APP_ONLY invoice while holding its source binding");
+    const lockedCustomerInvoiceItems = await tx.unsafe(
+      "select id from public.customer_invoice_items where id=$1::uuid and organization_id=$2::uuid and invoice_id=$3::uuid",
+      [sourceTestInvoiceItemId, orgId, sourceTestInvoiceId],
+    );
+    assert.equal(lockedCustomerInvoiceItems.length, 1,
+      "customer RLS invoice-line read returns the APP_ONLY line while holding its source binding");
+    await expectFailure(
+      "customer direct invoice RLS read blocks an exclusive source cutover until its transaction ends",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId, customerId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
+
+  await managerDb.begin(async tx => {
+    await setIdentity(tx, manager.auth_user_id, manager.email);
+    const lockedStaffInvoices = await tx.unsafe(
+      "select id from public.customer_invoices where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+      [sourceTestInvoiceId, orgId, customerId],
+    );
+    assert.equal(lockedStaffInvoices.length, 1,
+      "finance staff RLS invoice read returns the APP_ONLY invoice");
+    const lockedStaffInvoiceItems = await tx.unsafe(
+      "select id from public.customer_invoice_items where id=$1::uuid and organization_id=$2::uuid and invoice_id=$3::uuid",
+      [sourceTestInvoiceItemId, orgId, sourceTestInvoiceId],
+    );
+    assert.equal(lockedStaffInvoiceItems.length, 1,
+      "finance staff RLS invoice-line read returns the APP_ONLY line");
+    await expectFailure(
+      "staff direct invoice RLS read blocks an exclusive source cutover until its transaction ends",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId, customerId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
+
   const appOnlyInvoicePdf = await rpc(customerDb,
     "select public.get_customer_invoice_pdf($1::uuid) as result",
     [sourceTestInvoiceId],

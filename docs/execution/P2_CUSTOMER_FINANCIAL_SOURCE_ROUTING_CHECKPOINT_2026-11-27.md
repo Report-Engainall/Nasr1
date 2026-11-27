@@ -159,3 +159,10 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Extended the existing provider sync acceptance after a successful first write/replay: a service-role sync carrying `source_as_of = statement_timestamp() + 1 minute` must fail with SQLSTATE `22023` before writing any evidence.
 - The test snapshots the current binding watermark/sync time/evidence hash and the sync-evidence row count before the rejected request, then asserts every binding field is unchanged and no evidence row was appended.
 - This proves the server-side future-date guard is operational and not merely present in SQL source. Historical watermark monotonicity, exact replay and wrong external-account denial remain in the same flow.
+
+## 2026-11-28 — Direct invoice RLS reads serialize with financial-source cutover
+
+- Replaced both definitions of `customer_app_only_invoice_read_allowed(uuid,uuid)` and both definitions of `staff_customer_app_only_financial_rows_read_allowed(uuid,uuid)` in the migration. These restrictive-RLS predicates are now `VOLATILE` SECURITY DEFINER PL/pgSQL functions that acquire `FOR SHARE` on the exact `(organization_id,customer_id)` source binding before returning the APP_ONLY boolean.
+- The source change review RPC already locks the same binding `FOR UPDATE` before approving and increments its revision/source in one transaction. Direct customer and finance-staff invoice and invoice-line RLS reads now hold their shared binding lock until the caller's transaction ends, so an approved cutover must wait for any in-flight APP_ONLY query to finish; a read arriving after cutover sees the external source and is denied.
+- Added real PostgreSQL acceptance for both customer and finance-staff direct invoice + invoice-line RLS paths. While each read transaction is open, a separate service-role connection's `FOR UPDATE NOWAIT` against the same binding must fail with `55P03`. Existing external-source RLS denial and no-fallback tests remain.
+- This closes the server-side race, not only the P1 client revalidation race. The exact updated migration + acceptance must pass isolated PostgreSQL 17 before this change is accepted.

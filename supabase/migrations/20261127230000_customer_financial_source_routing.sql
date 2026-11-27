@@ -884,25 +884,37 @@ CREATE OR REPLACE FUNCTION public.customer_app_only_invoice_read_allowed(
   p_organization_id uuid
 )
 RETURNS boolean
-LANGUAGE sql
-STABLE
+LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
-  SELECT auth.uid() IS NOT NULL
-     AND p_customer_id IS NOT NULL
-     AND p_organization_id IS NOT NULL
-     AND p_customer_id = public.current_customer_id()
-     AND p_organization_id = public.current_organization_id()
-     AND public.current_customer_can('invoices.read')
-     AND EXISTS (
-       SELECT 1
-         FROM public.customer_financial_source_bindings b
-        WHERE b.organization_id = p_organization_id
-          AND b.customer_id = p_customer_id
-          AND b.source_mode = 'APP_ONLY'
-          AND b.source_status = 'active'
-     )
+DECLARE
+  v_source_mode text;
+  v_source_status text;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_customer_id IS NULL
+     OR p_organization_id IS NULL
+     OR p_customer_id IS DISTINCT FROM public.current_customer_id()
+     OR p_organization_id IS DISTINCT FROM public.current_organization_id()
+     OR NOT public.current_customer_can('invoices.read') THEN
+    RETURN false;
+  END IF;
+
+  -- Serialize a direct RLS invoice read with an approved source cutover.
+  -- The shared row lock remains until the caller's statement transaction ends.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=p_organization_id
+     AND b.customer_id=p_customer_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  RETURN v_source_mode='APP_ONLY' AND v_source_status='active';
+END
 $function$;
 REVOKE ALL ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) TO authenticated;
@@ -919,24 +931,35 @@ CREATE OR REPLACE FUNCTION public.staff_customer_app_only_financial_rows_read_al
   p_organization_id uuid
 )
 RETURNS boolean
-LANGUAGE sql
-STABLE
+LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
-  SELECT auth.uid() IS NOT NULL
-     AND p_customer_id IS NOT NULL
-     AND p_organization_id IS NOT NULL
-     AND p_organization_id = public.current_organization_id()
-     AND public.is_staff()
-     AND EXISTS (
-       SELECT 1
-         FROM public.customer_financial_source_bindings b
-        WHERE b.organization_id = p_organization_id
-          AND b.customer_id = p_customer_id
-          AND b.source_mode = 'APP_ONLY'
-          AND b.source_status = 'active'
-     )
+DECLARE
+  v_source_mode text;
+  v_source_status text;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_customer_id IS NULL
+     OR p_organization_id IS NULL
+     OR p_organization_id IS DISTINCT FROM public.current_organization_id()
+     OR NOT public.is_staff() THEN
+    RETURN false;
+  END IF;
+
+  -- Staff direct reads share the same source-binding lock order as source cutovers.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=p_organization_id
+     AND b.customer_id=p_customer_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  RETURN v_source_mode='APP_ONLY' AND v_source_status='active';
+END
 $function$;
 REVOKE ALL ON FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(uuid,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(uuid,uuid) TO authenticated;
@@ -3206,25 +3229,37 @@ CREATE OR REPLACE FUNCTION public.customer_app_only_invoice_read_allowed(
   p_organization_id uuid
 )
 RETURNS boolean
-LANGUAGE sql
-STABLE
+LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
-  SELECT auth.uid() IS NOT NULL
-     AND p_customer_id IS NOT NULL
-     AND p_organization_id IS NOT NULL
-     AND p_customer_id = public.current_customer_id()
-     AND p_organization_id = public.current_organization_id()
-     AND public.current_customer_can('invoices.read')
-     AND EXISTS (
-       SELECT 1
-         FROM public.customer_financial_source_bindings b
-        WHERE b.organization_id = p_organization_id
-          AND b.customer_id = p_customer_id
-          AND b.source_mode = 'APP_ONLY'
-          AND b.source_status = 'active'
-     )
+DECLARE
+  v_source_mode text;
+  v_source_status text;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_customer_id IS NULL
+     OR p_organization_id IS NULL
+     OR p_customer_id IS DISTINCT FROM public.current_customer_id()
+     OR p_organization_id IS DISTINCT FROM public.current_organization_id()
+     OR NOT public.current_customer_can('invoices.read') THEN
+    RETURN false;
+  END IF;
+
+  -- Serialize a direct RLS invoice read with an approved source cutover.
+  -- The shared row lock remains until the caller's statement transaction ends.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=p_organization_id
+     AND b.customer_id=p_customer_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  RETURN v_source_mode='APP_ONLY' AND v_source_status='active';
+END
 $function$;
 REVOKE ALL ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.customer_app_only_invoice_read_allowed(uuid,uuid) TO authenticated;
@@ -3241,24 +3276,35 @@ CREATE OR REPLACE FUNCTION public.staff_customer_app_only_financial_rows_read_al
   p_organization_id uuid
 )
 RETURNS boolean
-LANGUAGE sql
-STABLE
+LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
-  SELECT auth.uid() IS NOT NULL
-     AND p_customer_id IS NOT NULL
-     AND p_organization_id IS NOT NULL
-     AND p_organization_id = public.current_organization_id()
-     AND public.is_staff()
-     AND EXISTS (
-       SELECT 1
-         FROM public.customer_financial_source_bindings b
-        WHERE b.organization_id = p_organization_id
-          AND b.customer_id = p_customer_id
-          AND b.source_mode = 'APP_ONLY'
-          AND b.source_status = 'active'
-     )
+DECLARE
+  v_source_mode text;
+  v_source_status text;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_customer_id IS NULL
+     OR p_organization_id IS NULL
+     OR p_organization_id IS DISTINCT FROM public.current_organization_id()
+     OR NOT public.is_staff() THEN
+    RETURN false;
+  END IF;
+
+  -- Staff direct reads share the same source-binding lock order as source cutovers.
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=p_organization_id
+     AND b.customer_id=p_customer_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  RETURN v_source_mode='APP_ONLY' AND v_source_status='active';
+END
 $function$;
 REVOKE ALL ON FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(uuid,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_financial_rows_read_allowed(uuid,uuid) TO authenticated;
