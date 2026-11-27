@@ -104,3 +104,6 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 - Receipt helper accepts an optional target warehouse for this controlled fixture; direct fixture writes run as the local DB owner only. No production database writes, deployments, ERP calls, or financial postings.
 - Implementation commit: `c3dbc177ce988aeee575d2df9a52499dfb0d9f22`. This is an additional exact-head test requirement; GitHub Actions acceptance for the resulting checkpoint head must run before any PASS claim. Local PostgreSQL 17 execution was not available from this session.
 - Next: run and inspect PostgreSQL 17 acceptance plus P1/Playwright checks on the final checkpoint SHA; fix only exact-head failures. PR #701 remains Draft and requires P1 review/P3 merge.
+
+- Additional rollback evidence: the cross-warehouse test now snapshots and compares both source and target `inventory_balances.quantity_reserved` values before and after the rejected RPC, in addition to batch counters and movement count. It verifies that no aggregate reservation counter changes survive.
+- Latest acceptance-test source commit: `55f85309754c7be8dbd9174002445526e4783832`. The subsequent checkpoint commit is the PR head used for exact-head CI.
