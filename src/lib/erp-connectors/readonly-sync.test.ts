@@ -566,8 +566,8 @@ describe("incremental ERP sync checkpoint orchestration", () => {
 
     const result = await runIncrementalReadOnlySync({ connector, store, scope, overlapMs: 120_000 });
     expect(inputs).toEqual([
-      { cursor: null, modifiedSince: "2026-11-27T08:58:00.000Z", maxRows: 2000 },
-      { cursor: "page-2", modifiedSince: null, maxRows: 1999 },
+      { cursor: null, modifiedSince: "2026-11-27T08:58:00.000Z", maxRows: 1000 },
+      { cursor: "page-2", modifiedSince: null, maxRows: 1000 },
     ]);
     expect(store.committed).toHaveLength(2);
     expect(store.committed[0].receipt).toEqual({
@@ -745,8 +745,8 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     };
     const result = await runIncrementalReadOnlySync({ connector, store, scope });
     expect(inputs).toEqual([
-      { cursor: "expired-cursor", modifiedSince: null, maxRows: 2000 },
-      { cursor: null, modifiedSince: "2026-11-27T09:58:00.000Z", maxRows: 2000 },
+      { cursor: "expired-cursor", modifiedSince: null, maxRows: 1000 },
+      { cursor: null, modifiedSince: "2026-11-27T09:58:00.000Z", maxRows: 1000 },
     ]);
     expect(result.status).toBe("complete");
     expect(result.checkpoint.pendingWatermark).toBeNull();
