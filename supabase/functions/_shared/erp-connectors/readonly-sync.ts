@@ -83,6 +83,8 @@ export type ErpReadContract = {
   modifiedSinceParameter?: string;
   pageSizeParameter?: string;
   pageSize?: number;
+  /** True only when the vendor's documented contract guarantees one response contains the complete delta. */
+  singlePageComplete?: boolean;
   externalIdPath: readonly string[];
   sourceUpdatedAtPath: readonly string[];
   /** Target fields must be explicitly allowlisted for the selected object type. */
@@ -499,6 +501,18 @@ function validateContract(connection: ErpConnection, contract: ErpReadContract):
     throw new ErpConnectorError(
       "INVALID_PROVIDER_CONTRACT",
       "يجب أن يحدد عقد ERP معامل cursor ومسار cursor التالي معًا حتى لا تُعتمد صفحة جزئية كنهاية مزامنة.",
+    );
+  }
+  if (hasCursorParameter && contract.singlePageComplete === true) {
+    throw new ErpConnectorError(
+      "INVALID_PROVIDER_CONTRACT",
+      "عقد ERP لا يجوز أن يعلن في الوقت نفسه عن cursor للصفحات واستجابة delta أحادية مكتملة.",
+    );
+  }
+  if (!hasCursorParameter && contract.singlePageComplete !== true) {
+    throw new ErpConnectorError(
+      "INCREMENTAL_PAGINATION_UNSUPPORTED",
+      "لا يمكن اعتماد استجابة delta أحادية دون إثبات رسمي بأن رد المزود يحتوي كامل النتائج.",
     );
   }
   if (contract.pageSizeParameter !== undefined && !hasCursorParameter) {
