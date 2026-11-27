@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarClock, CreditCard, Download, MessageSquare, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
 import { Button, Empty, ErrorBox, Loading, Modal, TableWrap } from '@/components/AdminPages';
@@ -860,6 +860,10 @@ function Customer360Interactions({
 export function AdminCustomer360({ customer, onClose }: { customer: Pick<Customer, "id">; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [financialSourceCustomerId, setFinancialSourceCustomerId] = useState<string | null>(null);
+  const customer360LoadSequence = useRef(0);
+  const activeCustomerIdRef = useRef(customer.id);
+  activeCustomerIdRef.current = customer.id;
   const [financialSourceError, setFinancialSourceError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -869,15 +873,19 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
   const [interactionHistoryLoading, setInteractionHistoryLoading] = useState(true);
   const [interactionHistoryError, setInteractionHistoryError] = useState('');
   const handleInteractionHistoryState = useCallback((items: CustomerInteraction[], isLoading: boolean, historyError: string) => {
+    if (activeCustomerIdRef.current !== customer.id) return;
     setInteractionHistory(items);
     setInteractionHistoryLoading(isLoading);
     setInteractionHistoryError(historyError);
-  }, []);
+  }, [customer.id]);
 
   const loadCustomer360 = useCallback(async () => {
+    const requestId = ++customer360LoadSequence.current;
+    const isCurrentRequest = () => customer360LoadSequence.current === requestId;
     let financialSourceResolved = false;
     setSummary(null);
     setFinancialSource(null);
+    setFinancialSourceCustomerId(customer.id);
     setFinancialSourceError('');
     setInteractionHistory([]);
     setInteractionHistoryLoading(true);
@@ -887,17 +895,20 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
     setExportError('');
     try {
       const scope = await getCurrentTenantScope();
+      if (!isCurrentRequest()) return;
       const { data: scopedCustomer, error: scopedCustomerError } = await supabase
         .from('customers')
         .select('id')
         .eq('organization_id', scope.organizationId)
         .eq('id', customer.id)
         .maybeSingle();
+      if (!isCurrentRequest()) return;
       if (scopedCustomerError) throw scopedCustomerError;
       if (!scopedCustomer || scopedCustomer.id !== customer.id) {
         throw new Error(CUSTOMER_SCOPE_BLOCKED_MESSAGE);
       }
       const selectedSource = await fetchStaffCustomerFinancialSource(customer.id);
+      if (!isCurrentRequest()) return;
       financialSourceResolved = true;
       setFinancialSource(selectedSource);
       if (!canReadCustomerAppLedger(selectedSource)) {
@@ -907,43 +918,53 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
         return;
       }
       const customerSummary = await fetchStaffCustomer360Summary(customer.id);
+      if (!isCurrentRequest()) return;
       setSummary(customerSummary);
     } catch (cause) {
+      if (!isCurrentRequest()) return;
       setSummary(null);
       if (!financialSourceResolved) {
         setFinancialSourceError('تعذر التحقق من مصدر الحساب المالي لهذا العميل؛ أوقفنا ملخص Customer 360 المالي حتى يؤكد الخادم المصدر والصلاحية.');
       }
       setError(cause instanceof Error && cause.message === CUSTOMER_SCOPE_BLOCKED_MESSAGE ? CUSTOMER_SCOPE_BLOCKED_MESSAGE : CUSTOMER360_LOAD_ERROR_MESSAGE);
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [customer.id]);
 
-  useEffect(() => { void loadCustomer360(); }, [loadCustomer360]);
+  useEffect(() => {
+    void loadCustomer360();
+    return () => { customer360LoadSequence.current += 1; };
+  }, [loadCustomer360]);
+
+  const currentSummary = summary?.customer.id === customer.id ? summary : null;
+  const currentFinancialSource = financialSourceCustomerId === customer.id ? financialSource : null;
+  const currentFinancialSourceError = financialSourceCustomerId === customer.id ? financialSourceError : '';
+  const currentCustomerLoading = loading || financialSourceCustomerId !== customer.id;
 
   async function reload() {
     await loadCustomer360();
   }
 
-  const overdueInvoiceCount = summary?.finance_by_currency.reduce((total, row) => total + row.overdue_invoice_count, 0) ?? 0;
+  const overdueInvoiceCount = currentSummary?.finance_by_currency.reduce((total, row) => total + row.overdue_invoice_count, 0) ?? 0;
   const printDocument = useMemo(() => {
-    if (!summary || interactionHistoryLoading || interactionHistoryError) return null;
+    if (!currentSummary || interactionHistoryLoading || interactionHistoryError) return null;
     try {
-      return projectStaffCustomer360PrintDocument(summary, interactionHistory);
+      return projectStaffCustomer360PrintDocument(currentSummary, interactionHistory);
     } catch {
       return null;
     }
-  }, [summary, interactionHistory, interactionHistoryLoading, interactionHistoryError]);
+  }, [currentSummary, interactionHistory, interactionHistoryLoading, interactionHistoryError]);
 
   function exportCustomer360() {
-    if (!summary) return;
+    if (!currentSummary) return;
     setExportError('');
     if (interactionHistoryLoading || interactionHistoryError) {
       setExportError('تعذر تضمين سجل التواصل الحالي؛ حدّث السجل قبل تصدير ملف العميل.');
       return;
     }
     try {
-      downloadStaffCustomer360WorkbookXlsx(summary, interactionHistory);
+      downloadStaffCustomer360WorkbookXlsx(currentSummary, interactionHistory);
     } catch (cause) {
       setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.');
     }
@@ -974,11 +995,11 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
       setPrintError('تعذر فتح نافذة الطباعة في هذا المتصفح.');
     }
   }
-  return <Modal title={summary ? 'ملف العميل 360 — ' + summary.customer.business_name : 'ملف العميل 360'} onClose={onClose}>
+  return <Modal title={currentSummary ? 'ملف العميل 360 — ' + currentSummary.customer.business_name : 'ملف العميل 360'} onClose={onClose}>
     <div style={{ display: 'grid', gap: 14, maxHeight: '75vh', overflowY: 'auto', padding: 2 }}>
       <Customer360Header
-        summary={summary}
-        loading={loading}
+        summary={currentSummary}
+        loading={currentCustomerLoading}
         exportError={exportError}
         printError={printError}
         printDisabled={!printDocument}
@@ -986,22 +1007,22 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
         onExport={exportCustomer360}
         onPrint={printCustomer360}
       />
-      <CustomerFinancialSourceNotice source={financialSource} loading={loading} error={financialSourceError} />
-      {loading ? <Loading /> : error ? <ErrorBox message={error} /> :
-        financialSource && !canReadCustomerAppLedger(financialSource) ? (
+      <CustomerFinancialSourceNotice source={currentFinancialSource} loading={currentCustomerLoading} error={currentFinancialSourceError} />
+      {currentCustomerLoading ? <Loading /> : error ? <ErrorBox message={error} /> :
+        currentFinancialSource && !canReadCustomerAppLedger(currentFinancialSource) ? (
           <p className="report-note" role="status">
             ملخص Customer 360 المالي غير متاح لهذا العميل لأن مصدر الحساب المحدد ليس دفتر متجر الأغبري النشط. لم نقرأ أو نجمع فواتير أو دفعات APP_ONLY؛ يجب أن تأتي القراءة المالية من الموصل المعتمد للمصدر الخارجي.
           </p>
-        ) : summary ? (
+        ) : currentSummary ? (
         <>
           <Customer360LoadedView
-            summary={summary}
+            summary={currentSummary}
             overdueInvoiceCount={overdueInvoiceCount}
           />
-          <Customer360RetentionInsights customerId={summary.customer.id} />
-          <CustomerServiceCases customerId={summary.customer.id} />
-          <CustomerAssetsPanel customerId={summary.customer.id} />
-          <Customer360Interactions customerId={summary.customer.id} onHistoryState={handleInteractionHistoryState} />
+          <Customer360RetentionInsights customerId={currentSummary.customer.id} />
+          <CustomerServiceCases customerId={currentSummary.customer.id} />
+          <CustomerAssetsPanel customerId={currentSummary.customer.id} />
+          <Customer360Interactions customerId={currentSummary.customer.id} onHistoryState={handleInteractionHistoryState} />
         </>
       ) : null}   </div>
     {printDocument && typeof document !== 'undefined' ? createPortal(<Customer360PrintSheet document={printDocument} />, document.body) : null}
