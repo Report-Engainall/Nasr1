@@ -520,6 +520,36 @@ describe("production intelligence workspace inventory screens", () => {
     });
   });
 
+  it("shows an existing server-saved daily action instead of offering a duplicate proposal", async () => {
+    const saved = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000077", "مراجعة إعادة توريد الصنف SKU-1"),
+      candidateId: "inventory.replenishment:SKU-1:" + asOf.slice(0, 10),
+      ruleId: "inventory.replenishment.review",
+      ruleVersion: "1.0.0",
+      state: "IN_REVIEW" as const,
+      version: 2,
+      ownerProfileId: "admin-profile",
+      ownerLabel: "مسؤول المشتريات",
+      reason: "تم إرسال التوصية للمراجعة",
+      candidateSnapshot: null,
+    };
+    mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [saved], total: 1 });
+    mocks.fetchMemoryCollection.mockReset().mockResolvedValue({
+      ok: true,
+      collection: { items: [saved], total: 1, loaded: 1, pageCount: 1, complete: true, reason: "COMPLETE" },
+    });
+    render(<IntelligenceWorkspace />);
+
+    const status = await screen.findByTestId("daily-saved-decision");
+    expect(status).toHaveTextContent("الإجراء محفوظ بالفعل في دورة القرارات");
+    expect(status).toHaveTextContent("قيد المراجعة");
+    expect(status).toHaveTextContent("الإصدار 2");
+    expect(status).toHaveTextContent("مسؤول المشتريات");
+    expect(status).toHaveTextContent("تم إرسال التوصية للمراجعة");
+    expect(screen.queryByRole("button", { name: "حفظ الإجراء في دورة القرارات" })).not.toBeInTheDocument();
+    expect(mocks.createProposal).not.toHaveBeenCalled();
+  });
+
   it("keeps saved concentration decisions scoped as ratios and never offers cash measurement", async () => {
     const currentPeriod = { from: "2026-08-01", to: "2026-10-31" };
     const baselinePeriod = { from: "2026-05-01", to: "2026-07-31" };

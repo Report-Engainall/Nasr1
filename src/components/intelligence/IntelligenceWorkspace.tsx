@@ -1502,6 +1502,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   }, [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
     customerRetentionDecisionActions, concentrationDecisionActions, retentionResult, evidencePassport]);
   const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
+  const savedDailyDecisionOutcomes = useMemo(() => {
+    const byCandidateId = new Map<string, DecisionOutcomeView>();
+    const collection = decisionMemoryCollectionResult?.ok
+      ? decisionMemoryCollectionResult.collection.items : [];
+    for (const outcome of collection) byCandidateId.set(outcome.candidateId, outcome);
+    if (outcomeResult?.ok) {
+      for (const outcome of outcomeResult.items) byCandidateId.set(outcome.candidateId, outcome);
+    }
+    return byCandidateId;
+  }, [decisionMemoryCollectionResult, outcomeResult]);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -2262,14 +2272,29 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                     ruleId: decision.ruleId,
                     candidateSnapshot: { proof: decision.proof },
                   });
+                  const savedOutcome = savedDailyDecisionOutcomes.get(candidateId);
                   return (
                     <div key={candidateId} className="space-y-2">
-                      <ActionCard
-                        decision={decision}
-                        state="ready"
-                        ctaLabel="حفظ الإجراء في دورة القرارات"
-                        onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
-                      />
+                      {savedOutcome ? (
+                        <div
+                          role="status"
+                          aria-label={"الإجراء محفوظ " + savedOutcome.id}
+                          data-testid="daily-saved-decision"
+                          className="rounded-xl border p-3 text-sm"
+                        >
+                          <p className="font-semibold">الإجراء محفوظ بالفعل في دورة القرارات</p>
+                          <p className="mt-1">الحالة: {stateLabels[savedOutcome.state]} · الإصدار {savedOutcome.version}</p>
+                          <p>المسؤول: {savedOutcome.ownerLabel}</p>
+                          {savedOutcome.reason ? <p className="text-xs text-muted-foreground">آخر سبب محفوظ: {savedOutcome.reason}</p> : null}
+                        </div>
+                      ) : (
+                        <ActionCard
+                          decision={decision}
+                          state="ready"
+                          ctaLabel="حفظ الإجراء في دورة القرارات"
+                          onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
+                        />
+                      )}
                       {evidenceScope.measurementKind === "RATIO" ? (
                         <div className="rounded-lg border px-3 py-2 text-xs text-muted-foreground" role="note">
                           <p>{evidenceScope.label} · {evidenceScope.currency ?? "عملة غير محددة"}</p>
