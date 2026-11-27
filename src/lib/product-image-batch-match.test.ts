@@ -77,6 +77,21 @@ describe("product image filename matching", () => {
     });
   });
 
+  it("matches two-digit numbered aliases and enforces gallery capacity", () => {
+    const entries = matchProductImagesByCode(
+      [product({
+        image_url: "https://cdn.example.test/primary.webp",
+        image_gallery_urls: Array.from({ length: 8 }, (_, index) =>
+          "https://cdn.example.test/gallery-" + index + ".webp",
+        ),
+      })],
+      [file("000125__10.png"), file("000125 (12).webp")],
+    );
+
+    expect(entries.every((entry) => entry.product?.id === "product-1")).toBe(true);
+    expect(entries.map((entry) => entry.status)).toEqual(["gallery_limit", "gallery_limit"]);
+  });
+
   it("prefers an exact product code that itself ends with a number suffix", () => {
     const exact = product({ id: "exact", item_code: "ABC-2" });
     const base = product({ id: "base", item_code: "ABC" });
