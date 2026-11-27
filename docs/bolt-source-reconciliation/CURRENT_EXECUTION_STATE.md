@@ -5,7 +5,7 @@
 ## Canonical state
 
 - Official repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Main HEAD immediately before this pointer-only refresh: `ba452cc6dc061f58f6da9afdeb73b7804f9e0db1` (canonical matrix update recording completed P2 acceptance for #674). This update changes only the canonical execution pointer; re-fetch `main` before the next write.
+- Main HEAD immediately before this pointer-only refresh: `c83ed62caf565d37e0ad771af3eddd6da9d56da6` (canonical execution pointer refreshed after #674 P2 reached SUCCESS). This update changes only the canonical execution pointer; re-fetch `main` before the next write.
 - Last fully accepted application baseline remains `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` (PR #633). PR #641 adds an isolated PostgreSQL 17 supplier-invoice acceptance runner and workflow only; its exact-head P1/P2 runs passed and it merged at `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`.
 - PR #674 adds the shared predictive-search public-image guard and its focused tests. It merged at `7c20412c77a9c2ef01d99e16a304aaa9e773be37`. Exact PR-head `fbe332cd195188238c45c2662191610e452dd232` passed P1 (full Vitest, P1/P4 TypeScript, production build) and P2 (public Chromium UI job `140695500765` and local Supabase/PostgreSQL 17/Chromium job `140696553618`, both SUCCESS; P2 workflow `46055085516` SUCCESS). The local job completed 68/70 steps with no failed steps. Hosted customer/order/tenant E2E was SKIPPED. Post-merge exact-SHA push verification remains unavailable through the current PR-run query; no post-merge run PASS is claimed.
 - The DLV-003 matrix leaf for predictive-search image privacy is recorded in the canonical matrix. Wider DLV-003 remains OPEN.
@@ -40,7 +40,7 @@
 
 2. **PR #668 — system-health evidence integrity.**
    - Latest P3 head: `a40a0c66f56bfc6658aaa6e5eacbbc2edb51e82b`; changed paths are only `SystemHealthEngine.test.ts`, `P4AdminOperationsScreens.test.tsx`, and `system-health.ts`.
-    - Exact-head P1 run `46055464206`: **SUCCESS**. Exact-head P2 run `46055464235`: public UI smoke **SUCCESS**; authenticated infrastructure gate **SUCCESS**; local Supabase/PostgreSQL 17 job `140698074593` **IN_PROGRESS** at 47/70 steps, active on authenticated customer return/credit-memo Chromium acceptance, with no failed steps; hosted customer/order/tenant E2E **SKIPPED**.
+    - Exact-head P1 run `46055464206`: **SUCCESS**. Exact-head P2 run `46055464235`: public UI smoke **SUCCESS**; authenticated infrastructure gate **SUCCESS**; local Supabase/PostgreSQL 17 job `140698074593` **IN_PROGRESS** at 50/70 steps, active on finance document and operational-task print acceptance, with no failed steps; hosted customer/order/tenant E2E **SKIPPED**.
    - Branch base is `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`; current main has advanced through #674 and canonical pointer updates. Latest PR snapshot reports mergeable true, but recheck current main and mergeability before merge. P3 retains ownership. Do not transfer earlier-head acceptance.
 
 3. **PR #670 — verified customer-retention decisions integrated into daily decisions.**
