@@ -1,5 +1,6 @@
 import type { CashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
 import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import type { EvidenceRecord, MetricSnapshot } from "./types";
 
 export interface ApprovedCashOpeningBalanceResult {
@@ -11,16 +12,9 @@ export interface ApprovedCashOpeningBalanceResult {
 const FORMULA_ID = "nasr1.finance-approved-opening-balance-by-currency";
 const FORMULA_VERSION = "1.0.0";
 
-function strictTimestamp(value: unknown): number | null {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value)) {
-    return null;
-  }
-  const datePart = value.slice(0, 10);
-  const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
-  if (!Number.isFinite(dateMillis) || new Date(dateMillis).toISOString().slice(0, 10) !== datePart) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
+function strictTimestamp(value: unknown): bigint | null {
+  return timestampMicroseconds(value);
+
 }
 
 function verifiedRecord(input: {
@@ -65,7 +59,7 @@ export function buildApprovedCashOpeningBalances(
   const workspaceTime = strictTimestamp(workspace.asOf);
 
   if (requestedTime === null || workspaceTime === null ||
-      new Date(requestedTime).toISOString() !== new Date(workspaceTime).toISOString()) {
+      requestedTime !== workspaceTime) {
     return {
       metrics: [],
       evidenceRecords: [],
@@ -73,8 +67,8 @@ export function buildApprovedCashOpeningBalances(
     };
   }
 
-  const asOf = new Date(requestedTime).toISOString();
-  const asOfDate = asOf.slice(0, 10);
+  const asOf = requestedAsOf;
+  const asOfDate = new Date(Date.parse(requestedAsOf)).toISOString().slice(0, 10);
   const accounts = workspace.accounts.filter((account) => account.isActive);
   if (!accounts.length) {
     return {
