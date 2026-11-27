@@ -542,6 +542,13 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
     }
 
     const records = await Promise.all(rows.map((row) => this.projectRecord(row)));
+    const seenExternalIds = new Set<string>();
+    for (const record of records) {
+      if (seenExternalIds.has(record.externalId)) {
+        throw new ErpConnectorError("DUPLICATE_SOURCE_ID_IN_PAGE", "أعاد ERP معرف سجل خارجي مكررًا داخل الصفحة نفسها.");
+      }
+      seenExternalIds.add(record.externalId);
+    }
     return {
       records,
       nextCursor: typeof next === "string" ? next : null,
@@ -685,6 +692,42 @@ function safeHeaderValue(value: string | null): string | null {
   return clean && clean.length <= 256 && !/[\r\n\u0000-\u001f\u007f]/.test(clean) ? clean : null;
 }
 
+function validateCanonicalCandidate(record: ErpCanonicalRecord, scope: ErpSyncScope): ErpCanonicalRecord {
+  if (record.provider !== scope.provider || record.objectType !== scope.objectType ||
+      !isRecord(record.fields)) {
+    throw new ErpConnectorError("ERP_RECORD_SCOPE_MISMATCH", "نوع سجل المصدر أو بنيته لا يطابق نطاق مزامنة المؤسسة.");
+  }
+  const allowed = new Set(SAFE_FIELDS[scope.objectType]);
+  const fields: Partial<Record<ErpCanonicalField, ErpScalar>> = {};
+  for (const [field, value] of Object.entries(record.fields)) {
+    if (!allowed.has(field as ErpCanonicalField)) {
+      throw new ErpConnectorError("UNSAFE_FIELD_MAPPING", "حقل المصدر " + field + " غير مسموح في إسقاط " + scope.objectType + ".");
+    }
+    fields[field as ErpCanonicalField] = normalizeFieldValue(value, field as ErpCanonicalField);
+  }
+  for (const required of REQUIRED_FIELDS[scope.objectType]) {
+    if (fields[required] == null || fields[required] === "") {
+      throw new ErpConnectorError("REQUIRED_ERP_FIELD_MISSING", "يفتقد سجل ERP الحقل الإلزامي " + required + ".");
+    }
+  }
+  if (scope.objectType === "stock_balances") {
+    const onHand = fields.quantity_on_hand;
+    const reserved = fields.quantity_reserved;
+    const available = fields.quantity_available;
+    if ([onHand, reserved, available].some((value) =>
+      typeof value !== "number" || value < 0 || Math.round(value * 1000) / 1000 !== value
+    ) || Math.abs((onHand as number) - (reserved as number) - (available as number)) > 0.001) {
+      throw new ErpConnectorError("INVALID_ERP_STOCK_BALANCE", "رصيد ERP لا يحقق الموجود = المحجوز + المتاح بدقة ثلاث منازل عشرية.");
+    }
+  }
+  return {
+    ...record,
+    externalId: cleanIdentity(record.externalId, "external_id"),
+    sourceUpdatedAt: validateTimestamp(record.sourceUpdatedAt),
+    fields,
+  };
+}
+
 function validateCheckpoint(value: ErpCheckpoint): ErpCheckpoint {
   if (!value || !Number.isSafeInteger(value.version) || value.version < 0) {
     throw new ErpConnectorError("INVALID_SYNC_CHECKPOINT", "إصدار checkpoint غير صالح.");
@@ -721,7 +764,12 @@ export async function runIncrementalReadOnlySync(input: {
   const maxPages = input.maxPages ?? 10;
   const maxRecords = input.maxRecords ?? 2000;
   if (!UUID_PATTERN.test(input.scope.organizationId) ||
-      !input.scope.companyExternalId.trim() || !input.scope.branchExternalId.trim() ||
+      !["onyx_pro", "al_mutakamel"].includes(input.scope.provider) ||
+      !Object.prototype.hasOwnProperty.call(SAFE_FIELDS, input.scope.objectType) ||
+      !cleanIdentity(input.scope.companyExternalId, "company_external_id") ||
+      !cleanIdentity(input.scope.branchExternalId, "branch_external_id") ||
+      (input.scope.warehouseExternalId != null && !cleanIdentity(input.scope.warehouseExternalId, "warehouse_external_id")) ||
+      (input.scope.currencyCode != null && !cleanIdentity(input.scope.currencyCode, "currency_code", 12)) ||
       !Number.isSafeInteger(overlapMs) || overlapMs < 0 || overlapMs > 24 * 60 * 60 * 1000 ||
       !Number.isInteger(maxPages) || maxPages < 1 || maxPages > MAX_SYNC_PAGES ||
       !Number.isInteger(maxRecords) || maxRecords < 1 || maxRecords > MAX_SYNC_RECORDS) {
@@ -761,18 +809,19 @@ export async function runIncrementalReadOnlySync(input: {
       throw error;
     }
 
-    if (recordsRead + page.records.length > maxRecords) {
-      break;
+    if (page.httpStatus < 200 || page.httpStatus > 299 ||
+        !/^[0-9a-f]{64}$/.test(page.responseSha256) ||
+        !Array.isArray(page.records) || page.records.length > MAX_PAGE_ROWS) {
+      throw new ErpConnectorError("INVALID_ERP_PAGE_RESULT", "نتيجة صفحة ERP لا تحتوي استجابة موثقة أو عدد سجلات صالحًا.");
     }
+    if (page.nextCursor !== null) cleanIdentity(page.nextCursor, "next_cursor", MAX_CURSOR_LENGTH);
     if (page.nextCursor && (page.nextCursor === checkpoint.cursor || seenCursors.has(page.nextCursor))) {
       throw new ErpConnectorError("ERP_CURSOR_CYCLE", "أعاد مصدر ERP مؤشر صفحات دائريًا؛ أوقفت المزامنة.");
     }
     if (page.nextCursor) seenCursors.add(page.nextCursor);
 
-    const records = await Promise.all(page.records.map(async (record) => {
-      if (record.provider !== input.scope.provider || record.objectType !== input.scope.objectType) {
-        throw new ErpConnectorError("ERP_RECORD_SCOPE_MISMATCH", "نوع سجل المصدر لا يطابق نطاق مزامنة المؤسسة.");
-      }
+    const records = await Promise.all(page.records.map(async (sourceRecord) => {
+      const record = validateCanonicalCandidate(sourceRecord, input.scope);
       const scopedRecord = {
         ...record,
         companyExternalId: input.scope.companyExternalId,
