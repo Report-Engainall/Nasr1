@@ -5,6 +5,13 @@ Role: P2 — inventory transactions, PostgreSQL 17 and audit integrity
 PR: #605 — https://github.com/Report-Engainall/Nasr1/pull/605
 Branch: `p2/onyx-reconciliation-mutation-window-pg17-20261126`
 
+## Latest head after the P1 PostgREST fixture repair
+- P1 added the pagination fixture correction in commit `9aeed0785d90f34b39a98f961ddf5746cf701912` (the branch's only P1-owned file is `e2e/helpers/customer-orders-keyboard-test.ts`); the test mock now observes PostgREST `offset`/`limit` rather than assuming a `Range` header.
+- Current PR #605 code-bearing test head: `9aeed0785d90f34b39a98f961ddf5746cf701912`; comparison with `main` `348da8e756201fc103089cf4a5a690a4132528b7` is **27 ahead / 0 behind** with four changed paths (three P2-owned and that one P1 fixture file). At the previous read GitHub reported the PR mergeable; P1 retains review/merge authority.
+- Dedicated Onyx PG17 workflow [run 46063832177](https://github.com/Report-Engainall/Nasr1/actions/runs/46063832177): **SUCCESS** on exact head `9aeed...`.
+- P2 critical-path [run 46063832165](https://github.com/Report-Engainall/Nasr1/actions/runs/46063832165): public Chromium smoke **SUCCESS** on exact head. Local Supabase/PostgreSQL 17 authenticated job [140725496834](https://github.com/Report-Engainall/Nasr1/actions/runs/46063832165/job/140725496834) was **IN_PROGRESS** at 46/70 steps, currently running purchase-order XLSX acceptance; no failed steps reported. The wrapper customer/order/tenant job was **SKIPPED**, not PASS; do not count it as an accepted hosted E2E path.
+- No production migration/RPC or live inventory was changed. P2 owns the dedicated Onyx acceptance and checkpoint; P1 owns its fixture change and merge decision.
+
 ## Latest reconciliation and exact-head acceptance — 2026-11-27
 
 ### Latest head after the P1 PostgREST fixture repair
