@@ -776,6 +776,7 @@ describe("incremental ERP sync checkpoint orchestration", () => {
     const productsStore = new InMemoryCheckpointStore();
     const customersStore = new InMemoryCheckpointStore();
     const warehousesStore = new InMemoryCheckpointStore();
+    const stockStore = new InMemoryCheckpointStore();
     const emptyPage = (digest: string) => ({
       records: [],
       nextCursor: null,
@@ -820,25 +821,44 @@ describe("incremental ERP sync checkpoint orchestration", () => {
             },
           },
         },
+        {
+          scope: { ...scope, objectType: "stock_balances" },
+          store: stockStore,
+          connector: {
+            readPage: async () => {
+              order.push("stock_balances");
+              throw new ErpConnectorError(
+                "ERP_ACCESS_TOKEN=must-not-leak",
+                "provider secret value",
+                { retryable: true },
+              );
+            },
+          },
+        },
       ],
     });
 
-    expect(order).toEqual(["products", "customers", "warehouses"]);
+    expect(order).toEqual(["products", "customers", "warehouses", "stock_balances"]);
     expect(batch.status).toBe("partial_failure");
     expect(batch.completedTasks).toBe(2);
     expect(batch.continuedTasks).toBe(0);
-    expect(batch.failedTasks).toBe(1);
+    expect(batch.failedTasks).toBe(2);
     expect(batch.tasks.map((task) => [task.objectType, task.status, task.errorCode])).toEqual([
       ["products", "complete", null],
       ["customers", "failed", "ERP_PERMISSION_DENIED"],
       ["warehouses", "complete", null],
+      ["stock_balances", "failed", "ERP_SYNC_UNEXPECTED_FAILURE"],
     ]);
-    // A failed object may already have persisted an earlier page; do not fabricate zero counts.
+    // Failed objects may already have persisted earlier pages; never fabricate zero counts.
     expect(batch.tasks[1].counts).toBeNull();
+    expect(batch.tasks[3].counts).toBeNull();
+    expect(batch.tasks[3].retryable).toBe(false);
     expect(JSON.stringify(batch)).not.toContain("secret-provider-response-must-not-escape");
+    expect(JSON.stringify(batch)).not.toContain("ERP_ACCESS_TOKEN=must-not-leak");
     expect(productsStore.committed).toHaveLength(1);
     expect(customersStore.committed).toHaveLength(0);
     expect(warehousesStore.committed).toHaveLength(1);
+    expect(stockStore.committed).toHaveLength(0);
   });
 
   it("rejects duplicate tenant/company/branch/warehouse/currency object scopes before any batch side effect", async () => {
