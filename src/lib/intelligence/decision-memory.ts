@@ -449,7 +449,7 @@ function samePeriod(a: EvidencePeriod | null, b: EvidencePeriod | null): boolean
 function finiteNumber(value: number | string | null): number | null {
   const normalized = typeof value === "string" ? value.trim() : null;
   const parsed = typeof value === "number" ? value :
-    normalized !== null && /^-?\\d+(?:\\.\\d{1,6})?$/.test(normalized) ? Number(normalized) : Number.NaN;
+    normalized !== null && /^-?\d+(?:\.\d{1,6})?$/.test(normalized) ? Number(normalized) : Number.NaN;
   return Number.isFinite(parsed) && Math.abs(parsed) <= Number.MAX_SAFE_INTEGER ? parsed : null;
 }
 function unique<T extends string>(values: T[]): T[] {
