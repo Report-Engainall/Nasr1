@@ -1,40 +1,42 @@
-# LIVE EXECUTION RESUME — 2026-11-27 05:20 UTC
+# LIVE EXECUTION RESUME — 2026-11-27
 
-> Sole live execution pointer. Resume from the first next action. Do not repeat the OSS selection below or rebuild accepted components.
+> Sole live execution pointer. Resume from the first next action. Preserve completed work; do not repeat the OSS quick check recorded here.
 
 - Repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Current `main` SHA: `775ce9c3179e51abbf3023a98eae907fc790b2c1`.
-- This P3 execution round merged **seven** accepted PRs:
-  - #643 anomaly engine rejects numeric-looking `TEXT` metrics: merge `0a3aa73668a41b6e3d8a8b18c98f0aba0c75e8d4`.
-  - #645 growth opportunity evidence hardening: merge `633e9619658b8328e24e047520d75a89aa9d5273`.
-  - #646 demand forecast numeric-unit admission and sample safeguards: merge `fecd506ef661ea14dba965be8574eb51794c78fd`.
-  - #647 supplier payable activity/trend snapshot clock validation: merge `014218e1d3349143aecc65866bb6c652ee97306e`.
-  - #648 receivable aging evidence reconciliation and arithmetic checks: merge `7f4064b8d52cc4cef49917f37bbe1cd07ddb85d3`.
-  - #636 replenishment decision values now reconcile to exact source metrics, units, periods, formula registry and full evidence set: merge `5f7617fd33a5f712ae50ecb12b0593b701035217`.
-  - #639 supplier actual lead times and on-time flags reconcile to submitted/received/promised timestamps at sub-second precision: merge `775ce9c3179e51abbf3023a98eae907fc790b2c1`.
-- Exact-head acceptance for #636: P1 and P2 PASS; isolated PostgreSQL 17/Supabase and Chromium local acceptance PASS; hosted customer/tenant isolation was **SKIPPED**.
-- Exact-head acceptance for #639: P1 and P2 PASS; public UI, authenticated infrastructure gate and local PostgreSQL 17/Supabase/Chromium job PASS; hosted customer/tenant isolation was **SKIPPED**.
-- #651 remains open at head `2b4346629e3bc0f0e2a3f990f6175948ece2ff42`: P1 run `45931811576` PASS; P2 `45931811590` is still running the local Supabase/Chromium acceptance (latest active: finance document and operational-task print).
-- #631 remains open at head `a7454af75bcc67b962b12b334210aadb530d2c5c`: P1 run `45931854445` PASS; P2 `45931854444` is still running local Supabase/Chromium acceptance (latest active: checkout replay after a committed response is lost).
-- #637 remains open at head `0d656ec28d06a0b882e3269eb70e3384530925ef`. Changes include absolute-instant ordering for timezone-offset decision records, strict report/coverage clocks, matching coverage-evidence period, and five new regressions. The preceding head `04a5887` failed Vitest/P1 because TypeScript could not preserve the nullable `asOfTime` narrowing inside the coverage callback; this was corrected by capturing the validated value before the callback. Latest exact-head P1 `45932470566` and P2 `45932470539` are QUEUED, not PASS.
-- Do not merge #631, #637 or #651 until P1 and P2 are terminal-success on each exact current PR head. External hosted Auth/tenant jobs are still SKIPPED where indicated; local isolated proof does not replace hosted proof.
-- OSS quick-check is already recorded below: Uppy React and React Dropzone are MIT but were not added because the existing domain-specific uploader already covers the required lifecycle. The current app already uses Radix UI, TanStack Query/Router, Recharts, Zod and other established packages. No new dependency was introduced in this round.
-- No production database/storage mutation, deployment, paid API, Bolt credit or Vercel credit was used.
-- Release remains **NO-GO** until hosted authenticated tenant/session isolation, actual production Supabase target identity, hosted Edge deployment and original product images are verified. Original image associations remain 0/114 until owner assets are mapped by SKU.
+- Application `main` before this cursor-only refresh: `02c462d0e8b3487a00b59fee3c4caaef7298260c`.
+- PR #650 https://github.com/Report-Engainall/Nasr1/pull/650: **MERGED** as `4465bf39a5f6eede4ace970cbc13133228b2513a`. Exact PR-head P1 `45930475197` SUCCESS (11/11); exact PR-head P2 `45930475289` SUCCESS (68 steps: 66 SUCCESS, 2 conditional SKIPPED, 0 failures). Separate customer/tenant external E2E was SKIPPED, not PASS.
+- #650 post-merge P1 `45932332432` on exact merge SHA `4465bf39a5f6eede4ace970cbc13133228b2513a`: **SUCCESS** (Vitest, strict P1 TS, strict P4 TS and production build).
+- #650 post-merge P2 `45932332568` on exact merge SHA `4465bf39a5f6eede4ace970cbc13133228b2513a`: at last inspection **IN_PROGRESS**, local PostgreSQL 17/Supabase/Chromium job `140288913117` had 54/67 SUCCESS, 1 conditional SKIPPED (Chromium already available), 0 failures. Active browser acceptance: category roles, price/stock privacy, search, history and archive lifecycle. Previously passed additional paths include finance/operational print, customer return/credit memo, payment replay, Onyx export, customer-manager privacy, device-session revocation, four-price reload, product image retry/gallery/limits/tenant isolation and admin access matrix. Re-poll; do not mark final P2 PASS until the run is terminal.
+- PR #651 https://github.com/Report-Engainall/Nasr1/pull/651: **MERGED** as `02c462d0e8b3487a00b59fee3c4caaef7298260c` (P3 decision-memory timestamp/decimal validation; files in `src/lib/intelligence/decision-memory.ts` and its test). Preserve P3 ownership.
+- PR #654 https://github.com/Report-Engainall/Nasr1/pull/654: **OPEN**, P1-only storefront category-filter boundary fix. Branch `p1/catalog-category-uuid-guard-20261127`, exact head `f8a11e13cb28015d956b2b3814a4787f71b4534f`, based on application main `02c462d0e8b3487a00b59fee3c4caaef7298260c`. It changes `src/routes/catalog.tsx`, `src/lib/storefront-catalog.ts`, and `src/lib/storefront-catalog.test.ts`: category query strings are accepted only as UUIDs; service rejects malformed category UUIDs before SECURITY DEFINER RPC; regression tests prove rejection before RPC and exact pass-through of a valid UUID. No SQL, migration, RLS, Auth, prices, inventory or production data changes.
+- #654 exact-head P1 `45933009742` on `f8a11e13cb28015d956b2b3814a4787f71b4534f`: **SUCCESS** — Vitest, strict TypeScript P1, strict TypeScript P4 and production build all passed.
+- #654 exact-head P2 `45933009668` on `f8a11e13cb28015d956b2b3814a4787f71b4534f`: at last inspection **IN_PROGRESS**. Public UI smoke SUCCESS; Auth infrastructure gate SUCCESS; external customer/tenant E2E SKIPPED; local Supabase/PostgreSQL 17 job `140291038702` had 15/67 SUCCESS, 1 conditional SKIPPED (Chromium already available), 0 failures, active step applying repository migrations to local PostgreSQL 17. Wait for terminal local P2 result before merging #654; do not enable auto-merge (repository setting is disabled).
+- DLV-002 remains **OPEN**. Local component-level /profile tests do not substitute for the dedicated Auth A→sign-out→B Chromium fixture proving unsaved company draft isolation, staff/customer/restricted-role transitions and same-user `sessionRevision`, at 360px/1280px. External customer/tenant E2E remains SKIPPED.
+- DLV-001 requirement→screen/action/service/RPC/Edge/tenant-scope/migration/exact-SHA crosswalk remains **OPEN**.
+- DLV-003 remains **OPEN** beyond the already accepted uploader/gallery lifecycle. Original product image associations remain **0/114** until the owner supplies original image assets mapped by SKU. No fabrication or hotlinking.
+- Release remains **NO-GO**: production Supabase target identity, hosted customer/profile Auth E2E and hosted Edge deployment/runtime acceptance are not proven. No production DB/Storage writes or deployment, Bolt/Vercel use, or paid AI calls were performed.
+
+## Reuse decision — OSS quick check for 2026-11-27
+
+- Uppy React: MIT. Official React docs: https://uppy.io/docs/react/ ; license: https://github.com/transloadit/uppy/blob/main/LICENSE.
+- React Dropzone: MIT. License: https://github.com/react-dropzone/react-dropzone/blob/master/LICENSE.
+- Decision: do not add either dependency. Nasr1 already has the domain-specific uploader, SKU matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. Do not repeat OSS search next session unless the design changes.
 
 ## First next actions
 
-1. Close exact-head P2 #651 (`45931811590`) and #631 (`45931854444`); if either fails, inspect the failed step, fix only that scope and rerun.
-2. Run #637 P1/P2 on exact head `0d656ec28d06a0b882e3269eb70e3384530925ef`; fix any test/type failure before merge.
-3. Merge #651, #631 and #637 only after their current heads have P1/P2 success; record merge SHAs and verify the resulting `main` head.
-4. Continue the remaining P3 engine gaps from the current code; don't repeat OSS discovery unless the integration design changes.
+1. Close #650 post-merge P2 run `45932332568` on exact merge SHA `4465bf39a5f6eede4ace970cbc13133228b2513a`; capture final conclusion and any failed trace.
+2. Close PR #654 P2 run `45933009668` on exact head `f8a11e13cb28015d956b2b3814a4787f71b4534f`; P1 already passes. If P2 terminates successfully with only the already-available-Chromium conditional skip and no failures, re-read PR/base/main, then squash-merge with expected head SHA `f8a11e13cb28015d956b2b3814a4787f71b4534f`. Do not merge while local P2 remains queued/in progress.
+3. P2: implement and run the dedicated local Auth A→B browser fixture for `/profile`; no unidentified production Supabase query/write.
+4. P1: continue DLV-003 product catalogue/detail/discovery/admin gaps, preserving existing search, paging, privacy projections, details/reviews/questions and accepted uploader. Do not duplicate existing work.
+5. Continue DLV-001/002 traceability and route/state acceptance only where evidence remains missing.
 
 ## Delivery discipline
 
-- `main` only as source of truth; merge accepted P1/P2 work with expected-head protection.
+- `main` only as source of truth; merge accepted P1 work and keep this cursor current.
 - Preserve current Supabase/RLS/services; no parallel accounting, inventory, CRM, Storage or AI systems.
 - IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
-- No production mutation, deployment, Bolt/Vercel usage or paid AI calls without explicit authorization.
+- No production mutation, deployment, Bolt/Vercel use or paid AI calls without explicit authorization.
+
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
 
