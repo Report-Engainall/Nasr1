@@ -319,6 +319,7 @@ async function main() {
   assert.equal(invoiceSourcePolicies.length, 2, "both direct invoice and line reads require source guards");
   assert.ok(invoiceSourcePolicies.every(policy => policy.polpermissive === false), "invoice source guards must be RESTRICTIVE");
   assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("customer_app_only_invoice_read_allowed")), "invoice source policies must use the scoped source predicate");
+  assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("staff_customer_app_only_financial_rows_read_allowed")), "invoice source policies must restrict staff reads to the active APP_ONLY source");
   assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("current_organization_id()")), "staff invoice read exception must remain scoped to the active organization");
 
   const idempotencyKey = randomUUID() + randomUUID();
