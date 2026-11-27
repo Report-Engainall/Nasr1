@@ -85,6 +85,9 @@ type MetricRead = { metric: MetricSnapshot; minorUnits: bigint };
 
 const DAY_MS = 86_400_000;
 const MAX_THRESHOLD_HUNDREDTHS = 100_000_000;
+const NUMERIC_ANOMALY_UNITS = new Set<MetricUnit>([
+  "COUNT", "RATIO", "CURRENCY", "CURRENCY_PER_UNIT", "QUANTITY", "DAYS",
+]);
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -174,7 +177,7 @@ function readMetric(
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   // Anomaly comparisons are numeric only. A numeric-looking TEXT payload must never be treated as a measured quantity.
-  if (!(["COUNT", "RATIO", "CURRENCY", "CURRENCY_PER_UNIT", "QUANTITY", "DAYS"] as const).includes(metric.unit)) {
+  if (!NUMERIC_ANOMALY_UNITS.has(metric.unit)) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   const scaled = decimalToMinorUnits(metric.value, 6, metric.unit === "CURRENCY" || metric.unit === "RATIO");
