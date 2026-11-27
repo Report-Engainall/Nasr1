@@ -39,6 +39,37 @@ function timestampValue(value: unknown): number | null {
  return Number.isFinite(parsed)?parsed:null;
 }
 const timestamp=(value:unknown):value is string=>timestampValue(value)!==null;
+const DAY_NANOS=86_400_000_000_000n;
+function timestampNanos(value:unknown):bigint|null {
+ if(typeof value!=="string")return null;
+ const millis=timestampValue(value);
+ if(millis===null)return null;
+ const fractionMatch=/T\\d{2}:\\d{2}:\\d{2}(?:\\.(\\d+))?/.exec(value);
+ const fraction=(fractionMatch?.[1]??"").padEnd(9,"0").slice(0,9);
+ const nanosecondFraction=BigInt(fraction||"0");
+ const millisecondFraction=BigInt(fraction.slice(0,3).padEnd(3,"0")||"0");
+ return BigInt(millis)*1_000_000n+nanosecondFraction-millisecondFraction*1_000_000n;
+}
+function recentOrderMeasuresReconcile(order:SupplierPerformanceOrder):boolean {
+ const submitted=timestampNanos(order.submittedAt);
+ if(submitted===null)return false;
+ if(order.actualLeadDays!==null){
+  const received=timestampNanos(order.lastReceivedAt);
+  if(received===null||received<submitted)return false;
+  const elapsed=received-submitted;
+  const expectedHundredths=(elapsed*100n+DAY_NANOS/2n)/DAY_NANOS;
+  const actualHundredths=Math.round(order.actualLeadDays*100);
+  if(!Number.isSafeInteger(actualHundredths)||BigInt(actualHundredths)!==expectedHundredths||
+   Math.abs(order.actualLeadDays*100-actualHundredths)>1e-7)return false;
+ }
+ if(order.onTime!==null){
+  const received=timestampNanos(order.lastReceivedAt);
+  if(received===null||order.promisedDeliveryDays===null)return false;
+  const expected=received<=submitted+BigInt(order.promisedDeliveryDays)*DAY_NANOS;
+  if(order.onTime!==expected)return false;
+ }
+ return true;
+}
 function parsePeriod(v:unknown):SupplierPerformancePeriod|null {
  const r=obj(v);return r&&day(r.from)&&day(r.to)&&r.from<=r.to&&r.timeZone==="UTC"?{from:r.from,to:r.to,timeZone:"UTC"}:null;
 }
@@ -74,7 +105,8 @@ function parseSupplier(v:unknown):SupplierPerformanceSupplier|null {
   (r.leadTimeSampleCount===0&&(r.averageLeadDays!==null||r.medianLeadDays!==null||r.p90LeadDays!==null))||
   (r.leadTimeSampleCount>0&&(r.averageLeadDays===null||r.medianLeadDays===null||r.p90LeadDays===null)))return null;
  const recent=r.recentOrders.map(parseOrder);
- if(recent.some(x=>x===null)||new Set((recent as SupplierPerformanceOrder[]).map(x=>x.purchaseOrderId)).size!==recent.length)return null;
+ if(recent.some(x=>x===null)||new Set((recent as SupplierPerformanceOrder[]).map(x=>x.purchaseOrderId)).size!==recent.length||
+  !(recent as SupplierPerformanceOrder[]).every(recentOrderMeasuresReconcile))return null;
  return {supplierId:r.supplierId,supplierName:r.supplierName,supplierCode:r.supplierCode as string|null,
   purchaseOrderCount:r.purchaseOrderCount,completedOrderCount:r.completedOrderCount,openOrderCount:r.openOrderCount,
   inconsistentReceivedCount:r.inconsistentReceivedCount,backlogLineCount:r.backlogLineCount,leadTimeSampleCount:r.leadTimeSampleCount,
