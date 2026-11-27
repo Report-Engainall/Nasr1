@@ -283,6 +283,7 @@ const REQUIRED_FIELDS: Record<ErpObjectType, readonly ErpCanonicalField[]> = {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
 const HEADER_NAME_PATTERN = /^(?:authorization|x-[a-z0-9-]{1,60})$/i;
+const SAFE_REQUEST_ID_HEADER_PATTERN = /^(?:x-(?:request|correlation|trace|transaction)-id|request-id|correlation-id|trace-id)$/i;
 const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._~-]+$/;
 const MAX_PATH_LENGTH = 512;
 const MAX_CURSOR_LENGTH = 2048;
@@ -427,6 +428,12 @@ function validateContract(connection: ErpConnection, contract: ErpReadContract):
     segments.some((segment) => !segment || segment === "." || segment === ".." || !PATH_SEGMENT_PATTERN.test(segment))
   ) {
     throw new ErpConnectorError("INVALID_PROVIDER_PATH", "مسار ERP يجب أن يكون مسارًا نسبيًا موثقًا دون URL أو معاملات خارجية.");
+  }
+  if (contract.requestIdHeader && !SAFE_REQUEST_ID_HEADER_PATTERN.test(contract.requestIdHeader)) {
+    throw new ErpConnectorError(
+      "UNSAFE_ERP_REQUEST_ID_HEADER",
+      "اسم ترويسة تتبع طلب ERP غير مسموح؛ تُقبل رؤوس معرفات التتبع فقط.",
+    );
   }
   if (!contract.itemsPath.length || !contract.externalIdPath.length || !contract.sourceUpdatedAtPath.length) {
     throw new ErpConnectorError("INVALID_PROVIDER_CONTRACT", "عقد ERP يفتقد مسار السجلات أو معرف المصدر أو وقت التحديث.");
