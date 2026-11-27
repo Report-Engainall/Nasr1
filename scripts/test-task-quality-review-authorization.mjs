@@ -329,6 +329,7 @@ async function main() {
       db, manager, taskBeforeStaleAttempt,
       { disposition: "DEFERRED", reasonCode: "TIMING_NOT_APPROPRIATE" },
       runKey + "-stale", runKey + "-stale-key", "RECOMMENDATION_DISPOSITION",
+      taskBeforeStaleAttempt.updated_at,
     ), "40001");
   assert.deepEqual(await counts(taskId), { events: 2, audits: 2 },
     "stale task version must not append any review or audit evidence");
