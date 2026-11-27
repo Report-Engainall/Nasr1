@@ -4,6 +4,7 @@ import {
   runErpReadSync,
   type ErpReadSyncObject,
   type ErpReadSyncProvider,
+  type ErpReadSyncRequest,
   type ErpReadSyncResult,
 } from "@/lib/erp-read-sync";
 
@@ -95,34 +96,64 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
   const [warehouseExternalId, setWarehouseExternalId] = useState("");
   const [currencyCode, setCurrencyCode] = useState("YER");
   const [busy, setBusy] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [activeRequest, setActiveRequest] = useState<ErpReadSyncRequest | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ErpReadSyncResult | null>(null);
 
   async function runSync() {
-    if (!canManage || busy) return;
+    if (!canManage || busy || previewBusy) return;
     if (!companyExternalId.trim() || !branchExternalId.trim()) {
       setError("أدخل معرّف الشركة والفرع كما هما معتمدان في إعداد اتصال ERP على الخادم.");
       return;
     }
+    const request: ErpReadSyncRequest = {
+      provider,
+      object_type: objectType,
+      company_external_id: companyExternalId.trim(),
+      branch_external_id: branchExternalId.trim(),
+      warehouse_external_id: warehouseExternalId.trim() || null,
+      currency_code: currencyCode.trim().toUpperCase() || null,
+      max_pages: 2,
+      max_records: 500,
+    };
     setBusy(true);
+    setActiveRequest(null);
     setError("");
     setResult(null);
     try {
-      const response = await runErpReadSync({
-        provider,
-        object_type: objectType,
-        company_external_id: companyExternalId.trim(),
-        branch_external_id: branchExternalId.trim(),
-        warehouse_external_id: warehouseExternalId.trim() || null,
-        currency_code: currencyCode.trim().toUpperCase() || null,
-        max_pages: 2,
-        max_records: 500,
-      });
+      const response = await runErpReadSync(request);
+      setActiveRequest(request);
       setResult(response);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تشغيل مزامنة ERP.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadPreview(nextOffset: number) {
+    if (!canManage || busy || previewBusy || !activeRequest || !result?.preview) return;
+    setPreviewBusy(true);
+    setError("");
+    try {
+      const page = await runErpReadSync({
+        ...activeRequest,
+        preview_only: true,
+        preview_offset: nextOffset,
+        preview_limit: result.preview.limit,
+      });
+      if (!page.preview) throw new Error("لم تُرجع خدمة المعاينة صفحة مرحلية صالحة.");
+      setResult((previous) => previous ? {
+        ...previous,
+        preview: page.preview,
+        preview_error: page.preview_error,
+        checkpoint: page.checkpoint,
+      } : previous);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل صفحة المعاينة.");
+    } finally {
+      setPreviewBusy(false);
     }
   }
 
@@ -139,32 +170,32 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           النظام المحاسبي
-          <select value={provider} onChange={(event) => setProvider(event.target.value as ErpReadSyncProvider)} disabled={busy}>
+          <select value={provider} onChange={(event) => { setProvider(event.target.value as ErpReadSyncProvider); setActiveRequest(null); }} disabled={busy || previewBusy}>
             <option value="onyx_pro">Onyx Pro</option>
             <option value="al_mutakamel">المتكامل</option>
           </select>
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           نوع البيانات
-          <select value={objectType} onChange={(event) => setObjectType(event.target.value as ErpReadSyncObject)} disabled={busy}>
+          <select value={objectType} onChange={(event) => { setObjectType(event.target.value as ErpReadSyncObject); setActiveRequest(null); }} disabled={busy || previewBusy}>
             {OBJECT_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           معرّف الشركة في ERP
-          <input value={companyExternalId} onChange={(event) => setCompanyExternalId(event.target.value)} disabled={busy} maxLength={256} autoComplete="off" />
+          <input value={companyExternalId} onChange={(event) => { setCompanyExternalId(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           معرّف الفرع في ERP
-          <input value={branchExternalId} onChange={(event) => setBranchExternalId(event.target.value)} disabled={busy} maxLength={256} autoComplete="off" />
+          <input value={branchExternalId} onChange={(event) => { setBranchExternalId(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           معرّف المستودع (اختياري)
-          <input value={warehouseExternalId} onChange={(event) => setWarehouseExternalId(event.target.value)} disabled={busy} maxLength={256} autoComplete="off" />
+          <input value={warehouseExternalId} onChange={(event) => { setWarehouseExternalId(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           العملة (اختياري)
-          <input value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} disabled={busy} maxLength={3} autoComplete="off" />
+          <input value={currencyCode} onChange={(event) => { setCurrencyCode(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={3} autoComplete="off" />
         </label>
       </div>
 
@@ -174,7 +205,7 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" className="btn primary" onClick={() => void runSync()} disabled={!canManage || busy || !companyExternalId.trim() || !branchExternalId.trim()}>
+        <button type="button" className="btn primary" onClick={() => void runSync()} disabled={!canManage || busy || previewBusy || !companyExternalId.trim() || !branchExternalId.trim()}>
           <RefreshCw size={16} />
           {busy ? "جار تنفيذ المزامنة الخادمية…" : "تنفيذ مزامنة القراءة"}
         </button>
@@ -207,6 +238,25 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                 <strong>معاينة البيانات المرحلية</strong>
                 <span className="report-note">المعروض {result.preview.records.length} من {result.preview.total} · إصدار {result.preview.checkpointVersion}</span>
+              </div>
+              <div role="group" aria-label="صفحات معاينة بيانات ERP" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span className="report-note">
+                  السجلات {result.preview.total === 0 ? "0–0" : (result.preview.offset + 1) + "–" + (result.preview.offset + result.preview.records.length)} من {result.preview.total}
+                </span>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => void loadPreview(Math.max(0, result.preview!.offset - result.preview!.limit))}
+                  disabled={!activeRequest || busy || previewBusy || result.preview.offset <= 0}
+                >السابق</button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => void loadPreview(result.preview!.offset + result.preview!.limit)}
+                  disabled={!activeRequest || busy || previewBusy || result.preview.offset + result.preview.limit >= result.preview.total}
+                >التالي</button>
+                {previewBusy && <span className="report-note" role="status">جار تحميل الصفحة دون إعادة المزامنة…</span>}
+                {!activeRequest && <span className="report-note">غيّر نطاق الإدخال؛ أعد المزامنة لتفعيل التنقل لهذا النطاق.</span>}
               </div>
               {result.preview.records.length === 0
                 ? <p className="report-note">لا توجد سجلات مرحلية لهذا النطاق حتى الآن.</p>

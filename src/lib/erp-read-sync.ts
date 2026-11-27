@@ -21,6 +21,9 @@ export type ErpReadSyncRequest = {
   currency_code?: string | null;
   max_pages?: number;
   max_records?: number;
+  preview_only?: boolean;
+  preview_offset?: number;
+  preview_limit?: number;
 };
 
 export type ErpReadSyncDisposition = "created" | "updated" | "unchanged" | "rejected" | "conflicted";
@@ -38,6 +41,7 @@ export type ErpReadSyncPreview = {
   limit: number;
   offset: number;
   checkpointVersion: number;
+  hasCursor: boolean;
   pendingWatermark: string | null;
   completedWatermark: string | null;
 };
@@ -98,7 +102,8 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
   const limit = count(value.limit, "preview.limit");
   const offset = count(value.offset, "preview.offset");
   const checkpointVersion = count(value.checkpointVersion, "preview.checkpointVersion");
-  if (limit < 1 || limit > 50 || offset > 5000 || value.records.length > limit || value.records.length > total) {
+  if (typeof value.hasCursor !== "boolean" ||
+      limit < 1 || limit > 50 || offset > 5000 || value.records.length > limit || value.records.length > total) {
     throw new Error("حدود معاينة سجلات ERP غير صالحة.");
   }
   const allowedFields = new Set(CLIENT_PREVIEW_FIELDS[objectType]);
@@ -131,6 +136,7 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
     limit,
     offset,
     checkpointVersion,
+    hasCursor: value.hasCursor,
     pendingWatermark: timestamp(value.pendingWatermark, "preview.pendingWatermark"),
     completedWatermark: timestamp(value.completedWatermark, "preview.completedWatermark"),
   };

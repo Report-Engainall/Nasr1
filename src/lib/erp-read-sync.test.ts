@@ -27,6 +27,7 @@ const complete = {
     limit: 20,
     offset: 0,
     checkpointVersion: 12,
+    hasCursor: false,
     pendingWatermark: null,
     completedWatermark: "2026-11-28T00:45:00Z",
   },
@@ -53,6 +54,13 @@ describe("ERP read-sync client contract", () => {
     expect(result.checkpoint.has_cursor).toBe(true);
     expect(JSON.stringify(result)).not.toContain("cursor_ciphertext");
     expect(JSON.stringify(result)).not.toContain("provider-cursor");
+  });
+
+  it("rejects malformed preview cursor metadata", () => {
+    expect(() => parseErpReadSyncResult({
+      ...complete,
+      preview: { ...complete.preview, hasCursor: "false" },
+    }, "customer_financial_documents")).toThrow();
   });
 
   it("rejects malformed counters, timestamps and checkpoint cursors", () => {
@@ -100,6 +108,23 @@ describe("ERP read-sync client contract", () => {
     expect(mocks.invoke).toHaveBeenCalledWith("erp-read-sync", { body: request });
   });
 
+  it("sends bounded preview-only pagination through the existing authenticated function", async () => {
+    mocks.invoke.mockResolvedValueOnce({ data: complete, error: null });
+    const request = {
+      provider: "onyx_pro" as const,
+      object_type: "customer_financial_documents" as const,
+      company_external_id: "COMPANY-01",
+      branch_external_id: "BRANCH-01",
+      max_pages: 2,
+      max_records: 500,
+      preview_only: true,
+      preview_offset: 20,
+      preview_limit: 10,
+    };
+    await expect(runErpReadSync(request)).resolves.toEqual(complete);
+    expect(mocks.invoke).toHaveBeenCalledWith("erp-read-sync", { body: request });
+  });
+
   it("rejects a staged preview that contains a field outside the server-approved projection", () => {
     expect(() => parseErpReadSyncResult({
       ...complete,
@@ -110,7 +135,7 @@ describe("ERP read-sync client contract", () => {
           lastDisposition: "created",
           fields: { document_number: "INV-1001", supplier_cost: "1.00" },
         }],
-        total: 1, limit: 20, offset: 0, checkpointVersion: 12,
+        total: 1, limit: 20, offset: 0, checkpointVersion: 12, hasCursor: false,
         pendingWatermark: null, completedWatermark: "2026-11-28T00:45:00Z",
       },
     }, "customer_financial_documents")).toThrow();

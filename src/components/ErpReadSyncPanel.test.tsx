@@ -30,6 +30,7 @@ const result = {
     limit: 20,
     offset: 0,
     checkpointVersion: 8,
+    hasCursor: true,
     pendingWatermark: "2026-11-28T00:30:00Z",
     completedWatermark: "2026-11-27T22:00:00Z",
   },
@@ -82,6 +83,53 @@ describe("ErpReadSyncPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("اسم الصنف");
     expect(screen.getByRole("status")).toHaveTextContent("جديد");
     expect(screen.getByRole("status")).toHaveTextContent("42");
+  });
+
+  it("pages through staged records with preview-only reads and preserves original sync counters", async () => {
+    render(<ErpReadSyncPanel canManage />);
+    fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
+    fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "تنفيذ مزامنة القراءة" }));
+
+    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(1));
+    await screen.findByText("ERP-PRODUCT-001");
+    mocks.runErpReadSync.mockResolvedValueOnce({
+      ...result,
+      pages_committed: 0,
+      records_read: 0,
+      counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+      preview: {
+        ...result.preview,
+        records: [{
+          externalId: "ERP-PRODUCT-021",
+          sourceUpdatedAt: "2026-11-28T00:31:00Z",
+          lastDisposition: "updated",
+          lastDispositionReason: null,
+          fields: { item_code: "000145", name: "صفحة ثانية" },
+        }],
+        offset: 20,
+        hasCursor: true,
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
+    await screen.findByText("ERP-PRODUCT-021");
+    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(2, {
+      provider: "onyx_pro",
+      object_type: "products",
+      company_external_id: "COMPANY-01",
+      branch_external_id: "BRANCH-01",
+      warehouse_external_id: null,
+      currency_code: "YER",
+      max_pages: 2,
+      max_records: 500,
+      preview_only: true,
+      preview_offset: 20,
+      preview_limit: 20,
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("125");
+    expect(screen.getByRole("status")).toHaveTextContent("جديدة: 10");
+    expect(screen.getByRole("group", { name: "صفحات معاينة بيانات ERP" })).toHaveTextContent("السجلات 21–21 من 42");
   });
 
   it("supports staging customer invoices, payment receipts and statement entries without posting them", async () => {
