@@ -970,7 +970,7 @@ BEGIN
  FOREACH v_product IN ARRAY v_products LOOP
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_org::text||':inventory-batch-reservation:'||v_product::text,0));
   PERFORM ib.id FROM public.inventory_balances ib JOIN public.warehouses w
-   ON w.id=ib.warehouse_id AND w.organization_id=v_org AND w.is_active=true
+   ON w.id=ib.warehouse_id AND w.organization_id=v_org
    WHERE ib.product_id=v_product ORDER BY ib.warehouse_id FOR UPDATE OF ib;
   PERFORM b.id FROM public.inventory_batches b WHERE b.organization_id=v_org AND b.product_id=v_product
    ORDER BY b.id FOR UPDATE OF b;
@@ -1033,7 +1033,6 @@ BEGIN
    HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
      WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
    ORDER BY b.expiry_date DESC NULLS FIRST,b.received_at DESC,b.id DESC
-   FOR UPDATE OF b,ib
   LOOP
    EXIT WHEN v_left<=0;
    IF v_lot.quantity_reserved<v_lot.order_reserved THEN
