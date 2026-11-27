@@ -470,7 +470,7 @@ describe("production intelligence workspace inventory screens", () => {
     });
     render(<IntelligenceWorkspace />);
 
-    const actionText = await screen.findByRole("heading", { name: /إعادة تنشيط العميل · custome…ion-1/ });
+    const actionText = await screen.findByRole("heading", { name: /إعادة تنشيط العميل · custome…on-1/ });
     const card = actionText.closest("article");
     expect(card).not.toBeNull();
     expect(card).toHaveTextContent("الأثر غير متاح؛ لم تثبت معادلته أو مدخلاته");
@@ -481,7 +481,7 @@ describe("production intelligence workspace inventory screens", () => {
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
 
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
-      candidateId: "customer.retention:customer-retention-1:2026-10-30",
+      candidateId: "customer.retention:customer-retention-1:2026-10-31",
       ruleId: "customers.retention.follow-up",
       ruleVersion: "1.0.0",
       expectedOutcome: expect.stringContaining("دون احتساب إيراد مسترد"),
