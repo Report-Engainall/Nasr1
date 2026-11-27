@@ -93,12 +93,11 @@ function parseQueue(v: unknown, asOf: string): ProcessBottleneckQueue | null {
   if (r.openCount>0) {
     const openedAtMicros = timestampMicroseconds(r.oldestOpenedAt as string);
     const measuredAtMicros = timestampMicroseconds(asOf);
-    const openedAt=Date.parse(r.oldestOpenedAt as string);
-    const measuredAt=Date.parse(asOf);
     const suppliedAge=r.oldestAgeMinutes as number;
-    if (openedAtMicros === null || measuredAtMicros === null || openedAtMicros > measuredAtMicros ||
-        !Number.isFinite(openedAt) || openedAt>measuredAt) return null;
-    const expectedAge=Math.round(((measuredAt-openedAt)/60000)*100)/100;
+    if (openedAtMicros === null || measuredAtMicros === null || openedAtMicros > measuredAtMicros) return null;
+    const elapsedMicros = measuredAtMicros - openedAtMicros;
+    const expectedAgeHundredths = (elapsedMicros + 300_000n) / 600_000n;
+    const expectedAge = Number(expectedAgeHundredths) / 100;
     if (!Number.isFinite(expectedAge) || Math.abs(expectedAge-suppliedAge)>0.01) return null;
   }
   return {
