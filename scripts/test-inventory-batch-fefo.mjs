@@ -50,7 +50,7 @@ async function receipt(manager,batch,expiry,quantity=1,targetWarehouse=warehouse
   }
  }
 async function main(){
- const manager=await actor(env("E2E_MANAGER_EMAIL")),customer=await actor(env("E2E_EMAIL"));
+ const manager=await actor(env("E2E_MANAGER_EMAIL")),customer=await actor(env("E2E_EMAIL")),admin=await actor(env("E2E_DEVICE_ADMIN_EMAIL"));
  const cust=(await db.unsafe("select id::text from public.customers where organization_id=$1::uuid and status='approved' order by created_at limit 1",[org]))[0];assert.ok(cust);
  const ds=(await db.unsafe("select to_char((now() at time zone 'UTC')::date+10,'YYYY-MM-DD') e,to_char((now() at time zone 'UTC')::date+30,'YYYY-MM-DD') l"))[0];
  const suffix=randomUUID().replaceAll("-","").slice(0,10).toUpperCase();
@@ -123,10 +123,23 @@ async function main(){
  ))[0].d;
  await db.unsafe("reset role");
  const alternateWarehouse=(await db.unsafe(
-  "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and id<>$2::uuid order by id limit 1",
+  "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true " +
+  "and id<>$2::uuid and code in ('P2-LOCAL-RLS-A','P2-LOCAL-RLS-B') order by code limit 1",
   [org,warehouse],
  ))[0];
- assert.ok(alternateWarehouse,"FEFO cross-warehouse rollback acceptance requires a second active tenant warehouse");
+ assert.ok(alternateWarehouse,"FEFO cross-warehouse rollback acceptance requires one isolated unassigned tenant warehouse");
+
+ // The local P2 seed intentionally leaves the two RLS fixtures unassigned.
+ // Grant the manager explicit, audited scope on this one disposable destination
+ // using the authenticated local administrator, matching the production scope API.
+ await as(admin);
+ const alternateScope=await rpc(
+  "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) result",
+  [manager.id,alternateWarehouse.id,"P2 FEFO cross-warehouse acceptance destination scope"],
+ );
+ assert.equal(alternateScope.changed,true,"local admin must persist the additional manager warehouse scope");
+ assert.equal(alternateScope.is_active,true,"the destination scope must be active before the manager receives the lot");
+ await db.unsafe("reset role");
  const replacement=await receipt(manager,"FEFO-REPLACEMENT-"+suffix,replacementDate,1,alternateWarehouse.id);
  const replacementCandidate=(await db.unsafe(
   "select id::text batch_id from public.inventory_batches where receipt_id=$1::uuid and product_id=$2::uuid order by received_at desc,id desc limit 1",
