@@ -73,7 +73,7 @@ function record(id: string, updatedAt: string): ErpCanonicalRecord {
     warehouseExternalId: null,
     currencyCode: null,
     externalId: id,
-    sourceUpdatedAt: updatedAt,
+    sourceUpdatedAt: new Date(updatedAt).toISOString(),
     idempotencyKey: "record-" + id,
     fields: { item_code: "000" + id, name: "منتج " + id },
   };
@@ -119,15 +119,16 @@ class InMemoryCheckpointStore implements ErpSyncCheckpointStore {
     completedWatermark: string | null;
     completed: boolean;
   }): Promise<ErpPersistResult> {
-    if (input.expectedVersion !== this.state.version) {
-      throw new ErpConnectorError("CHECKPOINT_CONFLICT", "stale checkpoint");
-    }
+    // Idempotency lookup precedes version CAS so a lost response can be replayed safely.
     if (this.committed.some((page) => page.pageFingerprint === input.pageFingerprint)) {
       return {
         checkpoint: { ...this.state },
         counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
         duplicatePage: true,
       };
+    }
+    if (input.expectedVersion !== this.state.version) {
+      throw new ErpConnectorError("CHECKPOINT_CONFLICT", "stale checkpoint");
     }
     this.committed.push({
       pageFingerprint: input.pageFingerprint,
@@ -449,8 +450,8 @@ describe("incremental ERP sync checkpoint orchestration", () => {
   });
 
   it("does not continue to write after a stale checkpoint version", async () => {
-    const store = new InMemoryCheckpointStore(checkpoint({ version: 4 }));
-    store.state = checkpoint({ version: 5 });
+    const store = new InMemoryCheckpointStore(checkpoint({ version: 5 }));
+    store.loadCheckpoint = async () => checkpoint({ version: 4 });
     const connector: ErpReadConnector = {
       readPage: async () => ({
         records: [record("4", "2026-11-27T10:06:00Z")],
