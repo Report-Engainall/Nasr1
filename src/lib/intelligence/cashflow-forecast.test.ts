@@ -219,3 +219,22 @@ describe("cashflow forecast currency visibility under incomplete evidence", () =
     }
   });
 });
+
+describe("cashflow forecast UTC offset ceiling", () => {
+  it.each([
+    ["+14:00", "2026-10-30T21:00:00.000+14:00"],
+    ["-14:00", "2026-10-29T17:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, timestamp) => {
+    const result = buildCashflowForecast({ ...base(), generatedAt: timestamp, asOf: timestamp });
+    expect(result.asOf).toBe(timestamp);
+  });
+
+  it.each([
+    "2026-10-30T21:00:00.000+14:01",
+    "2026-10-29T17:00:00.000-14:01",
+    "2026-10-30T23:59:00.000+23:59",
+  ])("rejects an unsupported cash-flow clock offset: %s", timestamp => {
+    expect(() => buildCashflowForecast({ ...base(), generatedAt: timestamp, asOf: timestamp }))
+      .toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
+  });
+});
