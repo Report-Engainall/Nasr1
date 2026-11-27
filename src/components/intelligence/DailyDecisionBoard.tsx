@@ -77,7 +77,8 @@ export function isDailyDecisionDueWithin(
 }
 
 export function isDailyDecisionUnscheduled(record: DecisionMemoryRecord): boolean {
-  return !isTerminalDecision(record) && record.reviewDisposition === "NOT_SCHEDULED";
+  return !isTerminalDecision(record) && record.state !== "EXECUTED" &&
+    record.reviewDisposition === "NOT_SCHEDULED";
 }
 
 export function normalizeDailyDecisionSearch(value: string): string {
