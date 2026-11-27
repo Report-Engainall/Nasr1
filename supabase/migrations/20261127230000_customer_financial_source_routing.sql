@@ -2473,4 +2473,238 @@ BEGIN
   );
 END;
 $function$;
+
+-- Payment and receipt writes belong to the APP_ONLY ledger only. This source lock
+-- serializes every row mutation with the Maker/Checker source cutover.
+CREATE OR REPLACE FUNCTION public.assert_customer_app_only_financial_write(
+  p_organization_id uuid,
+  p_customer_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_source_mode text;
+  v_source_status text;
+BEGIN
+  IF p_organization_id IS NULL OR p_customer_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='active customer financial source binding is required for payment writes';
+  END IF;
+
+  SELECT b.source_mode,b.source_status
+    INTO v_source_mode,v_source_status
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=p_organization_id
+     AND b.customer_id=p_customer_id
+   FOR SHARE;
+
+  IF NOT FOUND OR v_source_mode IS DISTINCT FROM 'APP_ONLY'
+     OR v_source_status IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION USING ERRCODE='55000',
+      MESSAGE='customer payment ledger writes require an active APP_ONLY financial source';
+  END IF;
+END
+$function$;
+REVOKE ALL ON FUNCTION public.assert_customer_app_only_financial_write(uuid,uuid)
+  FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE OR REPLACE FUNCTION public.enforce_customer_app_only_payment_source()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_organization_id uuid;
+  v_customer_id uuid;
+BEGIN
+  IF TG_OP='DELETE' THEN
+    v_organization_id:=OLD.organization_id;
+    v_customer_id:=OLD.customer_id;
+  ELSE
+    v_organization_id:=NEW.organization_id;
+    v_customer_id:=NEW.customer_id;
+  END IF;
+
+  PERFORM public.assert_customer_app_only_financial_write(v_organization_id,v_customer_id);
+
+  IF TG_OP='DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END
+$function$;
+REVOKE ALL ON FUNCTION public.enforce_customer_app_only_payment_source()
+  FROM PUBLIC,anon,authenticated,service_role;
+
+DROP TRIGGER IF EXISTS customer_payments_app_only_financial_source_guard
+  ON public.customer_payments;
+CREATE TRIGGER customer_payments_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.customer_payments
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_payment_source();
+
+DROP TRIGGER IF EXISTS customer_payment_receipts_app_only_financial_source_guard
+  ON public.customer_payment_receipts;
+CREATE TRIGGER customer_payment_receipts_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.customer_payment_receipts
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_payment_source();
+
+-- The database trigger above rejects all physical writes. Wrap the idempotent writers
+-- too: otherwise an old APP_ONLY idempotency key could replay a prior result after
+-- the source changes without attempting an INSERT and therefore without firing a trigger.
+ALTER FUNCTION public.record_customer_payment(uuid,numeric,text,uuid,text,text)
+  RENAME TO record_customer_payment_app_only_internal;
+REVOKE ALL ON FUNCTION public.record_customer_payment_app_only_internal(uuid,numeric,text,uuid,text,text)
+  FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE OR REPLACE FUNCTION public.record_customer_payment(
+  p_invoice_id uuid,
+  p_amount numeric,
+  p_payment_method text,
+  p_idempotency_key uuid,
+  p_reference text DEFAULT NULL,
+  p_notes text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_profile uuid:=public.current_profile_id();
+  v_org uuid;
+  v_customer uuid;
+BEGIN
+  IF auth.uid() IS NULL OR v_profile IS NULL OR NOT public.can_manage_finance() THEN
+    RETURN public.record_customer_payment_app_only_internal(
+      p_invoice_id,p_amount,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_profile AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF v_org IS NULL THEN
+    RETURN public.record_customer_payment_app_only_internal(
+      p_invoice_id,p_amount,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  SELECT i.customer_id INTO v_customer
+    FROM public.customer_invoices i
+   WHERE i.id=p_invoice_id AND i.organization_id=v_org;
+  IF NOT FOUND THEN
+    RETURN public.record_customer_payment_app_only_internal(
+      p_invoice_id,p_amount,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  PERFORM public.assert_customer_app_only_financial_write(v_org,v_customer);
+  RETURN public.record_customer_payment_app_only_internal(
+    p_invoice_id,p_amount,p_payment_method,p_idempotency_key,p_reference,p_notes
+  );
+END
+$function$;
+REVOKE ALL ON FUNCTION public.record_customer_payment(uuid,numeric,text,uuid,text,text)
+  FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.record_customer_payment(uuid,numeric,text,uuid,text,text)
+  TO authenticated;
+COMMENT ON FUNCTION public.record_customer_payment(uuid,numeric,text,uuid,text,text) IS
+  'APP_ONLY-only wrapper for the existing idempotent payment writer; locks the server-selected source before new writes or replay.';
+
+ALTER FUNCTION public.record_customer_payment_allocation(jsonb,text,uuid,text,text)
+  RENAME TO record_customer_payment_allocation_app_only_internal;
+REVOKE ALL ON FUNCTION public.record_customer_payment_allocation_app_only_internal(jsonb,text,uuid,text,text)
+  FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE OR REPLACE FUNCTION public.record_customer_payment_allocation(
+  p_allocations jsonb,
+  p_payment_method text,
+  p_idempotency_key uuid,
+  p_reference text DEFAULT NULL,
+  p_notes text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_profile uuid:=public.current_profile_id();
+  v_org uuid;
+  v_invoice_id uuid;
+  v_customer uuid;
+BEGIN
+  IF auth.uid() IS NULL OR v_profile IS NULL OR NOT public.can_manage_finance() THEN
+    RETURN public.record_customer_payment_allocation_app_only_internal(
+      p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_profile AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF v_org IS NULL THEN
+    RETURN public.record_customer_payment_allocation_app_only_internal(
+      p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  -- Split shape and cardinality validation so jsonb_array_length is never called
+  -- on a non-array value; delegate malformed input to the canonical writer.
+  IF p_allocations IS NULL OR pg_catalog.jsonb_typeof(p_allocations) IS DISTINCT FROM 'array' THEN
+    RETURN public.record_customer_payment_allocation_app_only_internal(
+      p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+  IF pg_catalog.jsonb_array_length(p_allocations) NOT BETWEEN 2 AND 50 THEN
+    RETURN public.record_customer_payment_allocation_app_only_internal(
+      p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  BEGIN
+    v_invoice_id:=nullif(p_allocations->0->>'invoice_id','')::uuid;
+  EXCEPTION WHEN invalid_text_representation THEN
+    RETURN public.record_customer_payment_allocation_app_only_internal(
+      p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END;
+  IF v_invoice_id IS NULL THEN
+    RETURN public.record_customer_payment_allocation_app_only_internal(
+      p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  SELECT i.customer_id INTO v_customer
+    FROM public.customer_invoices i
+   WHERE i.id=v_invoice_id AND i.organization_id=v_org;
+  IF NOT FOUND THEN
+    RETURN public.record_customer_payment_allocation_app_only_internal(
+      p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+    );
+  END IF;
+
+  PERFORM public.assert_customer_app_only_financial_write(v_org,v_customer);
+  RETURN public.record_customer_payment_allocation_app_only_internal(
+    p_allocations,p_payment_method,p_idempotency_key,p_reference,p_notes
+  );
+END
+$function$;
+REVOKE ALL ON FUNCTION public.record_customer_payment_allocation(jsonb,text,uuid,text,text)
+  FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.record_customer_payment_allocation(jsonb,text,uuid,text,text)
+  TO authenticated;
+COMMENT ON FUNCTION public.record_customer_payment_allocation(jsonb,text,uuid,text,text) IS
+  'APP_ONLY-only wrapper for the existing atomic receipt writer; locks the source before new writes or idempotent replay.';
+
+NOTIFY pgrst,'reload schema';
+
 COMMIT;

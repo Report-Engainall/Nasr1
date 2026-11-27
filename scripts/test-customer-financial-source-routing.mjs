@@ -322,19 +322,26 @@ async function main() {
     [sourceTestSecondInvoiceId, orgId, customerId, sourceTestSecondOrderId, sourceTestSecondInvoiceNumber],
   );
 
-  // Build the JSONB array in PostgreSQL to keep the fixture's JSON type explicit
-  // across the postgres.js unsafe-parameter boundary. This exercises the same RPC
-  // payload contract without relying on driver-specific text-to-json coercion.
+  const sourceTestReceiptIdempotencyKey = randomUUID();
   const seededReceipt = await rpc(accountantDb,
     "select public.record_customer_payment_allocation(" +
       "jsonb_build_array(" +
         "jsonb_build_object('invoice_id',$1::uuid,'amount','5.00')," +
         "jsonb_build_object('invoice_id',$2::uuid,'amount','7.00')" +
       "),'cash',$3::uuid,'FIN-SOURCE-RECEIPT','source routing acceptance fixture') as result",
-    [sourceTestInvoiceId, sourceTestSecondInvoiceId, randomUUID()],
+    [sourceTestInvoiceId, sourceTestSecondInvoiceId, sourceTestReceiptIdempotencyKey],
   );
   const sourceTestReceiptId = seededReceipt.receipt_id;
   assert.ok(sourceTestReceiptId, "a real two-invoice customer receipt is atomically saved");
+
+  const sourceTestSinglePaymentIdempotencyKey = randomUUID();
+  const sourceTestSinglePaymentId = await rpc(accountantDb,
+    "select public.record_customer_payment($1::uuid,1.00::numeric,'cash',$2::uuid," +
+      "'FIN-SOURCE-SINGLE','source routing single-payment acceptance fixture') as result",
+    [sourceTestInvoiceId, sourceTestSinglePaymentIdempotencyKey],
+  );
+  assert.ok(sourceTestSinglePaymentId,
+    "APP_ONLY finance accepts a real idempotent single-invoice payment");
 
   const appOnlyCustomer360 = await rpc(managerDb,
     "select public.get_staff_customer_360($1::uuid) as result",
@@ -847,6 +854,85 @@ async function main() {
   assert.equal(approved.status, "approved");
   assert.equal(approved.source_mode, "ONYX");
 
+  const paymentLedgerBeforeOnyxDenial = await db.unsafe(
+    "select count(*)::integer as count,coalesce(sum(amount),0)::numeric(15,2)::text as total " +
+    "from public.customer_payments where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId, customerId],
+  );
+  const receiptLedgerBeforeOnyxDenial = await db.unsafe(
+    "select count(*)::integer as count,coalesce(sum(total_amount),0)::numeric(15,2)::text as total " +
+    "from public.customer_payment_receipts where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId, customerId],
+  );
+  await expectFailure(
+    "ONYX source rejects new legacy/idempotent single-invoice payment entry",
+    rpc(accountantDb,
+      "select public.record_customer_payment($1::uuid,1.00::numeric,'cash',$2::uuid,'FIN-SOURCE-SINGLE-NEW','external-source write denial') as result",
+      [sourceTestInvoiceId, randomUUID()]),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  await expectFailure(
+    "ONYX source rejects replay of an old APP_ONLY single-payment idempotency key",
+    rpc(accountantDb,
+      "select public.record_customer_payment($1::uuid,1.00::numeric,'cash',$2::uuid,'FIN-SOURCE-SINGLE','source routing single-payment acceptance fixture') as result",
+      [sourceTestInvoiceId, sourceTestSinglePaymentIdempotencyKey]),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  await expectFailure(
+    "ONYX source rejects replay of an old APP_ONLY multi-invoice receipt",
+    rpc(accountantDb,
+      "select public.record_customer_payment_allocation(" +
+        "jsonb_build_array(" +
+          "jsonb_build_object('invoice_id',$1::uuid,'amount','5.00')," +
+          "jsonb_build_object('invoice_id',$2::uuid,'amount','7.00')" +
+        "),'cash',$3::uuid,'FIN-SOURCE-RECEIPT','source routing acceptance fixture') as result",
+      [sourceTestInvoiceId, sourceTestSecondInvoiceId, sourceTestReceiptIdempotencyKey]),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  await expectFailure(
+    "direct owner INSERT cannot bypass APP_ONLY payment ledger source guard",
+    db.unsafe(
+      "insert into public.customer_payments(" +
+        "organization_id,customer_id,invoice_id,amount,payment_method,reference,notes,created_by," +
+        "idempotency_key,request_fingerprint" +
+      ") values($1::uuid,$2::uuid,$3::uuid,1.00,'cash','DIRECT-EXTERNAL-SOURCE',NULL,$4::uuid,$5::uuid,$6::text)",
+      [orgId, customerId, sourceTestInvoiceId, accountant.id, randomUUID(), "c".repeat(64)],
+    ),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  await expectFailure(
+    "direct owner INSERT cannot bypass APP_ONLY receipt header source guard",
+    db.unsafe(
+      "insert into public.customer_payment_receipts(" +
+        "organization_id,customer_id,currency,total_amount,allocation_count,payment_method,created_by," +
+        "idempotency_key,request_fingerprint" +
+      ") values($1::uuid,$2::uuid,'YER',1.00,2,'cash',$3::uuid,$4::uuid,$5::text)",
+      [orgId, customerId, accountant.id, randomUUID(), "d".repeat(64)],
+    ),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  const [paymentLedgerAfterOnyxDenial,receiptLedgerAfterOnyxDenial] = await Promise.all([
+    db.unsafe(
+      "select count(*)::integer as count,coalesce(sum(amount),0)::numeric(15,2)::text as total " +
+      "from public.customer_payments where organization_id=$1::uuid and customer_id=$2::uuid",
+      [orgId, customerId],
+    ),
+    db.unsafe(
+      "select count(*)::integer as count,coalesce(sum(total_amount),0)::numeric(15,2)::text as total " +
+      "from public.customer_payment_receipts where organization_id=$1::uuid and customer_id=$2::uuid",
+      [orgId, customerId],
+    ),
+  ]);
+  assert.deepEqual(paymentLedgerAfterOnyxDenial,paymentLedgerBeforeOnyxDenial,
+    "rejected external-source payment attempts must not change payment rows or amounts");
+  assert.deepEqual(receiptLedgerAfterOnyxDenial,receiptLedgerBeforeOnyxDenial,
+    "rejected external-source receipt attempts must not change receipt rows or totals");
+
   await expectFailure(
     "ONYX customer cannot list APP_ONLY receipts through the customer RPC",
     rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(50,0) as result"),
@@ -1068,6 +1154,15 @@ async function main() {
   assert.equal(mutakamelApproved.revision, 3);
 
   await expectFailure(
+    "MUTAKAMEL source rejects internal single-invoice payment writes",
+    rpc(accountantDb,
+      "select public.record_customer_payment($1::uuid,1.00::numeric,'cash',$2::uuid,'MUTAKAMEL-WRITE','external-source write denial') as result",
+      [sourceTestInvoiceId, randomUUID()]),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+
+  await expectFailure(
     "MUTAKAMEL customer cannot list APP_ONLY receipts through the customer RPC",
     rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(50,0) as result"),
     "55000",
@@ -1174,6 +1269,63 @@ async function main() {
   const finalStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
   assert.equal(JSON.stringify(finalStatement.summary), initialSummary, "source cutover must not synthesize or alter the app ledger");
 
+  const singlePaymentReplayAfterReturn = await rpc(accountantDb,
+    "select public.record_customer_payment($1::uuid,1.00::numeric,'cash',$2::uuid," +
+      "'FIN-SOURCE-SINGLE','source routing single-payment acceptance fixture') as result",
+    [sourceTestInvoiceId, sourceTestSinglePaymentIdempotencyKey],
+  );
+  assert.equal(singlePaymentReplayAfterReturn, sourceTestSinglePaymentId,
+    "idempotent APP_ONLY payment replay is restored after approved source return");
+
+  const receiptReplayAfterReturn = await rpc(accountantDb,
+    "select public.record_customer_payment_allocation(" +
+      "jsonb_build_array(" +
+        "jsonb_build_object('invoice_id',$1::uuid,'amount','5.00')," +
+        "jsonb_build_object('invoice_id',$2::uuid,'amount','7.00')" +
+      "),'cash',$3::uuid,'FIN-SOURCE-RECEIPT','source routing acceptance fixture') as result",
+    [sourceTestInvoiceId, sourceTestSecondInvoiceId, sourceTestReceiptIdempotencyKey],
+  );
+  assert.equal(receiptReplayAfterReturn.receipt_id, sourceTestReceiptId);
+  assert.equal(receiptReplayAfterReturn.replayed, true,
+    "idempotent multi-invoice receipt replay is restored after approved source return");
+
+  const freshPaymentAfterReturn = await rpc(accountantDb,
+    "select public.record_customer_payment($1::uuid,0.50::numeric,'cash',$2::uuid,'FIN-SOURCE-POST-RETURN','APP_ONLY payment writer restored') as result",
+    [sourceTestInvoiceId, randomUUID()],
+  );
+  assert.ok(freshPaymentAfterReturn,
+    "APP_ONLY single-invoice payment write is restored after approved source return");
+
+  const freshReceiptAfterReturn = await rpc(accountantDb,
+    "select public.record_customer_payment_allocation(" +
+      "jsonb_build_array(" +
+        "jsonb_build_object('invoice_id',$1::uuid,'amount','0.50')," +
+        "jsonb_build_object('invoice_id',$2::uuid,'amount','0.75')" +
+      "),'cash',$3::uuid,'FIN-SOURCE-POST-RETURN','APP_ONLY multi-invoice receipt writer restored') as result",
+    [sourceTestInvoiceId, sourceTestSecondInvoiceId, randomUUID()],
+  );
+  assert.ok(freshReceiptAfterReturn.receipt_id);
+  assert.equal(freshReceiptAfterReturn.allocation_count, 2);
+  assert.equal(freshReceiptAfterReturn.replayed, false,
+    "APP_ONLY multi-invoice receipt writer persists a new two-invoice receipt after return");
+  const [freshReceiptHeaderRows,freshReceiptChildren] = await Promise.all([
+    db.unsafe(
+      "select id,total_amount::text as total_amount,allocation_count from public.customer_payment_receipts " +
+      "where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+      [freshReceiptAfterReturn.receipt_id,orgId,customerId],
+    ),
+    db.unsafe(
+      "select invoice_id,amount::text as amount from public.customer_payments " +
+      "where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid order by invoice_id",
+      [freshReceiptAfterReturn.receipt_id,orgId,customerId],
+    ),
+  ]);
+  assert.equal(freshReceiptHeaderRows.length, 1,
+    "APP_ONLY multi-invoice receipt header is persisted after source return");
+  assert.equal(freshReceiptHeaderRows[0].allocation_count, 2);
+  assert.equal(freshReceiptChildren.length, 2,
+    "APP_ONLY receipt writer persists one customer_payment allocation per invoice");
+
   const finalReceiptOptions = await rpc(accountantDb,
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.ok(finalReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
@@ -1224,6 +1376,8 @@ async function main() {
         sourceEvidenceAndFreshness: true,
         syncReplayAndMonotonicWatermark: true,
         makerChecker: true,
+        financialPaymentWriteGuards: true,
+        appOnlyPaymentWritesRestored: true,
         tenantIsolation: true,
         noExternalLedgerFallback: true,
         appLedgerSummaryUnchanged: true,

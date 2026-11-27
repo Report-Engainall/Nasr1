@@ -190,3 +190,12 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Only the finance-capability-gated staff resolver returns company/branch. Customer source resolution continues to omit every ERP identifier.
 - PG17 acceptance includes APP_ONLY null fields, reconciliation/sync identity persistence, wrong company/branch rejection, identity unique index, and customer/staff separation. Exact-head CI is mandatory; no PASS is claimed in this commit.
 - No production DB write, live ERP request, accounting posting, inventory write, deployment or secret update was performed.
+
+## 2026-11-28 — Internal payment ledger writes now fail closed outside APP_ONLY
+
+- Added one server-side source assertion that locks the exact `(organization_id,customer_id)` binding `FOR SHARE` and permits internal payment-ledger mutation only while its source is `APP_ONLY` and `active`.
+- Installed `BEFORE INSERT OR UPDATE OR DELETE` triggers on both `customer_payments` and `customer_payment_receipts`, so legacy/new RPCs and direct table DML cannot write, alter or remove APP_ONLY ledger records after an ONYX/MUTAKAMEL cutover. The trigger lock is held until transaction end and serializes against the source review RPC's `FOR UPDATE` lock.
+- Wrapped the existing idempotent single-payment and multi-invoice receipt functions without rebuilding their balance checks, audit, invoice settlement locks or allocation logic. The wrappers check/lock the server-selected source before calling the original implementation; this also prevents an old APP_ONLY idempotency key from replaying a receipt/payment result once the customer is external.
+- Added exact acceptance cases for ONYX: new single payment, prior single-payment replay, prior multi-invoice receipt replay, and direct owner INSERTs to both payment/receipt tables must all fail with `55000`; before/after row counts and amounts must be identical. MUTAKAMEL independently rejects internal payment writes.
+- After Maker/Checker returns the account to APP_ONLY, the test proves old idempotent replays work again and new single-payment plus two-invoice receipt writes persist, with one receipt header and two actual allocation rows. Existing app-ledger equality is asserted before these post-return fixtures are added.
+- No payment, receipt, balance or journal was written to production. All writes in acceptance are disposable local PostgreSQL 17 fixtures.
