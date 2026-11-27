@@ -51,6 +51,8 @@ CREATE TABLE public.erp_sync_page_receipts (
   next_cursor_ciphertext_sha256 text,
   http_status integer NOT NULL CHECK (http_status BETWEEN 200 AND 299),
   external_request_id text,
+  pending_watermark timestamptz,
+  completed_watermark timestamptz,
   records_received integer NOT NULL CHECK (records_received BETWEEN 0 AND 1000),
   created_count integer NOT NULL CHECK (created_count >= 0),
   updated_count integer NOT NULL CHECK (updated_count >= 0),
@@ -353,6 +355,8 @@ BEGIN
        OR v_receipt.records_received IS DISTINCT FROM v_records_received
        OR v_receipt.next_cursor_ciphertext_sha256 IS DISTINCT FROM v_page_cursor_hash
        OR v_receipt.completed IS DISTINCT FROM p_completed
+       OR v_receipt.pending_watermark IS DISTINCT FROM p_pending_watermark
+       OR v_receipt.completed_watermark IS DISTINCT FROM p_completed_watermark
     THEN
       RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP page fingerprint was replayed with different evidence metadata';
     END IF;
@@ -450,12 +454,12 @@ BEGIN
 
   INSERT INTO public.erp_sync_page_receipts(
     organization_id,scope_key,page_fingerprint,response_sha256,
-    next_cursor_ciphertext_sha256,http_status,external_request_id,records_received,
+    next_cursor_ciphertext_sha256,http_status,external_request_id,pending_watermark,completed_watermark,records_received,
     created_count,updated_count,unchanged_count,rejected_count,conflicted_count,
     completed,committed_version
   ) VALUES (
     p_organization_id,p_scope_key,p_page_fingerprint,p_response_sha256,
-    v_page_cursor_hash,p_http_status,nullif(btrim(coalesce(p_external_request_id,'')),''),
+    v_page_cursor_hash,p_http_status,nullif(btrim(coalesce(p_external_request_id,'')),''),p_pending_watermark,p_completed_watermark,
     v_records_received,v_created,v_updated,v_unchanged,v_rejected,v_conflicted,
     p_completed,v_checkpoint.version
   );
