@@ -713,10 +713,21 @@ const manager=actors.get("manager"),admin=actors.get("admin");
 
   const rollbackBusinessName=customerProfileFixture.business_name.slice(0,145)+" P2 rollback "+randomUUID().slice(0,8);
   await withCustomerProfileRoles(["customer"],async(tx)=>{
+    // Obtain the optimistic revision through the same owner-bound RPC and transaction.
+    // Never carry a timestamp captured before role-fixture setup into this write.
+    const currentRows=await tx.unsafe("select public.get_my_customer_account_profile() as profile");
+    const currentProfile=typeof currentRows[0]?.profile==="string"
+      ?JSON.parse(currentRows[0].profile)
+      :currentRows[0]?.profile;
+    assert.ok(
+      currentProfile&&typeof currentProfile.updated_at==="string",
+      "the customer profile read RPC must return its current optimistic revision"
+    );
+    assert.equal(currentProfile.customer_code,customerProfileFixture.customer_code);
     const rows=await tx.unsafe(
       "select public.update_my_customer_account_profile($1::text,$2::text,$3::text,$4::text,$5::timestamptz) as profile",
       [rollbackBusinessName,customerProfileFixture.contact_name,customerProfileFixture.phone,
-       customerProfileFixture.email,customerProfileFixture.updated_at]
+       customerProfileFixture.email,currentProfile.updated_at]
     );
     const updated=typeof rows[0]?.profile==="string"?JSON.parse(rows[0].profile):rows[0]?.profile;
     assert.equal(updated?.business_name,rollbackBusinessName,
