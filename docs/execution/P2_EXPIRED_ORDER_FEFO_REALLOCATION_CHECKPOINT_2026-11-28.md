@@ -86,3 +86,12 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 - Mixed per-product mismatches can be fixed in separate steps: the shortage repair fills only deficits; excess release removes only overages. Each action leaves the other discrepancy visible in the queue, without offsetting one product against another.
 - Acceptance now creates an over-reserved one-unit order with two units in a real lot, asserts the worklist identifies one excess unit, releases exactly one reservation, verifies audit/idempotent replay/payload-conflict behavior, proves the order exits the mismatch queue, then ships exactly one unit.
 - Customer denial and function ACLs are asserted for the excess-release RPC.
+
+## Exact P2 implementation snapshot — 2026-11-28
+
+- Implementation + acceptance source parent: `310ff073a4a9ab7fa1e6b32fd16018d7367e7776`.
+- Migration blob: `0e664fcaecf4e7ce35c18c40beb63e46b59796c4`.
+- PostgreSQL 17 acceptance script blob: `2ecf726c77301e99705bfe27463dc7d45228bc78`.
+- Scope remains exactly the three files listed above; no UI, dependency, workflow, production or environment configuration changes.
+- Exact-parent CI at record time: P2 Playwright run `46082509814` QUEUED; PostgreSQL 17 run `46082509815` QUEUED; P1 Admin Context run `46082509843` QUEUED. Combined status set empty; no PASS claimed.
+- P1 handoff updated in PR #701 with both-sided exception queue and manager-only actions, including mixed per-product repair order and reverse-FEFO excess release.
