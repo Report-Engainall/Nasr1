@@ -14,7 +14,7 @@
 - Provider URL, allowed hosts, access token and read contract are loaded from Edge Function secrets/environment only. The browser never receives credentials or a provider cursor.
 - Cursor checkpoints are AES-256-GCM encrypted before database persistence. The encryption key is a separate server-only 32-byte hex secret.
 - Checkpoint writes, canonical staging records, page receipts and watermark advancement occur in one PostgreSQL transaction. Page replay is checked before optimistic-version validation.
-- The connector is read-only. It stages approved catalog/customer/warehouse/quantity/unit/price projections only; it does not post inventory, invoices, receipts or ledger entries.
+- The connector is read-only. It stages approved catalog/customer/warehouse/quantity/unit/price projections plus customer invoices/credit notes, payment receipts and statement entries. Financial projections require an explicitly mapped provider contract and are kept in isolated staging; they do not post inventory, invoices, receipts or ledger entries.
 - External API access remains disabled unless the exact provider license, endpoint and sandbox flags are all explicitly true. A missing flag is not treated as proof of availability.
 
 ## Edge Function settings
@@ -84,6 +84,14 @@ Example read contract shape (not a vendor API specification; do not enable it un
 \`\`\`
 
 The example URL and field paths are placeholders, not proof that Onyx Pro or Al-Mutakamel exposes these endpoints.
+
+## Supported finance staging projections
+
+- `customer_financial_documents`: customer external account ID, document number/type/status, issue/due dates, currency, total/paid/outstanding amounts and optional reference.
+- `customer_payment_receipts`: customer external account ID, receipt number/date, currency, amount, payment status/method and optional applied document reference.
+- `customer_statement_entries`: customer external account ID, entry reference/date/type, currency, one debit or one credit amount, and optional due date/source document/description.
+
+Financial amounts must be canonical decimal strings (up to four fractional digits); dates are strict `YYYY-MM-DD`; each row identifies one customer account and one currency. These rows remain staged and inaccessible to the customer self-service reader until a separate server-side account binding, reconciliation and currency-safe statement adapter accepts them. No source balances are merged across currencies or between APP_ONLY, ONYX and MUTAKAMEL.
 
 ## Request contract
 
