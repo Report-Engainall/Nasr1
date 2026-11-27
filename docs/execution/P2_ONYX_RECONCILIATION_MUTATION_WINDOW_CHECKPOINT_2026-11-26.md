@@ -5,6 +5,16 @@ Role: P2 — inventory transactions, PostgreSQL 17 and audit integrity
 PR: #605 — https://github.com/Report-Engainall/Nasr1/pull/605
 Branch: `p2/onyx-reconciliation-mutation-window-pg17-20261126`
 
+## Latest reconciliation and exact-head acceptance — 2026-11-27
+- Current `main` at synchronization: `348da8e756201fc103089cf4a5a690a4132528b7`.
+- The stale branch was refreshed without force-push by a two-parent merge commit; current tested code head: `bd48763c09315d5d45e1e1f4d53cdc1f8e0ffe4c`.
+- Compare against that `main`: **24 commits ahead / 0 behind**, exactly three changed paths: this checkpoint, `.github/workflows/onyx-inventory-asof-postgres17.yml`, and `supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql`. The production migration remains identical to `main` (blob `9430c09815704ee77e88f06b16ec346bd5c82381`).
+- Dedicated Onyx PostgreSQL 17 workflow [run 46063175377](https://github.com/Report-Engainall/Nasr1/actions/runs/46063175377): **SUCCESS** on exact head `bd48763c09315d5d45e1e1f4d53cdc1f8e0ffe4c`; job [140722087182](https://github.com/Report-Engainall/Nasr1/actions/runs/46063175377/job/140722087182) checked out that exact SHA and emitted both PASS notices for source `as_of_date` and mutation-window protection.
+- P2 critical-path run [46063175360](https://github.com/Report-Engainall/Nasr1/actions/runs/46063175360) was still **IN_PROGRESS** at checkpoint update. Its public Chromium smoke was running; authenticated customer/order/tenant Chromium was **SKIPPED** because the job depends on that P1-owned smoke. This does not negate the dedicated Onyx PG17 PASS and is not a full P2 critical-path PASS.
+- Hosted customer/order/tenant E2E remains **SKIPPED**, not PASS. No live ERP/production/Supabase access, migration, deployment, or production inventory write was performed.
+- P1 owns any Chromium repair, exact-head integration decision and merge. P2 owns the dedicated SQL acceptance and this checkpoint; do not merge from P2.
+
+
 ## Existing production contract
 - Migration: `supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql`.
 - Existing preview/apply/rollback and source-date behavior are reused. This PR adds 242 lines of acceptance to the existing Onyx PostgreSQL test; no production migration, RPC, trigger, RLS, grant or UI is changed.
