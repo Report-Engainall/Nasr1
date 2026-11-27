@@ -563,7 +563,7 @@ describe("production intelligence workspace inventory screens", () => {
       element.getAttribute("role") === "status" &&
       Boolean(element.textContent?.includes("يعرض المركز ")),
     );
-    expect(actionSummary.textContent).toMatch(/يعرض المركز \\d+ من \\d+ إجراءً مرتباً حسب الأولوية/);
+    expect(actionSummary.textContent).toMatch(/يعرض المركز \d+ من \d+ إجراءً مرتباً حسب الأولوية/);
     expect(actionSummary).toHaveTextContent("جميع الإجراءات المستحقة ظاهرة.");
 
     const scheduledHeading = await screen.findByRole("heading", { name: "متابعة التحصيلات المجدولة" });
