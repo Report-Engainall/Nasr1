@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   simulatePolicy: vi.fn(),
   previewPolicyRollback: vi.fn(),
   createProposal: vi.fn(),
+  deferDecision: vi.fn(),
+  resumeDecision: vi.fn(),
   asOf: "2026-10-31T09:00:00.000Z",
   period: { from: "2026-08-01", to: "2026-10-31" },
 }));
@@ -60,6 +62,8 @@ vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   fetchDecisionOutcomes: mocks.fetchOutcomes,
   fetchDecisionOutcomeCollection: mocks.fetchMemoryCollection,
   createDecisionOutcomeProposal: mocks.createProposal,
+  deferDecisionOutcome: mocks.deferDecision,
+  resumeDeferredDecisionOutcome: mocks.resumeDecision,
   commandDecisionOutcome: vi.fn(),
 }));
 vi.mock("@/lib/intelligence/shift-operations-client", () => ({
@@ -370,6 +374,8 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [], total: 0 });
     mocks.fetchMemoryCollection.mockReset().mockResolvedValue({ ok: true, collection: { items: [], total: 0, loaded: 0, pageCount: 1, complete: true, reason: "COMPLETE" } });
     mocks.createProposal.mockReset().mockResolvedValue({ ok: true, duplicate: false });
+    mocks.deferDecision.mockReset();
+    mocks.resumeDecision.mockReset();
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
     mocks.fetchShiftWorkspace.mockReset().mockResolvedValue({
       ok: false, status: "NOT_FOUND", message: "no shift for this date",
@@ -407,6 +413,108 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.previewPolicyRollback.mockReset().mockResolvedValue({ ok: true, data: {} });
   });
   afterEach(() => cleanup());
+
+  it("defers an in-review decision with a required reason and exposes the immutable event", async () => {
+    const review = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000071", "قرار يحتاج مستنداً"),
+      state: "IN_REVIEW" as const,
+      version: 2,
+      eventCount: 2,
+      history: [
+        decisionOutcomeFixture("00000000-0000-4000-8000-000000000071", "قرار يحتاج مستنداً").history[0],
+        { id: "submit-71", type: "SUBMIT_FOR_REVIEW", version: 2, at: asOf, actorRole: "manager", reason: null },
+      ],
+    };
+    const reason = "المستند الداعم لم يصل بعد";
+    const deferred = {
+      ...review,
+      state: "DEFERRED" as const,
+      version: 3,
+      reason,
+      updatedAt: asOf,
+      eventCount: 3,
+      history: [...review.history, {
+        id: "defer-71", type: "DEFER", version: 3, at: asOf, actorRole: "admin", reason,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [review], total: 1 })
+      .mockResolvedValue({ ok: true, items: [deferred], total: 1 });
+    mocks.deferDecision.mockResolvedValue({ ok: true, duplicate: false, outcome: deferred });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "قرار يحتاج مستنداً" })).closest("article");
+    expect(card).not.toBeNull();
+    const reasonInput = within(card as HTMLElement).getByRole("textbox", { name: "سبب الاعتماد أو الرفض أو التأجيل" });
+    const deferButton = within(card as HTMLElement).getByRole("button", { name: "تأجيل مع السبب" });
+    expect(deferButton).toBeDisabled();
+    fireEvent.change(reasonInput, { target: { value: "لا" } });
+    expect(deferButton).toBeDisabled();
+    fireEvent.change(reasonInput, { target: { value: reason } });
+    expect(deferButton).toBeEnabled();
+    fireEvent.click(deferButton);
+
+    await waitFor(() => expect(mocks.deferDecision).toHaveBeenCalledWith({
+      outcomeId: review.id,
+      expectedVersion: 2,
+      reason,
+    }));
+    const deferredCard = (await within(register).findByRole("heading", { name: "قرار يحتاج مستنداً" })).closest("article");
+    expect(deferredCard).toHaveTextContent("مؤجل");
+    expect(deferredCard).toHaveTextContent("تأجيل القرار");
+    expect(deferredCard).toHaveTextContent("السبب المحفوظ: " + reason);
+  });
+
+  it("returns a deferred decision to review only after a reasoned resume command", async () => {
+    const deferred = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000072", "قرار مؤجل للمراجعة"),
+      state: "DEFERRED" as const,
+      version: 4,
+      reason: "انتظار رد المورد",
+      eventCount: 3,
+      history: [
+        decisionOutcomeFixture("00000000-0000-4000-8000-000000000072", "قرار مؤجل للمراجعة").history[0],
+        { id: "submit-72", type: "SUBMIT_FOR_REVIEW", version: 2, at: asOf, actorRole: "manager", reason: null },
+        { id: "defer-72", type: "DEFER", version: 3, at: asOf, actorRole: "admin", reason: "انتظار رد المورد" },
+      ],
+    };
+    const reason = "وصل رد المورد وأصبح الملف جاهزاً";
+    const resumed = {
+      ...deferred,
+      state: "IN_REVIEW" as const,
+      version: 5,
+      reason,
+      updatedAt: asOf,
+      eventCount: 4,
+      history: [...deferred.history, {
+        id: "resume-72", type: "RESUBMIT_FOR_REVIEW", version: 5, at: asOf, actorRole: "admin", reason,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [deferred], total: 1 })
+      .mockResolvedValue({ ok: true, items: [resumed], total: 1 });
+    mocks.resumeDecision.mockResolvedValue({ ok: true, duplicate: false, outcome: resumed });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "قرار مؤجل للمراجعة" })).closest("article");
+    expect(card).not.toBeNull();
+    const reasonInput = within(card as HTMLElement).getByRole("textbox", { name: "سبب إعادة القرار للمراجعة" });
+    expect(within(card as HTMLElement).getByRole("button", { name: "إعادة للمراجعة" })).toBeDisabled();
+    fireEvent.change(reasonInput, { target: { value: reason } });
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "إعادة للمراجعة" }));
+
+    await waitFor(() => expect(mocks.resumeDecision).toHaveBeenCalledWith({
+      outcomeId: deferred.id,
+      expectedVersion: 4,
+      reason,
+    }));
+    const resumedCard = (await within(register).findByRole("heading", { name: "قرار مؤجل للمراجعة" })).closest("article");
+    expect(resumedCard).toHaveTextContent("قيد المراجعة");
+    expect(resumedCard).toHaveTextContent("إعادة للمراجعة");
+    expect(resumedCard).toHaveTextContent("السبب المحفوظ: " + reason);
+  });
 
   it("keeps saved concentration decisions scoped as ratios and never offers cash measurement", async () => {
     const currentPeriod = { from: "2026-08-01", to: "2026-10-31" };

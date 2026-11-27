@@ -46,6 +46,8 @@ import { buildDecisionOutcomeDisplayScope } from "@/lib/intelligence/decision-ou
 import {
   commandDecisionOutcome,
   createDecisionOutcomeProposal,
+  deferDecisionOutcome,
+  resumeDeferredDecisionOutcome,
   fetchDecisionOutcomes,
   fetchDecisionOutcomeCollection,
   type DecisionCandidateSnapshot,
@@ -167,19 +169,35 @@ type DecisionTransitionOptions = {
 
 type DecisionTransitionHandler = (
   outcome: DecisionOutcomeView,
-  eventType: Exclude<DecisionOutcomeEventType, "DEFER" | "RESUBMIT_FOR_REVIEW">,
+  eventType: DecisionOutcomeEventType,
   options?: DecisionTransitionOptions,
 ) => void;
 
+const decisionEventLabels: Record<string, string> = {
+  CREATE: "إنشاء المقترح",
+  SUBMIT_FOR_REVIEW: "إرسال للمراجعة",
+  APPROVE: "اعتماد القرار",
+  REJECT: "رفض القرار",
+  DEFER: "تأجيل القرار",
+  RESUBMIT_FOR_REVIEW: "إعادة للمراجعة",
+  ASSIGN: "تعيين المسؤول",
+  START_EXECUTION: "بدء التنفيذ",
+  COMPLETE_EXECUTION: "إتمام التنفيذ",
+  MEASURE: "قياس النتيجة",
+};
+
 function DecisionOutcomeHistory({ events }: { events: DecisionOutcomeView["history"] }) {
   return (
-    <>
+    <ol className="space-y-2">
       {events.map((event) => (
-        <span key={event.id} className="me-3">
-          {event.version}. {event.type} · {event.actorRole} · {formatDay(event.at.slice(0, 10))}
-        </span>
+        <li key={event.id} className="flex flex-wrap items-start gap-x-2">
+          <span className="font-medium">{event.version}. {decisionEventLabels[event.type] ?? event.type}</span>
+          <span>{event.actorRole}</span>
+          <time dateTime={event.at}>{formatDay(event.at.slice(0, 10))}</time>
+          {event.reason ? <p className="w-full text-muted-foreground">السبب المحفوظ: {event.reason}</p> : null}
+        </li>
       ))}
-    </>
+    </ol>
   );
 }
 
@@ -233,9 +251,21 @@ function DecisionOutcomeCard({
         {outcome.measuredOutcome ? <p className="font-semibold">النتيجة المقاسة: {formatMoney(outcome.measuredOutcome.value, outcome.measuredOutcome.currency)} · {outcome.measuredOutcome.asOf}</p> : null}
         {outcome.reason ? <p>السبب: {outcome.reason}</p> : null}
       </div>
-      {outcome.state === "IN_REVIEW" ? (
-        <label className="mt-3 grid gap-1 text-sm">سبب الاعتماد أو الرفض
-          <input className="rounded-lg border bg-background p-2" value={actionReason} maxLength={2000} onChange={(event) => onReasonChange(outcome.id, event.target.value)} />
+      {outcome.state === "IN_REVIEW" || outcome.state === "DEFERRED" ? (
+        <label className="mt-3 grid gap-1 text-sm">
+          {outcome.state === "DEFERRED" ? "سبب إعادة القرار للمراجعة" : "سبب الاعتماد أو الرفض أو التأجيل"}
+          <input
+            className="rounded-lg border bg-background p-2"
+            value={actionReason}
+            maxLength={2000}
+            aria-describedby={"decision-reason-help-" + outcome.id}
+            onChange={(event) => onReasonChange(outcome.id, event.target.value)}
+          />
+          <span id={"decision-reason-help-" + outcome.id} className="text-xs text-muted-foreground">
+            {outcome.state === "DEFERRED"
+              ? "أدخل سبباً لا يقل عن 3 أحرف لإعادة القرار إلى المراجعة."
+              : "الاعتماد والرفض والتأجيل يتطلب كل منها سبباً موثقاً؛ التأجيل يتطلب 3 أحرف على الأقل."}
+          </span>
         </label>
       ) : null}
       <DecisionOutcomeActions
@@ -292,8 +322,9 @@ function DecisionOutcomeActions({
     const missingReason = !actionReason.trim();
     return (
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn primary" type="button" disabled={disabled || missingReason} onClick={() => onTransition(outcome, "APPROVE", { reason: actionReason })}>اعتماد</button>
-        <button className="btn secondary" type="button" disabled={disabled || missingReason} onClick={() => onTransition(outcome, "REJECT", { reason: actionReason })}>رفض مع السبب</button>
+        <button className="btn primary" type="button" disabled={disabled || actionReason.trim().length < 3} onClick={() => onTransition(outcome, "APPROVE", { reason: actionReason })}>اعتماد</button>
+        <button className="btn secondary" type="button" disabled={disabled || actionReason.trim().length < 3} onClick={() => onTransition(outcome, "REJECT", { reason: actionReason })}>رفض مع السبب</button>
+        <button className="btn secondary" type="button" disabled={disabled || actionReason.trim().length < 3} onClick={() => onTransition(outcome, "DEFER", { reason: actionReason })}>تأجيل مع السبب</button>
         {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
       </div>
     );
@@ -306,6 +337,21 @@ function DecisionOutcomeActions({
   }
   if (outcome.state === "EXECUTING") {
     return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "COMPLETE_EXECUTION")}>إتمام التنفيذ</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+  }
+  if (outcome.state === "DEFERRED") {
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          className="btn primary"
+          type="button"
+          disabled={disabled || actionReason.trim().length < 3}
+          onClick={() => onTransition(outcome, "RESUBMIT_FOR_REVIEW", { reason: actionReason })}
+        >
+          إعادة للمراجعة
+        </button>
+        {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
+      </div>
+    );
   }
   if (outcome.state === "EXECUTED") {
     return (
@@ -1653,12 +1699,21 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
 
   const runTransition = async (
     outcome: DecisionOutcomeView,
-    eventType: Exclude<DecisionOutcomeEventType, "DEFER" | "RESUBMIT_FOR_REVIEW">,
+    eventType: DecisionOutcomeEventType,
     options: { reason?: string; ownerProfileId?: string; proof?: CashflowMeasurementProof } = {},
   ) => {
     if (outcomeBusyId) return;
-    if ((eventType === "APPROVE" || eventType === "REJECT") && !options.reason?.trim()) {
-      setOutcomeMessage("أدخل سبب الاعتماد أو الرفض قبل إرسال الأمر.");
+    const reason = options.reason?.trim() ?? "";
+    const reasonRequired = eventType === "APPROVE" || eventType === "REJECT" ||
+      eventType === "DEFER" || eventType === "RESUBMIT_FOR_REVIEW";
+    if (reasonRequired && reason.length < 3) {
+      setOutcomeMessage(
+        eventType === "DEFER"
+          ? "أدخل سبب التأجيل (3 أحرف على الأقل) قبل إرسال الأمر."
+          : eventType === "RESUBMIT_FOR_REVIEW"
+            ? "أدخل سبب إعادة القرار للمراجعة (3 أحرف على الأقل)."
+            : "أدخل سبب الاعتماد أو الرفض قبل إرسال الأمر.",
+      );
       return;
     }
     setOutcomeBusyId(outcome.id);
@@ -1666,14 +1721,21 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     const measuredOutcome = options.proof
       ? { ...options.proof, measuredAt: new Date().toISOString() }
       : undefined;
-    const updated = await commandDecisionOutcome({
+    const commandInput = {
       outcomeId: outcome.id,
       expectedVersion: outcome.version,
-      eventType,
-      ...(options.reason ? { reason: options.reason.trim() } : {}),
-      ...(options.ownerProfileId ? { ownerProfileId: options.ownerProfileId } : {}),
-      ...(measuredOutcome ? { measuredOutcome } : {}),
-    });
+      reason,
+    };
+    const updated = eventType === "DEFER"
+      ? await deferDecisionOutcome(commandInput)
+      : eventType === "RESUBMIT_FOR_REVIEW"
+        ? await resumeDeferredDecisionOutcome(commandInput)
+        : await commandDecisionOutcome({
+            ...commandInput,
+            eventType,
+            ...(options.ownerProfileId ? { ownerProfileId: options.ownerProfileId } : {}),
+            ...(measuredOutcome ? { measuredOutcome } : {}),
+          });
     setOutcomeBusyId(null);
     if (!updated.ok) {
       setOutcomeMessage(updated.message);
