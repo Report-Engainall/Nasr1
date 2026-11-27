@@ -589,16 +589,20 @@ function validateContract(connection: ErpConnection, contract: ErpReadContract):
 
 function parseRetryAfter(value: string | null, now: number, maxDelayMs: number): number | null {
   if (!value) return null;
-  const seconds = Number(value.trim());
+  const headerValue = value.trim();
   let delay: number;
-  if (Number.isFinite(seconds) && seconds >= 0) {
+  if (/^\d+$/.test(headerValue)) {
+    const seconds = Number(headerValue);
+    if (!Number.isSafeInteger(seconds)) return maxDelayMs;
     delay = seconds * 1000;
   } else {
-    const date = Date.parse(value);
-    if (!Number.isFinite(date)) return null;
+    // Do not let a malformed numeric value be reinterpreted by Date.parse as a calendar date.
+    if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(headerValue)) return null;
+    const date = Date.parse(headerValue);
+    if (!Number.isFinite(date) || !Number.isFinite(now)) return null;
     delay = Math.max(0, date - now);
   }
-  return Math.min(delay, maxDelayMs);
+  return Math.min(Math.ceil(delay), maxDelayMs);
 }
 
 async function readBoundedBody(response: Response, maxBytes: number): Promise<string> {
