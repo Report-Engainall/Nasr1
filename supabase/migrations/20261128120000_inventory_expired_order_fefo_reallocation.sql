@@ -637,6 +637,40 @@ BEGIN
  AND NOT EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='sale') THEN
   IF EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve' AND inventory_batch_id IS NULL) THEN
    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation'; END IF;
+
+  -- A shipped/delivered order must have a complete net reservation for every
+  -- ordered product. Prevent partial stock settlement from falsely finalizing
+  -- the full commercial order after a partial release or ledger discrepancy.
+  IF EXISTS (
+    WITH ordered_quantities AS MATERIALIZED (
+      SELECT oi.product_id,pg_catalog.sum(oi.quantity)::numeric(15,3) AS quantity
+        FROM public.order_items oi
+       WHERE oi.order_id=NEW.id
+       GROUP BY oi.product_id
+    ),
+    net_reservations AS MATERIALIZED (
+      SELECT im.product_id,
+             pg_catalog.sum(
+               CASE WHEN im.movement_type='reserve' THEN im.quantity
+                    WHEN im.movement_type='release_reservation' THEN -im.quantity
+                    ELSE 0 END
+             )::numeric(15,3) AS quantity
+        FROM public.inventory_movements im
+       WHERE im.reference_type='order'
+         AND im.reference_id=NEW.id
+         AND im.movement_type IN ('reserve','release_reservation')
+       GROUP BY im.product_id
+    )
+    SELECT 1
+      FROM ordered_quantities oq
+      FULL JOIN net_reservations nr
+        ON nr.product_id IS NOT DISTINCT FROM oq.product_id
+     WHERE coalesce(oq.quantity,0) IS DISTINCT FROM coalesce(nr.quantity,0)
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='55000',
+      MESSAGE='order net reservation quantity does not match ordered quantity; shipment refused';
+  END IF;
+
   IF EXISTS (
    SELECT 1
      FROM (
