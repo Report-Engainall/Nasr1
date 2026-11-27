@@ -2,38 +2,39 @@
 Date: 2026-11-27
 Repository: `Report-Engainall/Nasr1`
 Role: P2 — inventory transactions, PostgreSQL 17 and audit integrity
-PR: #605
+PR: #605 — https://github.com/Report-Engainall/Nasr1/pull/605
 Branch: `p2/onyx-reconciliation-mutation-window-pg17-20261126`
-
-## Synchronization
-- Current `main` synchronized as first parent: `317ebca76c4d236a1d0efe0fd5934b028598c72b`.
-- Previous PR branch head preserved as second parent: `b48bf4f7d5c913026bb2ed6d81496076704b12cd`.
-- No force-push, reset, history rewrite or deletion of prior commits.
-- The only unique source delta from the previous PR is 242 additive lines in the existing Onyx PostgreSQL 17 acceptance SQL test. The 449-line baseline test is byte-for-byte retained.
-- Existing focused workflow `.github/workflows/onyx-inventory-asof-postgres17.yml` already targets this test path, so no duplicate workflow or workflow edit is required.
 
 ## Existing production contract
 - Migration: `supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql`.
-- No production migration, RPC, trigger, role, grant, RLS policy, hosted data or inventory operation was changed.
+- Existing preview/apply/rollback and source-date behavior are reused. This PR adds 242 lines of acceptance to the existing Onyx PostgreSQL test; no production migration, RPC, trigger, RLS, grant or UI is changed.
+- The test keeps the existing 449-line baseline coverage and adds only two dangerous inter-transaction windows.
 
-## Additional PostgreSQL 17 mutation-window acceptance
-1. Preview an eligible source-date snapshot.
-2. Commit a legitimate stock movement after preview and before apply; apply must reject the stale command with SQLSTATE `40001`.
-3. Apply an eligible source-date snapshot.
-4. Commit a legitimate stock movement after apply and before compensating rollback; rollback must reject with SQLSTATE `40001`.
-5. Compare full business-state snapshots around each denial: inventory balances, movement ledger, command state, reconciliation items and audit records.
-6. Confirm the command remains in its pre-rejection state (`previewed` or `applied`) and the later legitimate movement remains intact.
-7. Keep the complete existing source-date, stale-preview, replay and successful compensating-rollback acceptance in place.
+## Exact-head PostgreSQL 17 acceptance — 2026-11-27
+- Tested PR head: `5e0bcce9aea4c3496a4ce874467a8ca4160944c5`.
+- Dedicated Onyx PostgreSQL 17 workflow [run 45925642272](https://github.com/Report-Engainall/Nasr1/actions/runs/45925642272): **SUCCESS**.
+- Exact job [140266202205](https://github.com/Report-Engainall/Nasr1/actions/runs/45925642272/job/140266202205): all 8 steps SUCCESS. The PostgreSQL log explicitly prints:
+  - `PASS Onyx source as_of_date: immutable row binding, shared warehouse date, stale movement/balance rejection, invalid/future rejection, legacy preview apply denial, fresh apply/replay, and compensating rollback`.
+  - `PASS Onyx mutation windows: post-preview stock changes block apply without side effects; post-apply stock changes block compensating rollback without side effects`.
+- P2 [run 45925642218](https://github.com/Report-Engainall/Nasr1/actions/runs/45925642218): **SUCCESS**.
+- Local authenticated Supabase/PostgreSQL 17 job [140267253250](https://github.com/Report-Engainall/Nasr1/actions/runs/45925642218/job/140267253250): **SUCCESS**, 65 successful completed steps, zero failures; broader local integration/browser acceptance passed.
+- Public Chromium read-only smoke: **SUCCESS**. Hosted customer/order/tenant E2E: **SKIPPED**, not PASS.
 
-## Safety
-- The workflow uses a disposable PostgreSQL 17 service only.
-- No live Onyx workbook, production database, hosted Supabase, production inventory, deployment, secrets, paid service or external API is accessed.
-- P2 owns the test and this checkpoint; P1/P3 retain merge authority.
+## Proved mutation windows
+1. Preview an eligible source-date snapshot, then commit a legitimate stock movement before apply; apply rejects with SQLSTATE `40001`.
+2. Apply an eligible source-date snapshot, then commit a legitimate stock movement before compensating rollback; rollback rejects with SQLSTATE `40001`.
+3. Around both denials, full JSON snapshots compare inventory balance, movement ledger, command status, reconciliation items and audit records.
+4. The command remains `previewed` or `applied` as appropriate; the later legitimate movement is retained and never overwritten by the rejected action.
+5. Existing valid apply/replay/rollback remains accepted when no later movement exists.
 
-## Acceptance state
-- `PENDING`: run the existing Onyx PostgreSQL 17 workflow on the exact synchronized PR head.
-- Record PASS only after its job succeeds on the resulting SHA.
-- Hosted and production acceptance are not inferred from local PostgreSQL results.
+## Current integration boundary
+- Latest observed `main`: `85331656b51825e0e1316f31faff644a09c58602`; merge base is `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`.
+- PR #605 remains open and GitHub reports it mergeable. The latest compare is **16 commits ahead / 1 behind**, with exactly three changed paths relative to current `main`: the existing Onyx PG17 workflow, this checkpoint, and the Onyx source-date acceptance SQL.
+- P1 owns synchronization with latest `main`, scoped diff review, exact-head reruns of the dedicated Onyx PG17/P2 workflows after synchronization, and merge. P2 does not merge to `main`.
+- Do not transfer the results above to a post-sync SHA without rerunning the dedicated Onyx PostgreSQL 17 workflow on that exact SHA.
 
-## Next action
-- Verify the exact PR diff and await the exact-head Onyx PostgreSQL 17, P1 and P2 checks. Diagnose any failure before changing production SQL.
+## Safety and open-source reference
+- Tests use a disposable PostgreSQL 17 CI service only.
+- No live Onyx workbook, hosted/production Supabase, production inventory write, deployment, secret, external API, paid service or new dependency was used.
+- Existing open-source reference/licence catalog was consulted; no external implementation or parallel stock/finance service was introduced.
+- Next session should read this checkpoint first and not repeat the broad OSS search unless a concrete missing capability requires it.
