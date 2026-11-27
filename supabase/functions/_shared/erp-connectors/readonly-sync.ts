@@ -492,8 +492,28 @@ function validateContract(connection: ErpConnection, contract: ErpReadContract):
   if (!contract.cursorParameter && !contract.modifiedSinceParameter) {
     throw new ErpConnectorError("INCREMENTAL_SYNC_UNSUPPORTED", "لم يُحدد في عقد المزود cursor أو modified-since موثق للمزامنة التفاضلية.");
   }
-  if (contract.nextCursorPath && !contract.cursorParameter) {
-    throw new ErpConnectorError("INVALID_PROVIDER_CONTRACT", "مسار cursor التالي يتطلب معامل cursor موثقًا.");
+
+  const hasCursorParameter = contract.cursorParameter !== undefined;
+  const hasNextCursorPath = contract.nextCursorPath !== undefined;
+  if (hasCursorParameter !== hasNextCursorPath) {
+    throw new ErpConnectorError(
+      "INVALID_PROVIDER_CONTRACT",
+      "يجب أن يحدد عقد ERP معامل cursor ومسار cursor التالي معًا حتى لا تُعتمد صفحة جزئية كنهاية مزامنة.",
+    );
+  }
+  if (contract.pageSizeParameter !== undefined && !hasCursorParameter) {
+    throw new ErpConnectorError(
+      "INVALID_PROVIDER_CONTRACT",
+      "تقسيم استجابة ERP إلى صفحات يتطلب cursor موثقًا للانتقال والتحقق من اكتمال القراءة.",
+    );
+  }
+  if (hasNextCursorPath && (
+    !Array.isArray(contract.nextCursorPath) ||
+    contract.nextCursorPath.length < 1 ||
+    contract.nextCursorPath.length > 12 ||
+    contract.nextCursorPath.some((segment) => typeof segment !== "string" || !segment.trim() || segment.length > 100)
+  )) {
+    throw new ErpConnectorError("INVALID_PROVIDER_CONTRACT", "مسار cursor التالي في عقد ERP غير صالح.");
   }
   if (contract.modifiedSinceParameter && !/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(contract.modifiedSinceParameter)) {
     throw new ErpConnectorError("INVALID_PROVIDER_CONTRACT", "معامل modified-since غير صالح.");
