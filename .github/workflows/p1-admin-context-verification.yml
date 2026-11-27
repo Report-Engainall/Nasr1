@@ -695,6 +695,8 @@ on:
       - "src/lib/intelligence/growth-opportunities.test.ts"
       - "src/lib/intelligence/anomaly-detection.ts"
       - "src/lib/intelligence/anomaly-detection.test.ts"
+      - "src/lib/intelligence/dead-stock.ts"
+      - "src/lib/intelligence/dead-stock.test.ts"
       - "src/lib/intelligence/commerce-policy-governance-client.ts"
       - "src/lib/intelligence/commerce-policy-governance-client.test.ts"
       - "src/lib/intelligence/ai-prompt-governance.ts"
