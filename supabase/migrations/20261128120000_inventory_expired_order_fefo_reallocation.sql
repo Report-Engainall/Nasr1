@@ -351,10 +351,11 @@ BEGIN
              last_movement_at=pg_catalog.statement_timestamp(),
              updated_at=pg_catalog.statement_timestamp()
        WHERE id=v_lot.balance_id
+         AND quantity_available>=v_take
        RETURNING quantity_available INTO v_after;
       IF NOT FOUND THEN
         RAISE EXCEPTION USING ERRCODE='40001',
-          MESSAGE='replacement batch aggregate balance disappeared during reservation reallocation';
+          MESSAGE='aggregate available balance is below the replacement batch quantity; reservation reallocation refused';
       END IF;
 
       INSERT INTO public.inventory_movements(
