@@ -56,8 +56,9 @@ function resolveCashflowPointStatus(
 
 /** Forecasts scheduled movements only; no probability, sales extrapolation or assumed collection rate. */
 export function buildCashflowForecast(input:BuildCashflowForecastInput):CashflowForecast {
- const generatedAtMs=Date.parse(input.generatedAt),asOfMs=Date.parse(input.asOf);
- if(!Number.isFinite(generatedAtMs)||!Number.isFinite(asOfMs))throw new Error("generatedAt and asOf must be valid timestamps");
+ const generatedAtMs=strictTimestamp(input.generatedAt),asOfMs=strictTimestamp(input.asOf);
+ if(generatedAtMs===null||asOfMs===null||asOfMs>generatedAtMs)
+  throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps and asOf cannot be after generatedAt");
  const day=new Date(asOfMs).toISOString().slice(0,10);if(!parseDay(day))throw new Error("asOf must contain an ISO date");
  const metrics=[...input.openingBalances,...input.entries.map(e=>e.amount)];
  const passport=buildEvidencePassport({id:"cashflow:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
@@ -88,10 +89,13 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  // Scheduled evidence may be displayed without a cash opening balance. The currency
  // is still sourced from a validated schedule metric; no opening or projected balance
  // is synthesized when the bank/cash source is absent.
- const currencies=new Set<string>([
-  ...openingCurrencies.keys(),
-  ...validEntries.flatMap(item=>item.valid&&item.metric?.currency?[item.metric.currency]:[]),
- ]);
+ // Keep every identifiable scheduled currency visible, even when its evidence is
+ // downgraded. Hiding an unverified currency would hide a coverage gap from operators.
+ const scheduledCurrencies=validEntries.flatMap(item=>{
+  const currency=item.metric?.currency??item.entry.amount.currency;
+  return typeof currency==="string"&&/^[A-Z]{3}$/.test(currency)?[currency]:[];
+ });
+ const currencies=new Set<string>([...openingCurrencies.keys(),...scheduledCurrencies]);
  for(const currency of [...currencies].sort()){
   const opening=openingCurrencies.get(currency);
   const openingCalculatedAtMs=opening?strictTimestamp(opening.lineage.calculatedAt):null;
