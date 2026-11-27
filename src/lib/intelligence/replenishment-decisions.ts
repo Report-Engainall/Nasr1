@@ -1,3 +1,4 @@
+import { REPLENISHMENT_FORMULA_ID, REPLENISHMENT_FORMULA_VERSION } from "./replenishment";
 import type { ReplenishmentProductInput, ReplenishmentRecommendation } from "./replenishment";
 import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
 import type { DecisionCandidate } from "./types";
@@ -150,6 +151,12 @@ export function buildReplenishmentDecisionCandidates(input: {
     products.set(ref, product);
   }
 
+  const recommendationCounts = new Map<string, number>();
+  for (const recommendation of input.recommendations) {
+    const ref = typeof recommendation?.productRef === "string" ? recommendation.productRef.trim() : "";
+    if (ref) recommendationCounts.set(ref, (recommendationCounts.get(ref) ?? 0) + 1);
+  }
+
   const RULE_VERSION = "1.0.0";
   const candidates: DecisionCandidate[] = [];
   for (const recommendation of input.recommendations) {
@@ -157,6 +164,9 @@ export function buildReplenishmentDecisionCandidates(input: {
     if (
       !productRef ||
       (productCounts.get(productRef) ?? 0) !== 1 ||
+      (recommendationCounts.get(productRef) ?? 0) !== 1 ||
+      recommendation.formulaId !== REPLENISHMENT_FORMULA_ID ||
+      recommendation.formulaVersion !== REPLENISHMENT_FORMULA_VERSION ||
       recommendation.status !== "VERIFIED" ||
       recommendation.action !== "RECOMMEND" ||
       recommendation.automaticPurchase !== false ||
