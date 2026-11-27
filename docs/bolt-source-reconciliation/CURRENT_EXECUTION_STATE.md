@@ -5,7 +5,7 @@
 ## Canonical state
 
 - Official repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Main HEAD immediately before this pointer-only refresh: `606bb2b7b828872c673021b6f2d8fe81528a7bcf` (canonical execution pointer refresh after #674 P2 acceptance). This update records newer P3 branch heads and current CI states; re-fetch `main` before the next write.
+- Main HEAD immediately before this pointer-only refresh: `69e3a5683c0bd0f23142a2ecbb6b6b7dd693015c` (latest canonical execution-pointer refresh). This update records GitHub's current non-mergeable state for the open P3 requests; re-fetch `main` before the next write.
 - Last fully accepted application baseline remains `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` (PR #633). PR #641 adds an isolated PostgreSQL 17 supplier-invoice acceptance runner and workflow only; its exact-head P1/P2 runs passed and it merged at `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`.
 - PR #674 adds the shared predictive-search public-image guard and its focused tests. It merged at `7c20412c77a9c2ef01d99e16a304aaa9e773be37`. Exact PR-head `fbe332cd195188238c45c2662191610e452dd232` passed P1 (full Vitest, P1/P4 TypeScript, production build) and P2 (public Chromium UI job `140695500765` and local Supabase/PostgreSQL 17/Chromium job `140696553618`, both SUCCESS; P2 workflow `46055085516` SUCCESS). The local job completed 68/70 steps with no failed steps. Hosted customer/order/tenant E2E was SKIPPED. Post-merge exact-SHA push verification remains unavailable through the current PR-run query; no post-merge run PASS is claimed.
 - The DLV-003 matrix leaf for predictive-search image privacy is recorded in the canonical matrix. Wider DLV-003 remains OPEN.
@@ -34,19 +34,19 @@
 ## Next active gates — do not skip
 
 1. **PR #671 — dead-stock source clock integrity.**
-   - Latest P3 head: `de8f0ffc90709de140b5651778e21af11efd1c4a`; only `src/lib/intelligence/dead-stock.ts` and its test are changed. Branch base is `85ecac38eb982b68688c48c40fc1cd44e1a7a9d1`; PR is open and mergeable at the latest snapshot.
+   - Latest P3 head: `de8f0ffc90709de140b5651778e21af11efd1c4a`; only `src/lib/intelligence/dead-stock.ts` and its test are changed. PR base is `85ecac38eb982b68688c48c40fc1cd44e1a7a9d1`; current main is ahead and GitHub reports **NOT_MERGEABLE**. P3 must synchronize safely with current main before review/merge.
    - New exact-head P1 run `46056464557`: **IN_PROGRESS** (6/10 steps; P4 observability strict TypeScript active; no failures). New exact-head P2 run `46056464556`: **IN_PROGRESS** (authenticated infrastructure gate SUCCESS; public UI smoke active at 11/20 steps; hosted customer/order/tenant E2E **SKIPPED**). Local PostgreSQL/Chromium acceptance job is not yet present in the current run snapshot; do not count it as tested. Earlier-head results do not transfer.
-   - Branch base is `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`; current main has advanced through #674 and the matrix update. P3 retains ownership. Re-sync/recheck against current main before merge; do not transfer earlier-head PASS.
+   - Current P2 gate remains active; no merge until exact-head P1/P2 become terminal SUCCESS and the branch is synchronized with `main`. P3 retains ownership.
 
 2. **PR #668 — system-health evidence integrity.**
-   - Latest P3 head: `ac1cabfca26412af3e291235687808f4cfc4909d`; changed paths are only `SystemHealthEngine.test.ts`, `P4AdminOperationsScreens.test.tsx`, and `system-health.ts`. Branch base is `85ecac38eb982b68688c48c40fc1cd44e1a7a9d1`; PR is open and mergeable at the latest snapshot.
+   - Latest P3 head: `ac1cabfca26412af3e291235687808f4cfc4909d`; changed paths are only `SystemHealthEngine.test.ts`, `P4AdminOperationsScreens.test.tsx`, and `system-health.ts`. PR base is `85ecac38eb982b68688c48c40fc1cd44e1a7a9d1`; current main is ahead and GitHub reports **NOT_MERGEABLE**. P3 must synchronize safely with current main before review/merge.
    - New exact-head P1 run `46056452923`: **IN_PROGRESS** (5/10 steps; P1 strict TypeScript active; no failures). New exact-head P2 run `46056452904`: **IN_PROGRESS** (authenticated infrastructure gate SUCCESS; public UI smoke active at 11/20 steps; hosted customer/order/tenant E2E **SKIPPED**). Local PostgreSQL/Chromium acceptance job is not yet present in the current run snapshot; do not count it as tested. Earlier-head results do not transfer.
-   - Branch base is `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`; current main has advanced through #674 and canonical pointer updates. Latest PR snapshot reports mergeable true, but recheck current main and mergeability before merge. P3 retains ownership. Do not transfer earlier-head acceptance.
+   - Current P2 gate remains active; no merge until exact-head P1/P2 become terminal SUCCESS and the branch is synchronized with `main`. P3 retains ownership.
 
 3. **PR #670 — verified customer-retention decisions integrated into daily decisions.**
    - Latest P3 head: `fe6f7e42778dbce705f2f11d9efe142ca639ded5`; the PR diff contains only six IntelligenceWorkspace/customer-retention/daily-decisions source and test paths. No canonical pointer, matrix, or workflow checkpoint files are in this head's diff.
    - Exact-head P1 run `46055852281`: **SUCCESS**. Exact-head P2 run `46055852208`: **IN_PROGRESS**; public UI smoke **SUCCESS**, authenticated infrastructure gate **SUCCESS**, local Supabase/PostgreSQL 17 job `140699345199` active at 14/70 steps during isolated service startup, no failed steps; hosted customer/order/tenant E2E **SKIPPED**.
-   - Branch base is `6647a8cab4805d647c82448f66b7aa2cb16ee59a`; latest PR snapshot reports mergeable true, but this is behind current main. Recheck/synchronize against live `main` before merge. P3 retains ownership; do not transfer earlier-head PASS.
+   - PR base is `6647a8cab4805d647c82448f66b7aa2cb16ee59a`; current main has advanced and GitHub reports **NOT_MERGEABLE**. P3 must synchronize safely with current main and repeat exact-head acceptance before merge.
 
 4. **PR #585 — reconciled; do not merge wholesale or rebuild its accepted work.**
    - Main already contains the product-facts server contract, Authorization V2, and relevant PG17 tests/workflow. Its focused database proof is not full DLV-003 acceptance.
