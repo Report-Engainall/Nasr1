@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     roles: string[];
     isStaff: boolean;
   },
+  sessionRevision: 1,
   signOutCurrent: vi.fn(),
   signOutOtherSessions: vi.fn(),
   signOutEverywhere: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     user: mocks.user,
     ready: true,
-    sessionRevision: 1,
+    sessionRevision: mocks.sessionRevision,
     signOut: mocks.signOutCurrent,
     signOutOtherSessions: mocks.signOutOtherSessions,
     signOutEverywhere: mocks.signOutEverywhere,
@@ -77,6 +78,15 @@ const STAFF = {
   isStaff: true,
 };
 
+const CUSTOMER_B = {
+  id: "33333333-3333-4333-8333-333333333333",
+  profileId: "f3333333-3333-4333-8333-333333333333",
+  email: "customer-b@example.test",
+  name: "العميل الثاني",
+  roles: ["customer"],
+  isStaff: false,
+};
+
 const CUSTOMER_ONLY_ROUTES = [
   { path: "/invoices", label: /فواتيري/ },
   { path: "/quotes", label: /عروض الأسعار/ },
@@ -88,6 +98,7 @@ const CUSTOMER_ONLY_ROUTES = [
 describe("My Aghbari customer account navigation", () => {
   beforeEach(() => {
     mocks.user = CUSTOMER;
+    mocks.sessionRevision = 1;
     mocks.signOutCurrent.mockReset().mockResolvedValue(undefined);
     mocks.signOutOtherSessions.mockReset().mockResolvedValue(undefined);
     mocks.signOutEverywhere.mockReset().mockResolvedValue(undefined);
@@ -174,6 +185,67 @@ describe("My Aghbari customer account navigation", () => {
       expect(document.querySelector(`a[href="${route.path}"]`)).toBeNull();
     }
     expect(document.querySelector('a[href="/admin"]')).not.toBeNull();
+    expect(screen.queryByLabelText("اسم الشركة")).not.toBeInTheDocument();
+  });
+
+  it("keeps staff precedence when a staff identity also carries a customer role", () => {
+    mocks.user = { ...STAFF, roles: ["admin", "customer"] };
+    render(<CustomerAccountProfilePage />);
+
+    expect(document.querySelector('a[href="/admin"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/orders"]')).toBeNull();
+    expect(screen.queryByLabelText("اسم الشركة")).not.toBeInTheDocument();
+  });
+
+  it("resets customer profile drafts when the Auth identity or session revision changes", async () => {
+    mocks.fetchAccountProfile
+      .mockResolvedValueOnce({
+        business_name: "شركة العميل الأول",
+        contact_name: "مسؤول العميل الأول",
+        phone: "777123456",
+        email: "first@example.test",
+        customer_code: "C-FIRST",
+        status: "approved",
+        updated_at: "2026-11-27T01:00:00.000Z",
+      })
+      .mockResolvedValueOnce({
+        business_name: "شركة العميل الثاني",
+        contact_name: "مسؤول العميل الثاني",
+        phone: "777654321",
+        email: "second@example.test",
+        customer_code: "C-SECOND",
+        status: "approved",
+        updated_at: "2026-11-27T02:00:00.000Z",
+      })
+      .mockResolvedValueOnce({
+        business_name: "شركة العميل الثاني بعد تجديد الجلسة",
+        contact_name: "مسؤول العميل الثاني",
+        phone: "777654321",
+        email: "second@example.test",
+        customer_code: "C-SECOND",
+        status: "approved",
+        updated_at: "2026-11-27T03:00:00.000Z",
+      });
+
+    const { rerender } = render(<CustomerAccountProfilePage />);
+    const businessName = await screen.findByLabelText("اسم الشركة");
+    expect(businessName).toHaveValue("شركة العميل الأول");
+    fireEvent.change(businessName, { target: { value: "مسودة خاصة بالعميل الأول" } });
+    expect(businessName).toHaveValue("مسودة خاصة بالعميل الأول");
+
+    mocks.user = CUSTOMER_B;
+    mocks.sessionRevision = 2;
+    rerender(<CustomerAccountProfilePage />);
+
+    expect(await screen.findByLabelText("اسم الشركة")).toHaveValue("شركة العميل الثاني");
+    expect(screen.queryByDisplayValue("مسودة خاصة بالعميل الأول")).not.toBeInTheDocument();
+
+    mocks.sessionRevision = 3;
+    rerender(<CustomerAccountProfilePage />);
+
+    expect(await screen.findByLabelText("اسم الشركة")).toHaveValue("شركة العميل الثاني بعد تجديد الجلسة");
+    expect(screen.queryByDisplayValue("مسودة خاصة بالعميل الأول")).not.toBeInTheDocument();
+    expect(mocks.fetchAccountProfile).toHaveBeenCalledTimes(3);
   });
 
   it("shows recent public product views inside the matching customer account", async () => {
