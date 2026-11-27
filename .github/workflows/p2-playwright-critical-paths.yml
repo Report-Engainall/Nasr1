@@ -38,6 +38,7 @@ on:
       - "scripts/test-customer-receivable-aging-identity.mjs"
       - "scripts/test-inventory-adjustment-v2-authorization.mjs"
       - "scripts/test-decision-outcome-snapshot-required.mjs"
+      - "scripts/test-task-quality-review-authorization.mjs"
       - "scripts/test-decision-policy-learning-candidate.mjs"
       - "e2e/**"
       - "playwright.config.ts"
@@ -617,6 +618,8 @@ jobs:
         run: node scripts/test-authorization-capability-registry.mjs
       - name: Test immutable decision snapshot, append-only event, idempotency and legacy RPC denial on PostgreSQL 17
         run: node scripts/test-decision-outcome-snapshot-required.mjs
+      - name: Test task-quality review manager/admin authorization, tenant isolation, idempotency and append-only audit on PostgreSQL 17
+        run: node scripts/test-task-quality-review-authorization.mjs
       - name: Test evidence-backed outcome learning Candidate v2, immutable history and Maker/Checker on PostgreSQL 17
         run: node scripts/test-decision-policy-learning-candidate.mjs
       - name: Test RBAC V2 inventory adjustment and independent stock-count capability enforcement
