@@ -5,7 +5,7 @@
 ## Current repository observation
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`; sole source of truth.
-- **Latest main HEAD:** `7664dbebfe16b2bf82e9f3a30e829741679c8987` (documentation-only clarification of the latest main pointer); **latest code-bearing main SHA:** `8605561aaba9fb501f264677abcbf0ccc2b085ad`.
+- **Latest main HEAD:** `202bb107545fd70db454d5cd6f6923cc76e9f0b4` (acceptance-matrix reconciliation; documentation-only); **latest code-bearing main SHA:** `8605561aaba9fb501f264677abcbf0ccc2b085ad`.
 - Exact post-merge main checks at this SHA: **Vitest/strict TypeScript SUCCESS**, **authenticated E2E infrastructure SUCCESS**, **public UI Chromium SUCCESS**; isolated local Supabase/PostgreSQL 17/Chromium acceptance is **IN_PROGRESS** (job `140736582170`, 14/70 steps at last observation); hosted customer/order/tenant E2E is **SKIPPED**, not PASS.
 - No production Supabase writes, remote migrations, Edge deployment, secrets changes, external ERP mutations, Vercel deployment/quota use, Bolt or Lovable actions were performed. Release remains **NO-GO**.
 
@@ -51,7 +51,7 @@
 
 ### P4 current PR #686 — exact workstream checkpoint (2026-11-28)
 
-- Latest P4 implementation commit before synchronization: `847f58681712d71615456afd42108c502648ecb0`; changed paths remain within P4's connector core and its focused test. The timestamp parser now validates Gregorian month lengths/leap years, year/day/hour/minute/second ranges, and ISO offset bounds `±14:00` before UTC normalization.
+- Latest P4 implementation commit: `847f58681712d71615456afd42108c502648ecb0`; synchronized candidate commit `6068ee07ef1ee205a5aa07a95c44fd277bcbd995` includes a normal two-parent merge with `main` at `7664dbebfe16b2bf82e9f3a30e829741679c8987`. The branch then observed a newer documentation-only `main` commit `202bb107545fd70db454d5cd6f6923cc76e9f0b4` (matrix reconciliation); perform another normal merge before final exact-head acceptance. The timestamp parser validates Gregorian month lengths/leap years, year/day/hour/minute/second ranges, and ISO offset bounds `±14:00` before UTC normalization.
 - Regression vectors added for missing timezone, impossible dates (`2026-02-30`, `2025-02-29`), invalid time (`24:00`, minute/second overflow), invalid offsets (`+00:60`, `+14:01`, `-14:01`, `+14:59`), year zero, and valid leap-day plus `±14:00` boundaries. These are authored tests only until terminal exact-head CI results are available.
 - PR #686 remains Draft. Do not transfer any old CI from `ee27ba3fa1e7e6ae3471000899c19d81e2737e1c`; the synchronized final head must pass P1 Vitest/strict TypeScript/build and P2 public Chromium/infrastructure/available PostgreSQL 17 acceptance.
 - P2's atomic tenant-scoped checkpoint/staging/source-receipt store and PG17 concurrency/isolation/rollback proof remain open. P1 owns the real protected Integration Hub operations and all merges to `main`.
