@@ -1,44 +1,63 @@
 # LIVE EXECUTION RESUME — 2026-11-27
 
-> Sole live execution pointer. Resume from the first next action. Preserve completed work; do not repeat the OSS quick check recorded here.
+> Sole live execution pointer. Start from the first open acceptance gate below. Do not repeat accepted work or the OSS review.
 
-- Repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Application main code checkpoint: `02c462d0e8b3487a00b59fee3c4caaef7298260c` (P3 PR #651 merged). Later main commits `ea165fcaff2ce07b49764942994d03bf6764ca8d` and `b8f490c58db7c8c35c07b0f0f65cd0041c179266` are cursor-only documentation refreshes; no product source changes.
-- PR #650 https://github.com/Report-Engainall/Nasr1/pull/650: **MERGED** as `4465bf39a5f6eede4ace970cbc13133228b2513a`. Exact PR-head P1 `45930475197` SUCCESS (11/11); exact PR-head P2 `45930475289` SUCCESS (68 steps: 66 SUCCESS, 2 conditional SKIPPED, 0 failures). Separate customer/tenant external E2E was SKIPPED, not PASS.
-- #650 post-merge P1 `45932332432` on exact merge SHA `4465bf39a5f6eede4ace970cbc13133228b2513a`: **SUCCESS** (Vitest, strict P1 TS, strict P4 TS and production build).
-- #650 post-merge P2 `45932332568` on exact merge SHA `4465bf39a5f6eede4ace970cbc13133228b2513a`: **SUCCESS**. Local PostgreSQL 17/Supabase/Chromium job `140288913117`: 68 steps, 66 SUCCESS, 2 conditional SKIPPED (Chromium already available; diagnostics-on-failure not applicable), 0 failures. Public UI smoke and Auth infrastructure gate SUCCESS. External customer/tenant E2E SKIPPED, not PASS.
-- PR #651 https://github.com/Report-Engainall/Nasr1/pull/651: **MERGED** as `02c462d0e8b3487a00b59fee3c4caaef7298260c` (P3 decision-memory timestamp/decimal validation; files in `src/lib/intelligence/decision-memory.ts` and its test). Preserve P3 ownership.
-- PR #654 https://github.com/Report-Engainall/Nasr1/pull/654: **OPEN**, P1 storefront category-filter boundary fix. Branch `p1/catalog-category-uuid-guard-20261127`, exact head `f8a11e13cb28015d956b2b3814a4787f71b4534f`, based on application code main `02c462d0e8b3487a00b59fee3c4caaef7298260c`. It changes `src/routes/catalog.tsx`, `src/lib/storefront-catalog.ts`, and `src/lib/storefront-catalog.test.ts`: category query strings are accepted only as UUIDs; service rejects malformed category UUIDs before SECURITY DEFINER RPC; regression tests prove rejection before RPC and exact pass-through of a valid UUID. No SQL, migration, RLS, Auth, prices, inventory or production data changes.
-- #654 exact-head P1 `45933009742` on `f8a11e13cb28015d956b2b3814a4787f71b4534f`: **SUCCESS** — full Vitest, strict TypeScript P1, strict TypeScript P4 and production build.
-- #654 exact-head P2 `45933009668` on `f8a11e13cb28015d956b2b3814a4787f71b4534f`: at last inspection **IN_PROGRESS**. Public UI smoke SUCCESS; Auth infrastructure gate SUCCESS; external customer/tenant E2E SKIPPED; local Supabase/PostgreSQL 17 job `140291038702` had 47/67 SUCCESS, 1 conditional SKIPPED (Chromium already available), 0 failures. Active step: finance document and operational-task print acceptance in Chromium. Re-poll before any merge.
-- The last cursor refresh is docs-only; application code has not changed since `02c462d0e8b3487a00b59fee3c4caaef7298260c`. PR #654's tested head remains unchanged. Re-read the current PR/base/main state before merge; merge only after P2 is terminal, using expected head SHA.
-- DLV-002 remains **OPEN**. Local component-level /profile tests do not substitute for the dedicated Auth A→sign-out→B Chromium fixture proving unsaved company draft isolation, staff/customer/restricted-role transitions and same-user `sessionRevision`, at 360px/1280px. External customer/tenant E2E remains SKIPPED.
-- DLV-001 requirement→screen/action/service/RPC/Edge/tenant-scope/migration/exact-SHA crosswalk remains **OPEN**.
-- DLV-003 remains **OPEN** beyond the already accepted uploader/gallery lifecycle. Original product image associations remain **0/114** until the owner supplies original image assets mapped by SKU. No fabrication or hotlinking.
-- Release remains **NO-GO**: production Supabase target identity, hosted customer/profile Auth E2E and hosted Edge deployment/runtime acceptance are not proven. No production DB/Storage writes or deployment, Bolt/Vercel use, or paid AI calls were performed.
+## Canonical state
 
-## Reuse decision — OSS quick check for 2026-11-27
+- Official repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
+- Verified `main` SHA: `c8a4a63b448ed53e10b968aa903dea7983d8e500` (PR #667).
+- Application remains TanStack Start. Preserve current Supabase, RLS, tenant scope, service/RPC architecture and role model. Do not rebuild existing workflows.
+- No production Supabase writes, remote migrations, production Storage mutations, Edge deployment, paid AI provider, Bolt, Vercel or Lovable actions were performed.
+- Hosted customer/order/tenant E2E is explicitly **SKIPPED**, not PASS. Production target identity and hosted runtime acceptance remain unverified; release stays **NO-GO**.
 
-- Uppy React: MIT. Official React docs: https://uppy.io/docs/react/ ; license: https://github.com/transloadit/uppy/blob/main/LICENSE.
-- React Dropzone: MIT. License: https://github.com/react-dropzone/react-dropzone/blob/master/LICENSE.
-- Decision: do not add either dependency. Nasr1 already has the domain-specific uploader, SKU matching, primary/gallery lifecycle, retry state, eight-image cap and tenant-safe Storage handler. Do not repeat OSS search next session unless the design changes.
+## Merged during the current execution
 
-## First next actions
+| PR | Merge commit | Accepted result |
+|---|---|---|
+| #654 | `40bb1a53ec6686cfae45a09bb273962387010fab` | Category filter UUID validation; exact-head P1 and local P2/PG17/Chromium SUCCESS |
+| #652 | `7934282d09f3a0cff79eb4e5fc06046090eaaf92` | Real customer Auth A→B profile-session isolation; P1/P2 and PG17 feedback SUCCESS |
+| #660 | `83a5a3df5e800f19b3e3b49fb0b51823c39d0ad4` | Strict evidence-passport timestamps and calculation-clock lineage; P1/P2 SUCCESS |
+| #662 | `11487fda71c1ba145f468ba55ed4250d3542588b` | Demand forecast rejects UTC offsets outside ISO ±14:00; P1/P2 SUCCESS |
+| #661 | `c94e8eb67c962e9e265d50f25606ef0b4d283a68` | Anomaly detection rejects invalid UTC offsets; P1/P2 SUCCESS |
+| #663 | `63cd257e842cc930552b1d519076482f31072cb5` | Process bottleneck analytics strict timestamps; P1/P2 SUCCESS |
+| #653 | `b6fc95431014df101fbfc05a0dcac07281e647da` | Server-side customer-role guard for account-profile RPCs; P1/P2/PG17 SUCCESS. Test keeps revision typed in PostgreSQL to preserve microseconds and stale-writer rejection |
+| #666 | `668e576afba21c311b5657899eef7cb8e25b64cc` | Strict UTC timestamps for task-intelligence reports; exact-head P1/P2 SUCCESS |
+| #664 | `3b25afb70b5cf6760b4b52745b152e296378b344` | Unified safe public image URL policy across catalog cards/gallery/product facts; P1 and local PG17/Storage/Chromium P2 SUCCESS |
+| #667 | `c8a4a63b448ed53e10b968aa903dea7983d8e500` | Corrected page-two task count: displayed inclusive 11–20 is capped at ten rows; exact-head P1/P2 SUCCESS |
 
-1. Finish PR #654 P2 run `45933009668` on exact head `f8a11e13cb28015d956b2b3814a4787f71b4534f`. P1 already passes; do not infer P2 PASS while the local Supabase/Chromium job remains active.
-2. If #654 P2 terminates successfully with only the already-available-Chromium conditional skip and no failures, re-read current PR/base/main. The main-only intervening commits are documentation cursor refreshes; squash-merge only if GitHub confirms mergeable, and use expected head SHA `f8a11e13cb28015d956b2b3814a4787f71b4534f`.
-3. After #654 merge, capture the new main SHA and post-merge P1/P2 statuses. Refresh this cursor once with the actual merge SHA.
-4. P2: implement and run the dedicated local Auth A→B browser fixture for `/profile`; no unidentified production Supabase query/write.
-5. P1: continue DLV-003 product catalogue/detail/discovery/admin gaps, preserving existing search, paging, privacy projections, details/reviews/questions and accepted uploader. Do not duplicate existing work.
-6. Continue DLV-001/002 traceability and route/state acceptance only where evidence remains missing.
+## Next active gates — do not skip
+
+1. **PR #633 — task-quality review PostgreSQL 17 acceptance.** Current head: `2693787e93cfd0af26f421fb48ebb9b697417a2f`; latest P1 run `46044825176` and P2 run `46044825150` were both IN_PROGRESS at this checkpoint. Compare to current main: 21 commits ahead / 1 behind, with four relevant paths (P2 workflow, checkpoint, finance-task-print spec, task-quality authorization script). The prior head's P2 failure was an outdated product-image browser test/print expectation, not the task-quality SQL test. The new head includes current-main synchronization; wait for exact-head P1 and full local PostgreSQL 17/Chromium P2 to become terminal. Preserve `scripts/test-task-quality-review-authorization.mjs`, tenant isolation, idempotency, typed stale snapshot and append-only audit checks. Do not merge without fresh P1/P2 SUCCESS.
+2. **PR #641 — supplier invoice three-way accounting PostgreSQL 17 acceptance.** Current branch head remains `2935941fe2748215ccefb4ddb1bad1f730eed62e`, based on old main `317ebca76c4d236a1d0efe0fd5934b028598c72b`; P1 succeeded, but its old full P2 run failed only at the page-two task-print card count (expected 11, received 10). The root test defect is now fixed and merged in #667. P2 owner must sync/rebase onto current main `c8a4a63b448ed53e10b968aa903dea7983d8e500`, preserve supplier invoice three-way accounting tests, and rerun exact-head P1/P2. Feature-specific invoice/receipt/accounting PG17 assertions already passed on the old head; that does not replace a fresh complete P2 run.
+3. Keep other stale branches (#637, #605, #602) open only for their owners to sync/rebase; comments were posted explaining that their old product-image browser failures or missing-test failures predate current-main acceptance. Do not merge stale-head results.
+
+## Verified acceptance boundaries
+
+- #664 full local P2 on exact head `0a9ab7993e6fdc6afe7331639056b3ed743d516d`: local PostgreSQL 17, real local Supabase Storage API and Chromium completed SUCCESS, including order persistence/tenant denial, checkout replay, returns/credit memo, Onyx 27-column export, A→B profile sessions, finance/task print, customer-manager financial privacy/audit, revocable device sessions, four-tier product price edit/reload, image primary/gallery placement and retry-only-failed, eight-image cap, cross-tenant/customer denial, category tree, role privacy and AI prompt four-eyes/append-only audit. External hosted customer E2E remained SKIPPED.
+- #667 full local P2 on exact head `893253331e964eb387e562f40310e7ece9d8b45c`: SUCCESS. It proved the print/task pagination assertion now agrees with the displayed 11–20 range and retained all other acceptance steps. External hosted customer E2E remained SKIPPED.
+- #653 exact-head local profile/role PG17 and Chromium tests SUCCESS. SQLSTATE 40001 round-trip issue was fixed without weakening optimistic concurrency.
+- #666 exact-head P2 completed SUCCESS; strict task report timestamps and exact-SHA proof validation passed.
+- No codebase-wide build/deploy or production readiness claim follows from these targeted P1/P2 passes.
+
+## Reuse and open-source decision — do not repeat broad search
+
+- Shared reference catalog and license register already contain pinned ERP/CRM, WMS, BI, storefront, UI candidates and license constraints.
+- Uppy React (MIT) and React Dropzone (MIT) were examined and explicitly rejected for this workflow: Nasr1 already has SKU matching, primary/gallery lifecycle, retry-only-failed behavior, eight-image cap, tenant-safe Storage handler and real local Storage/Chromium acceptance.
+- No new third-party runtime dependency, parallel database, parallel accounting/inventory/CRM subsystem or paid API was added during this execution. Only reuse a component for a concrete gap after checking the shared catalog and current lockfile.
+
+## Remaining product-level blockers
+
+- DLV-001 requirement-to-route/action/service/RPC/Edge/tenant-scope/migration/exact-SHA crosswalk remains OPEN.
+- DLV-002 full route/state acceptance beyond the Auth A→B profile path remains OPEN; preserve the dedicated local auth proof and do not claim hosted tenant isolation.
+- DLV-003 original product image associations remain 0/114 until original image assets are supplied and mapped by SKU. Do not fabricate or hotlink images. Existing image upload lifecycle is accepted; continue with genuine catalog assets and detail/discovery coverage.
+- Production Supabase project identity/runtime, hosted Auth/customer tests and hosted Edge deployment/runtime remain unverified. Release is NO-GO until independently confirmed and explicitly authorized.
+- Never equate IN_PROGRESS, QUEUED, SKIPPED, BLOCKED or unavailable evidence with PASS.
 
 ## Delivery discipline
 
-- `main` only as source of truth; merge accepted P1 work and keep this cursor current.
-- Preserve current Supabase/RLS/services; no parallel accounting, inventory, CRM, Storage or AI systems.
-- IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and unavailable evidence are never PASS.
-- No production mutation, deployment, Bolt/Vercel use or paid AI calls without explicit authorization.
-
+- Continue from this cursor and the live main SHA, not old reports. Merge accepted work incrementally with expected-head SHA checks.
+- P1 owns product integration and main merges; P2 owns schema/RPC/RLS and financial/inventory operations; P3 owns intelligence.
+- Preserve history below this boundary exactly. Update only this live section after each material merge or blocker transition.
 
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
 
