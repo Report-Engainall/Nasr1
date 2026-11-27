@@ -157,7 +157,7 @@ async function handleCustomerOrdersFixtureRequest(
       const orderNumberFilter = url.searchParams.get("order_number");
       const statusFilter = url.searchParams.get("status");
       const searchToken = orderNumberFilter?.startsWith("ilike.")
-        ? orderNumberFilter.slice("ilike.".length).replace(/^\\*/, "").replace(/\\*$/, "")
+        ? orderNumberFilter.slice("ilike.".length).replace(/^\*/, "").replace(/\*$/, "")
         : null;
       const visibleRows = searchFixture.rows.filter((row) => {
         const matchesNumber = !searchToken || row.order_number.toLowerCase().includes(searchToken.toLowerCase());
