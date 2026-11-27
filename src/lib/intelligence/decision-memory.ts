@@ -101,6 +101,156 @@ export interface DecisionMemoryBookResult {
   records: DecisionMemoryRecord[]; warnings: string[];
 }
 
+
+export type DecisionReviewQueueKind =
+  | "OVERDUE"
+  | "DUE_TODAY"
+  | "UPCOMING"
+  | "UNSCHEDULED"
+  | "LESSONS_PENDING";
+
+export interface DecisionReviewQueueItem {
+  decisionId: string;
+  proposedResult: string;
+  ruleId: string;
+  owner: string;
+  state: DecisionMemoryRecord["state"];
+  kind: DecisionReviewQueueKind;
+  reviewAt: string | null;
+  daysUntilReview: number | null;
+  updatedAt: string;
+}
+
+export interface DecisionReviewQueueResult {
+  referenceDay: string;
+  horizonDays: number;
+  items: DecisionReviewQueueItem[];
+  counts: Record<DecisionReviewQueueKind, number>;
+  invalidScheduleCount: number;
+}
+
+const DAY_MILLISECONDS = 86_400_000;
+const OPEN_REVIEW_STATES = new Set<DecisionMemoryRecord["state"]>([
+  "APPROVED", "DEFERRED", "ASSIGNED", "EXECUTING", "EXECUTED",
+]);
+const REVIEW_KIND_ORDER: Record<DecisionReviewQueueKind, number> = {
+  OVERDUE: 0, DUE_TODAY: 1, UPCOMING: 2, UNSCHEDULED: 3, LESSONS_PENDING: 4,
+};
+
+function decisionDayOrdinal(value: string): number | null {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+  const timestamp = Date.parse(value + "T00:00:00.000Z");
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== value) return null;
+  return Math.floor(timestamp / DAY_MILLISECONDS);
+}
+
+function scheduledReviewDay(value: string | null): string | null {
+  if (typeof value !== "string" ||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-](?:(?:0\\d|1[0-3]):[0-5]\\d|14:00))$/.test(value) ||
+      !Number.isFinite(Date.parse(value))) return null;
+  const day = value.slice(0, 10);
+  return decisionDayOrdinal(day) === null ? null : day;
+}
+
+/** Builds a date-aware queue from authorized, actually loaded decision records. */
+export function buildDecisionReviewQueue(
+  records: DecisionMemoryRecord[],
+  referenceDay: string,
+  horizonDays = 30,
+): DecisionReviewQueueResult {
+  const referenceOrdinal = decisionDayOrdinal(referenceDay);
+  if (referenceOrdinal === null || !Number.isInteger(horizonDays) || horizonDays < 0 || horizonDays > 90) {
+    throw new Error("decision_review_queue_input_invalid");
+  }
+
+  const counts: Record<DecisionReviewQueueKind, number> = {
+    OVERDUE: 0, DUE_TODAY: 0, UPCOMING: 0, UNSCHEDULED: 0, LESSONS_PENDING: 0,
+  };
+  const items: DecisionReviewQueueItem[] = [];
+  let invalidScheduleCount = 0;
+
+  for (const record of records) {
+    if (record.state === "MEASURED") {
+      if (!record.lessonsReviewed) {
+        items.push({
+          decisionId: record.decisionId, proposedResult: record.proposedResult,
+          ruleId: record.ruleId, owner: record.owner, state: record.state,
+          kind: "LESSONS_PENDING", reviewAt: null, daysUntilReview: null, updatedAt: record.updatedAt,
+        });
+      }
+      continue;
+    }
+    if (!OPEN_REVIEW_STATES.has(record.state) || record.reviewDisposition === "NOT_REQUIRED") continue;
+
+    let kind: DecisionReviewQueueKind;
+    let daysUntilReview: number | null = null;
+    if (record.reviewDisposition === "SCHEDULED") {
+      const reviewDay = scheduledReviewDay(record.reviewAt);
+      if (!reviewDay) {
+        invalidScheduleCount += 1;
+        continue;
+      }
+      const reviewOrdinal = decisionDayOrdinal(reviewDay);
+      if (reviewOrdinal === null) {
+        invalidScheduleCount += 1;
+        continue;
+      }
+      daysUntilReview = reviewOrdinal - referenceOrdinal;
+      if (daysUntilReview < 0) kind = "OVERDUE";
+      else if (daysUntilReview === 0) kind = "DUE_TODAY";
+      else if (daysUntilReview <= horizonDays) kind = "UPCOMING";
+      else continue;
+    } else {
+      kind = "UNSCHEDULED";
+    }
+
+    items.push({
+      decisionId: record.decisionId, proposedResult: record.proposedResult,
+      ruleId: record.ruleId, owner: record.owner, state: record.state,
+      kind, reviewAt: record.reviewAt, daysUntilReview, updatedAt: record.updatedAt,
+    });
+  }
+
+  items.sort((left, right) => {
+    const kindDifference = REVIEW_KIND_ORDER[left.kind] - REVIEW_KIND_ORDER[right.kind];
+    if (kindDifference !== 0) return kindDifference;
+    if (left.kind === "OVERDUE" && right.kind === "OVERDUE") {
+      return (left.daysUntilReview ?? 0) - (right.daysUntilReview ?? 0);
+    }
+    if (left.kind === "UPCOMING" && right.kind === "UPCOMING") {
+      return (left.daysUntilReview ?? 0) - (right.daysUntilReview ?? 0);
+    }
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
+  for (const item of items) counts[item.kind] += 1;
+
+  return { referenceDay, horizonDays, items, counts, invalidScheduleCount };
+}
+
+export interface DecisionMemoryRecordFilter {
+  query?: string;
+  state?: DecisionMemoryRecord["state"] | "ALL";
+}
+
+/** Filters only the supplied records; it does not imply coverage of unseen pages. */
+export function filterDecisionMemoryRecords(
+  records: DecisionMemoryRecord[],
+  filter: DecisionMemoryRecordFilter = {},
+): DecisionMemoryRecord[] {
+  const query = filter.query ?? "";
+  const state = filter.state ?? "ALL";
+  if (typeof query !== "string" || query.length > 500) {
+    throw new Error("decision_memory_filter_input_invalid");
+  }
+  const tokens = decisionSearchTokens(query);
+  return records.filter(record => {
+    if (state !== "ALL" && record.state !== state) return false;
+    if (!tokens.length) return true;
+    const searchable = normalizeDecisionSearchText(decisionRecordSearchText(record));
+    return tokens.every(token => searchable.includes(token));
+  });
+}
+
 export interface DecisionMemoryPrecedentMatch {
   record: DecisionMemoryRecord;
   matchedTerms: string[];

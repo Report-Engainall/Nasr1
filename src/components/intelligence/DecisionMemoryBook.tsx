@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
-import { buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
+import { buildDecisionPolicyReviewSuggestions, buildDecisionReviewQueue, filterDecisionMemoryRecords, searchSimilarDecisionMemory, type DecisionReviewQueueKind } from "@/lib/intelligence/decision-memory";
 import {
   commandDecisionPolicyLearningCandidate,
   createDecisionPolicyLearningCandidate,
@@ -46,6 +46,24 @@ function metricLine(title:string,metric:NonNullable<DecisionMemoryRecord["metric
     <p className="text-xs">المعادلة: {metric.formulaId}@{metric.formulaVersion}</p>
     <p className="text-xs">الإثبات: <EvidenceReferences ids={metric.evidenceIds}/></p></div>;
 }
+
+function browserLocalDay():string {
+  try {
+    const timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Aden";
+    const parts=new Intl.DateTimeFormat("en",{timeZone,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+    const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+    return values.year+"-"+values.month+"-"+values.day;
+  }catch{
+    return new Date().toISOString().slice(0,10);
+  }
+}
+const reviewQueueLabels:Record<DecisionReviewQueueKind,string>={
+  OVERDUE:"مراجعات متأخرة",
+  DUE_TODAY:"مراجعات اليوم",
+  UPCOMING:"خلال 30 يوماً",
+  UNSCHEDULED:"بلا موعد مراجعة",
+  LESSONS_PENDING:"دروس بانتظار المراجعة",
+};
 const lines=(value:string)=>value.split(/\r?\n/).map(item=>item.trim()).filter(Boolean);
 function addDays(day:string,count:number){
   const value=new Date(day+"T00:00:00.000Z");
@@ -254,8 +272,8 @@ function DecisionMemoryCapture({record,onRetry}:{record:DecisionMemoryRecord;onR
     </form>:null}
   </section>;
 }
-function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetry?:()=>void}){
-  return <article className="rounded-xl border p-4 space-y-3">
+function DecisionMemoryCard({record,onRetry,highlight=false}:{record:DecisionMemoryRecord;onRetry?:()=>void;highlight?:boolean}){
+  return <article className={"rounded-xl border p-4 space-y-3"+(highlight?" ring-2 ring-primary/40":"")}>
     <header className="flex flex-wrap items-start justify-between gap-2"><div>
       <h3 className="font-semibold">{record.proposedResult}</h3>
       <p className="text-xs text-muted-foreground" dir="ltr">{record.ruleId}@{record.ruleVersion} · {record.decisionId.slice(0,8)}</p>
@@ -327,6 +345,10 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [precedentTargetId,setPrecedentTargetId]=useState("");
   const [precedentQuery,setPrecedentQuery]=useState("");
   const [recordPage,setRecordPage]=useState(0);
+  const [recordSearch,setRecordSearch]=useState("");
+  const [recordStateFilter,setRecordStateFilter]=useState<DecisionMemoryRecord["state"]|"ALL">("ALL");
+  const [focusedDecisionId,setFocusedDecisionId]=useState("");
+
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
   const [learningTotal,setLearningTotal]=useState(0);
   const [learningOffset,setLearningOffset]=useState(0);
@@ -452,12 +474,14 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       setLearningBusy("");
     }
   }
-  const pageCount=Math.max(1,Math.ceil((result?.records.length??0)/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
+  const filteredRecords=filterDecisionMemoryRecords(result?.records??[],{query:recordSearch,state:recordStateFilter});
+  const pageCount=Math.max(1,Math.ceil(filteredRecords.length/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
   const currentPage=Math.min(recordPage,pageCount-1);
-  const pageRecords=result?.records.slice(
+  const pageRecords=filteredRecords.slice(
     currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
     (currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
-  )??[];
+  );
+  const reviewQueue=buildDecisionReviewQueue(result?.records??[],browserLocalDay(),30);
   const selectedTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??null;
   const referenceOptions=selectedTarget&&!pageRecords.some(record=>record.decisionId===selectedTarget.decisionId)
     ?[selectedTarget,...pageRecords]:pageRecords;
@@ -474,6 +498,46 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <p className="text-xs text-muted-foreground">سياسة {result.policyVersion} · لقطة {result.generatedAt} · الصفحة {result.loadedCount} من {result.totalCount}</p></div>
       <span className="text-xs">{result.status==="EMPTY"?"لا توجد قرارات محفوظة":<EvidenceStatusLabel status={result.status==="VERIFIED"?"VERIFIED":result.status==="PARTIAL"?"NEEDS_REVIEW":"UNAVAILABLE"}/>}</span></header>
     <p className="text-sm text-muted-foreground">يوثق المشكلة والبدائل والافتراضات والإجراء والمراجعة على إصدارات غير قابلة للاستبدال. لا تتحول الوقائع إلى أدلة إلا بعد تحقق الخادم من مصدرها داخل المؤسسة؛ ولا تتغير القواعد أو الأسعار أو الصلاحيات تلقائياً.</p>
+    <section className="space-y-3 rounded-xl border p-3" aria-label="طابور مراجعة القرارات">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="font-semibold">طابور مراجعة القرارات والمتابعة</h3>
+          <p className="mt-1 text-xs text-muted-foreground">المواعيد مشتقة من الإصدارات المحفوظة فعلياً. يغطي الطابور {result.loadedCount} قراراً محمّلاً من أصل {result.totalCount}، ولا يفترض أن السجلات غير المحمّلة بلا مواعيد.</p>
+        </div>
+        <span className="text-xs text-muted-foreground">الأفق: 30 يوماً</span>
+      </div>
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        {(Object.keys(reviewQueue.counts) as DecisionReviewQueueKind[]).map(kind=><article key={kind} className="rounded-lg bg-muted/40 p-2">
+          <p className="text-xs text-muted-foreground">{reviewQueueLabels[kind]}</p>
+          <strong className="text-xl">{reviewQueue.counts[kind]}</strong>
+        </article>)}
+      </div>
+      {reviewQueue.items.length?<div className="space-y-2">
+        {reviewQueue.items.slice(0,12).map(item=>{
+          const recordIndex=result.records.findIndex(record=>record.decisionId===item.decisionId);
+          const timing=item.daysUntilReview===null
+            ?item.kind==="LESSONS_PENDING"?"يلزم توثيق مراجعة الدروس بعد القياس":"يلزم تحديد موعد مراجعة"
+            :item.daysUntilReview<0?"متأخرة "+Math.abs(item.daysUntilReview)+" يوم"
+              :item.daysUntilReview===0?"موعدها اليوم":"بعد "+item.daysUntilReview+" يوم";
+          return <article key={item.decisionId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">{item.proposedResult}</p>
+              <p className="text-xs text-muted-foreground">{reviewQueueLabels[item.kind]} · {timing} · {states[item.state]} · المسؤول: {item.owner||"غير معيّن"}</p>
+              <p className="text-xs text-muted-foreground" dir="ltr">{item.ruleId} · {item.reviewAt?.slice(0,10)??"لا يوجد موعد"}</p>
+            </div>
+            <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordIndex<0} onClick={()=>{
+              setRecordSearch("");
+              setRecordStateFilter("ALL");
+              setRecordPage(Math.floor(recordIndex/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
+              setFocusedDecisionId(item.decisionId);
+            }}>فتح السجل</button>
+          </article>;
+        })}
+        {reviewQueue.items.length>12?<p className="text-xs text-muted-foreground">تُعرض أول 12 مهمة حسب الأولوية؛ توجد {reviewQueue.items.length-12} مهام أخرى ضمن السجلات المحمّلة.</p>:null}
+      </div>:<p className="text-sm text-muted-foreground">لا توجد مراجعات متأخرة أو قريبة أو غير مجدولة ضمن نطاق السجلات المحمّلة.</p>}
+      {reviewQueue.invalidScheduleCount?<p className="text-xs text-amber-700" role="status">حُجبت {reviewQueue.invalidScheduleCount} مواعيد مراجعة تالفة أو غير صالحة؛ أصلح سجل الذاكرة من مصدره قبل الاعتماد عليها.</p>:null}
+      {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">الطابور جزئي بسبب ترقيم صفحات المصدر؛ لا يمثل كل تاريخ المؤسسة حتى تحميل بقية الصفحات.</p>:null}
+    </section>
     {result.records.length?<section className="space-y-3 rounded-xl border p-3" aria-label="البحث في القرارات السابقة المشابهة">
       <div><h3 className="font-semibold">البحث في القرارات السابقة المشابهة</h3>
         <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف الفترة والعملة والمعادلة. لا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
@@ -718,17 +782,32 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <article className="rounded-lg border p-3"><p className="text-xs">بانتظار الاستكمال</p><strong className="text-xl">{result.partialCount}</strong></article>
       <article className="rounded-lg border p-3"><p className="text-xs">قياسات مثبتة قابلة للمقارنة</p><strong className="text-xl">{result.verifiedMeasurementCount}</strong></article>
     </div>
+    {result.records.length?<section className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_13rem_auto]" aria-label="بحث وتصفية سجل القرارات">
+      <label className="block space-y-1 text-xs">بحث في القرارات المحمّلة
+        <input aria-label="بحث في القرارات المحمّلة" className="w-full rounded-lg border bg-background p-2" maxLength={500} value={recordSearch} onChange={event=>{setRecordSearch(event.target.value);setRecordPage(0);setFocusedDecisionId("");}} placeholder="ابحث في القرار والمشكلة والوقائع والإجراء والدروس…"/>
+      </label>
+      <label className="block space-y-1 text-xs">تصفية حسب الحالة
+        <select aria-label="تصفية حسب الحالة" className="w-full rounded-lg border bg-background p-2" value={recordStateFilter} onChange={event=>{setRecordStateFilter(event.target.value as DecisionMemoryRecord["state"]|"ALL");setRecordPage(0);setFocusedDecisionId("");}}>
+          <option value="ALL">كل الحالات</option>
+          {Object.entries(states).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      <div className="flex items-end">
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
+      </div>
+      <p className="text-xs text-muted-foreground sm:col-span-3" role="status">نتائج البحث: {filteredRecords.length} من {result.loadedCount} قراراً محمّلاً · البحث لا يشمل صفحات لم تُحمّل من الخادم.</p>
+    </section>:null}
     {result.records.length?<>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span>عرض {currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE+1}–{Math.min((currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,result.records.length)} من {result.records.length} قراراً</span>
+        <span>عرض {filteredRecords.length===0?0:currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE+1}–{Math.min((currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,filteredRecords.length)} من {filteredRecords.length} نتيجة · أصلها {result.loadedCount} قراراً محمّلاً</span>
         {pageCount>1?<div className="flex items-center gap-2">
           <button type="button" className="rounded-lg border px-3 py-1.5" disabled={currentPage===0} onClick={()=>setRecordPage(value=>Math.max(0,value-1))}>الأحدث</button>
           <span>{currentPage+1} / {pageCount}</span>
           <button type="button" className="rounded-lg border px-3 py-1.5" disabled={currentPage>=pageCount-1} onClick={()=>setRecordPage(value=>Math.min(pageCount-1,value+1))}>الأقدم</button>
         </div>:null}
       </div>
-      {pageRecords.map(record=><DecisionMemoryCard key={record.decisionId} record={record} onRetry={onRetry}/>)}
-    </>:<p className="text-sm">لا توجد قرارات محفوظة بعد.</p>}
+      {pageRecords.map(record=><DecisionMemoryCard key={record.decisionId} record={record} onRetry={onRetry} highlight={focusedDecisionId===record.decisionId}/>)}
+    </>:result.records.length?<p className="text-sm text-muted-foreground">لا توجد قرارات تطابق البحث أو الحالة المحددة.</p>:<p className="text-sm">لا توجد قرارات محفوظة بعد.</p>}
     {result.warnings.length?<section className="rounded-lg border p-3"><h3 className="text-sm font-semibold">حدود البيانات الحالية</h3>{result.warnings.map(warning=><p key={warning} className="text-xs">{warning}</p>)}</section>:null}
   </section>;
 }
