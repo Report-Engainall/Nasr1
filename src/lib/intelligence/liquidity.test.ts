@@ -171,3 +171,29 @@ describe("liquidity report clock integrity", () => {
     )).toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
   });
 });
+
+describe("liquidity UTC offset ceiling", () => {
+  it.each([
+    ["+14:00", "2026-11-26T14:00:00.000+14:00", "2026-11-26T14:05:00.000+14:00"],
+    ["-14:00", "2026-11-25T10:00:00.000-14:00", "2026-11-25T10:05:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, reportAsOf, generatedAt) => {
+    const result = build(
+      [position("YER", { available: "100", collections: "20", obligations: "10" })],
+      generatedAt,
+      reportAsOf,
+    );
+    expect(result.asOf).toBe(reportAsOf);
+  });
+
+  it.each([
+    ["+14:01", "2026-11-26T14:00:00.000+14:01"],
+    ["-14:01", "2026-11-25T10:00:00.000-14:01"],
+    ["+23:59", "2026-11-26T23:59:00.000+23:59"],
+  ])("rejects an out-of-range UTC offset %s", (_label, reportAsOf) => {
+    expect(() => build(
+      [position("YER", { available: "100", collections: "20", obligations: "10" })],
+      asOf,
+      reportAsOf,
+    )).toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
+  });
+});

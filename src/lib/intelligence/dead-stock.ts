@@ -30,7 +30,7 @@ function isoDay(value:string):number|null {
 }
 function isoInstant(value:unknown):number|null {
  if(typeof value!=="string"||
-  !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)||
+  !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)||
   isoDay(value.slice(0,10))===null)return null;
  const parsed=Date.parse(value);
  return Number.isFinite(parsed)?parsed:null;
@@ -231,7 +231,7 @@ function calculateDeadStockExposure(args: {
 export function buildDeadStockReport(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:DeadStockProductInput[];rule:DeadStockRule;
 }):DeadStockReport {
- if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be a valid timestamp");
+ if(isoInstant(input.asOf)===null)throw new Error("asOf must be a valid timestamp");
  const {rule}=input;
  if(!rule.id.trim()||!rule.version.trim()||!Number.isInteger(rule.activeWithinDays)||rule.activeWithinDays<0||
   !Number.isInteger(rule.stagnantAfterDays)||rule.stagnantAfterDays<=rule.activeWithinDays||

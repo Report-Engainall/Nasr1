@@ -450,3 +450,22 @@ describe("decision memory evidence engine", () => {
     })).toThrow("decision_memory_search_input_invalid");
   });
 });
+
+describe("decision memory UTC offset ceiling", () => {
+  it.each([
+    ["+14:00", "2026-10-06T14:00:00.000+14:00"],
+    ["-14:00", "2026-10-05T10:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, generatedAt) => {
+    const result = buildDecisionMemoryBook({ generatedAt, outcomes: [], snapshots: [], totalOutcomes: 0 });
+    expect(result.status).toBe("EMPTY");
+  });
+
+  it.each([
+    "2026-10-06T14:00:00.000+14:01",
+    "2026-10-05T10:00:00.000-14:01",
+    "2026-10-06T23:59:00.000+23:59",
+  ])("rejects a decision-memory clock beyond the ISO offset range: %s", generatedAt => {
+    expect(() => buildDecisionMemoryBook({ generatedAt, outcomes: [], snapshots: [], totalOutcomes: 0 }))
+      .toThrow("decision_memory_input_invalid");
+  });
+});

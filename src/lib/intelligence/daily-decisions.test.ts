@@ -323,3 +323,21 @@ describe("daily decision generation-clock boundary", () => {
   expect(result.withheld).toEqual([]);
  });
 });
+
+describe("daily decision UTC offset ceiling", () => {
+ it.each([
+  ["+14:00", "2026-10-30T21:00:00.000+14:00", "2026-10-30T21:10:00.000+14:00"],
+  ["-14:00", "2026-10-29T17:00:00.000-14:00", "2026-10-29T17:10:00.000-14:00"],
+ ])("accepts the ISO maximum UTC offset %s", (_label, asOf, generatedAt) => {
+  const result = buildDailyDecisions({ ...input(), asOf, generatedAt });
+  expect(result.asOf).toBe(asOf);
+ });
+
+ it.each([
+  "2026-10-30T21:00:00.000+14:01",
+  "2026-10-29T17:00:00.000-14:01",
+  "2026-10-30T23:59:00.000+23:59",
+ ])("rejects an unsupported decision clock offset: %s", asOf => {
+  expect(() => buildDailyDecisions({ ...input(), asOf })).toThrow("generatedAt and asOf must be valid ordered ISO timestamps");
+ });
+});

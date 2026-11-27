@@ -300,3 +300,27 @@ describe("multi-source growth opportunity radar", () => {
     expect(result.withheld).toMatchObject([{ reason: "DUPLICATE_SIGNAL" }]);
   });
 });
+
+describe("growth radar UTC offset ceiling", () => {
+  it.each([
+    ["+14:00", "2026-11-13T18:00:00.000+14:00"],
+    ["-14:00", "2026-11-12T14:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, timestamp) => {
+    const result = build({
+      evidenceRecords: [], metrics: [], signals: [],
+      generatedAt: timestamp, asOf: timestamp,
+    });
+    expect(result.asOf).toBe(timestamp);
+  });
+
+  it.each([
+    "2026-11-13T18:00:00.000+14:01",
+    "2026-11-12T14:00:00.000-14:01",
+    "2026-11-13T23:59:00.000+23:59",
+  ])("rejects a growth radar timestamp beyond the ISO offset range: %s", timestamp => {
+    expect(() => build({
+      evidenceRecords: [], metrics: [], signals: [],
+      generatedAt: timestamp, asOf: timestamp,
+    })).toThrow("growth_radar_timestamp_or_id_invalid");
+  });
+});
