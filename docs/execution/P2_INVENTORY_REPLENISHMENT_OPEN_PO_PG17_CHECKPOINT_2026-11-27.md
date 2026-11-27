@@ -1,0 +1,30 @@
+# P2 Checkpoint — Inventory Replenishment Open-PO Commitments PostgreSQL 17 Acceptance
+Date: 2026-11-27
+Repository: `Report-Engainall/Nasr1`
+Role: P2 — inventory data lineage, purchase commitments, PostgreSQL 17, tenant authorization and read-only aggregate integrity
+PR: #681 — https://github.com/Report-Engainall/Nasr1/pull/681
+Branch: `p2/replenishment-open-po-pg17-20261127-v2`
+
+## Scope and canonical contract
+- The production aggregate and unit-normalization migrations are already on `main`: `20261105230000_intelligence_replenishment_open_purchase_orders.sql` and `20261117150000_inventory_replenishment_open_po_unit_normalization.sql`.
+- This PR adds acceptance coverage only; it does not change production schema/RPC behavior or P1/P3 UI/engine code.
+- Existing RPCs create, submit, partially receive and cancel disposable purchase orders inside one PostgreSQL transaction which is rolled back.
+- Assertions cover submitted remaining quantities, partial receipt netting, exclusion of draft/cancelled/fully received and post-snapshot orders, unit conversion, fail-closed unknown UOM, evidence lineage, manager allow/customer deny, invalid period denial and no writes from the read aggregate.
+
+## Timestamp assertion repair
+- Initial exact P2 job on `acc555e3bb681fc48fdec2ade3bdae7be7b3955a` failed only because PostgreSQL emitted the same instant with `+00:00` while the JS fixture used `Z`. This was a representation-only assertion defect, not a database arithmetic/authorization failure.
+- Test helper `assertSameInstant` now requires explicit RFC3339 timezone syntax and compares parsed instants, rather than timestamp strings. Its regex is:
+  `/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$/`.
+- The earlier failure was corrected in code-bearing commit `04a8d4192112b1e0f3e08fdbf5e22d1b84083a8f`.
+
+## Synchronization and exact-head proof boundary
+- Synchronized non-force onto current `main` `348da8e756201fc103089cf4a5a690a4132528b7` by merge commit `baca0b6d1f67073af14477b3c18741ebb2ceb934`.
+- Current compare at sync: **9 commits ahead / 0 behind**, exactly two code paths: `.github/workflows/p2-playwright-critical-paths.yml` and `scripts/test-inventory-intelligence-replenishment-commitments.mjs`.
+- The workflow now runs local authenticated order/tenant acceptance independently of the P1 public UI smoke, so unrelated storefront pagination failure no longer suppresses P2 local acceptance.
+- On pre-sync corrected SHA `04a8d4192112b1e0f3e08fdbf5e22d1b84083a8f`, the P2 local job [140722236657](https://github.com/Report-Engainall/Nasr1/actions/runs/46063220855/job/140722236657) completed the dedicated step “Test tenant-scoped open purchase-order commitments, partial receipt netting, as-of and UOM safety on PostgreSQL 17” with **SUCCESS**. That proves the timestamp fix and acceptance logic on that code SHA only.
+- On current synchronized head `baca0b6d1f67073af14477b3c18741ebb2ceb934`, P2 workflow [run 46063823171](https://github.com/Report-Engainall/Nasr1/actions/runs/46063823171) and P1 [run 46063823178](https://github.com/Report-Engainall/Nasr1/actions/runs/46063823178) started. Local PostgreSQL 17 + authenticated browser job [140724228654](https://github.com/Report-Engainall/Nasr1/actions/runs/46063823171/job/140724228654) was still running; the dedicated replenishment step was pending at this checkpoint update. Do not transfer pre-sync PASS to the synchronized SHA until that step completes.
+- The pre-sync public smoke failed on the shared P1 customer-order pagination assertion: expected request `range=0-24`, received `null`; this belongs to P1. The hosted customer/order/tenant E2E remains **SKIPPED**, not PASS.
+
+## Safety and next action
+- All data fixtures are synthetic and transaction-rolled-back in isolated local PostgreSQL 17/Supabase CI. No production database, live ERP, deployment, service credential, paid service or new dependency is used.
+- Next: read this checkpoint, poll the exact current-head P2 job for the dedicated replenishment step and remaining authenticated acceptance; record the result and P1-owned browser blockers accurately. P2 does not merge to `main`.
