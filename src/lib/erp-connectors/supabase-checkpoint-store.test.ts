@@ -319,6 +319,7 @@ describe("SupabaseErpSyncCheckpointStore", () => {
           fields: { item_code: "000125", name: "منتج مرحلي", barcode: null },
           last_disposition: "created",
           last_disposition_reason: null,
+          last_disposition_reason: null,
         }],
         total: 25,
         limit: 10,
