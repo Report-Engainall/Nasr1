@@ -227,6 +227,74 @@ async function main(){
  assert.equal(reallocatedSale[0].batch_number,replacement.batch);
  assert.equal(Number(reallocatedSale[0].quantity),-1);
 
+ // A manager may cancel an order after its expired reservation has already
+ // been reallocated. Cancellation must release only the replacement lot; it
+ // must not try to release the already-released expired source lot again.
+ const cancelSourceDate=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+3,'YYYY-MM-DD') d",
+ ))[0].d;
+ const cancelReplacementDate=(await db.unsafe(
+  "select to_char((pg_catalog.now() at time zone 'UTC')::date+4,'YYYY-MM-DD') d",
+ ))[0].d;
+ const cancelSource=await receipt(manager,"FEFO-CANCEL-SOURCE-"+suffix,cancelSourceDate);
+ const cancelReplacement=await receipt(manager,"FEFO-CANCEL-REPLACEMENT-"+suffix,cancelReplacementDate);
+ await as(manager);
+ const cancelOrder=(await rpc(
+  "select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
+  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO cancellation after reallocation",randomUUID().replaceAll("-",""),"cash_on_delivery"],
+ )).id;
+ assert.ok(cancelOrder);
+ await status(manager,cancelOrder,"confirmed");
+ await status(manager,cancelOrder,"processing");
+ const cancelOriginalReservation=(await db.unsafe(
+  "select im.inventory_batch_id::text id,b.batch_number " +
+  "from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id " +
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve'",
+  [cancelOrder],
+ ))[0];
+ assert.ok(cancelOriginalReservation);
+ assert.equal(cancelOriginalReservation.batch_number,cancelSource.batch);
+ await db.unsafe(
+  "update public.inventory_batches set expiry_date=$2::date where id=$1::uuid",
+  [cancelOriginalReservation.id,expiredDate],
+ );
+ await as(manager);
+ const cancelReallocation=await rpc(
+  "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+  [cancelOrder,"fefo-cancel-reallocate-"+randomUUID().replaceAll("-",""),"Reallocate before cancellation to validate net release"],
+ );
+ assert.equal(cancelReallocation.reallocation_status,"reallocated");
+ assert.equal(Number(cancelReallocation.reallocated_quantity),1);
+ const cancelReplacementId=cancelReallocation.replacement_allocations[0].to_batch_id;
+ const cancelReplacementLot=(await db.unsafe(
+  "select batch_number,quantity_reserved::text from public.inventory_batches where id=$1::uuid",
+  [cancelReplacementId],
+ ))[0];
+ assert.equal(cancelReplacementLot.batch_number,cancelReplacement.batch);
+ assert.equal(Number(cancelReplacementLot.quantity_reserved),1);
+ await status(manager,cancelOrder,"cancelled");
+ const cancelReleaseMovements=await db.unsafe(
+  "select b.batch_number,pg_catalog.sum(im.quantity)::text released_quantity " +
+  "from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id " +
+  "where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='release_reservation' " +
+  "group by b.batch_number order by b.batch_number",
+  [cancelOrder],
+ );
+ assert.equal(cancelReleaseMovements.length,2,
+  "reallocation and later cancellation must each release exactly their own batch reservation");
+ assert.ok(cancelReleaseMovements.some(row=>row.batch_number===cancelSource.batch&&Number(row.released_quantity)===1));
+ assert.ok(cancelReleaseMovements.some(row=>row.batch_number===cancelReplacement.batch&&Number(row.released_quantity)===1));
+ const cancelLotBalances=await db.unsafe(
+  "select batch_number,quantity_on_hand::text on_hand,quantity_reserved::text reserved " +
+  "from public.inventory_batches where id=ANY($1::uuid[]) order by batch_number",
+  [[cancelOriginalReservation.id,cancelReplacementId]],
+ );
+ assert.equal(cancelLotBalances.length,2);
+ assert.ok(cancelLotBalances.every(row=>Number(row.reserved)===0),
+  "cancellation after reallocation must leave no residual reservation on either source or replacement lot");
+ const cancelledStatus=(await db.unsafe("select status from public.orders where id=$1::uuid",[cancelOrder]))[0];
+ assert.equal(cancelledStatus.status,"cancelled");
+
  const finalParity=(await db.unsafe(
   "select ib.quantity_on_hand::text h,ib.quantity_reserved::text r,"+
   "coalesce(pg_catalog.sum(b.quantity_on_hand),0)::text bh,"+
