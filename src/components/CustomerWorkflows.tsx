@@ -606,6 +606,7 @@ function Invoices() {
   const [error, setError] = useState("");
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
+  const invoiceReadSequenceRef = useRef(0);
   const [olderInvoicesError, setOlderInvoicesError] = useState("");
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingOlderInvoices, setLoadingOlderInvoices] = useState(false);
@@ -614,6 +615,9 @@ function Invoices() {
   const [pdfError, setPdfError] = useState("");
   const [xlsxError, setXlsxError] = useState("");
   const load = useCallback(async () => {
+    const requestId = ++invoiceReadSequenceRef.current;
+    const isCurrentRequest = () => invoiceReadSequenceRef.current === requestId;
+    let confirmingSource = false;
     setBusy(true);
     setError("");
     setFinancialSource(null);
@@ -627,27 +631,50 @@ function Invoices() {
       let source: CustomerFinancialSource;
       try {
         source = await fetchMyCustomerFinancialSource();
+        if (!isCurrentRequest()) return;
       } catch (cause) {
+        if (!isCurrentRequest()) return;
         setFinancialSourceError(cause instanceof Error ? cause.message : "تعذر التحقق من مصدر الحساب المالي.");
         return;
       }
       setFinancialSource(source);
       if (!canReadCustomerAppLedger(source)) return;
       const page = await fetchCustomerInvoicePage();
+      if (!isCurrentRequest()) return;
+      confirmingSource = true;
+      const confirmedSource = await fetchMyCustomerFinancialSource();
+      confirmingSource = false;
+      if (!isCurrentRequest()) return;
+      if (!isSameCustomerFinancialSourceVersion(source, confirmedSource)) {
+        setFinancialSource(confirmedSource);
+        setFinancialSourceError("تغير مصدر الحساب المالي أثناء تحميل الفواتير؛ لم نعتمد النتائج القديمة. حدّث القائمة بعد استقرار المصدر.");
+        setRows([]);
+        setHasMoreInvoices(false);
+        return;
+      }
       if (!page) {
         setError("تعذر تحميل الفواتير. تأكد من نشر ترحيل قاعدة البيانات.");
         return;
       }
       setRows(page.slice(0, CUSTOMER_INVOICE_PAGE_SIZE));
       setHasMoreInvoices(page.length > CUSTOMER_INVOICE_PAGE_SIZE);
-    } catch {
-      setError("تعذر تحميل الفواتير. تحقق من الاتصال ثم أعد المحاولة.");
+    } catch (cause) {
+      if (!isCurrentRequest()) return;
+      if (confirmingSource) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد تحميل الفواتير؛ أوقفنا عرض النتائج.");
+      }
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل الفواتير. تحقق من الاتصال ثم أعد المحاولة.");
+      setRows([]);
     } finally {
-      setBusy(false);
+      if (isCurrentRequest()) setBusy(false);
     }
   }, []);
   const loadOlderInvoices = useCallback(async () => {
-    if (loadOlderInvoicesInFlightRef.current || busy || loadingOlderInvoices || !hasMoreInvoices || rows.length === 0) return;
+    if (loadOlderInvoicesInFlightRef.current || busy || loadingOlderInvoices || !hasMoreInvoices || rows.length === 0 || !canReadCustomerAppLedger(financialSource)) return;
+    const requestId = invoiceReadSequenceRef.current;
+    const sourceSnapshot = financialSource;
+    let confirmingSource = false;
     const cursor = rows[rows.length - 1];
     if (!cursor.issued_at) {
       setOlderInvoicesError("تعذر متابعة سجل الفواتير لأن تاريخ إصدار آخر فاتورة مفقود. حدّث القائمة أو راجع بيانات الفاتورة.");
@@ -658,6 +685,20 @@ function Invoices() {
     setOlderInvoicesError("");
     try {
       const page = await fetchCustomerInvoicePage(cursor);
+      if (requestId !== invoiceReadSequenceRef.current) return;
+      confirmingSource = true;
+      const confirmedSource = await fetchMyCustomerFinancialSource();
+      confirmingSource = false;
+      if (requestId !== invoiceReadSequenceRef.current) return;
+      if (!isSameCustomerFinancialSourceVersion(sourceSnapshot, confirmedSource)) {
+        setFinancialSource(confirmedSource);
+        setFinancialSourceError("تغير مصدر الحساب المالي أثناء تحميل الفواتير الأقدم؛ أسقطنا الصفحة ولم نضمّها إلى السجل.");
+        setRows([]);
+        setHasMoreInvoices(false);
+        setChosen(null);
+        setItems([]);
+        return;
+      }
       if (!page) {
         setOlderInvoicesError("تعذر تحميل الفواتير الأقدم. احتفظنا بالقائمة الحالية؛ أعد المحاولة.");
         return;
@@ -666,14 +707,23 @@ function Invoices() {
       setRows((current) => appendUniqueInvoiceRows(current, nextPage));
       setHasMoreInvoices(page.length > CUSTOMER_INVOICE_PAGE_SIZE);
     } catch {
-      setOlderInvoicesError("تعذر تحميل الفواتير الأقدم. احتفظنا بالقائمة الحالية؛ أعد المحاولة.");
+      if (requestId !== invoiceReadSequenceRef.current) return;
+      if (confirmingSource) {
+        setFinancialSource(null);
+        setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد تحميل الصفحة الأقدم؛ أوقفنا ضم النتائج.");
+        setRows([]);
+        setHasMoreInvoices(false);
+      } else {
+        setOlderInvoicesError("تعذر تحميل الفواتير الأقدم. احتفظنا بالقائمة الحالية؛ أعد المحاولة.");
+      }
     } finally {
       setLoadingOlderInvoices(false);
       loadOlderInvoicesInFlightRef.current = false;
     }
-  }, [busy, hasMoreInvoices, loadingOlderInvoices, rows]);
+  }, [busy, financialSource, hasMoreInvoices, loadingOlderInvoices, rows]);
   useEffect(() => {
     void load();
+    return () => { invoiceReadSequenceRef.current += 1; };
   }, [load]);
   async function open(i: Invoice) {
     setChosen(i);

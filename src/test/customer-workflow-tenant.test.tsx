@@ -1030,6 +1030,47 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.querySelector('[aria-label="ترقيم سندات قبض العميل"]')).toBeNull();
   });
 
+
+  it("discards the customer invoice list when its financial source changes during the query", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses.customer_invoices = [{
+      id: "66666666-6666-4666-8666-666666666666",
+      invoice_number: "INV-INVOICE-CUTOVER",
+      order_id: "77777777-7777-4777-8777-777777777777",
+      customer_id: "88888888-8888-4888-8888-888888888888",
+      status: "issued",
+      issued_at: "2026-11-27T00:00:00Z",
+      due_at: null,
+      currency: "YER",
+    }];
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads === 1
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 21, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 22, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي أثناء تحميل الفواتير");
+    expect(host?.textContent).not.toContain("INV-INVOICE-CUTOVER");
+  });
+
   it("keeps barcode scanning open for multiple products and merges repeat scans by each product's order multiple", async () => {
     mocks.user = {
       id: USER_ID,
