@@ -71,3 +71,5 @@ The warehouse worklist now checks the combined active-order reservation movement
 - Manager repairs the shortfall with one appended reserve movement, exact replay does not duplicate it, changed reason with the same key is denied, and a second invocation returns a truthful `already_complete` zero-work result.
 - The repaired order leaves the incomplete-reservation worklist and then ships with a complete `-2` sale movement total.
 - Customer is denied both worklist and reconciliation; function ACL and direct reconciliation-ledger read restrictions are asserted.
+
+The reconciliation mutation rechecks both the selected batch's on-hand/reserved capacity and the aggregate balance's available quantity in the actual UPDATE predicates after acquiring the row locks. A changed or inconsistent availability fails with SQLSTATE `40001`; it cannot increment the lot counter and aggregate counter independently.
