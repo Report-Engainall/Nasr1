@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(() => cleanup());
 import type { CustomerRetentionActionQueue } from "@/lib/intelligence/customer-retention";
-import { CustomerRetentionActionQueuePanel } from "./CustomerRetentionActionQueuePanel";
+import {
+  CustomerRetentionActionQueuePanel,
+  filterCustomerRetentionActions,
+  normalizeCustomerRetentionSearch,
+  paginateCustomerRetentionActions,
+} from "./CustomerRetentionActionQueuePanel";
 
 const verifiedQueue: CustomerRetentionActionQueue = {
   status: "VERIFIED",
@@ -26,6 +31,52 @@ const verifiedQueue: CustomerRetentionActionQueue = {
   withheldCustomerCount: 0,
   warnings: [],
 };
+
+describe("customer retention action triage", () => {
+  it("normalizes Arabic text and filters by priority, action and evidence-backed reason", () => {
+    const actions = [
+      ...verifiedQueue.actions,
+      {
+        ...verifiedQueue.actions[0],
+        customerRef: "customer-medium",
+        priority: "MEDIUM" as const,
+        action: "PREVENT_CHURN" as const,
+        daysSinceLastOrder: 45,
+        reason: "راجع تأخر الطلب قبل فقدان العميل.",
+      },
+      {
+        ...verifiedQueue.actions[0],
+        customerRef: "customer-high-oldest",
+        priority: "HIGH" as const,
+        daysSinceLastOrder: 200,
+      },
+    ];
+
+    expect(normalizeCustomerRetentionSearch("إِجْرَاء  مُؤَجَّل"))
+      .toBe(normalizeCustomerRetentionSearch("اجراء مؤجل"));
+    expect(filterCustomerRetentionActions(actions, "تأخر الطلب", "ALL", "PREVENT_CHURN")
+      .map(item => item.customerRef)).toEqual(["customer-medium"]);
+    expect(filterCustomerRetentionActions(actions, "", "HIGH", "ALL")
+      .map(item => item.customerRef)).toEqual(["customer-high-oldest", "customer-1234567890"]);
+  });
+
+  it("paginates the whole loaded customer action set and clamps out-of-range pages", () => {
+    const actions = Array.from({ length: 23 }, (_, index) => ({
+      ...verifiedQueue.actions[0],
+      customerRef: "customer-" + String(index + 1).padStart(2, "0"),
+    }));
+    const first = paginateCustomerRetentionActions(actions, 0);
+    const middle = paginateCustomerRetentionActions(actions, 1);
+    const last = paginateCustomerRetentionActions(actions, 99);
+
+    expect(first.items).toHaveLength(10);
+    expect(middle.items).toHaveLength(10);
+    expect(last.items).toHaveLength(3);
+    expect(last.page).toBe(2);
+    expect([...first.items, ...middle.items, ...last.items].map(item => item.customerRef))
+      .toEqual(actions.map(item => item.customerRef));
+  });
+});
 
 describe("CustomerRetentionActionQueuePanel", () => {
   it("surfaces verified, explainable follow-up actions and their source evidence count", () => {
