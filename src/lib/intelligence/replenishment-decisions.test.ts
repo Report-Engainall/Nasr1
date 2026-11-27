@@ -4,9 +4,9 @@ import type { ReplenishmentProductInput, ReplenishmentRecommendation } from "./r
 import type { MetricSnapshot } from "./types";
 
 const asOf = "2026-11-27T02:00:00.000Z";
-function metric(id: string, key: string): MetricSnapshot {
+function metric(id: string, key: string, value = 10): MetricSnapshot {
   return {
-    id, key, value: 10, unit: "QUANTITY", unitOfMeasure: "EA",
+    id, key, value, unit: "QUANTITY", unitOfMeasure: "EA",
     status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE",
     period: { from: "2026-10-28", to: "2026-11-26" }, asOf,
     lineage: {
@@ -16,17 +16,17 @@ function metric(id: string, key: string): MetricSnapshot {
     warnings: [],
   };
 }
-function product(): ReplenishmentProductInput {
+function product(available = 4): ReplenishmentProductInput {
   return {
     productRef: "SKU-1",
-    availableToPromise: metric("atp", "inventory.available_to_promise"),
-    reorderPoint: metric("rop", "inventory.reorder_point"),
-    soldQuantityWindow: metric("sold", "inventory.sold_quantity_window"),
+    availableToPromise: metric("atp", "inventory.available_to_promise", available),
+    reorderPoint: metric("rop", "inventory.reorder_point", 15),
+    soldQuantityWindow: metric("sold", "inventory.sold_quantity_window", 3),
     supplierLeadTimeDays: {
-      ...metric("lead", "inventory.supplier_lead_time_days"),
-      value: 10, unit: "DAYS", unitOfMeasure: undefined, period: null,
+      ...metric("lead", "inventory.supplier_lead_time_days", 100),
+      unit: "DAYS", unitOfMeasure: undefined, period: null,
     },
-    incomingPurchaseQuantity: metric("incoming", "inventory.incoming_purchase_quantity"),
+    incomingPurchaseQuantity: metric("incoming", "inventory.incoming_purchase_quantity", 2),
     quantityUnit: "EA",
   };
 }
@@ -34,7 +34,7 @@ function recommendation(overrides: Partial<ReplenishmentRecommendation> = {}): R
   return {
     productRef: "SKU-1", status: "VERIFIED", action: "RECOMMEND", quantityUnit: "EA",
     availableToPromise: 4, incomingPurchaseQuantity: 2, coveredAfterIncoming: 6,
-    reorderPoint: 15, dailyDemand: 1, leadTimeDemand: 10, targetStock: 15,
+    reorderPoint: 15, dailyDemand: 0.1, leadTimeDemand: 10, targetStock: 15,
     recommendedQuantity: 9, formulaId: "inventory.replenishment-target", formulaVersion: "1.1.1",
     evidenceIds: ["evidence:atp", "evidence:rop", "evidence:sold", "evidence:lead", "evidence:incoming"],
     warnings: [], automaticPurchase: false, ...overrides,
@@ -62,8 +62,8 @@ describe("replenishment decision integration", () => {
 
   it("keeps a reorder-point gap at P2 when coverage still meets lead-time demand", () => {
     const candidates = buildReplenishmentDecisionCandidates({
-      asOf, products: [product()],
-      recommendations: [recommendation({ coveredAfterIncoming: 12, leadTimeDemand: 10 })],
+      asOf, products: [product(10)],
+      recommendations: [recommendation({ availableToPromise: 10, coveredAfterIncoming: 12, recommendedQuantity: 3, leadTimeDemand: 10 })],
     });
     expect(candidates[0]?.priority).toBe("P2");
     expect(candidates[0]?.soWhat).toContain("دون ادعاء نفاد وشيك"); // Conditional risk language stays explicit.
@@ -109,4 +109,51 @@ describe("replenishment decision integration", () => {
       asOf, products: [product(), product()], recommendations: [recommendation()],
     })).toEqual([]);
   });
+
+  it.each([
+    ["availableToPromise", 99],
+    ["incomingPurchaseQuantity", 99],
+    ["coveredAfterIncoming", 99],
+    ["reorderPoint", 99],
+    ["leadTimeDemand", 99],
+    ["targetStock", 99],
+    ["recommendedQuantity", 99],
+    ["dailyDemand", 99],
+  ] as const)("rejects a forged %s that conflicts with verified source metrics", (field, value) => {
+    const forged = recommendation({ [field]: value } as Partial<ReplenishmentRecommendation>);
+    expect(buildReplenishmentDecisionCandidates({
+      asOf, products: [product()], recommendations: [forged],
+    })).toEqual([]);
+  });
+
+  it("requires the recommendation evidence set to cover every source metric exactly", () => {
+    expect(buildReplenishmentDecisionCandidates({
+      asOf, products: [product()],
+      recommendations: [recommendation({ evidenceIds: ["evidence:atp"] })],
+    })).toEqual([]);
+  });
+
+  it("rejects quantity snapshots with a mismatched UOM even when the recommendation says EA", () => {
+    const source = product();
+    source.incomingPurchaseQuantity = {
+      ...source.incomingPurchaseQuantity,
+      unitOfMeasure: "CASE",
+    };
+    expect(buildReplenishmentDecisionCandidates({
+      asOf, products: [source], recommendations: [recommendation()],
+    })).toEqual([]);
+  });
+
+  it("rejects source periods that extend beyond the recommendation snapshot", () => {
+    const source = product();
+    source.soldQuantityWindow = {
+      ...source.soldQuantityWindow,
+      period: { from: "2026-10-28", to: "2026-11-28" },
+    };
+    expect(buildReplenishmentDecisionCandidates({
+      asOf, products: [source], recommendations: [recommendation()],
+    })).toEqual([]);
+  });
+
+
 });
