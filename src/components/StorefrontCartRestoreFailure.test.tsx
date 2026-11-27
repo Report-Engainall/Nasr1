@@ -25,8 +25,8 @@ describe("StorefrontCartRestoreFailure", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("تعذر استعادة تفاصيل أصناف السلة");
     expect(screen.getByRole("group", { name: "الأصناف المحفوظة محليًا" })).toBeInTheDocument();
     expect(screen.getByText("a1000000")).toBeInTheDocument();
-    expect(screen.getByText("الكمية المحفوظة: 4")).toBeInTheDocument();
-    expect(screen.getByText("الكمية المحفوظة: 2")).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === "SMALL" && element.textContent === "الكمية المحفوظة: 4")).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === "SMALL" && element.textContent === "الكمية المحفوظة: 2")).toBeInTheDocument();
     expect(screen.queryByText(/سعر|إجمالي|المتاح/)).toBeNull();
     expect(screen.getAllByRole("button", { name: /حذف الصنف/ })).toHaveLength(2);
   });
