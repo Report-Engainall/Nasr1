@@ -663,7 +663,7 @@ export function BulkProductImageUploader({
                 aria-valuenow={progress}
                 aria-valuetext={"تمت معالجة " + progress + " من " + (progressTotal || readyEntries.length) + " صورة"}
               >
-                <i aria-hidden="true" style={{ width: Math.round((progress / Math.max(1, readyEntries.length)) * 100) + "%" }} />
+                <i aria-hidden="true" style={{ width: Math.round((progress / Math.max(1, progressTotal || readyEntries.length)) * 100) + "%" }} />
               </div>
             )}
           </>
