@@ -18,6 +18,12 @@ function snapshot(overrides: Record<string, unknown> = {}) {
 }
 
 describe("customer quote pipeline evidence clock", () => {
+  it("accepts six fractional digits and rejects sub-microsecond quote timestamps", () => {
+    const valid = "2026-11-27T12:30:00.123456Z";
+    expect(parseCustomerQuotePipelineSnapshot(snapshot({ asOf: valid }))?.asOf).toBe(valid);
+    expect(parseCustomerQuotePipelineSnapshot(snapshot({ asOf: "2026-11-27T12:30:00.1234567Z" }))).toBeNull();
+  });
+
   it("accepts a strict UTC timestamp and preserves the quote cohort", () => {
     const parsed = parseCustomerQuotePipelineSnapshot(snapshot());
     expect(parsed).not.toBeNull();
