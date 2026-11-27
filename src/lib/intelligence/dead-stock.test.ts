@@ -168,3 +168,27 @@ describe("dead-stock metric calculation clock",()=>{
   expect(result.items[0]).toMatchObject({financialExposure:40,exposureStatus:"VERIFIED"});
  });
 });
+
+describe("dead stock ISO timestamp offset contract", () => {
+  it.each([
+    ["+14:00", "2026-10-30T21:00:00.000+14:00"],
+    ["-14:00", "2026-10-29T17:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, reportAsOf) => {
+    const result = buildDeadStockReport({
+      id: "dead-stock-clock", asOf: reportAsOf, period,
+      evidenceRecords: [], products: [], rule,
+    });
+    expect(result.asOf).toBe(reportAsOf);
+  });
+
+  it.each([
+    "2026-10-30T21:00:00.000+14:01",
+    "2026-10-29T17:00:00.000-14:01",
+    "2026-10-30T23:59:00.000+23:59",
+  ])("rejects an unsupported dead-stock report clock: %s", reportAsOf => {
+    expect(() => buildDeadStockReport({
+      id: "dead-stock-clock", asOf: reportAsOf, period,
+      evidenceRecords: [], products: [], rule,
+    })).toThrow("asOf must be a valid timestamp");
+  });
+});
