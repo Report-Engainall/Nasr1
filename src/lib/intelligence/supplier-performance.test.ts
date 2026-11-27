@@ -152,6 +152,43 @@ describe("supplier performance evidence contract", () => {
     expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
   });
 
+
+  it.each([
+    ["seven fractional digits", "2026-11-26T12:00:00.1234567Z"],
+    ["nine fractional digits", "2026-11-26T12:00:00.123456789Z"],
+  ])("rejects timestamp precision finer than PostgreSQL microseconds: %s", (_label, value) => {
+    const input = snapshot();
+    input.asOf = value;
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
+  it("rejects a purchase-order submission one microsecond after the requested snapshot", () => {
+    const input = snapshot();
+    input.period.to = "2026-11-26";
+    input.asOf = "2026-11-26T12:00:00.123456Z";
+    const later = "2026-11-26T12:00:00.123457Z";
+    input.suppliers[0].recentOrders[0].submittedAt = later;
+    input.suppliers[0].latestSubmittedAt = later;
+
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
+  it("rejects a receipt one microsecond after the requested snapshot", () => {
+    const input = snapshot();
+    input.period.to = "2026-11-26";
+    input.asOf = "2026-11-26T12:00:00.123456Z";
+    input.suppliers[0].recentOrders[1].lastReceivedAt = "2026-11-26T12:00:00.123457Z";
+
+    expect(parseSupplierPerformanceSnapshot(input)).toBeNull();
+  });
+
+  it("continues accepting equivalent microsecond instants with a different valid offset", () => {
+    const input = snapshot();
+    input.asOf = "2026-11-26T15:00:00.000000+03:00";
+
+    expect(parseSupplierPerformanceSnapshot(input)).not.toBeNull();
+  });
+
   it("rejects timestamps without an explicit UTC offset", () => {
     const input = snapshot();
     input.asOf = "2026-11-26T12:00:00";
