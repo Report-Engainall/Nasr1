@@ -6,6 +6,7 @@ import {
   type ErpConnection,
   type ErpObjectType,
   type ErpProviderId,
+  type ErpReadConnector,
   type ErpReadContract,
   type ErpSyncCheckpointStore,
 } from "../_shared/erp-connectors/readonly-sync.ts";
@@ -30,15 +31,7 @@ export type ErpReadSyncHandlerDependencies = {
     serviceRoleKey: string;
     cursorEncryptionKey: string;
   }): ErpSyncCheckpointStore;
-  createConnector(connection: ErpConnection, contract: ErpReadContract): {
-    readPage(input: { cursor: string | null; modifiedSince: string | null; maxRows?: number }): Promise<{
-      records: never[];
-      nextCursor: string | null;
-      httpStatus: number;
-      externalRequestId: string | null;
-      responseSha256: string;
-    }>;
-  };
+  createConnector(connection: ErpConnection, contract: ErpReadContract): ErpReadConnector;
   logError(message: string, context: Record<string, unknown>): void;
 };
 
@@ -173,8 +166,10 @@ function readProviderConfig(
   const accessToken = read("API_TOKEN");
   const allowedHosts = read("API_ALLOWED_HOSTS").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
   const contractsJson = read("READ_CONTRACTS_JSON");
-  const licensed = read("LICENSE_CONFIRMED") === "true";
-  const endpointEnabled = read("ENDPOINT_CONFIRMED") === "true";
+  const licenseSetting = read("LICENSE_CONFIRMED");
+  const endpointSetting = read("ENDPOINT_CONFIRMED");
+  const licensed = licenseSetting === "true" ? true : licenseSetting === "false" ? false : null;
+  const endpointEnabled = endpointSetting === "true" ? true : endpointSetting === "false" ? false : null;
   const sandboxAvailable = read("SANDBOX_AVAILABLE") === "true";
 
   let contractValue: unknown;
@@ -192,8 +187,8 @@ function readProviderConfig(
 
   const capability = evaluateErpReadCapability({
     officialContractPresent: contractPresent,
-    licensed: licensed ? true : null,
-    endpointEnabled: endpointEnabled ? true : null,
+    licensed,
+    endpointEnabled,
     credentialsAvailable: Boolean(accessToken && baseUrl && allowedHosts.length),
     sandboxAvailable,
   });
