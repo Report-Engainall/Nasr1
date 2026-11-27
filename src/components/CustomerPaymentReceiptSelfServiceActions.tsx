@@ -45,7 +45,7 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
     const requestId = ++optionsRequestSequenceRef.current;
     printRequestSequenceRef.current += 1;
     const sourceSnapshot = sourceRef.current;
-    if (!canReadCustomerAppLedger(sourceSnapshot)) {
+    if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) {
       setOptions(emptyOptions);
       setSelectedId("");
       setLoading(false);
@@ -105,10 +105,10 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
   const selected = options.receipts.find((row) => row.id === selectedId) ?? null;
 
   async function printReceipt() {
-    if (!selected || busy || !canReadCustomerAppLedger(sourceRef.current)) return;
+    const sourceSnapshot = sourceRef.current;
+    if (!selected || busy || !sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
     const requestId = ++printRequestSequenceRef.current;
     const selectedReceiptId = selected.id;
-    const sourceSnapshot = sourceRef.current;
     setError("");
     setNotice("");
     let printWindow: Window | null = null;

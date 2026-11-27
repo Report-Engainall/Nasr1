@@ -197,7 +197,7 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
     await screen.findByRole("option", { name: /سند-000123/ });
     await userEvent.click(screen.getByRole("button", { name: /طباعة سند القبض/ }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("تغير مصدر الحساب أثناء استرجاع السند");
+    expect(await screen.findByRole("alert")).toHaveTextContent("تغير مصدر الحساب أثناء استرجاع السند");
     expect(rpc).toHaveBeenNthCalledWith(5, "get_my_customer_payment_receipt_print_data", {
       p_receipt_id: receiptId,
     });
