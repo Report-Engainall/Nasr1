@@ -833,6 +833,10 @@ on:
       - "src/lib/customer-shopping-lists-xlsx.ts"
       - "src/lib/customer-shopping-lists-xlsx.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
+      - "src/components/CustomerOrderAmendmentHistory.tsx"
+      - "src/components/CustomerOrderAmendmentHistory.test.tsx"
+      - ".github/workflows/p1-admin-context-verification.yml"
+
   workflow_dispatch:
 
 permissions:

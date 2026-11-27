@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -156,31 +156,45 @@ export function CustomerOrderAmendmentHistory({
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
 
+  const requestGeneration = useRef(0);
+
   const load = useCallback(async () => {
+    const requestId = ++requestGeneration.current;
     setLoading(true);
     setError("");
-    const { data, error: rpcError } = await supabase.rpc("list_customer_order_amendment_history", {
-      p_order_id: orderId,
-    });
-    if (rpcError) {
-      setHistory(null);
-      setError("تعذر تحميل سجل نسخ التعديل من الخادم. حدّث الصفحة أو أعد المحاولة.");
-      setLoading(false);
-      return;
+    setHistory(null);
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc("list_customer_order_amendment_history", {
+        p_order_id: orderId,
+      });
+      if (requestId !== requestGeneration.current) return;
+
+      if (rpcError) {
+        setError("تعذر تحميل سجل نسخ التعديل من الخادم. حدّث الصفحة أو أعد المحاولة.");
+        return;
+      }
+
+      const parsed = parseHistory(data, orderId);
+      if (!parsed) {
+        setError("أعاد الخادم سجل تعديل غير مكتمل أو غير مطابق للطلب؛ تم إخفاء البيانات غير الموثوقة.");
+        return;
+      }
+      setHistory(parsed);
+    } catch {
+      if (requestId !== requestGeneration.current) return;
+      setError("تعذر تحميل سجل نسخ التعديل من الخادم. تحقق من الاتصال ثم أعد المحاولة.");
+    } finally {
+      if (requestId === requestGeneration.current) setLoading(false);
     }
-    const parsed = parseHistory(data, orderId);
-    if (!parsed) {
-      setHistory(null);
-      setError("أعاد الخادم سجل تعديل غير مكتمل أو غير مطابق للطلب؛ تم إخفاء البيانات غير الموثوقة.");
-      setLoading(false);
-      return;
-    }
-    setHistory(parsed);
-    setLoading(false);
   }, [orderId]);
 
   useEffect(() => {
     void load();
+    return () => {
+      // Invalidate pending reads when the order changes or this history panel unmounts.
+      requestGeneration.current += 1;
+    };
   }, [load, refreshKey, retry]);
 
   const latestVersion = history?.versions[history.versions.length - 1];
