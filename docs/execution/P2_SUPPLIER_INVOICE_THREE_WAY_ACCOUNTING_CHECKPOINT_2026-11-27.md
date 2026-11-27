@@ -29,6 +29,14 @@ Base SHA: `317ebca76c4d236a1d0efe0fd5934b028598c72b`
 - No production/hosted DDL, migration, data mutation, RPC deployment, permissions change, or journal post is performed.
 - P2 owns this test and checkpoint; P1/P3 retain authority to merge.
 
+
+## Test-harness hardening after first CI dispatch
+- The snapshot helper intentionally resets the SQL role to the privileged local test connection for before/after comparisons.
+- The two direct-write negative assertions now explicitly re-establish the intended authenticated customer/manager session immediately before executing the denied UPDATE.
+- This keeps the evidence meaningful: SQLSTATE `42501` must come from database privilege enforcement for the authenticated role, not from running the statement as the local service connection.
+- This is test-harness-only; no migration or application SQL changed.
+- Corrected test script commit: `629ddc10d1e39dd7d039b71d5800163e0b47fe85`.
+
 ## Acceptance
 - Initial state: `PENDING` exact-head P2 run.
 - PASS requires the new step, complete local P2 Supabase job, P1 verification and strict TypeScript/build to finish on the exact same PR SHA.
