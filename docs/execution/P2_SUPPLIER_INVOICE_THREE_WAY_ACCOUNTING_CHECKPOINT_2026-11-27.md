@@ -35,6 +35,9 @@ Base SHA: `317ebca76c4d236a1d0efe0fd5934b028598c72b`
 - The two direct-write negative assertions now explicitly re-establish the intended authenticated customer/manager session immediately before executing the denied UPDATE.
 - This keeps the evidence meaningful: SQLSTATE `42501` must come from database privilege enforcement for the authenticated role, not from running the statement as the local service connection.
 - This is test-harness-only; no migration or application SQL changed.
+
+- Service-verification SQL reads for handoff and audit counts explicitly reset to the local verifier role after authenticated RPC assertions; authenticated write-denial checks re-establish their intended principal immediately before mutation attempts.
+- Latest test script hardening commit: `2965337f61f651f8bc3bcd25ffc272865a85c18e`.
 - Corrected test script commit: `629ddc10d1e39dd7d039b71d5800163e0b47fe85`.
 
 ## Acceptance
