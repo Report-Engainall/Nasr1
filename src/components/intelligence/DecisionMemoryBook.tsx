@@ -60,7 +60,7 @@ function browserLocalDay():string {
 const reviewQueueLabels:Record<DecisionReviewQueueKind,string>={
   OVERDUE:"مراجعات متأخرة",
   DUE_TODAY:"مراجعات اليوم",
-  UPCOMING:"خلال 30 يوماً",
+  UPCOMING:"خلال {reviewHorizon} يوماً",
   UNSCHEDULED:"بلا موعد مراجعة",
   LESSONS_PENDING:"دروس بانتظار المراجعة",
 };
@@ -347,6 +347,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [recordPage,setRecordPage]=useState(0);
   const [recordSearch,setRecordSearch]=useState("");
   const [recordStateFilter,setRecordStateFilter]=useState<DecisionMemoryRecord["state"]|"ALL">("ALL");
+  const [recordMemoryFilter,setRecordMemoryFilter]=useState<DecisionMemoryRecord["memoryStatus"]|"ALL">("ALL");
+  const [reviewHorizon,setReviewHorizon]=useState<7|30|90>(30);
+
   const [focusedDecisionId,setFocusedDecisionId]=useState("");
 
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
@@ -474,14 +477,14 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       setLearningBusy("");
     }
   }
-  const filteredRecords=filterDecisionMemoryRecords(result?.records??[],{query:recordSearch,state:recordStateFilter});
+  const filteredRecords=filterDecisionMemoryRecords(result?.records??[],{query:recordSearch,state:recordStateFilter,memoryStatus:recordMemoryFilter});
   const pageCount=Math.max(1,Math.ceil(filteredRecords.length/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
   const currentPage=Math.min(recordPage,pageCount-1);
   const pageRecords=filteredRecords.slice(
     currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
     (currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
   );
-  const reviewQueue=buildDecisionReviewQueue(result?.records??[],browserLocalDay(),30);
+  const reviewQueue=buildDecisionReviewQueue(result?.records??[],browserLocalDay(),reviewHorizon);
   const selectedTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??null;
   const referenceOptions=selectedTarget&&!pageRecords.some(record=>record.decisionId===selectedTarget.decisionId)
     ?[selectedTarget,...pageRecords]:pageRecords;
@@ -504,7 +507,11 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           <h3 className="font-semibold">طابور مراجعة القرارات والمتابعة</h3>
           <p className="mt-1 text-xs text-muted-foreground">المواعيد مشتقة من الإصدارات المحفوظة فعلياً. يغطي الطابور {result.loadedCount} قراراً محمّلاً من أصل {result.totalCount}، ولا يفترض أن السجلات غير المحمّلة بلا مواعيد.</p>
         </div>
-        <span className="text-xs text-muted-foreground">الأفق: 30 يوماً</span>
+        <label className="flex items-center gap-2 text-xs">أفق متابعة المراجعات
+          <select aria-label="أفق متابعة المراجعات" className="rounded-lg border bg-background p-2" value={reviewHorizon} onChange={event=>setReviewHorizon(Number(event.target.value) as 7|30|90)}>
+            <option value={7}>7 أيام</option><option value={30}>30 يوماً</option><option value={90}>90 يوماً</option>
+          </select>
+        </label>
       </div>
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {(Object.keys(reviewQueue.counts) as DecisionReviewQueueKind[]).map(kind=><article key={kind} className="rounded-lg bg-muted/40 p-2">
@@ -528,6 +535,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordIndex<0} onClick={()=>{
               setRecordSearch("");
               setRecordStateFilter("ALL");
+              setRecordMemoryFilter("ALL");
               setRecordPage(Math.floor(recordIndex/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
               setFocusedDecisionId(item.decisionId);
             }}>فتح السجل</button>
@@ -782,7 +790,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <article className="rounded-lg border p-3"><p className="text-xs">بانتظار الاستكمال</p><strong className="text-xl">{result.partialCount}</strong></article>
       <article className="rounded-lg border p-3"><p className="text-xs">قياسات مثبتة قابلة للمقارنة</p><strong className="text-xl">{result.verifiedMeasurementCount}</strong></article>
     </div>
-    {result.records.length?<section className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_13rem_auto]" aria-label="بحث وتصفية سجل القرارات">
+    {result.records.length?<section className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_11rem_11rem_auto]" aria-label="بحث وتصفية سجل القرارات">
       <label className="block space-y-1 text-xs">بحث في القرارات المحمّلة
         <input aria-label="بحث في القرارات المحمّلة" className="w-full rounded-lg border bg-background p-2" maxLength={500} value={recordSearch} onChange={event=>{setRecordSearch(event.target.value);setRecordPage(0);setFocusedDecisionId("");}} placeholder="ابحث في القرار والمشكلة والوقائع والإجراء والدروس…"/>
       </label>
@@ -792,10 +800,18 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           {Object.entries(states).map(([value,label])=><option key={value} value={value}>{label}</option>)}
         </select>
       </label>
+      <label className="block space-y-1 text-xs">جودة ذاكرة القرار
+        <select aria-label="تصفية حسب جودة الذاكرة" className="w-full rounded-lg border bg-background p-2" value={recordMemoryFilter} onChange={event=>{setRecordMemoryFilter(event.target.value as DecisionMemoryRecord["memoryStatus"]|"ALL");setRecordPage(0);setFocusedDecisionId("");}}>
+          <option value="ALL">كل مستويات التوثيق</option>
+          <option value="VERIFIED">ذاكرة مكتملة</option>
+          <option value="PARTIAL">ذاكرة جزئية</option>
+          <option value="UNVERIFIED">غير موثقة</option>
+        </select>
+      </label>
       <div className="flex items-end">
-        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"&&recordMemoryFilter==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordMemoryFilter("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
       </div>
-      <p className="text-xs text-muted-foreground sm:col-span-3" role="status">نتائج البحث: {filteredRecords.length} من {result.loadedCount} قراراً محمّلاً · البحث لا يشمل صفحات لم تُحمّل من الخادم.</p>
+      <p className="text-xs text-muted-foreground sm:col-span-4" role="status">نتائج البحث: {filteredRecords.length} من {result.loadedCount} قراراً محمّلاً · البحث لا يشمل صفحات لم تُحمّل من الخادم.</p>
     </section>:null}
     {result.records.length?<>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">

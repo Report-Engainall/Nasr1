@@ -261,6 +261,13 @@ describe("DecisionMemoryBook outcome learning controls", () => {
     fireEvent.change(search,{target:{value:"تحصيل مستحقات"}});
     expect(screen.getAllByText("مراجعة تحصيل مستحقات العملاء الخاصة").length).toBeGreaterThan(0);
     expect(screen.getByText(/نتائج البحث: 1 من 1 قراراً محمّلاً/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("تصفية حسب جودة الذاكرة"),{target:{value:"VERIFIED"}});
+    expect(screen.getByText("لا توجد قرارات تطابق البحث أو الحالة المحددة.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("تصفية حسب جودة الذاكرة"),{target:{value:"PARTIAL"}});
+    expect(screen.getByText(/نتائج البحث: 1 من 1 قراراً محمّلاً/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("أفق متابعة المراجعات"),{target:{value:"7"}});
+    expect(screen.getByText("الأفق: 7 أيام")).toBeInTheDocument();
   });
 
   it("loads saved learning candidates from the server in pages and preserves the real total", async () => {

@@ -487,6 +487,10 @@ describe("decision review queue and memory filtering", () => {
       OVERDUE: 1, DUE_TODAY: 1, UPCOMING: 1, UNSCHEDULED: 1, LESSONS_PENDING: 1,
     });
     expect(queue.items.find(item => item.decisionId === "upcoming")?.daysUntilReview).toBe(9);
+    const shortHorizon = buildDecisionReviewQueue(records, "2026-10-06", 7);
+    const longHorizon = buildDecisionReviewQueue(records, "2026-10-06", 90);
+    expect(shortHorizon.items.some(item => item.decisionId === "upcoming")).toBe(false);
+    expect(longHorizon.items.some(item => item.decisionId === "upcoming")).toBe(true);
   });
 
   it("withholds malformed scheduled dates and rejects invalid queue bounds", () => {
@@ -508,7 +512,13 @@ describe("decision review queue and memory filtering", () => {
       .toEqual(["matching"]);
     expect(filterDecisionMemoryRecords([first, second], { state: "MEASURED" }).map(item => item.decisionId))
       .toEqual(["other"]);
+    first.memoryStatus = "PARTIAL";
+    second.memoryStatus = "VERIFIED";
     expect(filterDecisionMemoryRecords([first, second], { state: "ALL" })).toHaveLength(2);
+    expect(filterDecisionMemoryRecords([first, second], { memoryStatus: "PARTIAL" }).map(item => item.decisionId))
+      .toEqual(["matching"]);
+    expect(filterDecisionMemoryRecords([first, second], { memoryStatus: "VERIFIED" }).map(item => item.decisionId))
+      .toEqual(["other"]);
     expect(() => filterDecisionMemoryRecords([first], { query: "x".repeat(501) }))
       .toThrow("decision_memory_filter_input_invalid");
   });

@@ -230,6 +230,7 @@ export function buildDecisionReviewQueue(
 export interface DecisionMemoryRecordFilter {
   query?: string;
   state?: DecisionMemoryRecord["state"] | "ALL";
+  memoryStatus?: DecisionMemoryRecord["memoryStatus"] | "ALL";
 }
 
 /** Filters only the supplied records; it does not imply coverage of unseen pages. */
@@ -239,12 +240,14 @@ export function filterDecisionMemoryRecords(
 ): DecisionMemoryRecord[] {
   const query = filter.query ?? "";
   const state = filter.state ?? "ALL";
+  const memoryStatus = filter.memoryStatus ?? "ALL";
   if (typeof query !== "string" || query.length > 500) {
     throw new Error("decision_memory_filter_input_invalid");
   }
   const tokens = decisionSearchTokens(query);
   return records.filter(record => {
     if (state !== "ALL" && record.state !== state) return false;
+    if (memoryStatus !== "ALL" && record.memoryStatus !== memoryStatus) return false;
     if (!tokens.length) return true;
     const searchable = normalizeDecisionSearchText(decisionRecordSearchText(record));
     return tokens.every(token => searchable.includes(token));
