@@ -85,6 +85,7 @@ describe("staff customer financial source lookup", () => {
   it("does not authorize local payment entry for external or suspended sources", async () => {
     mocks.rpc.mockResolvedValue({
       data: {
+        customer_id: "11111111-1111-4111-8111-111111111111",
         source_mode: "ONYX",
         source_status: "active",
         source_as_of: "2026-11-27T20:00:00Z",
