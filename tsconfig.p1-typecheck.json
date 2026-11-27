@@ -96,6 +96,8 @@
     "src/lib/customer-360-xlsx.ts",
     "src/lib/customer-directory.test.ts",
     "src/lib/customer-directory.ts",
+    "src/lib/customer-financial-source.test.ts",
+    "src/lib/customer-financial-source.ts",
     "src/lib/customer-interaction-filter.test.ts",
     "src/lib/customer-interaction-filter.ts",
     "src/lib/customer-service-cases.ts",
