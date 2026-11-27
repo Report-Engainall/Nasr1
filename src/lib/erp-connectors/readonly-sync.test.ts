@@ -226,6 +226,25 @@ describe("server-side ERP read connector contract", () => {
 
     expect(() => new OfficialJsonErpReadConnector(connection, {
       ...productContract,
+      cursorParameter: undefined,
+      nextCursorPath: undefined,
+      pageSizeParameter: undefined,
+    })).toThrowError(/لا يمكن اعتماد استجابة delta أحادية/);
+
+    expect(() => new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      singlePageComplete: true,
+    })).toThrowError(/لا يجوز أن يعلن في الوقت نفسه/);
+
+    expect(() => new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
+      cursorParameter: undefined,
+      nextCursorPath: undefined,
+      singlePageComplete: true,
+    })).not.toThrow();
+
+    expect(() => new OfficialJsonErpReadConnector(connection, {
+      ...productContract,
       nextCursorPath: [],
     })).toThrowError(/مسار cursor التالي في عقد ERP غير صالح/);
 
@@ -235,6 +254,7 @@ describe("server-side ERP read connector contract", () => {
       cursorParameter: undefined,
       nextCursorPath: undefined,
       pageSizeParameter: undefined,
+      singlePageComplete: true,
     }, {
       fetcher: vi.fn(async (url: string | URL | Request) => {
         requestedUrl = String(url);
