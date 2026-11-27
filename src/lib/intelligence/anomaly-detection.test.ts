@@ -359,3 +359,37 @@ describe("anomaly metric unit admission", () => {
   });
 });
 
+describe("anomaly detection ISO timestamp offset contract", () => {
+  function resultAt(timestamp: string) {
+    return buildAnomalyDetection({
+      id: "timestamp-offset-boundary",
+      generatedAt: timestamp,
+      asOf: timestamp,
+      evidenceRecords: [],
+      metrics: [],
+      rules: [],
+      signals: [],
+      sourceSnapshotVerified: true,
+    });
+  }
+
+  for (const timestamp of [
+    "2026-11-26T16:45:47.000+14:00",
+    "2026-11-25T12:45:47.000-14:00",
+  ]) {
+    it("accepts the ISO maximum UTC offset " + timestamp.slice(-6), () => {
+      expect(resultAt(timestamp).asOf).toBe(timestamp);
+    });
+  }
+
+  for (const timestamp of [
+    "2026-11-26T16:45:47.000+14:01",
+    "2026-11-25T12:45:47.000-14:01",
+    "2026-11-26T16:45:47.000+15:00",
+    "2026-11-25T12:45:47.000-23:59",
+  ]) {
+    it("rejects an ISO UTC offset beyond 14 hours: " + timestamp.slice(-6), () => {
+      expect(() => resultAt(timestamp)).toThrow("anomaly_detection_timestamp_or_id_invalid");
+    });
+  }
+});
