@@ -76,13 +76,13 @@ const mismatchingCurrencyBalances = {
   USD: { current_source_balance: "25.50", target_source_balance: "25.50" },
 };
 
-async function recordReconciliation(requestId, result, asOf, evidenceHash, reference, balancesByCurrency) {
+async function recordReconciliation(requestId, result, asOf, evidenceHash, reference, balancesByCurrency, recordCounts = { invoices: 2, payments: 1, credits: 0 }) {
   return rpc(
     serviceDb,
     "select public.record_customer_financial_source_reconciliation_evidence(" +
       "$1::uuid,$2::timestamptz,$3::text,$4::text,$5::text[],$6::jsonb,$7::jsonb,$8::text) as result",
     [requestId, asOf, evidenceHash, result, ["YER", "USD"],
-      JSON.stringify({ invoices: 2, payments: 1, credits: 0 }),
+      JSON.stringify(recordCounts),
       JSON.stringify(balancesByCurrency), reference],
   );
 }
@@ -298,7 +298,7 @@ async function main() {
     "matched evidence cannot claim equality when any currency balance differs",
     recordReconciliation(requestId, "matched", mismatchTime[0].as_of, hash("false-match"), "ONYX-REF-001", mismatchingCurrencyBalances),
     "22023",
-    "valid provider reconciliation evidence metadata",
+    "matched reconciliation requires equal source and target balances",
   );
   await expectFailure(
     "matched evidence must cover every declared currency",
@@ -306,7 +306,34 @@ async function main() {
       YER: matchingCurrencyBalances.YER,
     }),
     "22023",
-    "valid provider reconciliation evidence metadata",
+    "reconciliation balances must cover every declared currency exactly once",
+  );
+  await expectFailure(
+    "matched evidence rejects non-canonical currency decimal strings",
+    recordReconciliation(requestId, "matched", mismatchTime[0].as_of, hash("invalid-decimal"), "ONYX-REF-001", {
+      YER: { current_source_balance: "01.00", target_source_balance: "1.00" },
+      USD: matchingCurrencyBalances.USD,
+    }),
+    "22023",
+    "currency balances must be canonical decimal strings",
+  );
+  await expectFailure(
+    "matched evidence rejects additional balance fields",
+    recordReconciliation(requestId, "matched", mismatchTime[0].as_of, hash("extra-balance-field"), "ONYX-REF-001", {
+      YER: { ...matchingCurrencyBalances.YER, note: "must not be ignored" },
+      USD: matchingCurrencyBalances.USD,
+    }),
+    "22023",
+    "each currency balance must contain exactly the source and target amounts",
+  );
+  await expectFailure(
+    "reconciliation record counts reject negative and non-integer values",
+    recordReconciliation(requestId, "matched", mismatchTime[0].as_of, hash("invalid-record-count"), "ONYX-REF-001", matchingCurrencyBalances, {
+      invoices: -1,
+      payments: 1.5,
+    }),
+    "22023",
+    "reconciliation record counts must be non-negative integers",
   );
   const mismatch = await recordReconciliation(
     requestId, "mismatch", mismatchTime[0].as_of, hash("mismatch"), "ONYX-REF-001", mismatchingCurrencyBalances,
