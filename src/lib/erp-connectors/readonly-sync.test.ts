@@ -218,6 +218,132 @@ describe("server-side ERP read connector contract", () => {
     }
   });
 
+  it("projects commercial prices by price list and currency without importing supplier cost or margin", async () => {
+    const contract: ErpReadContract = {
+      ...productContract,
+      objectType: "product_prices",
+      fieldPaths: {
+        item_code: ["item_code"],
+        price_list_code: ["price_list"],
+        currency_code: ["currency"],
+        customer_tier: ["tier"],
+        unit_code: ["unit"],
+        unit_price: ["price"],
+        minimum_quantity: ["minimum"],
+        discount_percent: ["discount"],
+        is_active: ["active"],
+      },
+    };
+    const connector = new OfficialJsonErpReadConnector(connection, contract, {
+      fetcher: vi.fn(async () => jsonResponse({
+        data: { items: [{
+          id: "price-1",
+          updated_at: "2026-11-27T10:00:00Z",
+          item_code: "000125",
+          price_list: "WHOLESALE",
+          currency: "YER",
+          tier: "wholesale",
+          unit: "CTN",
+          price: 1250.5,
+          minimum: 3,
+          discount: 5,
+          active: true,
+          supplier_cost: 900,
+          gross_margin: 350.5,
+        }] },
+        meta: { next_cursor: null },
+      })),
+    });
+    const page = await connector.readPage({ cursor: null, modifiedSince: null });
+    expect(page.records[0].fields).toEqual({
+      item_code: "000125",
+      price_list_code: "WHOLESALE",
+      currency_code: "YER",
+      customer_tier: "wholesale",
+      unit_code: "CTN",
+      unit_price: 1250.5,
+      minimum_quantity: 3,
+      discount_percent: 5,
+      is_active: true,
+    });
+    expect(page.records[0].fields).not.toHaveProperty("supplier_cost");
+    expect(page.records[0].fields).not.toHaveProperty("gross_margin");
+
+    const invalid = new OfficialJsonErpReadConnector(connection, contract, {
+      fetcher: vi.fn(async () => jsonResponse({
+        data: { items: [{
+          id: "price-2",
+          updated_at: "2026-11-27T10:00:00Z",
+          item_code: "000125",
+          price_list: "WHOLESALE",
+          currency: "YER",
+          price: -1,
+          discount: 150,
+        }] },
+        meta: { next_cursor: null },
+      })),
+    });
+    await expect(invalid.readPage({ cursor: null, modifiedSince: null }))
+      .rejects.toMatchObject({ code: "INVALID_ERP_PRICE" });
+  });
+
+  it("projects product unit conversions and requires a factor of one for the base unit", async () => {
+    const contract: ErpReadContract = {
+      ...productContract,
+      objectType: "product_units",
+      fieldPaths: {
+        item_code: ["item_code"],
+        unit_code: ["unit"],
+        base_unit_code: ["base_unit"],
+        conversion_factor: ["factor"],
+        is_base_unit: ["is_base"],
+        is_active: ["active"],
+      },
+    };
+    const valid = new OfficialJsonErpReadConnector(connection, contract, {
+      fetcher: vi.fn(async () => jsonResponse({
+        data: { items: [{
+          id: "unit-1",
+          updated_at: "2026-11-27T10:00:00Z",
+          item_code: "000125",
+          unit: "CTN",
+          base_unit: "PCS",
+          factor: 24,
+          is_base: false,
+          active: true,
+        }] },
+        meta: { next_cursor: null },
+      })),
+    });
+    const page = await valid.readPage({ cursor: null, modifiedSince: null });
+    expect(page.records[0].fields).toEqual({
+      item_code: "000125",
+      unit_code: "CTN",
+      base_unit_code: "PCS",
+      conversion_factor: 24,
+      is_base_unit: false,
+      is_active: true,
+    });
+
+    const invalidBase = new OfficialJsonErpReadConnector(connection, contract, {
+      fetcher: vi.fn(async () => jsonResponse({
+        data: { items: [{
+          id: "unit-2",
+          updated_at: "2026-11-27T10:00:00Z",
+          item_code: "000125",
+          unit: "PCS",
+          base_unit: "PCS",
+          factor: 12,
+          is_base: true,
+          active: true,
+        }] },
+        meta: { next_cursor: null },
+      })),
+    });
+    await expect(invalidBase.readPage({ cursor: null, modifiedSince: null }))
+      .rejects.toMatchObject({ code: "INVALID_ERP_UNIT_CONVERSION" });
+  });
+
   it("reads a bounded page, applies the documented delta cursor, and projects only allowlisted fields", async () => {
     let requestedUrl = "";
     let authHeader = "";
@@ -356,6 +482,28 @@ describe("server-side ERP read connector contract", () => {
 });
 
 describe("incremental ERP sync checkpoint orchestration", () => {
+  it("normalizes database timestamps with UTC offsets before calculating the overlap", async () => {
+    const store = new InMemoryCheckpointStore(checkpoint({
+      version: 8,
+      completedWatermark: "2026-11-27T09:00:00+00:00",
+    }));
+    const inputs: ErpReadPageInput[] = [];
+    const connector: ErpReadConnector = {
+      readPage: async (input) => {
+        inputs.push(input);
+        return {
+          records: [record("offset-1", "2026-11-27T09:30:00Z")],
+          nextCursor: null,
+          httpStatus: 200,
+          externalRequestId: null,
+          responseSha256: "8".repeat(64),
+        };
+      },
+    };
+    await runIncrementalReadOnlySync({ connector, store, scope, overlapMs: 120_000 });
+    expect(inputs[0].modifiedSince).toBe("2026-11-27T08:58:00.000Z");
+  });
+
   it("commits pages atomically and advances the completed watermark only at the final page", async () => {
     const store = new InMemoryCheckpointStore(checkpoint({
       version: 2,
