@@ -98,6 +98,11 @@ export function CustomerRetentionActionQueuePanel({
   queue,
   loading,
 }: CustomerRetentionActionQueuePanelProps) {
+  const [searchText, setSearchText] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<CustomerRetentionPriorityFilter>("ALL");
+  const [actionFilter, setActionFilter] = useState<CustomerRetentionKindFilter>("ALL");
+  const [page, setPage] = useState(0);
+
   if (loading) {
     return <section className="rounded-xl border p-4" aria-label="قائمة متابعة العملاء">
       <h3 className="font-semibold">إجراءات متابعة العملاء</h3>
@@ -129,10 +134,6 @@ export function CustomerRetentionActionQueuePanel({
   const medium = queue.actions.filter(item => item.priority === "MEDIUM").length;
   const review = queue.actions.filter(item => item.priority === "REVIEW").length;
 
-  const [searchText, setSearchText] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<CustomerRetentionPriorityFilter>("ALL");
-  const [actionFilter, setActionFilter] = useState<CustomerRetentionKindFilter>("ALL");
-  const [page, setPage] = useState(0);
   const filteredActions = filterCustomerRetentionActions(
     queue.actions, searchText, priorityFilter, actionFilter,
   );
