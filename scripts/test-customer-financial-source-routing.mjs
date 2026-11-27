@@ -332,6 +332,16 @@ async function main() {
       "could not obtain lock on row",
     );
     await expectFailure(
+      "customer receipt print rejects a concurrent FK KEY SHARE reference that could append a phantom allocation",
+      serviceDb.unsafe(
+        "select id from public.customer_payment_receipts where id=$1::uuid for key share nowait",
+        [sourceTestReceiptId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+
+    await expectFailure(
       "customer receipt print holds all existing allocation rows against concurrent mutation",
       serviceDb.unsafe(
         "select id from public.customer_payments where receipt_id=$1::uuid for update nowait",
