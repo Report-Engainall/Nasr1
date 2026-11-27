@@ -20,8 +20,8 @@ function parseTimestamp(value: unknown, field: string): string | null {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):([0-5]\d):([0-5]\d)(?:\.\d{1,9})?(Z|([+-])(\d{2}):(\d{2}))$/);
   if (!match) throw new Error("عقد مصدر الحساب يحتوي طابعًا زمنيًا غير صالح في " + field + ".");
   const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]), hour = Number(match[4]);
-  const offsetHour = match[9] ? Number(match[9]) : 0;
-  const offsetMinute = match[10] ? Number(match[10]) : 0;
+  const offsetHour = match[10] ? Number(match[10]) : 0;
+  const offsetMinute = match[11] ? Number(match[11]) : 0;
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
   const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
   if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth || hour > 23 ||
