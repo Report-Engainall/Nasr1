@@ -221,6 +221,13 @@ async function main() {
     "APP_ONLY receipt print returns the saved receipt");
   assert.equal(appOnlyReceiptPrint.allocations.length, 2,
     "APP_ONLY receipt print reconciles both saved invoice allocations");
+
+  const appOnlyPaymentRows = await managerDb.unsafe(
+    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestReceiptId, orgId, customerId],
+  );
+  assert.equal(appOnlyPaymentRows.length, 2,
+    "manager may read both saved payment allocations while the selected source is APP_ONLY");
   const statementAfterReceipt = await rpc(customerDb,
     "select public.get_customer_account_statement() as result");
   initialSummary = JSON.stringify(statementAfterReceipt.summary);
@@ -452,6 +459,13 @@ async function main() {
   );
   assert.equal(externalReceiptRows.length, 0,
     "direct finance receipt reads are denied after ONYX cutover");
+
+  const externalPaymentRows = await managerDb.unsafe(
+    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestReceiptId, orgId, customerId],
+  );
+  assert.equal(externalPaymentRows.length, 0,
+    "direct staff payment allocations are denied after ONYX cutover");
   const externalReceiptOptions = await rpc(accountantDb,
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.equal(externalReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId), false,
@@ -520,6 +534,13 @@ async function main() {
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
   assert.equal(mutakamelReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId), false,
     "APP_ONLY receipt remains excluded after MUTAKAMEL cutover");
+
+  const mutakamelPaymentRows = await managerDb.unsafe(
+    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestReceiptId, orgId, customerId],
+  );
+  assert.equal(mutakamelPaymentRows.length, 0,
+    "direct staff payment allocations remain denied after MUTAKAMEL cutover");
   await expectFailure(
     "MUTAKAMEL source cannot print an APP_ONLY receipt",
     rpc(accountantDb,
@@ -558,6 +579,13 @@ async function main() {
     [sourceTestReceiptId]);
   assert.equal(finalReceiptPrint.receipt.id, sourceTestReceiptId,
     "APP_ONLY receipt remains printable after source transitions");
+
+  const finalPaymentRows = await managerDb.unsafe(
+    "select id from public.customer_payments where receipt_id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+    [sourceTestReceiptId, orgId, customerId],
+  );
+  assert.equal(finalPaymentRows.length, 2,
+    "direct staff payment allocations are restored only after approved APP_ONLY cutover");
 
   await expectFailure(
     "staff cannot resolve a foreign tenant customer's financial source",
