@@ -24,7 +24,8 @@ describe("StorefrontCartRestoreFailure", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("تعذر استعادة تفاصيل أصناف السلة");
     expect(screen.getByRole("group", { name: "الأصناف المحفوظة محليًا" })).toBeInTheDocument();
-    expect(screen.getByText("a1000000")).toBeInTheDocument();
+    expect(screen.getByText("00000001")).toBeInTheDocument();
+    expect(screen.getByText("00000002")).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.tagName === "SMALL" && element.textContent === "الكمية المحفوظة: 4")).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.tagName === "SMALL" && element.textContent === "الكمية المحفوظة: 2")).toBeInTheDocument();
     expect(screen.queryByText(/سعر|إجمالي|المتاح/)).toBeNull();
@@ -44,11 +45,11 @@ describe("StorefrontCartRestoreFailure", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "إعادة محاولة استعادة التفاصيل" }));
-    fireEvent.click(screen.getByRole("button", { name: "حذف الصنف a1000000 من السلة" }));
+    fireEvent.click(screen.getByRole("button", { name: "حذف الصنف 00000002 من السلة" }));
 
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(onRemove).toHaveBeenCalledTimes(1);
-    expect(onRemove).toHaveBeenCalledWith(items[0].productId);
+    expect(onRemove).toHaveBeenCalledWith(items[1].productId);
   });
 
   it("still provides a retry action when the saved cart contains no lines", () => {
