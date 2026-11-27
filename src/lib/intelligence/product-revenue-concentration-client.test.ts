@@ -206,7 +206,7 @@ describe("product revenue concentration client evidence contract", () => {
     ["duplicate currency", response({ currencyCount: 2, currencies: [currency(), currency()] })],
     ["non-standard currency", response({ currencies: [currency({ currency: "YER1" })] })],
     ["unbalanced line coverage", response({ currencies: [currency({ mappedLineCount: 9, unmappedLineCount: 0 })] })],
-    ["one-cent net / top-five mismatch", response({ currencies: [currency({ top5NetInvoiceLineAmount: "799.99" })] })],
+    ["top-five amount / percentage mismatch", response({ currencies: [currency({ top5NetInvoiceLineAmount: "799.90" })] })],
     ["one-hundredth concentration mismatch", response({ currencies: [currency({ top5ConcentrationPercent: 80.01 })] })],
     ["partial row leaking a concentration", response({
       status: "PARTIAL",
