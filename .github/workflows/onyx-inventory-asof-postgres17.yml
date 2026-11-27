@@ -6,12 +6,14 @@ on:
     paths:
       - "supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql"
       - "supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql"
+      - "docs/execution/P2_ONYX_RECONCILIATION_MUTATION_WINDOW_CHECKPOINT_2026-11-26.md"
       - ".github/workflows/onyx-inventory-asof-postgres17.yml"
   push:
     branches: [main]
     paths:
       - "supabase/migrations/20261126130000_onyx_stock_balance_as_of_guard.sql"
       - "supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql"
+      - "docs/execution/P2_ONYX_RECONCILIATION_MUTATION_WINDOW_CHECKPOINT_2026-11-26.md"
       - ".github/workflows/onyx-inventory-asof-postgres17.yml"
   workflow_dispatch:
 
@@ -42,7 +44,10 @@ jobs:
           --health-retries 5
     steps:
       - name: Checkout exact triggering commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
