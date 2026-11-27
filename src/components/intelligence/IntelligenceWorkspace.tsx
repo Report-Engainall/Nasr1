@@ -2194,15 +2194,35 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                       : " جميع الإجراءات المستحقة ظاهرة."}
                   </p>
                 ) : null}
-                {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
-                  <ActionCard
-                    key={candidateId}
-                    decision={decision}
-                    state="ready"
-                    ctaLabel="حفظ الإجراء في دورة القرارات"
-                    onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
-                  />
-                )) : (
+                {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => {
+                  const evidenceScope = buildDecisionOutcomeDisplayScope({
+                    candidateId,
+                    ruleId: decision.ruleId,
+                    candidateSnapshot: { proof: decision.proof },
+                  });
+                  return (
+                    <div key={candidateId} className="space-y-2">
+                      <ActionCard
+                        decision={decision}
+                        state="ready"
+                        ctaLabel="حفظ الإجراء في دورة القرارات"
+                        onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
+                      />
+                      {evidenceScope.measurementKind === "RATIO" ? (
+                        <div className="rounded-lg border px-3 py-2 text-xs text-muted-foreground" role="note">
+                          <p>{evidenceScope.label} · {evidenceScope.currency ?? "عملة غير محددة"}</p>
+                          {evidenceScope.period && evidenceScope.baselinePeriod ? (
+                            <p>الفترة الحالية: {evidenceScope.period.from} — {evidenceScope.period.to} · المقارنة: {evidenceScope.baselinePeriod.from} — {evidenceScope.baselinePeriod.to}</p>
+                          ) : (
+                            <p>تعذر إثبات نافذتي المقارنة من مراجع المصدر المحفوظة.</p>
+                          )}
+                          {evidenceScope.asOf ? <p>وقت اللقطة: {evidenceScope.asOf}</p> : null}
+                          {evidenceScope.sourceNote ? <p>{evidenceScope.sourceNote}</p> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }) : (
                   <ActionCard
                     state={loading ? "loading" : data ? "empty" : cashflowDenied ? "error" : "unavailable"}
                     errorMessage={result && !result.ok ? result.message : undefined}
