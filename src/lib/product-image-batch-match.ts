@@ -71,6 +71,14 @@ export function productImageItemCodeFromFilename(fileName: string): string | nul
   return itemCode || null;
 }
 
+function numberedImageSuffix(value: string): RegExpMatchArray | null {
+  const match = value.match(/(?:__|\s*\()\s*(\d+)\)?$/u);
+  if (!match) return null;
+
+  const number = Number(match[1]);
+  return Number.isSafeInteger(number) && number >= 2 ? match : null;
+}
+
 function resolveProductCode(
   itemCode: string,
   productsByCode: ReadonlyMap<string, readonly ProductImageBatchProduct[]>,
@@ -79,7 +87,7 @@ function resolveProductCode(
   const exactMatches = productsByCode.get(exactKey);
   if (exactMatches?.length) return { matches: exactMatches, matchedCode: itemCode };
 
-  const numberedSuffix = itemCode.match(/(?:__|\s*\()\s*([2-9]\d*)\)?$/u);
+  const numberedSuffix = numberedImageSuffix(itemCode);
   if (numberedSuffix?.index !== undefined) {
     const fallbackCode = itemCode.slice(0, numberedSuffix.index).trim();
     const fallbackMatches = productsByCode.get(normalizeProductImageItemCode(fallbackCode));
@@ -96,7 +104,7 @@ function productImageFilenameOrder(fileName: string, productItemCode: string): r
   const productKey = normalizeProductImageItemCode(productItemCode);
   if (normalizeProductImageItemCode(fileCode) === productKey) return [0, 0];
 
-  const numberedSuffix = fileCode.match(/(?:__|\s*\()\s*([2-9]\d*)\)?$/u);
+  const numberedSuffix = numberedImageSuffix(fileCode);
   if (numberedSuffix?.index !== undefined) {
     const baseCode = fileCode.slice(0, numberedSuffix.index).trim();
     if (normalizeProductImageItemCode(baseCode) === productKey) {
