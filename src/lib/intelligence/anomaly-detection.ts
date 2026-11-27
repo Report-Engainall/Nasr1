@@ -173,6 +173,10 @@ function readMetric(
       !validInstant(metric.lineage.calculatedAt) || Date.parse(metric.lineage.calculatedAt) > Date.parse(metric.asOf)) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
+  // Anomaly comparisons are numeric only. A numeric-looking TEXT payload must never be treated as a measured quantity.
+  if (!(["COUNT", "RATIO", "CURRENCY", "CURRENCY_PER_UNIT", "QUANTITY", "DAYS"] as const).includes(metric.unit)) {
+    return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
+  }
   const scaled = decimalToMinorUnits(metric.value, 6, metric.unit === "CURRENCY" || metric.unit === "RATIO");
   if (scaled === null) return { read: null, reason: "UNSUPPORTED_PRECISION" };
   if ((metric.unit === "COUNT" || metric.unit === "QUANTITY" || metric.unit === "DAYS") && scaled < 0n) {
