@@ -156,7 +156,11 @@ export function buildGrowthOpportunityCsv(opportunities: GrowthOpportunity[]): s
     [...new Set(opportunity.proof.metricKeys)].join(" | "),
     [...new Set(opportunity.proof.formulaVersions)].join(" | "),
   ]);
-  return "\uFEFF" + [headers, ...rows].map(row => row.map(growthCsvCell).join(",")).join("\r\n");
+  const coverageNote = [
+    "تنبيه التغطية",
+    "يتضمن هذا الملف الفرص الموثقة المحمّلة والمطابقة للفلاتر؛ راجع تغطية المصادر داخل التطبيق قبل اعتبار الرادار شاملاً.",
+  ];
+  return "\uFEFF" + [coverageNote, headers, ...rows].map(row => row.map(growthCsvCell).join(",")).join("\r\n");
 }
 
 export function downloadGrowthOpportunityCsv(opportunities: GrowthOpportunity[]): void {
