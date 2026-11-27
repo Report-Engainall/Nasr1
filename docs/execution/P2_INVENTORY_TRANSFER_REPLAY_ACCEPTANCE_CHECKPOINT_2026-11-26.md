@@ -5,7 +5,14 @@ Role: P2 — inventory transaction integrity, PostgreSQL 17 acceptance, idempote
 PR: #602 — https://github.com/Report-Engainall/Nasr1/pull/602
 Branch: `p2/inventory-transfer-replay-endpoint-pg17-20261126`
 
-## Latest head after the P1 PostgREST fixture repair
+## Latest synchronization to moving main — 2026-11-27
+- `main` advanced to `f0c911923b785cdaaf6e823b271f538c56fd7cd3` through merge #683, which includes the accepted P1 PostgREST offset/limit fixture. The P1 helper blob on main is `b8505a706773062c49ce0cceef76d76e19166117`.
+- P2 branch synchronized by non-force, two-parent merge commit `f785ec6a1792c5d25ce7111e1fb17b9809a72729`, with expected ref protection. Current compare: **30 ahead / 0 behind**, exactly three P2-owned paths: this checkpoint, `.github/workflows/inventory-balance-adjustment-pg17.yml`, and `supabase/tests/inventory_transfer_replay_endpoint_guard.sql`. The shared P1 fixture is now inherited from main, not duplicated in this PR.
+- Exact-current-head Inventory PG17 [run 46065151032](https://github.com/Report-Engainall/Nasr1/actions/runs/46065151032) and P2 critical-path [run 46065150925](https://github.com/Report-Engainall/Nasr1/actions/runs/46065150925) were **QUEUED** after synchronization. Previous PG17 PASS on `433a...` is not transferred to `f785...`.
+- At synchronization PR #602 was **mergeable=true**, **draft=false**. P1 owns final review and merge; P2 does not merge.
+- Next: verify the dedicated transfer endpoint replay/FEFO PostgreSQL 17 test on the exact new head, then the local P2 browser path. No production migration, live inventory write, hosted Supabase or external ERP action was performed.
+
+## Historical head after the P1 PostgREST fixture repair
 - P1 fixture repair commit `c73c9f7983234d877d1cf96544f4b61c16e36676` is included in this branch's P1-owned `e2e/helpers/customer-orders-keyboard-test.ts`; the fixture now validates actual `offset`/`limit` query parameters.
 - Current PR #602 code-bearing head at this check: `f926cdf5dd5e785940dc50297a01cb805edaaa96`; compare with `main` `348da8e756201fc103089cf4a5a690a4132528b7`: **28 ahead / 0 behind**, four paths (three P2 paths plus the P1 fixture helper). GitHub reported mergeable true at the last PR check.
 - Dedicated Inventory PG17 workflow [run 46064134872](https://github.com/Report-Engainall/Nasr1/actions/runs/46064134872): **SUCCESS** on exact head `f926...`; actual endpoint-replay SQL acceptance passed.
