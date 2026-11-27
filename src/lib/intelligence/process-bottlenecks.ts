@@ -97,8 +97,10 @@ function parseQueue(v: unknown, asOf: string): ProcessBottleneckQueue | null {
     if (openedAtMicros === null || measuredAtMicros === null || openedAtMicros > measuredAtMicros) return null;
     const elapsedMicros = measuredAtMicros - openedAtMicros;
     const expectedAgeHundredths = (elapsedMicros + 300_000n) / 600_000n;
-    const expectedAge = Number(expectedAgeHundredths) / 100;
-    if (!Number.isFinite(expectedAge) || Math.abs(expectedAge-suppliedAge)>0.01) return null;
+    const suppliedAgeHundredths = Math.round(suppliedAge * 100);
+    if (!Number.isSafeInteger(suppliedAgeHundredths) ||
+        Math.abs(suppliedAge * 100 - suppliedAgeHundredths) > 1e-7 ||
+        BigInt(suppliedAgeHundredths) !== expectedAgeHundredths) return null;
   }
   return {
     processKey:r.processKey as ProcessBottleneckKey, openCount:r.openCount,
