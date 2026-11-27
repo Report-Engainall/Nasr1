@@ -5,7 +5,7 @@
 ## Current repository observation
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`; sole source of truth.
-- **Latest main HEAD:** `202bb107545fd70db454d5cd6f6923cc76e9f0b4` (acceptance-matrix reconciliation; documentation-only); **latest code-bearing main SHA:** `8605561aaba9fb501f264677abcbf0ccc2b085ad`.
+- **Latest main HEAD:** `9c51f65f16aad1be300444cc37f5a0457b3dccb1` (finance payment timestamp/receipt reprint integrity fix); **latest code-bearing main SHA:** `8605561aaba9fb501f264677abcbf0ccc2b085ad`.
 - Exact post-merge main checks at this SHA: **Vitest/strict TypeScript SUCCESS**, **authenticated E2E infrastructure SUCCESS**, **public UI Chromium SUCCESS**; isolated local Supabase/PostgreSQL 17/Chromium acceptance is **IN_PROGRESS** (job `140736582170`, 14/70 steps at last observation); hosted customer/order/tenant E2E is **SKIPPED**, not PASS.
 - No production Supabase writes, remote migrations, Edge deployment, secrets changes, external ERP mutations, Vercel deployment/quota use, Bolt or Lovable actions were performed. Release remains **NO-GO**.
 
