@@ -40,3 +40,12 @@ Current pre-checkpoint SHA: `b9bbe365f540cbd5acb37e9f91d7e87cb6007c3b`
 
 ## Next action
 Open a draft PR, run exact-head PostgreSQL 17 migrations and source-routing assertions, fix only evidenced SQL/test failures, then rerun all affected acceptance on the new SHA. Keep source-routing IN_PROGRESS until PG17 and security assertions pass.
+
+## Failure analysis and hardened retry — 2026-11-27
+- First isolated PostgreSQL 17 application of the new migration failed with SQLSTATE `42601` at the review replay condition that compared `status=CASE WHEN ... END`. The migration was **not accepted** on that attempt. Replaced that expression with explicit boolean branches for approved/rejected replay. Re-run required on the current synchronized head.
+- Added a transaction-scoped advisory lock on `organization_id + idempotency_key` before the source-change request lookup, so concurrent exact retries serialize and return one request ID.
+- Kept `get_my_customer_financial_source()` read-only (it is declared `STABLE`); source row locks belong only to the volatile statement RPC.
+- Added `FOR SHARE` on the customer source binding while the statement is read, preventing a concurrent maker/checker cutover from changing APP_ONLY/ERP routing halfway through a ledger response.
+- Removed direct `service_role` DML grants on the four source tables. Only the narrowly scoped SECURITY DEFINER request/review/reconciliation/sync RPCs can mutate the source state/evidence. Acceptance script now verifies the direct table privilege denial and the service-role sync RPC grant.
+- The review SQL correction, statement lock, service-role ACL hardening and test assertions are in the current branch; the first failed run belonged to an older pre-fix SHA. Do not transfer its failure or any prior PG17 PASS to the current head.
+- Next required evidence: exact-current-head PostgreSQL 17 migration + `Customer financial source routing PostgreSQL 17 acceptance: PASS`, followed by the full P2 local critical-path result. Until then PR #697 stays Draft/IN_PROGRESS.
