@@ -935,23 +935,39 @@ test("manager records one receipt across two same-currency customer invoices and
     expect(invoiceBId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(invoiceAId).not.toBe(invoiceBId);
 
-    await primaryInvoice.selectOption(invoiceAId!);
-    await paymentForm.getByLabel("المبلغ", { exact: true }).fill("25.00");
-    await paymentForm.getByLabel("توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها", { exact: true }).check();
-    const invoiceBAllocation = paymentForm.getByRole("checkbox", { name: "تخصيص على الفاتورة " + invoiceBNumber, exact: true });
-    await expect(invoiceBAllocation).toBeVisible();
-    await invoiceBAllocation.check();
-    await paymentForm.getByLabel("مبلغ التخصيص على الفاتورة " + invoiceBNumber, { exact: true }).fill("35.00");
-    const privateNote = "PRIVATE-P2-MULTI-RECEIPT-" + Date.now().toString(36).toUpperCase();
-    await paymentForm.locator("textarea").first().fill(privateNote);
-    await paymentForm.getByRole("button", { name: "تسجيل سند القبض وتوزيعه", exact: true }).click();
-    await expect(manager.getByText("تم تسجيل سند القبض وتوزيعه على 2 فواتير مع تحديث أرصدتها.", { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
-    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
-
     const receiptSection = manager.locator('section[aria-labelledby="customer-payment-receipt-print-heading"]');
     await expect(receiptSection.getByRole("heading", { name: "سجل سندات القبض متعددة الفواتير" })).toBeVisible();
     const receiptSelect = receiptSection.getByLabel("سند القبض متعدد الفواتير", { exact: true });
+    // Playwright retries reuse the same disposable local database; never post twice.
+    await expect(receiptSection.getByRole("status")).toHaveCount(0, { timeout: 30_000 });
+    const existingFixtureReceipts = receiptSelect.locator("option").filter({ hasText: customerName });
+    const existingFixtureReceiptCount = await existingFixtureReceipts.count();
+    expect(existingFixtureReceiptCount, "A retry must never find more than one saved receipt for this unique local customer.").toBeLessThanOrEqual(1);
+    const privateNote = "PRIVATE-P2-MULTI-RECEIPT-" + Date.now().toString(36).toUpperCase();
+
+    if (existingFixtureReceiptCount === 1) {
+      const existingLabel = await existingFixtureReceipts.first().innerText();
+      expect(existingLabel).toContain("60.00 YER");
+      expect(existingLabel).toMatch(/فواتير/);
+      const existingReceiptId = await existingFixtureReceipts.first().getAttribute("value");
+      expect(existingReceiptId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      await receiptSelect.selectOption(existingReceiptId!);
+    } else {
+      await primaryInvoice.selectOption(invoiceAId!);
+      await paymentForm.getByLabel("المبلغ", { exact: true }).fill("25.00");
+      await paymentForm.getByLabel("توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها", { exact: true }).check();
+      const invoiceBAllocation = paymentForm.getByRole("checkbox", { name: "تخصيص على الفاتورة " + invoiceBNumber, exact: true });
+      await expect(invoiceBAllocation).toBeVisible();
+      await invoiceBAllocation.check();
+      await paymentForm.getByLabel("مبلغ التخصيص على الفاتورة " + invoiceBNumber, { exact: true }).fill("35.00");
+      await paymentForm.locator("textarea").first().fill(privateNote);
+      await paymentForm.getByRole("button", { name: "تسجيل سند القبض وتوزيعه", exact: true }).click();
+      await expect(manager.getByText("تم تسجيل سند القبض وتوزيعه على 2 فواتير مع تحديث أرصدتها.", { exact: true })).toBeVisible({ timeout: 30_000 });
+    }
+
+    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
+    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
+
     const savedReceiptOptions = receiptSelect.locator("option").filter({ hasText: /SND-\d{6}/ });
     await expect(savedReceiptOptions).toHaveCount(1, { timeout: 30_000 });
     const receiptLabel = await savedReceiptOptions.first().innerText();
@@ -983,7 +999,7 @@ test("manager records one receipt across two same-currency customer invoices and
       const styles = await printPage.locator("style").allTextContents();
       expect(styles.join(" ")).toContain("A4");
       const html = await printPage.locator("html").evaluate((element) => element.outerHTML);
-      expect(html).not.toContain(privateNote);
+      expect(html).not.toContain("PRIVATE-P2-MULTI-RECEIPT-");
       for (const internalKey of ["organization_id", "receipt_id", "customer_id", "invoice_id", "created_by", "actor_id", "idempotency_key", "private_note", "payment_id"]) {
         expect(html).not.toContain(internalKey);
       }
