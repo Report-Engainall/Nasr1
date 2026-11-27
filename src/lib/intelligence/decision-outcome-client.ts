@@ -132,6 +132,8 @@ function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutc
   if (value === null) return null;
   const measured = record(value);
   const period = record(measured?.period);
+  const periodFrom = period?.from;
+  const periodTo = period?.to;
   const asOfTime = instant(measured?.asOf);
   const measuredAtTime = instant(measured?.measuredAt);
   if (
@@ -146,9 +148,9 @@ function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutc
     measured.completeness !== "COMPLETE" ||
     measured.quality !== "ACCEPTABLE" ||
     !period ||
-    !isoDay(period.from) ||
-    !isoDay(period.to) ||
-    period.from > period.to ||
+    !isoDay(periodFrom) ||
+    !isoDay(periodTo) ||
+    periodFrom > periodTo ||
     asOfTime === null ||
     measuredAtTime === null ||
     asOfTime > measuredAtTime ||
