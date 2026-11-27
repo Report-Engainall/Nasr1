@@ -181,6 +181,18 @@ describe("claim evidence passports", () => {
     expect(built[0].sourceRecords.map((item) => item.source.name)).toContain("causal_studies");
   });
 
+  it("rejects a source as-of one microsecond after the metric snapshot", () => {
+    const futureSource = record("invoice-1", "customer_invoices", {
+      asOf: "2026-11-17T00:00:00.000001Z",
+    });
+    const built = buildClaimEvidencePassports(
+      passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [futureSource]),
+      [oneMetricClaim()],
+    );
+    expect(built[0].status).toBe("UNVERIFIED");
+    expect(built[0].boundaries).toContain("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
+  });
+
   it("rejects source timestamps one microsecond after a claim snapshot", () => {
     const futureSource = record("invoice-1", "customer_invoices", {
       sourceTimestamp: "2026-11-17T00:00:00.000001Z",
