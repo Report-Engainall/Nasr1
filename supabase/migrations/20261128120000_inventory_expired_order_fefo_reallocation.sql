@@ -725,7 +725,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.list_orders_with_incomplete_inventory_reservations(integer,integer) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.list_orders_with_incomplete_inventory_reservations(integer,integer) TO authenticated;
 COMMENT ON FUNCTION public.list_orders_with_incomplete_inventory_reservations(integer,integer) IS
- 'Manager/admin work queue for confirmed/processing orders with net stock reservations below ordered quantity; includes safe FEFO availability and expiry prerequisite.';
+ 'Manager/admin work queue for confirmed/processing orders with under- or over-reserved products; includes exact variance, safe FEFO availability and expiry prerequisite.';
 
 CREATE OR REPLACE FUNCTION public.reconcile_incomplete_order_reservations(
  p_order_id uuid,p_idempotency_key text,p_reason text
@@ -740,6 +740,7 @@ DECLARE
  v_ordered numeric(15,3); v_reserved numeric(15,3); v_missing numeric(15,3); v_left numeric(15,3);
  v_take numeric(15,3); v_after numeric(15,3); v_lot record; v_today date:=(pg_catalog.now() AT TIME ZONE 'UTC')::date;
  v_allocations jsonb:='[]'::jsonb; v_total numeric(15,3):=0; v_lot_count integer:=0;
+ v_has_excess boolean:=false;
  v_result jsonb; v_id uuid;
 BEGIN
  SELECT p.organization_id INTO v_org FROM public.profiles p JOIN public.organizations o ON o.id=p.organization_id AND o.is_active=true
@@ -840,6 +841,7 @@ BEGIN
   SELECT coalesce(pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END),0)::numeric(15,3)
    INTO v_reserved FROM public.inventory_movements im
   WHERE im.reference_type='order' AND im.reference_id=v_order.id AND im.product_id=v_product AND im.movement_type IN ('reserve','release_reservation');
+  IF v_reserved>v_ordered THEN v_has_excess:=true; END IF;
   v_missing:=greatest(v_ordered-v_reserved,0);
   v_left:=v_missing;
   FOR v_lot IN
@@ -882,7 +884,8 @@ BEGIN
  END LOOP;
 
  v_result:=pg_catalog.jsonb_build_object('order_id',v_order.id,
-  'reconciliation_status',CASE WHEN v_total>0 THEN 'reconciled' ELSE 'already_complete' END,
+  'reconciliation_status',CASE WHEN v_total>0 THEN 'reconciled'
+    WHEN v_has_excess THEN 'no_shortage_to_fill' ELSE 'already_complete' END,
   'reconciled_quantity',v_total,'allocation_lot_count',v_lot_count,'allocations',v_allocations,'idempotent_replay',false);
  INSERT INTO public.inventory_order_reservation_reconciliations(organization_id,order_id,idempotency_key,request_payload,result,created_by)
   VALUES(v_org,v_order.id,v_key,v_payload,v_result,v_actor) RETURNING id INTO v_id;
@@ -912,6 +915,7 @@ DECLARE
  v_ordered numeric(15,3); v_reserved numeric(15,3); v_excess numeric(15,3); v_left numeric(15,3);
  v_take numeric(15,3); v_after numeric(15,3); v_lot record;
  v_released numeric(15,3):=0; v_lot_count integer:=0; v_allocations jsonb:='[]'::jsonb;
+ v_has_shortage boolean:=false;
  v_result jsonb; v_id uuid;
 BEGIN
  SELECT p.organization_id INTO v_org FROM public.profiles p
@@ -1012,6 +1016,7 @@ BEGIN
     WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END),0)::numeric(15,3) INTO v_reserved
    FROM public.inventory_movements im WHERE im.reference_type='order' AND im.reference_id=v_order.id
     AND im.product_id=v_product AND im.movement_type IN ('reserve','release_reservation');
+  IF v_reserved<v_ordered THEN v_has_shortage:=true; END IF;
   v_excess:=greatest(v_reserved-v_ordered,0);
   v_left:=v_excess;
 
@@ -1056,7 +1061,8 @@ BEGIN
  END LOOP;
 
  v_result:=pg_catalog.jsonb_build_object('order_id',v_order.id,'release_status',
-   CASE WHEN v_released>0 THEN 'excess_released' ELSE 'already_matched' END,
+   CASE WHEN v_released>0 THEN 'excess_released'
+     WHEN v_has_shortage THEN 'no_excess_to_release' ELSE 'already_matched' END,
    'released_quantity',v_released,'released_lot_count',v_lot_count,'allocations',v_allocations,'idempotent_replay',false);
  INSERT INTO public.inventory_order_reservation_reconciliations(organization_id,order_id,idempotency_key,request_payload,result,created_by)
   VALUES(v_org,v_order.id,v_key,v_payload,v_result,v_actor) RETURNING id INTO v_id;
