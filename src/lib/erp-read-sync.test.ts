@@ -20,6 +20,7 @@ const complete = {
     records: [{
       externalId: "ERP-INVOICE-1001",
       sourceUpdatedAt: "2026-11-28T00:45:00Z",
+      lastDisposition: "created",
       fields: { document_number: "INV-1001", currency_code: "YER", total_amount: "1250.7500" },
     }],
     total: 1,
@@ -78,6 +79,7 @@ describe("ERP read-sync client contract", () => {
         records: [{
           externalId: "ERP-PRODUCT-001",
           sourceUpdatedAt: "2026-11-28T00:45:00Z",
+          lastDisposition: "updated",
           fields: { item_code: "000125", name: "منتج" },
         }],
       },
