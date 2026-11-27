@@ -9,10 +9,6 @@ export interface ScenarioResult {
  assumptions:SalesScenarioAssumption[];result:number|null;changeAmount:number|null;status:"SIMULATED"|"WITHHELD";
  formulaId:string;formulaVersion:string;sourceEvidenceIds:string[];assumptionBoundary:"USER_SUPPLIED";accountingFact:false;limitations:string[];
 }
-function numericBaseline(value:number|string|null):number|null {
- const minorUnits=decimalToMinorUnits(value,2);
- return minorUnits===null?null:minorUnitsToNumber(minorUnits,2);
-}
 /** Reuses the existing forecast and bounded what-if calculator. No ledger or persistence side effects. */
 export function buildSalesScenario(input:{id:string;createdAt:string;asOf:string;currency:string;forecast:SalesForecastResult;
  baselineMetric:MetricSnapshot;evidenceRecords:EvidenceRecord[];assumptions:SalesScenarioAssumption[];constraints:ScenarioConstraint}):ScenarioResult {
