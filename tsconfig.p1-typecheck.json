@@ -214,6 +214,8 @@
     "src/lib/intelligence/customer-retention-client.ts",
     "src/lib/intelligence/customer-retention-client.test.ts",
     "src/lib/intelligence/unavailable-product-search-demand-client.ts",
-    "src/lib/intelligence/unavailable-product-search-demand-client.test.ts"
+    "src/lib/intelligence/unavailable-product-search-demand-client.test.ts",
+    "src/lib/intelligence/evidence-passport.ts",
+    "src/lib/intelligence/evidence-passport.test.ts"
   ]
 }
