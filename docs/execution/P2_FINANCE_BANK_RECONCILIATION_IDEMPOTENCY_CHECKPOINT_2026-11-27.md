@@ -31,10 +31,15 @@ Branch: `fix/finance-cash-reconciliation-retry-safety-20261117`
 - No hosted Supabase, production financial records, bank integration, remote Storage, service secrets, migration, RPC or accounting policy is changed.
 - The duplicated/older branch migration is excluded; the tested RPC is the current migration already on `main`.
 
-## Acceptance state
-- `PENDING` exact-head P1/P2 CI; the script is not PASS until it completes in the exact branch-head local Supabase job.
-- Hosted/production acceptance is not inferred from local PostgreSQL 17 proof.
-- P2 owns this checkpoint and evidence. P1/P3 retain merge authority to `main`.
+## Exact-head acceptance — 2026-11-27
+- Tested code SHA: `3f9edbd14cf0339a1563d961ec4f4d61ef336339`.
+- P1 Admin Context Verification: `PASS` — run [45923052862](https://github.com/Report-Engainall/Nasr1/actions/runs/45923052862).
+- Dedicated bank reconciliation script: `PASS` — run [45923052865](https://github.com/Report-Engainall/Nasr1/actions/runs/45923052865), local Supabase/PG17 job `140258835524`, step 44. Exact output: `PASS PostgreSQL 17 bank reconciliation`; proves concurrent same-key replay, lost-response retry after VERIFIED, changed-target no-write rejection, single-GL-line exclusivity, balanced final reconciliation, immutable audit counts and local Storage evidence.
+- Overall P2 workflow: `FAIL` after the bank test passed. Existing Chromium UI test `e2e/finance-task-print.spec.ts:339` failed twice at the viewport assertion `clientWidth <= viewportWidth` in `assertRouteViewportAtWidth` (`e2e/finance-task-print.spec.ts:243`). The other four finance/print cases passed. This is a P1-owned UI responsiveness defect, not a bank reconciliation or SQL failure. Do not weaken the viewport assertion.
+- Hosted customer/order/tenant E2E: `SKIPPED`, not accepted.
+- No production migration, RPC, financial data or deployed environment changed.
+- P2-owned bank reconciliation acceptance is `PASS` on the code SHA above; the overall PR P2 pipeline remains blocked by the separate P1 UI viewport failure until P1 fixes it and reruns the integrated workflow.
+- P2 owns this checkpoint and evidence; P1/P3 retain merge authority to `main`.
 
 ## Next action
-- Inspect the synchronized three-file delta and run P1/P2 on the exact resulting SHA. Diagnose failures before changing any finance RPC.
+- P1 to fix actual viewport overflow on the affected mounted finance/task route, retaining viewport assertions. After P1 fixes it, rerun the integrated P2 workflow on the new exact SHA. No further change to bank reconciliation SQL or test is warranted from this run.
