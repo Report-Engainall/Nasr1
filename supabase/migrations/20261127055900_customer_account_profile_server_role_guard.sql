@@ -4,6 +4,7 @@ BEGIN;
 -- The customer profile editor is self-service for active customer-role identities only.
 -- A stale customers.profile_id link must not grant a former customer or a staff identity
 -- access after role reassignment. SECURITY DEFINER callers use this private server guard.
+-- The shared profile-row lock serializes each RPC against role changes that lock the row FOR UPDATE.
 CREATE OR REPLACE FUNCTION public.assert_customer_account_profile_actor()
 RETURNS uuid
 LANGUAGE plpgsql
