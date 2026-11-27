@@ -60,7 +60,7 @@ function browserLocalDay():string {
 const reviewQueueLabels:Record<DecisionReviewQueueKind,string>={
   OVERDUE:"مراجعات متأخرة",
   DUE_TODAY:"مراجعات اليوم",
-  UPCOMING:"خلال {reviewHorizon} يوماً",
+  UPCOMING:"مراجعات قادمة",
   UNSCHEDULED:"بلا موعد مراجعة",
   LESSONS_PENDING:"دروس بانتظار المراجعة",
 };
@@ -512,6 +512,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             <option value={7}>7 أيام</option><option value={30}>30 يوماً</option><option value={90}>90 يوماً</option>
           </select>
         </label>
+        <span className="text-xs text-muted-foreground">الأفق: {reviewHorizon} أيام</span>
       </div>
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {(Object.keys(reviewQueue.counts) as DecisionReviewQueueKind[]).map(kind=><article key={kind} className="rounded-lg bg-muted/40 p-2">
