@@ -64,6 +64,7 @@ export interface WithheldAnomaly {
     | "METRIC_AMBIGUOUS"
     | "METRIC_NOT_VERIFIED"
     | "METRIC_SCOPE_MISMATCH"
+    | "INVALID_CURRENCY_IDENTITY"
     | "SAMPLE_INSUFFICIENT"
     | "INVALID_COMPARISON"
     | "ZERO_OR_NEGATIVE_BASELINE"
@@ -150,13 +151,16 @@ function validRule(rule: AnomalyRule): boolean {
 }
 
 function unitIdentity(metric: MetricSnapshot): string | null {
+  const currency = metric.currency ?? "";
   if (metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") {
-    if (!metric.currency?.trim()) return null;
+    // Financial comparisons require a canonical three-letter ISO-style currency identity.
+    // Do not normalize malformed or lowercase source values into a trusted monetary unit.
+    if (!/^[A-Z]{3}$/.test(currency)) return null;
   }
   if (metric.unit === "QUANTITY" || metric.unit === "CURRENCY_PER_UNIT") {
     if (!metric.unitOfMeasure?.trim()) return null;
   }
-  return metric.unit + "|" + (metric.currency?.trim().toUpperCase() ?? "") + "|" +
+  return metric.unit + "|" + currency + "|" +
     (metric.unitOfMeasure?.trim().toUpperCase() ?? "");
 }
 
@@ -187,6 +191,10 @@ function readMetric(
   }
   if (metric.unit === "COUNT" && (scaled % 1_000_000n !== 0n || scaled / 1_000_000n > BigInt(Number.MAX_SAFE_INTEGER))) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
+  }
+  if ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") &&
+      !/^[A-Z]{3}$/.test(metric.currency ?? "")) {
+    return { read: null, reason: "INVALID_CURRENCY_IDENTITY" };
   }
   if (!unitIdentity(metric)) return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   return { read: { metric, minorUnits: scaled }, reason: null };

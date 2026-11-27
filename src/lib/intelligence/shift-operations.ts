@@ -209,7 +209,18 @@ function optionalText(value: unknown, max = 2000): value is string | null {
   return value === null || value === undefined || (typeof value === "string" && value.length <= max);
 }
 function timestamp(value: unknown): value is string {
-  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+  return strictTimestamp(value) !== null;
+}
+function strictTimestamp(value: unknown): number | null {
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value)) {
+    return null;
+  }
+  const datePart = value.slice(0, 10);
+  const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
+  if (!Number.isFinite(dateMillis) || new Date(dateMillis).toISOString().slice(0, 10) !== datePart) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 function day(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
