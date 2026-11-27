@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { InventoryStockCountPage } from './InventoryStockCountPage';
 
 const mocks = vi.hoisted(() => ({
@@ -60,11 +60,11 @@ describe('InventoryStockCountPage operational list', () => {
     render(<InventoryStockCountPage />);
     const table = await screen.findByRole('table', { name: 'جدول أصناف الجرد' });
     await waitFor(() => expect(table.querySelectorAll('tbody tr')).toHaveLength(10));
-    expect(screen.getByText('SKU-010')).toBeInTheDocument();
-    expect(screen.queryByText('SKU-011')).not.toBeInTheDocument();
+    expect(within(table).getByText('SKU-010')).toBeInTheDocument();
+    expect(within(table).queryByText('SKU-011')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'التالي' }));
-    expect(screen.getByText('SKU-011')).toBeInTheDocument();
-    expect(screen.getByText('SKU-012')).toBeInTheDocument();
+    expect(within(table).getByText('SKU-011')).toBeInTheDocument();
+    expect(within(table).getByText('SKU-012')).toBeInTheDocument();
     expect(screen.getByText('صفحة 2 من 2')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('عدد الأصناف في الصفحة'), { target: { value: '25' } });
     expect(table.querySelectorAll('tbody tr')).toHaveLength(12);
@@ -76,7 +76,7 @@ describe('InventoryStockCountPage operational list', () => {
     await screen.findByText('SKU-010');
     fireEvent.change(screen.getByLabelText('بحث في أصناف الجرد'), { target: { value: 'SKU-٠١٢' } });
     expect(table.querySelectorAll('tbody tr')).toHaveLength(1);
-    expect(screen.getByText('SKU-012')).toBeInTheDocument();
+    expect(within(table).getByText('SKU-012')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('بحث في أصناف الجرد'), { target: { value: 'منتج غير موجود' } });
     expect(screen.getByText('لا توجد أصناف تطابق البحث أو حالة العد الحالية.')).toBeInTheDocument();
   });
