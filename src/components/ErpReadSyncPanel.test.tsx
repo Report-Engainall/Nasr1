@@ -35,6 +35,26 @@ const result = {
     completedWatermark: "2026-11-27T22:00:00Z",
   },
   preview_error: null,
+  receipts: {
+    records: [{
+      pageNumber: 2,
+      httpStatus: 200,
+      hasNextCursor: false,
+      recordsReceived: 2,
+      counts: { created: 1, updated: 1, unchanged: 0, rejected: 0, conflicted: 0 },
+      completed: true,
+      committedVersion: 9,
+      recordedAt: "2026-11-28T00:30:00Z",
+      pendingWatermark: null,
+      completedWatermark: "2026-11-28T00:30:00Z",
+    }],
+    total: 3,
+    limit: 10,
+    offset: 0,
+    checkpointVersion: 9,
+    hasCursor: false,
+  },
+  receipts_error: null,
 };
 
 describe("ErpReadSyncPanel", () => {
@@ -83,6 +103,10 @@ describe("ErpReadSyncPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("اسم الصنف");
     expect(screen.getByRole("status")).toHaveTextContent("جديد");
     expect(screen.getByRole("status")).toHaveTextContent("42");
+    expect(screen.getByRole("region", { name: "سجل إيصالات صفحات ERP" })).toHaveTextContent("صفحة 2");
+    expect(screen.getByRole("region", { name: "سجل إيصالات صفحات ERP" })).toHaveTextContent("مكتملة");
+    expect(screen.getByRole("region", { name: "سجل إيصالات صفحات ERP" })).toHaveTextContent("HTTP 200");
+    expect(screen.getByRole("region", { name: "سجل إيصالات صفحات ERP" })).toHaveTextContent("جديدة: 1");
   });
 
   it("pages through staged records with preview-only reads and preserves original sync counters", async () => {

@@ -233,6 +233,31 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
             آخر علامة إكمال: {formatDate(result.checkpoint.completed_watermark)} · علامة التشغيل الجاري: {formatDate(result.checkpoint.pending_watermark)}
           </p>
           {result.preview_error && <p className="report-note" role="status">تعذر تحميل معاينة السجلات المرحلية ({result.preview_error})؛ بقيت نتيجة المزامنة محفوظة.</p>}
+          {result.receipts_error && <p className="report-note" role="status">تعذر تحميل سجل إيصالات صفحات ERP ({result.receipts_error})؛ بقيت نتيجة المزامنة محفوظة.</p>}
+          {result.receipts && (
+            <section aria-label="سجل إيصالات صفحات ERP" style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <strong>سجل إيصالات صفحات ERP</strong>
+                <span className="report-note">آخر {result.receipts.records.length} من {result.receipts.total} · إصدار {result.receipts.checkpointVersion}</span>
+              </div>
+              {result.receipts.records.length === 0
+                ? <p className="report-note">لم تُسجل صفحات مصدر لهذا النطاق حتى الآن.</p>
+                : result.receipts.records.map((receipt) => (
+                  <article key={receipt.committedVersion} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, display: "grid", gap: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                      <strong>صفحة {receipt.pageNumber} · {receipt.completed ? "اكتملت" : "تحتاج متابعة"}</strong>
+                      <span className="report-note">HTTP {receipt.httpStatus} · الإصدار {receipt.committedVersion}</span>
+                    </div>
+                    <div className="report-note">
+                      السجلات الواردة: {receipt.recordsReceived} · جديدة: {receipt.counts.created} · محدثة: {receipt.counts.updated} · مطابقة: {receipt.counts.unchanged} · مرفوضة: {receipt.counts.rejected} · متعارضة: {receipt.counts.conflicted}
+                    </div>
+                    <div className="report-note">
+                      {formatDate(receipt.recordedAt)} · {receipt.hasNextCursor ? "يوجد مؤشر متابعة محمي" : "لا يوجد مؤشر صفحة تالٍ"} · علامة الإكمال: {formatDate(receipt.completedWatermark)}
+                    </div>
+                  </article>
+                ))}
+            </section>
+          )}
           {result.preview && (
             <section style={{ display: "grid", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>

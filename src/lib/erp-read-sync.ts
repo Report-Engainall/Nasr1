@@ -46,6 +46,28 @@ export type ErpReadSyncPreview = {
   completedWatermark: string | null;
 };
 
+export type ErpReadSyncPageReceipt = {
+  pageNumber: number;
+  httpStatus: number;
+  hasNextCursor: boolean;
+  recordsReceived: number;
+  counts: ErpReadSyncResult["counts"];
+  completed: boolean;
+  committedVersion: number;
+  recordedAt: string;
+  pendingWatermark: string | null;
+  completedWatermark: string | null;
+};
+
+export type ErpReadSyncPageReceiptHistory = {
+  records: ErpReadSyncPageReceipt[];
+  total: number;
+  limit: number;
+  offset: number;
+  checkpointVersion: number;
+  hasCursor: boolean;
+};
+
 export type ErpReadSyncResult = {
   status: "complete" | "continuation_required";
   pages_committed: number;
@@ -59,6 +81,8 @@ export type ErpReadSyncResult = {
   };
   preview: ErpReadSyncPreview | null;
   preview_error: string | null;
+  receipts: ErpReadSyncPageReceiptHistory | null;
+  receipts_error: string | null;
   checkpoint: {
     version: number;
     has_cursor: boolean;
@@ -142,6 +166,57 @@ function parsePreview(value: unknown, objectType: ErpReadSyncObject): ErpReadSyn
   };
 }
 
+function parsePageReceiptHistory(value: unknown): ErpReadSyncPageReceiptHistory | null {
+  if (value === null) return null;
+  if (!isRecord(value) || !Array.isArray(value.records)) {
+    throw new Error("سجل إيصالات صفحات ERP لا يطابق عقد المصدر.");
+  }
+  const total = count(value.total, "receipts.total");
+  const limit = count(value.limit, "receipts.limit");
+  const offset = count(value.offset, "receipts.offset");
+  const checkpointVersion = count(value.checkpointVersion, "receipts.checkpointVersion");
+  if (typeof value.hasCursor !== "boolean" || limit < 1 || limit > 50 || offset > 5000 ||
+      value.records.length > limit || value.records.length > total) {
+    throw new Error("حدود سجل إيصالات صفحات ERP غير صالحة.");
+  }
+  const records = value.records.map((item): ErpReadSyncPageReceipt => {
+    if (!isRecord(item) ||
+        !Number.isSafeInteger(item.pageNumber) || Number(item.pageNumber) < 1 ||
+        !Number.isInteger(item.httpStatus) || Number(item.httpStatus) < 200 || Number(item.httpStatus) > 299 ||
+        typeof item.hasNextCursor !== "boolean" ||
+        !Number.isSafeInteger(item.recordsReceived) || Number(item.recordsReceived) < 0 || Number(item.recordsReceived) > 1000 ||
+        !isRecord(item.counts) ||
+        typeof item.completed !== "boolean" ||
+        !Number.isSafeInteger(item.committedVersion) || Number(item.committedVersion) < 1 ||
+        typeof item.recordedAt !== "string" || !Number.isFinite(Date.parse(item.recordedAt))) {
+      throw new Error("أحد إيصالات صفحات ERP غير صالح.");
+    }
+    const counts = {
+      created: count(item.counts.created, "receipt.created"),
+      updated: count(item.counts.updated, "receipt.updated"),
+      unchanged: count(item.counts.unchanged, "receipt.unchanged"),
+      rejected: count(item.counts.rejected, "receipt.rejected"),
+      conflicted: count(item.counts.conflicted, "receipt.conflicted"),
+    };
+    if (counts.created + counts.updated + counts.unchanged + counts.rejected + counts.conflicted !== Number(item.recordsReceived)) {
+      throw new Error("عدادات إيصال صفحة ERP لا تتطابق مع عدد السجلات الواردة.");
+    }
+    return {
+      pageNumber: Number(item.pageNumber),
+      httpStatus: Number(item.httpStatus),
+      hasNextCursor: item.hasNextCursor,
+      recordsReceived: Number(item.recordsReceived),
+      counts,
+      completed: item.completed,
+      committedVersion: Number(item.committedVersion),
+      recordedAt: item.recordedAt,
+      pendingWatermark: timestamp(item.pendingWatermark, "receipt.pendingWatermark"),
+      completedWatermark: timestamp(item.completedWatermark, "receipt.completedWatermark"),
+    };
+  });
+  return { records, total, limit, offset, checkpointVersion, hasCursor: value.hasCursor };
+}
+
 export function parseErpReadSyncResult(value: unknown, objectType: ErpReadSyncObject): ErpReadSyncResult {
   if (!isRecord(value) || (value.status !== "complete" && value.status !== "continuation_required") ||
       !isRecord(value.counts) || !isRecord(value.checkpoint)) {
@@ -166,6 +241,11 @@ export function parseErpReadSyncResult(value: unknown, objectType: ErpReadSyncOb
       typeof value.preview_error === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value.preview_error)
         ? value.preview_error
         : (() => { throw new Error("رمز خطأ معاينة ERP غير صالح."); })(),
+    receipts: value.receipts === undefined ? null : parsePageReceiptHistory(value.receipts),
+    receipts_error: value.receipts_error === undefined || value.receipts_error === null ? null :
+      typeof value.receipts_error === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value.receipts_error)
+        ? value.receipts_error
+        : (() => { throw new Error("رمز خطأ سجل إيصالات ERP غير صالح."); })(),
     checkpoint: {
       version: count(value.checkpoint.version, "version"),
       has_cursor: value.checkpoint.has_cursor,

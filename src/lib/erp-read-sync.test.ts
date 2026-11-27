@@ -32,6 +32,8 @@ const complete = {
     completedWatermark: "2026-11-28T00:45:00Z",
   },
   preview_error: null,
+  receipts: null,
+  receipts_error: null,
 };
 
 describe("ERP read-sync client contract", () => {
@@ -54,6 +56,51 @@ describe("ERP read-sync client contract", () => {
     expect(result.checkpoint.has_cursor).toBe(true);
     expect(JSON.stringify(result)).not.toContain("cursor_ciphertext");
     expect(JSON.stringify(result)).not.toContain("provider-cursor");
+  });
+
+  it("parses bounded page receipt history without exposing provider cursors or request IDs", () => {
+    const result = parseErpReadSyncResult({
+      ...complete,
+      receipts: {
+        records: [{
+          pageNumber: 2,
+          httpStatus: 200,
+          hasNextCursor: false,
+          recordsReceived: 2,
+          counts: { created: 1, updated: 1, unchanged: 0, rejected: 0, conflicted: 0 },
+          completed: true,
+          committedVersion: 12,
+          recordedAt: "2026-11-28T00:45:00Z",
+          pendingWatermark: null,
+          completedWatermark: "2026-11-28T00:45:00Z",
+        }],
+        total: 2,
+        limit: 10,
+        offset: 0,
+        checkpointVersion: 12,
+        hasCursor: false,
+      },
+      receipts_error: null,
+    }, "customer_financial_documents");
+    expect(result.receipts?.records[0]).toMatchObject({
+      pageNumber: 2, recordsReceived: 2, counts: { created: 1, updated: 1 }, completed: true,
+    });
+    expect(JSON.stringify(result.receipts)).not.toMatch(/cursor_ciphertext|response_sha256|external_request_id/i);
+  });
+
+  it("rejects receipt counts that do not reconcile to received record totals", () => {
+    expect(() => parseErpReadSyncResult({
+      ...complete,
+      receipts: {
+        records: [{
+          pageNumber: 1, httpStatus: 200, hasNextCursor: false, recordsReceived: 2,
+          counts: { created: 1, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+          completed: true, committedVersion: 1, recordedAt: "2026-11-28T00:45:00Z",
+          pendingWatermark: null, completedWatermark: null,
+        }],
+        total: 1, limit: 10, offset: 0, checkpointVersion: 1, hasCursor: false,
+      },
+    }, "customer_financial_documents")).toThrow();
   });
 
   it("rejects malformed preview cursor metadata", () => {
