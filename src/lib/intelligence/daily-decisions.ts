@@ -317,3 +317,45 @@ export function selectTopDailyDecisions(
     limit,
   };
 }
+
+
+export interface DailyDecisionActionEnvelope<T> {
+  decision: DecisionCandidate;
+  payload: T;
+}
+
+export interface DailyDecisionActionSelection<T> {
+  actions: DailyDecisionActionEnvelope<T>[];
+  totalCandidates: number;
+  omittedCount: number;
+  limit: number;
+}
+
+/**
+ * Applies the shared evidence-aware shortlist ranking to UI actions while
+ * preserving their source metadata and suppressing duplicate decision IDs.
+ */
+export function selectTopDailyDecisionActions<T>(
+  actions: readonly DailyDecisionActionEnvelope<T>[],
+  limit = 10,
+): DailyDecisionActionSelection<T> {
+  const unique = new Map<string, DailyDecisionActionEnvelope<T>>();
+  for (const action of actions) {
+    const id = typeof action?.decision?.id === "string" ? action.decision.id.trim() : "";
+    if (id && !unique.has(id)) unique.set(id, action);
+  }
+
+  const selection = selectTopDailyDecisions(
+    [...unique.values()].map(action => action.decision),
+    limit,
+  );
+  return {
+    actions: selection.candidates.flatMap(decision => {
+      const action = unique.get(decision.id);
+      return action ? [action] : [];
+    }),
+    totalCandidates: selection.totalCandidates,
+    omittedCount: selection.omittedCount,
+    limit: selection.limit,
+  };
+}
