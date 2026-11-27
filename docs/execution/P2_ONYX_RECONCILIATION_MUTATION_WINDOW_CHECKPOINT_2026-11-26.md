@@ -28,8 +28,8 @@ Branch: `p2/onyx-reconciliation-mutation-window-pg17-20261126`
 5. Existing valid apply/replay/rollback remains accepted when no later movement exists.
 
 ## Current integration boundary
-- Latest observed `main`: `85331656b51825e0e1316f31faff644a09c58602`; merge base is `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`.
-- PR #605 remains open and GitHub reports it mergeable. The latest compare is **16 commits ahead / 1 behind**, with exactly three changed paths relative to current `main`: the existing Onyx PG17 workflow, this checkpoint, and the Onyx source-date acceptance SQL.
+- Latest observed `main`: `586db787dd3b17c18ad7a2e2a1e3ea65d93a7f8e`; merge base is `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`.
+- PR #605 remains open. The latest compare is **17 commits ahead / 4 behind**, with exactly three changed paths relative to current `main`: the existing Onyx PG17 workflow, this checkpoint, and the Onyx source-date acceptance SQL. GitHub currently reports `mergeable=false`; P1 must synchronize before exact-head reruns.
 - P1 owns synchronization with latest `main`, scoped diff review, exact-head reruns of the dedicated Onyx PG17/P2 workflows after synchronization, and merge. P2 does not merge to `main`.
 - Do not transfer the results above to a post-sync SHA without rerunning the dedicated Onyx PostgreSQL 17 workflow on that exact SHA.
 
