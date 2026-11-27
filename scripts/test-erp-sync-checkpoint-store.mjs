@@ -267,7 +267,7 @@ async function main() {
   const committed5 = await persistPage(completed);
   assert.equal(committed5.checkpoint.version, 5);
   assert.equal(committed5.checkpoint.cursor_ciphertext, null);
-  assert.equal(committed5.checkpoint.completed_watermark, timestamp2);
+  assert.equal(Date.parse(committed5.checkpoint.completed_watermark), Date.parse(timestamp2));
 
   const delta = page({
     expectedVersion: 5,
@@ -290,7 +290,7 @@ async function main() {
   assert.equal(reset.version, 7);
   assert.equal(reset.cursor_ciphertext, null);
   assert.equal(reset.pending_watermark, null);
-  assert.equal(reset.completed_watermark, timestamp2, "cursor reset must preserve the last completed watermark");
+  assert.equal(Date.parse(reset.completed_watermark), Date.parse(timestamp2), "cursor reset must preserve the last completed watermark");
 
   const tenantScope = { ...baseScope, organizationId: organizationB };
   const tenantInit = await loadCheckpoint(tenantScope);
@@ -333,8 +333,8 @@ async function main() {
     "replay, rejected input and stale CAS must not create duplicate receipts");
   assert.equal(receipts.find((row) => row.organization_id === organizationB)?.pages, 1);
   assert.equal(checkpoints.find((row) => row.organization_id === organizationA)?.version, 7);
-  assert.equal(checkpoints.find((row) => row.organization_id === organizationA)?.completed_watermark.toISOString?.() ??
-    String(checkpoints.find((row) => row.organization_id === organizationA)?.completed_watermark), timestamp2);
+  assert.equal(new Date(checkpoints.find((row) => row.organization_id === organizationA)?.completed_watermark).getTime(),
+    new Date(timestamp2).getTime());
   assert.equal(checkpoints.find((row) => row.organization_id === organizationA)?.cursor_ciphertext, null);
 
   const latestA = records.find((row) => row.organization_id === organizationA);
