@@ -132,6 +132,12 @@ export type ErpPersistCounts = {
   conflicted: number;
 };
 
+export type ErpSourceReceipt = {
+  httpStatus: number;
+  externalRequestId: string | null;
+  responseSha256: string;
+};
+
 export type ErpPersistResult = {
   checkpoint: ErpCheckpoint;
   counts: ErpPersistCounts;
@@ -153,6 +159,8 @@ export interface ErpSyncCheckpointStore {
     scope: ErpSyncScope;
     expectedVersion: number;
     pageFingerprint: string;
+    /** Provider response proof is persisted with the page and checkpoint in the same transaction. */
+    receipt: ErpSourceReceipt;
     records: readonly ErpCanonicalRecord[];
     nextCursor: string | null;
     pendingWatermark: string | null;
@@ -353,9 +361,20 @@ function validateContract(connection: ErpConnection, contract: ErpReadContract):
   }
   const path = contract.path.trim();
   const segments = path.replace(/^\/+/, "").split("/");
+  let unsafeEncodedSegment = false;
+  try {
+    unsafeEncodedSegment = segments.some((segment) => {
+      const decoded = decodeURIComponent(segment);
+      return decoded === "." || decoded === ".." || decoded.includes("/") ||
+        decoded.includes("\\") || /[\u0000-\u001f\u007f]/.test(decoded);
+    });
+  } catch {
+    unsafeEncodedSegment = true;
+  }
   if (
     !path || path.length > MAX_PATH_LENGTH || path.startsWith("//") ||
     path.includes("?") || path.includes("#") || path.includes("\\") ||
+    unsafeEncodedSegment ||
     segments.some((segment) => !segment || segment === "." || segment === ".." || !PATH_SEGMENT_PATTERN.test(segment))
   ) {
     throw new ErpConnectorError("INVALID_PROVIDER_PATH", "مسار ERP يجب أن يكون مسارًا نسبيًا موثقًا دون URL أو معاملات خارجية.");
@@ -730,6 +749,26 @@ function validateCanonicalCandidate(record: ErpCanonicalRecord, scope: ErpSyncSc
   };
 }
 
+function validatePersistResult(value: ErpPersistResult): ErpPersistResult {
+  if (!isRecord(value) || typeof value.duplicatePage !== "boolean" || !isRecord(value.counts)) {
+    throw new ErpConnectorError("INVALID_CHECKPOINT_STORE_RESULT", "أعاد مخزن مزامنة ERP نتيجة غير مكتملة.");
+  }
+  const countFields: Array<keyof ErpPersistCounts> = ["created", "updated", "unchanged", "rejected", "conflicted"];
+  const counts = {} as ErpPersistCounts;
+  for (const field of countFields) {
+    const count = value.counts[field];
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+      throw new ErpConnectorError("INVALID_CHECKPOINT_STORE_RESULT", "أعاد مخزن مزامنة ERP عدادًا غير صالح: " + field);
+    }
+    counts[field] = count;
+  }
+  return {
+    checkpoint: validateCheckpoint(value.checkpoint),
+    counts,
+    duplicatePage: value.duplicatePage,
+  };
+}
+
 function validateCheckpoint(value: ErpCheckpoint): ErpCheckpoint {
   if (!value || !Number.isSafeInteger(value.version) || value.version < 0) {
     throw new ErpConnectorError("INVALID_SYNC_CHECKPOINT", "إصدار checkpoint غير صالح.");
@@ -876,17 +915,22 @@ export async function runIncrementalReadOnlySync(input: {
       recordKeys: records.map((record) => record.idempotencyKey),
     }));
 
-    const persisted = await input.store.persistPageAtomically({
+    const persisted = validatePersistResult(await input.store.persistPageAtomically({
       scope: scope,
       expectedVersion: checkpoint.version,
       pageFingerprint,
+      receipt: {
+        httpStatus: page.httpStatus,
+        externalRequestId: page.externalRequestId,
+        responseSha256: page.responseSha256,
+      },
       records,
       nextCursor: page.nextCursor,
       pendingWatermark,
       completedWatermark,
       completed,
-    });
-    checkpoint = validateCheckpoint(persisted.checkpoint);
+    }));
+    checkpoint = persisted.checkpoint;
     if (!persisted.duplicatePage) {
       pagesCommitted += 1;
       recordsRead += records.length;
