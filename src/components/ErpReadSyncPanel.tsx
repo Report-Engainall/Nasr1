@@ -142,16 +142,45 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
         preview_only: true,
         preview_offset: nextOffset,
         preview_limit: result.preview.limit,
+        receipts_offset: result.receipts?.offset ?? 0,
+        receipts_limit: result.receipts?.limit ?? 10,
       });
       if (!page.preview) throw new Error("لم تُرجع خدمة المعاينة صفحة مرحلية صالحة.");
       setResult((previous) => previous ? {
         ...previous,
         preview: page.preview,
         preview_error: page.preview_error,
+        receipts: page.receipts,
+        receipts_error: page.receipts_error,
         checkpoint: page.checkpoint,
       } : previous);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل صفحة المعاينة.");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
+  async function loadReceiptHistory(nextOffset: number) {
+    if (!canManage || busy || previewBusy || !activeRequest || !result) return;
+    setPreviewBusy(true);
+    setError("");
+    try {
+      const page = await runErpReadSync({
+        ...activeRequest,
+        preview_only: true,
+        preview_offset: result.preview?.offset ?? 0,
+        preview_limit: result.preview?.limit ?? 20,
+        receipts_offset: nextOffset,
+        receipts_limit: result.receipts?.limit ?? 10,
+      });
+      setResult((previous) => previous ? {
+        ...previous,
+        receipts: page.receipts,
+        receipts_error: page.receipts_error,
+      } : previous);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل إيصالات الصفحات.");
     } finally {
       setPreviewBusy(false);
     }
@@ -238,7 +267,25 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
             <section aria-label="سجل إيصالات صفحات ERP" style={{ display: "grid", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                 <strong>سجل إيصالات صفحات ERP</strong>
-                <span className="report-note">آخر {result.receipts.records.length} من {result.receipts.total} · إصدار {result.receipts.checkpointVersion}</span>
+                <span className="report-note">المعروض {result.receipts.records.length} من {result.receipts.total} · إصدار {result.receipts.checkpointVersion}</span>
+              </div>
+              <div role="group" aria-label="صفحات سجل إيصالات ERP" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span className="report-note">
+                  الإيصالات {result.receipts.total === 0 ? "0–0" : (result.receipts.offset + 1) + "–" + (result.receipts.offset + result.receipts.records.length)} من {result.receipts.total}
+                </span>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => void loadReceiptHistory(Math.max(0, result.receipts!.offset - result.receipts!.limit))}
+                  disabled={!activeRequest || busy || previewBusy || result.receipts.offset <= 0}
+                >السابق</button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => void loadReceiptHistory(result.receipts!.offset + result.receipts!.limit)}
+                  disabled={!activeRequest || busy || previewBusy || result.receipts.offset + result.receipts.limit >= result.receipts.total}
+                >التالي</button>
+                {previewBusy && <span className="report-note" role="status">جار تحميل سجل الإيصالات دون إعادة المزامنة…</span>}
               </div>
               {result.receipts.records.length === 0
                 ? <p className="report-note">لم تُسجل صفحات مصدر لهذا النطاق حتى الآن.</p>

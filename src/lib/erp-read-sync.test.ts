@@ -155,6 +155,25 @@ describe("ERP read-sync client contract", () => {
     expect(mocks.invoke).toHaveBeenCalledWith("erp-read-sync", { body: request });
   });
 
+  it("sends bounded receipt-history pagination through a preview-only server read", async () => {
+    mocks.invoke.mockResolvedValueOnce({ data: complete, error: null });
+    const request = {
+      provider: "onyx_pro" as const,
+      object_type: "customer_financial_documents" as const,
+      company_external_id: "COMPANY-01",
+      branch_external_id: "BRANCH-01",
+      max_pages: 2,
+      max_records: 500,
+      preview_only: true,
+      preview_offset: 0,
+      preview_limit: 20,
+      receipts_offset: 10,
+      receipts_limit: 5,
+    };
+    await expect(runErpReadSync(request)).resolves.toEqual(complete);
+    expect(mocks.invoke).toHaveBeenCalledWith("erp-read-sync", { body: request });
+  });
+
   it("sends bounded preview-only pagination through the existing authenticated function", async () => {
     mocks.invoke.mockResolvedValueOnce({ data: complete, error: null });
     const request = {

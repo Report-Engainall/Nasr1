@@ -24,6 +24,8 @@ export type ErpReadSyncRequest = {
   preview_only?: boolean;
   preview_offset?: number;
   preview_limit?: number;
+  receipts_offset?: number;
+  receipts_limit?: number;
 };
 
 export type ErpReadSyncDisposition = "created" | "updated" | "unchanged" | "rejected" | "conflicted";

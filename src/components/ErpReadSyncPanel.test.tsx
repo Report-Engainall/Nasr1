@@ -109,6 +109,52 @@ describe("ErpReadSyncPanel", () => {
     expect(screen.getByRole("region", { name: "سجل إيصالات صفحات ERP" })).toHaveTextContent("جديدة: 1");
   });
 
+  it("pages through ERP receipt history without resynchronizing or replacing sync totals", async () => {
+    render(<ErpReadSyncPanel canManage />);
+    fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
+    fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "تنفيذ مزامنة القراءة" }));
+    await screen.findByText("صفحة 2 · مكتملة");
+
+    mocks.runErpReadSync.mockResolvedValueOnce({
+      ...result,
+      pages_committed: 0,
+      records_read: 0,
+      counts: { created: 0, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+      receipts: {
+        ...result.receipts,
+        records: [{
+          ...result.receipts.records[0],
+          pageNumber: 1,
+          committedVersion: 8,
+          counts: { created: 0, updated: 0, unchanged: 2, rejected: 0, conflicted: 0 },
+        }],
+        offset: 10,
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }).filter ? screen.getByRole("button", { name: "التالي" }).filter : screen.getByRole("group", { name: "صفحات سجل إيصالات ERP" }).querySelector("button:last-of-type") as unknown as HTMLElement);
+    await screen.findByText("صفحة 1 · مكتملة");
+    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(2, {
+      provider: "onyx_pro",
+      object_type: "products",
+      company_external_id: "COMPANY-01",
+      branch_external_id: "BRANCH-01",
+      warehouse_external_id: null,
+      currency_code: "YER",
+      max_pages: 2,
+      max_records: 500,
+      preview_only: true,
+      preview_offset: 0,
+      preview_limit: 20,
+      receipts_offset: 10,
+      receipts_limit: 10,
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("125");
+    expect(screen.getByRole("status")).toHaveTextContent("جديدة: 10");
+    expect(screen.getByRole("group", { name: "صفحات سجل إيصالات ERP" })).toHaveTextContent("الإيصالات 11–11 من 3");
+  });
+
   it("pages through staged records with preview-only reads and preserves original sync counters", async () => {
     render(<ErpReadSyncPanel canManage />);
     fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
