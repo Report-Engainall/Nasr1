@@ -92,6 +92,13 @@ describe("business health assistant source completeness", () => {
       completeSourceAggregation: true,
       asOf,
     };
+    const revenueReady: Extract<BusinessHealthAssistantSources["productRevenueConcentration"], { status: "READY" }> = {
+      status: "READY",
+      invoiceCount: 20,
+      currencyCount: 1,
+      completePopulation: true,
+      asOf,
+    };
     expect(areBusinessHealthAssistantSourcesComplete(complete, "VERIFIED")).toBe(true);
     expect(areBusinessHealthAssistantSourcesComplete({
       ...complete,
@@ -104,6 +111,14 @@ describe("business health assistant source completeness", () => {
     expect(areBusinessHealthAssistantSourcesComplete({
       ...complete,
       inventory: { ...complete.inventory, asOf: "2026-11-17T12:00:00" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      productRevenueConcentration: { ...revenueReady, asOf: "2026-02-31T12:00:00.000Z" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      productRevenueConcentration: { ...revenueReady, asOf: "2026-11-17T12:00:00" },
     }, "VERIFIED")).toBe(false);
   });
 
