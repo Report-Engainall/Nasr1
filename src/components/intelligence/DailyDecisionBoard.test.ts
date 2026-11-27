@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
 import {
+  buildDailyDecisionCsv,
   filterDailyDecisionRecords,
+  isDailyDecisionDueWithin,
   isDailyDecisionOverdue,
+  isDailyDecisionUnscheduled,
   normalizeDailyDecisionSearch,
   paginateDailyDecisionRecords,
   summarizeDailyDecisionBoard,
@@ -115,6 +118,54 @@ describe("daily decision work queue selectors", () => {
     ).map(item => item.decisionId).sort()).toEqual(["due-now", "late"]);
   });
 
+  it("separates overdue, upcoming 24-hour and 7-day review windows from unscheduled items", () => {
+    const late = decision("late", "ASSIGNED", {
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-11-28T09:00:00.000Z",
+    });
+    const dueSoon = decision("soon", "IN_REVIEW", {
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-11-28T22:00:00.000Z",
+    });
+    const dueThisWeek = decision("week", "APPROVED", {
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-12-02T10:00:00.000Z",
+    });
+    const noSchedule = decision("no-date", "PROPOSED", {
+      reviewDisposition: "NOT_SCHEDULED",
+    });
+    const terminal = decision("closed", "MEASURED", {
+      reviewDisposition: "NOT_SCHEDULED",
+    });
+
+    expect(isDailyDecisionDueWithin(dueSoon, NOW, 24 * 60 * 60 * 1000)).toBe(true);
+    expect(isDailyDecisionDueWithin(dueThisWeek, NOW, 24 * 60 * 60 * 1000)).toBe(false);
+    expect(isDailyDecisionDueWithin(dueThisWeek, NOW, 7 * 24 * 60 * 60 * 1000)).toBe(true);
+    expect(isDailyDecisionUnscheduled(noSchedule)).toBe(true);
+    expect(isDailyDecisionUnscheduled(terminal)).toBe(false);
+    expect(filterDailyDecisionRecords([late, dueSoon, dueThisWeek, noSchedule, terminal], "DUE_24H", "", NOW)
+      .map(item => item.decisionId)).toEqual(["soon"]);
+    expect(filterDailyDecisionRecords([late, dueSoon, dueThisWeek, noSchedule, terminal], "DUE_7_DAYS", "", NOW)
+      .map(item => item.decisionId).sort()).toEqual(["soon", "week"]);
+    expect(filterDailyDecisionRecords([late, dueSoon, dueThisWeek, noSchedule, terminal], "UNSCHEDULED", "", NOW)
+      .map(item => item.decisionId)).toEqual(["no-date"]);
+  });
+
+  it("exports only supplied rows and protects spreadsheet formula-like fields", () => {
+    const unsafe = decision("csv-1", "PROPOSED", {
+      proposedResult: '=HYPERLINK("https://example.invalid","open")',
+      owner: "\t@SUM(A1:A2)",
+      decisionReason: 'contains "quotes", commas, and a newline\\nsecond line',
+    });
+    const csv = buildDailyDecisionCsv([unsafe]);
+
+    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv).toContain('"\'=HYPERLINK(""https://example.invalid"",""open"")"');
+    expect(csv).toContain('"\'\\t@SUM(A1:A2)"');
+    expect(csv).toContain('"contains ""quotes"", commas, and a newline');
+    expect(buildDailyDecisionCsv([])).toContain("مرجع القرار");
+  });
+
   it("isolates executed decisions waiting for measurement from fully closed outcomes", () => {
     const executed = decision("awaiting-proof", "EXECUTED");
     const measured = decision("measured", "MEASURED");
@@ -223,6 +274,9 @@ describe("daily decision work queue selectors", () => {
       ALL: 4,
       OPEN: 2,
       OVERDUE: 1,
+      DUE_24H: 0,
+      DUE_7_DAYS: 0,
+      UNSCHEDULED: 0,
       AWAITING_MEASUREMENT: 1,
       CLOSED: 2,
     });
