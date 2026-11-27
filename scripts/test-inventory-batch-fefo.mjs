@@ -120,6 +120,28 @@ async function main(){
  const stillProcessing=(await db.unsafe("select status from public.orders where id=$1::uuid",[order3]))[0];
  assert.equal(stillProcessing.status,"processing","failed shipment must leave order status unchanged");
 
+ await as(manager);
+ const expiredWorklist=await rpc(
+  "select public.list_orders_with_expired_fefo_reservations(50,0) result",
+ );
+ assert.equal(expiredWorklist.limit,50);
+ assert.equal(expiredWorklist.offset,0);
+ assert.ok(expiredWorklist.total>=1);
+ const worklistOrder=expiredWorklist.orders.find(entry=>entry.order_id===order3);
+ assert.ok(worklistOrder,"the manager work queue must return the processing order with an expired reservation");
+ assert.equal(worklistOrder.status,"processing");
+ assert.equal(Number(worklistOrder.expired_reserved_quantity),1);
+ assert.equal(worklistOrder.expired_lot_count,1);
+ assert.equal(worklistOrder.expired_lots[0].batch_number,late.batch);
+ assert.equal(worklistOrder.expired_lots[0].reservation_matches_batch,true);
+ assert.ok(Number(worklistOrder.expired_lots[0].replacement_available_quantity)>=1,
+  "work queue must expose in-date replacement quantity before the manager reallocates");
+ await assert.rejects(
+  () => rpc("select public.list_orders_with_expired_fefo_reservations(101,0) result"),
+  error => String(error?.code)==="22023",
+  "expired FEFO work queue must reject invalid pagination limits",
+ );
+
  const replacementDate=(await db.unsafe(
   "select to_char((pg_catalog.now() at time zone 'UTC')::date+1,'YYYY-MM-DD') d",
  ))[0].d;
@@ -161,6 +183,14 @@ async function main(){
  assert.equal(noExpiredRemainder.reallocation_status,"no_expired_reservations");
  assert.equal(Number(noExpiredRemainder.reallocated_quantity),0,
   "the server must report an explicit no-op when the order has no expired outstanding reservation");
+ const worklistAfterReallocation=await rpc(
+  "select public.list_orders_with_expired_fefo_reservations(50,0) result",
+ );
+ assert.equal(
+  worklistAfterReallocation.orders.some(entry=>entry.order_id===order3),
+  false,
+  "successfully reallocated orders must leave the expired reservation work queue",
+ );
  await assert.rejects(
   () => rpc(
    "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
@@ -296,6 +326,9 @@ async function main(){
   "select " +
    "has_function_privilege('anon','public.reallocate_expired_order_reservations(uuid,text,text)','EXECUTE') as anon_execute," +
    "has_function_privilege('authenticated','public.reallocate_expired_order_reservations(uuid,text,text)','EXECUTE') as authenticated_execute," +
+   "has_function_privilege('anon','public.list_orders_with_expired_fefo_reservations(integer,integer)','EXECUTE') as anon_worklist_execute," +
+   "has_function_privilege('authenticated','public.list_orders_with_expired_fefo_reservations(integer,integer)','EXECUTE') as authenticated_worklist_execute," +
+   "has_function_privilege('service_role','public.list_orders_with_expired_fefo_reservations(integer,integer)','EXECUTE') as service_worklist_execute," +
    "has_function_privilege('service_role','public.reallocate_expired_order_reservations(uuid,text,text)','EXECUTE') as service_execute," +
    "has_table_privilege('authenticated','public.inventory_order_reservation_reallocations','SELECT') as authenticated_table_read," +
    "has_table_privilege('service_role','public.inventory_order_reservation_reallocations','SELECT') as service_table_read",
@@ -305,6 +338,9 @@ async function main(){
   "authenticated callers can reach only the RPC; the function enforces manager/admin capability");
  assert.equal(reallocationPrivileges[0].service_execute,false,
   "service_role must not expose the SECURITY DEFINER reallocation API through the Data API");
+ assert.equal(reallocationPrivileges[0].authenticated_worklist_execute,true);
+ assert.equal(reallocationPrivileges[0].anon_worklist_execute,false);
+ assert.equal(reallocationPrivileges[0].service_worklist_execute,false);
  assert.equal(reallocationPrivileges[0].authenticated_table_read,false);
  assert.equal(reallocationPrivileges[0].service_table_read,false,
   "the server-only idempotency ledger is not directly readable");
