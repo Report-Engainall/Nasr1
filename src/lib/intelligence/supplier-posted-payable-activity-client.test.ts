@@ -89,6 +89,16 @@ describe("supplier posted payable activity client", () => {
     await expect(fetchSupplierPostedPayableActivity(request)).resolves.toMatchObject({ ok: false, status: "ERROR" });
   });
 
+  it.each([
+    ["timezone-less timestamp", "2026-11-17T12:00:00"],
+    ["impossible calendar date", "2026-02-31T12:00:00.000Z"],
+    ["date-only value", "2026-11-17"],
+  ])("rejects an invalid %s before making an RPC request", async (_label, invalidAsOf) => {
+    const result = await fetchSupplierPostedPayableActivity({ ...request, asOf: invalidAsOf });
+    expect(result).toMatchObject({ ok: false, status: "ERROR" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid periods before making an RPC request", async () => {
     const result = await fetchSupplierPostedPayableActivity({ ...request, from: "2026-02-31" });
     expect(result).toMatchObject({ ok: false, status: "ERROR" });
