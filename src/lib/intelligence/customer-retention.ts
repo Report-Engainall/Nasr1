@@ -318,9 +318,11 @@ export function buildCustomerRetentionDecisionCandidates(input: {
     const evidenceIds = Array.isArray(action.evidenceIds) ? [...new Set(action.evidenceIds)] : [];
     const metricIds = Array.isArray(action.metricIds) ? [...new Set(action.metricIds)] : [];
     const metricKeys = Array.isArray(action.metricKeys) ? [...new Set(action.metricKeys)] : [];
-    const formulaVersions = Array.isArray(action.formulaVersions) ? [...new Set(action.formulaVersions)] : [];
+    // Two metric rows may share one registered formula identity; keep both row versions.
+    const formulaVersions = Array.isArray(action.formulaVersions) ? [...action.formulaVersions] : [];
     if (!customerRef || evidenceIds.length === 0 || metricIds.length !== 2 ||
-        metricKeys.length !== 2 || formulaVersions.length !== 2 ||
+        metricKeys.length === 0 || formulaVersions.length !== 2 ||
+        formulaVersions.some(value => typeof value !== "string" || !value.trim()) ||
         evidenceIds.length !== action.evidenceIds.length ||
         metricIds.length !== action.metricIds.length ||
         metricKeys.length !== action.metricKeys.length) continue;
@@ -367,7 +369,6 @@ export function buildCustomerRetentionDecisionCandidates(input: {
     });
   }
 
-  return candidates.sort((left, right) =>
-    right.priorityScore - left.priorityScore || left.id.localeCompare(right.id)
-  );
+  // The source action queue already ranks priority and recency; preserve that order.
+  return candidates;
 }
