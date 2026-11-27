@@ -192,6 +192,11 @@ async function main(){
   "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",
   [originalReservation.id],
  ))[0];
+ const sourceBalanceBefore=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ assert.ok(sourceBalanceBefore,"expired source warehouse aggregate balance must exist");
  const movementCountBefore=(await db.unsafe(
   "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
   [order3],
@@ -234,6 +239,18 @@ async function main(){
   "failed reallocation must restore the expired source batch reservation");
  assert.equal(Number(candidateStateAfter.reserved),Number(candidateStateBefore.reserved),
   "failed reallocation must not reserve the mismatched target batch");
+ const sourceBalanceAfter=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ ))[0];
+ const targetBalanceAfterFailure=(await db.unsafe(
+  "select quantity_on_hand::text on_hand,quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,alternateWarehouse.id],
+ ))[0];
+ assert.equal(Number(sourceBalanceAfter.reserved),Number(sourceBalanceBefore.reserved),
+  "failed reallocation must restore the source warehouse aggregate reservation counter");
+ assert.equal(Number(targetBalanceAfterFailure.reserved),Number(targetBalanceBefore.reserved),
+  "failed reallocation must not increment the replacement warehouse aggregate reservation counter");
  await db.unsafe(
   "update public.inventory_balances set quantity_on_hand=$3::numeric,last_movement_at=now(),updated_at=now() " +
   "where product_id=$1::uuid and warehouse_id=$2::uuid",
