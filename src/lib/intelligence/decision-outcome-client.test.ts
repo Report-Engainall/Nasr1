@@ -410,22 +410,24 @@ describe("persisted decision outcome client", () => {
 });
 
 
+async function expectInvalidPersistedOutcome(value: unknown) {
+  rpc.mockResolvedValueOnce({ data: { items: [value], total: 1 }, error: null });
+  await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+}
+
 describe("decision outcome strict evidence clock and lifecycle chronology", () => {
-  it.each([
-    ["timezone-less creation time", { ...outcome, createdAt: "2026-10-31T10:00:00.000" }],
-    ["impossible calendar update time", { ...outcome, updatedAt: "2026-02-30T10:00:00.000Z" }],
-    ["out-of-range approval offset", {
+  it("withholds persisted outcomes with timezone-less and impossible clocks", async () => {
+    await expectInvalidPersistedOutcome({ ...outcome, createdAt: "2026-10-31T10:00:00.000" });
+    await expectInvalidPersistedOutcome({ ...outcome, updatedAt: "2026-02-30T10:00:00.000Z" });
+    await expectInvalidPersistedOutcome({
       ...outcome,
       approvedAt: "2026-10-31T10:02:00.000+14:01",
       approvedBy: "22222222-2222-4222-8222-222222222222",
-    }],
-    ["timezone-less history event", {
+    });
+    await expectInvalidPersistedOutcome({
       ...outcome,
       history: [{ ...outcome.history[0], at: "2026-10-31T10:00:00.000" }],
-    }],
-  ])("withholds a persisted outcome with a non-strict %s", async (_label, invalidOutcome) => {
-    rpc.mockResolvedValueOnce({ data: { items: [invalidOutcome], total: 1 }, error: null });
-    await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+    });
   });
 
   it("accepts the ISO maximum timezone offset for persisted lifecycle clocks", async () => {
@@ -464,28 +466,34 @@ describe("decision outcome strict evidence clock and lifecycle chronology", () =
     await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
   });
 
-  it.each([
-    ["timezone-less proof clock", {
-      ...rankedCandidateSnapshot,
-      proof: { ...rankedCandidateSnapshot.proof, asOf: "2026-10-31T10:00:00.000" },
-    }],
-    ["proof clock after candidate creation", {
-      ...rankedCandidateSnapshot,
-      proof: { ...rankedCandidateSnapshot.proof, asOf: "2026-10-31T10:01:00.000Z" },
-    }],
-    ["impossible expiry date", {
-      ...rankedCandidateSnapshot,
-      expiresAt: "2026-02-30T10:00:00.000Z",
-    }],
-    ["expiry before candidate creation", {
-      ...rankedCandidateSnapshot,
-      expiresAt: "2026-10-31T09:59:59.999Z",
-    }],
-  ])("rejects a candidate snapshot with %s", async (_label, candidateSnapshot) => {
-    rpc.mockResolvedValueOnce({
-      data: { items: [{ ...outcome, candidateSnapshot }], total: 1 },
-      error: null,
+  it("rejects candidate evidence clocks after creation, local clocks and invalid expiry", async () => {
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshot,
+        proof: { ...rankedCandidateSnapshot.proof, asOf: "2026-10-31T10:00:00.000" },
+      },
     });
-    await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshot,
+        proof: { ...rankedCandidateSnapshot.proof, asOf: "2026-10-31T10:01:00.000Z" },
+      },
+    });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshot,
+        expiresAt: "2026-02-30T10:00:00.000Z",
+      },
+    });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshot,
+        expiresAt: "2026-10-31T09:59:59.999Z",
+      },
+    });
   });
 });
