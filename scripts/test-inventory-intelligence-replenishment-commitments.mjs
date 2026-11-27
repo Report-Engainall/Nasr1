@@ -150,7 +150,7 @@ async function tableCounts() {
     "(select count(*)::bigint from public.purchase_receipt_items where organization_id=$1::uuid) as receipt_items," +
     "(select count(*)::bigint from public.inventory_balances ib join public.warehouses w on w.id=ib.warehouse_id where w.organization_id=$1::uuid) as balances," +
     "(select count(*)::bigint from public.inventory_movements im join public.warehouses w on w.id=im.warehouse_id where w.organization_id=$1::uuid) as movements," +
-    "( select count(*)::bigint from public.product_unit_conversions where organization_id=$1::uuid) as unit_conversions," +
+    "(select count(*)::bigint from public.product_unit_conversions where organization_id=$1::uuid) as unit_conversions," +
     "(select count(*)::bigint from public.audit_logs where organization_id=$1::uuid) as audit_rows",
     [organizationId],
   );
@@ -269,6 +269,7 @@ async function main() {
   assert.ok(incomingEvidence, "open-PO metric lineage must resolve to source evidence");
   assert.equal(incomingEvidence.status, "VERIFIED");
   assert.equal(incomingEvidence.completeness, "COMPLETE");
+  assert.equal(incomingEvidence.source.version, "v2");
 
   const salesWindow = committedProduct.soldQuantityWindow;
   assert.equal(salesWindow.period?.from, periodFrom, "sales metric evidence must retain the exact requested start date");
@@ -281,7 +282,7 @@ async function main() {
   );
   assert.ok(mismatchProduct, "UOM mismatch product must be in the aggregate");
   const mismatchMetric = mismatchProduct.incomingPurchaseQuantity;
-  assert.equal(mismatchMetric.value, null, "mismatched unit snapshot must never be summed or converted");
+  assert.equal(mismatchMetric.value, null, "an unknown unit factor must never be guessed or summed");
   assert.equal(mismatchMetric.status, "NEEDS_REVIEW");
   assert.equal(mismatchMetric.completeness, "PARTIAL");
   assert.equal(mismatchMetric.quality, "WARNINGS");
