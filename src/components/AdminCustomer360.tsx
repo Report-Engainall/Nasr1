@@ -1008,6 +1008,16 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
         onPrint={printCustomer360}
       />
       <CustomerFinancialSourceNotice source={currentFinancialSource} loading={currentCustomerLoading} error={currentFinancialSourceError} />
+      {currentFinancialSource && currentFinancialSource.source_mode !== 'APP_ONLY' ? (
+        <section className="report-note" role="note" aria-label="نطاق الحساب في النظام المحاسبي الخارجي">
+          <strong>هوية حساب العميل في النظام المحاسبي الخارجي</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginTop: 8 }}>
+            <div><span className="muted">الشركة</span><div dir="ltr">{currentFinancialSource.company_external_ref || 'غير متاح'}</div></div>
+            <div><span className="muted">الفرع</span><div dir="ltr">{currentFinancialSource.branch_external_ref || 'غير متاح'}</div></div>
+            <div><span className="muted">حساب العميل</span><div dir="ltr">{currentFinancialSource.external_account_ref || 'غير متاح'}</div></div>
+          </div>
+        </section>
+      ) : null}
       {currentCustomerLoading ? <Loading /> : error ? <ErrorBox message={error} /> :
         currentFinancialSource && !canReadCustomerAppLedger(currentFinancialSource) ? (
           <p className="report-note" role="status">

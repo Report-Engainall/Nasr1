@@ -10,7 +10,19 @@ export type CustomerFinancialSource = {
   revision: number;
   is_stale: boolean;
   can_read_app_ledger: boolean;
+  external_account_ref?: string | null;
+  company_external_ref?: string | null;
+  branch_external_ref?: string | null;
 };
+function parseExternalReference(value: unknown, field: string, maxLength: number): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new Error("مرجع النظام الخارجي غير صالح في " + field + ".");
+  const normalized = value.trim();
+  if (normalized.length < 1 || normalized.length > maxLength || normalized.includes("://") || normalized.includes("@")) {
+    throw new Error("مرجع النظام الخارجي غير آمن في " + field + ".");
+  }
+  return normalized;
+}
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
@@ -83,10 +95,25 @@ export async function fetchStaffCustomerFinancialSource(customerId: string): Pro
   }
   const canReadAppLedger = row.source_mode === "APP_ONLY" &&
     row.source_status === "active" && row.is_stale === false;
-  return parseCustomerFinancialSource({
+  const source = parseCustomerFinancialSource({
     ...row,
     can_read_app_ledger: canReadAppLedger,
   });
+  const externalAccountRef = parseExternalReference(row.external_account_ref, "external_account_ref", 160);
+  const companyExternalRef = parseExternalReference(row.company_external_ref, "company_external_ref", 256);
+  const branchExternalRef = parseExternalReference(row.branch_external_ref, "branch_external_ref", 256);
+  if (source.source_mode !== "APP_ONLY" && !externalAccountRef) {
+    throw new Error("مصدر العميل الخارجي لا يحتوي معرف حساب محاسبيًا صالحًا.");
+  }
+  if (Boolean(companyExternalRef) !== Boolean(branchExternalRef)) {
+    throw new Error("نطاق ربط ERP غير مكتمل؛ يجب تحديد الشركة والفرع معًا.");
+  }
+  return {
+    ...source,
+    external_account_ref: externalAccountRef,
+    company_external_ref: companyExternalRef,
+    branch_external_ref: branchExternalRef,
+  };
 }
 
 

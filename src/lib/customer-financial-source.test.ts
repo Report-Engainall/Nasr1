@@ -96,8 +96,53 @@ describe("staff customer financial source lookup", () => {
       },
       error: null,
     });
+    mocks.rpc.mockResolvedValue({
+      data: {
+        customer_id: "11111111-1111-4111-8111-111111111111",
+        source_mode: "ONYX",
+        source_status: "active",
+        source_as_of: "2026-11-27T20:00:00Z",
+        last_synced_at: "2026-11-27T20:05:00Z",
+        verified_at: "2026-11-27T19:55:00Z",
+        revision: 2,
+        is_stale: false,
+        external_account_ref: "ONYX-CUST-0001",
+        company_external_ref: "ONYX-COMPANY-01",
+        branch_external_ref: "ONYX-BRANCH-01",
+      },
+      error: null,
+    });
     const source = await fetchStaffCustomerFinancialSource("11111111-1111-4111-8111-111111111111");
     expect(canReadCustomerAppLedger(source)).toBe(false);
+    expect(source.external_account_ref).toBe("ONYX-CUST-0001");
+    expect(source.company_external_ref).toBe("ONYX-COMPANY-01");
+    expect(source.branch_external_ref).toBe("ONYX-BRANCH-01");
+  });
+
+  it("rejects unsafe or partial external identity scopes from the staff resolver", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        customer_id: "11111111-1111-4111-8111-111111111111",
+        source_mode: "ONYX", source_status: "active",
+        source_as_of: "2026-11-27T20:00:00Z", last_synced_at: "2026-11-27T20:05:00Z",
+        verified_at: "2026-11-27T19:55:00Z", revision: 2, is_stale: false,
+        external_account_ref: "ONYX-CUST-0001", company_external_ref: "https://erp.example/company",
+        branch_external_ref: "ONYX-BRANCH-01",
+      },
+      error: null,
+    });
+    await expect(fetchStaffCustomerFinancialSource("11111111-1111-4111-8111-111111111111")).rejects.toThrow(/غير آمن/);
+    mocks.rpc.mockResolvedValue({
+      data: {
+        customer_id: "11111111-1111-4111-8111-111111111111",
+        source_mode: "ONYX", source_status: "active",
+        source_as_of: "2026-11-27T20:00:00Z", last_synced_at: "2026-11-27T20:05:00Z",
+        verified_at: "2026-11-27T19:55:00Z", revision: 2, is_stale: false,
+        external_account_ref: "ONYX-CUST-0001", company_external_ref: "ONYX-COMPANY-01",
+      },
+      error: null,
+    });
+    await expect(fetchStaffCustomerFinancialSource("11111111-1111-4111-8111-111111111111")).rejects.toThrow(/الشركة والفرع معًا/);
   });
 
   it("fails closed when staff source lookup is unavailable", async () => {
