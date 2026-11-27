@@ -1,3 +1,4 @@
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 export type ProcessBottleneckKey = "ORDERS" | "QUOTES" | "PURCHASE" | "INVOICES" | "TASKS";
 export type ProcessWaitClass =
   | "MIXED_OR_UNATTRIBUTED" | "INTERNAL_RESPONSE" | "INTERNAL_DRAFT_REVIEW"
@@ -55,7 +56,7 @@ function day(v: unknown): v is string {
   const d = new Date(v + "T00:00:00.000Z");
   return Number.isFinite(d.getTime()) && d.toISOString().slice(0,10) === v;
 }
-function ts(v: unknown): v is string { return typeof v === "string" && v.includes("T") && Number.isFinite(Date.parse(v)); }
+function ts(v: unknown): v is string { return timestampMicroseconds(v) !== null; }
 function text(v: unknown, max=180): v is string { return typeof v === "string" && v.length > 0 && v.length <= max; }
 function int(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v >= 0; }
 function num(v: unknown): v is number { return typeof v === "number" && Number.isFinite(v) && v >= 0; }
@@ -64,7 +65,7 @@ function parsePeriod(v: unknown): ProcessBottleneckPeriod | null {
   return r && day(r.from) && day(r.to) && r.from <= r.to && r.timeZone === "UTC"
     ? {from:r.from,to:r.to,timeZone:"UTC"} : null;
 }
-function parseMetric(v: unknown, asOfTimestamp: number): ProcessBottleneckMetric | null {
+function parseMetric(v: unknown, asOfTimestamp: bigint): ProcessBottleneckMetric | null {
   const r=rec(v);
   if (!r || (r.window!=="CURRENT" && r.window!=="BASELINE") ||
       typeof r.processKey!=="string" || !PROCESS_KEYS.has(r.processKey as ProcessBottleneckKey) ||
@@ -73,8 +74,8 @@ function parseMetric(v: unknown, asOfTimestamp: number): ProcessBottleneckMetric
       !num(r.averageMinutes) || !num(r.medianMinutes) || !num(r.p90Minutes) ||
       r.p90Minutes<r.medianMinutes ||
       !ts(r.firstCompletedAt) || !ts(r.lastCompletedAt) ||
-      Date.parse(r.firstCompletedAt)>Date.parse(r.lastCompletedAt) ||
-      Date.parse(r.lastCompletedAt)>asOfTimestamp) return null;
+      timestampMicroseconds(r.firstCompletedAt)!>timestampMicroseconds(r.lastCompletedAt)! ||
+      timestampMicroseconds(r.lastCompletedAt)!>asOfTimestamp) return null;
   return {
     window:r.window, processKey:r.processKey as ProcessBottleneckKey, stageKey:r.stageKey,
     waitClass:r.waitClass as ProcessWaitClass, sampleCount:r.sampleCount,
@@ -128,7 +129,8 @@ export function parseProcessBottleneckSnapshot(v: unknown): ProcessBottleneckSna
   const period=parsePeriod(r.period);
   const baselinePeriod=r.baselinePeriod===null ? null : parsePeriod(r.baselinePeriod);
   if (!period || (r.baselinePeriod!==null && !baselinePeriod)) return null;
-  const snapshotAsOf=Date.parse(r.asOf as string);
+  const snapshotAsOf=timestampMicroseconds(r.asOf);
+  if(snapshotAsOf===null) return null;
   const metrics=r.metrics.map(x=>parseMetric(x,snapshotAsOf));
   const queues=r.queues.map(x=>parseQueue(x,r.asOf as string));
   const coverage=r.sourceCoverage.map(x=>parseCoverage(x,r.asOf as string,period));
