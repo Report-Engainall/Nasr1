@@ -5,11 +5,12 @@ Role: P2 — PostgreSQL, RPC authorization, tenant isolation, idempotency and au
 Base `main` after synchronization: `317ebca76c4d236a1d0efe0fd5934b028598c72b`
 Branch: `p2/task-quality-review-pg17-20261127`
 Latest code head: P2 synchronization commit based on `317ebca76c4d236a1d0efe0fd5934b028598c72b` (see current PR head for exact SHA)
-Status: P2 test harness now captures a manager-visible task revision as a typed PostgreSQL value in one statement; it no longer pre-reads restricted management tasks as staff/customers. The RPC retains full actor authorization, row lock and optimistic concurrency checks. Exact-head PG17/P2/P1 rerun pending.
+Status: P2 test harness captures a manager-visible task revision as a typed PostgreSQL value in one statement; RLS returns no row for staff/customers and the RPC rejects them before envelope validation. The RPC retains full actor authorization, row lock and optimistic concurrency checks. CI concurrency now supersedes stale runs by PR/ref so only the newest exact SHA remains active. Exact-head PG17/P2/P1 rerun pending.
 
 ## Work delivered on this branch
 - Added `scripts/test-task-quality-review-authorization.mjs`, using the existing P2 disposable Supabase/PostgreSQL 17 fixtures and strict local-endpoint guard.
 - Wired the script into the existing `p2-playwright-critical-paths.yml` local authenticated PostgreSQL 17 acceptance sequence and path filter.
+- Optimized P2 Actions concurrency to group by PR/ref rather than commit SHA; `cancel-in-progress: true` now cancels obsolete queued/running commits after each PR update, keeping exact-head evidence current and reducing runner contention. No test was removed or skipped.
 - First attempt on SHA `c0798a170a9081630be5929ed7e6f7df2e3de12e`: RPC rejected the review JSON because the test supplied a JSON scalar. Corrected with `db.json(review)`.
 - Second attempt on SHA `ee2ed8b4d94ac7fcbfd2249f0cd172946948919e`: P1 and public Chromium passed; local PostgreSQL 17 migrations and all preceding DB acceptance steps passed; quality-review step 24 failed with `40001` / “task changed after the review was opened” on its first write.
 - Root cause isolated to the test harness converting the exact database `updated_at` timestamp through Node and back into a timestamptz parameter. The RPC correctly enforced optimistic concurrency. Corrected the harness to keep the current timestamp typed as a PostgreSQL value inside the RPC statement; the deliberate stale-snapshot case still supplies the original timestamp and must fail with `40001`. The test captures the current row version with a plain SELECT (no `FOR UPDATE` or extra UPDATE privilege); only the production RPC takes the row lock.
