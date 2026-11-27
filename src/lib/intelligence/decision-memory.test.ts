@@ -182,6 +182,21 @@ describe("decision memory evidence engine", () => {
     expect(unavailable.totalCount).toBe(4);
   });
 
+  it("orders outcomes by absolute timestamp and keeps invalid clocks last", () => {
+    const result = buildDecisionMemoryBook({
+      generatedAt,
+      outcomes: [
+        makeOutcome("earlier-offset", { createdAt: "2026-10-01T08:00:00+03:00" }),
+        makeOutcome("later-utc", { createdAt: "2026-10-01T06:00:00.000Z" }),
+        makeOutcome("invalid-clock", { createdAt: "2026-10-01T12:00:00" }),
+      ],
+      snapshots: [],
+    });
+    expect(result.records.map(record => record.decisionId)).toEqual([
+      "later-utc", "earlier-offset", "invalid-clock",
+    ]);
+  });
+
   it("rejects generated timestamps without a timezone or with an impossible calendar date", () => {
     for (const invalidGeneratedAt of ["2026-10-06T00:00:00", "2026-02-31T00:00:00.000Z"]) {
       expect(() => buildDecisionMemoryBook({
