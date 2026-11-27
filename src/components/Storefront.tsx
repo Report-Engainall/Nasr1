@@ -14,6 +14,7 @@ import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
 import { ProductComparison } from '@/components/store/ProductComparison';
 import { CartQuantityControl } from '@/components/store/CartQuantityControl';
+import { StorefrontCartRestoreFailure } from '@/components/StorefrontCartRestoreFailure';
 import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-products';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { ProductDataQualityPanel } from '@/components/store/ProductDataQualityPanel';
@@ -1453,12 +1454,16 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               </section>
             </> :
             !cartProductDetailsLoaded ? (
-              <div className="sf-empty" role={cartProductDetailsState.error ? 'alert' : 'status'}>
-                <span>{cartProductDetailsState.error ?? 'جار استعادة تفاصيل أصناف سلتك...'}</span>
-                {cartProductDetailsState.error && (
-                  <button type="button" className="sf-btn-secondary" onClick={() => setCartProductRetryCount((current) => current + 1)}>إعادة المحاولة</button>
-                )}
-              </div>
+              cartProductDetailsState.error ? (
+                <StorefrontCartRestoreFailure
+                  error={cartProductDetailsState.error}
+                  items={cart.map(({ product, quantity }) => ({ productId: product.id, quantity }))}
+                  onRetry={() => setCartProductRetryCount((current) => current + 1)}
+                  onRemove={requestCartRemoval}
+                />
+              ) : (
+                <div className="sf-empty" role="status">جار استعادة تفاصيل أصناف سلتك...</div>
+              )
             ) : (
             <>
               {cartProductDetailsState.unresolvedIds.length > 0 && (
