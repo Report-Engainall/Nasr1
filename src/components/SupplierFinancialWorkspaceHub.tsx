@@ -164,7 +164,24 @@ export function SupplierFinancialWorkspaceHub({ initialSupplierInvoiceId }: { in
         {tabs.find((item) => item.id === tab)?.description}
       </p>
       {accountsLoading && <p role="status" style={{ margin: 0, fontSize: 13 }}>جار تحميل دليل الحسابات النشط من دفتر الأستاذ...</p>}
-      {accountsError && <p role="alert" style={{ margin: 0, color: "#991b1b", fontSize: 13 }}>{accountsError} لا تُعرض حسابات افتراضية ولا تُنشأ أرصدة تلقائيًا.</p>}
+      {accountsError && (
+        <div
+          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 9, margin: 0, fontSize: 13 }}
+        >
+          <p role="alert" style={{ flex: "1 1 320px", margin: 0, color: "#991b1b" }}>
+            {accountsError} لا تُعرض حسابات افتراضية ولا تُنشأ أرصدة تلقائيًا.
+          </p>
+          <button
+            type="button"
+            className="btn outline"
+            onClick={() => void loadAccounts()}
+            disabled={accountsLoading}
+            aria-label="إعادة تحميل دليل حسابات الأستاذ"
+          >
+            {accountsLoading ? "جار إعادة المحاولة..." : "إعادة المحاولة"}
+          </button>
+        </div>
+      )}
 
       <div id="supplier-finance-panel" role="tabpanel" aria-labelledby={"supplier-finance-tab-" + tab} style={{ minWidth: 0 }}>
         <Suspense fallback={<p role="status" style={{ color: "var(--muted-foreground, #64748b)" }}>جار تحميل مساحة العمل...</p>}>
