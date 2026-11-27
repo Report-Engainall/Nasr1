@@ -56,10 +56,19 @@ Base SHA: `d7da98a0a11872c8c263c4dbf26dba258637d95e`
 - Re-run state: `PENDING` on the updated branch head; the previous run's test failure remains recorded above and is not accepted.
 - The corrected script requires a fresh exact-head P1/P2 run. The prior overall run remains `FAIL`; it is not retroactively counted as PASS.
 
-## Acceptance
-- Initial state: `PENDING` exact-head P2 run.
-- PASS requires the new step, complete local P2 Supabase job, P1 verification and strict TypeScript/build to finish on the exact same PR SHA.
-- Hosted customer/order/tenant acceptance remains separately SKIPPED until a real target and dedicated credentials are approved; it is never implied by local PostgreSQL 17 evidence.
+## Exact-head acceptance — 2026-11-27
+- Tested code/PR head: `3848643d62f7f1f92884edf552a3a46778a3aac0`.
+- P1 Admin Context Verification: `PASS` — [run 45924845926](https://github.com/Report-Engainall/Nasr1/actions/runs/45924845926).
+- P2 public storefront smoke: `PASS` (20 steps); authenticated infrastructure gate: `PASS` (3 steps) — [run 45924845994](https://github.com/Report-Engainall/Nasr1/actions/runs/45924845994).
+- **Supplier invoice three-way PostgreSQL 17 step 35: `PASS`** — local authenticated job `140264626247`; exact log output: `PASS PostgreSQL 17 supplier invoice three-way acceptance: receipt-linked quantities/costs, exact replay and conflicts, duplicate invoice number and quantity ceiling, independent variance review, no-adjustment/no-duplicate-payable path, explicit tax/variance posting, maker-checker journal posting, rejected-variance denial, tenant privacy, immutable evidence and audit invariants.`
+- The same local authenticated job completed with 55 successful steps, 1 failed step, and remaining cleanup/evidence steps successful. The only failure was step 50 (`Run finance document and operational-task print acceptance in Chromium`) at existing P1 test `e2e/finance-task-print.spec.ts:486`.
+- Failure detail: test expected 11 task cards on page 2, received 10; its immediately preceding pagination status assertion passed and showed `عرض 11–20 من 21 مهمة`. The app correctly rendered a 10-item page; the test incorrectly expected `totalTaskCount - 10` (11) instead of `Math.min(10, totalTaskCount - 10)`. The additional source-backed tasks are legitimately created by purchase/invoice fixtures. This is a P1 test arithmetic defect, not a supplier invoice RPC/database failure.
+- Four other finance/print Chromium scenarios passed. P1 was notified with the exact calculation and suggested third-page check in [#633 comment 7207797207](https://github.com/Report-Engainall/Nasr1/pull/633#issuecomment-7207797207). Do not remove responsive, tenant isolation or task pagination checks.
+- Hosted customer/order/tenant E2E: `SKIPPED`, not PASS.
+- No production/hosted migration, database write, journal posting, inventory movement or user permission changed. All supplier invoice records and journals were created in disposable local PostgreSQL 17 only.
+- **P2-owned supplier invoice acceptance: `PASS` on SHA `3848643...`; integrated P2 workflow: `FAIL` only at the separate P1 pagination assertion above.**
+- `main` has subsequently advanced from `d7da98a...` to `e2486a04d1ce4094f94fce8b5a8a19e1c35bf361`; PR #641 is one commit behind and currently GitHub reports `mergeable=true`. Synchronize after P1 fixes the assertion and rerun the integrated P2 job on the new exact SHA before P3 merges.
+- P2 owns this checkpoint and evidence; P1 owns the UI test correction; P3 retains merge authority to `main`.
 
 ## Next action
-- Review exact PR tree diff and run exact-SHA P1/P2. Diagnose SQLSTATE, audit or accounting failures before any production SQL changes.
+- P1 fixes the task page-2 expected card count (cap at 10 and optionally assert page 3 count) without weakening tenant/viewport assertions. Then synchronize this PR with current `main` and run P1/P2 on the resulting exact head. No supplier invoice SQL change is warranted by this run.
