@@ -681,6 +681,19 @@ async function main(){
  assert.equal(ledgerMismatchReleaseCount[0].count,0,
   "ledger mismatch rejection must not append a partial release movement");
 
+ // Restore the deliberately corrupted disposable fixture after asserting
+ // fail-closed behavior so subsequent independent acceptance scenarios start
+ // from reconciled batch and aggregate reserved ledgers.
+ await db.unsafe(
+  "update public.inventory_batches set quantity_reserved=quantity_reserved+1 where id=$1::uuid",
+  [ledgerBatchId],
+ );
+ await db.unsafe(
+  "update public.inventory_balances set quantity_reserved=quantity_reserved+1,last_movement_at=now(),updated_at=now() "+
+  "where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse],
+ );
+
  // Prove atomic rollback in the missing-reservation repair action when a
  // source order has one unit unreserved and no other in-date free lot remains.
  const reconcileFailureDate=(await db.unsafe(
