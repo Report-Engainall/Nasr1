@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import type { CashflowMeasurementProof } from "./cashflow-schedule-client";
 import { parseDecisionMemorySnapshot } from "./decision-memory-client";
 import type { DecisionMemorySnapshot } from "./decision-memory";
@@ -88,12 +89,9 @@ function isoDay(value: unknown): value is string {
 }
 
 /** Parse a real timezone-qualified ISO instant; reject local clocks, calendar overflow and offsets beyond ±14:00. */
-function instant(value: unknown): number | null {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value) ||
-      !isoDay(value.slice(0, 10))) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
+function instant(value: unknown): bigint | null {
+  return timestampMicroseconds(value);
+
 }
 
 function iso(value: unknown): value is string {
