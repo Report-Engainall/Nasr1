@@ -670,6 +670,21 @@ describe("customer quote workspace tenant boundary", () => {
       }],
     };
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            source_status: "active",
+            source_as_of: null,
+            last_synced_at: null,
+            verified_at: null,
+            revision: 1,
+            is_stale: false,
+            can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
       return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
@@ -725,6 +740,21 @@ describe("customer quote workspace tenant boundary", () => {
       }],
     };
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            source_status: "active",
+            source_as_of: null,
+            last_synced_at: null,
+            verified_at: null,
+            revision: 1,
+            is_stale: false,
+            can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
       return {
@@ -804,6 +834,21 @@ describe("customer quote workspace tenant boundary", () => {
       }],
     };
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            source_status: "active",
+            source_as_of: null,
+            last_synced_at: null,
+            verified_at: null,
+            revision: 1,
+            is_stale: false,
+            can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
       return {
