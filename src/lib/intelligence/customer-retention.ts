@@ -46,7 +46,8 @@ export function buildCustomerRetentionReport(input:{
 }):CustomerRetentionReport {
  const asOfTime=timestamp(input.asOf);
  if(asOfTime===null)throw new Error("asOf must be a valid timezone-qualified timestamp");
- const asOfDay=new Date(asOfTime).setUTCHours(0,0,0,0);
+ const reportAsOfTime=asOfTime;
+ const asOfDay=new Date(reportAsOfTime).setUTCHours(0,0,0,0);
  const customerRefs=input.customers.map(c=>c.customerRef);
  const uniqueCustomers=new Set(customerRefs);
  const uniqueSales=new Set(input.salesByCurrency.map(s=>JSON.stringify([s.customerRef,s.currency])));
@@ -66,7 +67,7 @@ export function buildCustomerRetentionReport(input:{
    return matches.length===1&&matches[0].status==="VERIFIED"&&matches[0].completeness==="COMPLETE"&&matches[0].quality==="ACCEPTABLE"&&
     matches[0].asOf===input.asOf&&
     matches[0].period?.from===input.period.from&&matches[0].period?.to===input.period.to&&
-    sourceTime!==null&&sourceTime<=asOfTime;
+    sourceTime!==null&&sourceTime<=reportAsOfTime;
     matches[0].asOf===input.asOf&&Number.isFinite(Date.parse(matches[0].sourceTimestamp))&&Date.parse(matches[0].sourceTimestamp)<=asOfTime;
   });
  const fullCoverage=coverage.status==="VERIFIED"&&coverage.completeness==="COMPLETE"&&coverage.quality==="ACCEPTABLE"&&!coverage.truncated&&countsValid&&
