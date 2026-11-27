@@ -165,7 +165,7 @@ function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutc
   return {
     value: measured.value,
     currency: measured.currency,
-    asOf: measured.asOf,
+    asOf: measured.asOf as string,
   };
 }
 
@@ -209,8 +209,8 @@ function parseCandidateSnapshot(value: unknown): DecisionCandidateSnapshot | nul
     whatNext: raw.whatNext, owner: raw.owner, expectedOutcome: raw.expectedOutcome, impact,
     impactStatus: raw.impactStatus as DecisionCandidateSnapshot["impactStatus"],
     impactReason: typeof raw.impactReason === "string" ? raw.impactReason : null,
-    proof: { evidenceIds, metricKeys, asOf: proof.asOf, formulaVersions },
-    createdAt: raw.createdAt, expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : null,
+    proof: { evidenceIds, metricKeys, asOf: proof.asOf as string, formulaVersions },
+    createdAt: raw.createdAt as string, expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : null,
   };
 }
 
@@ -298,7 +298,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
       id: event.id,
       type: event.type,
       version: expectedVersion,
-      at: event.at,
+      at: event.at as string,
       actorRole: actor.role,
       reason: event.reason,
     });
@@ -325,8 +325,8 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     ownerLabel: owner.label,
     expectedOutcome: raw.expectedOutcome,
     reason: typeof raw.reason === "string" ? raw.reason : null,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
+    createdAt: raw.createdAt as string,
+    updatedAt: raw.updatedAt as string,
     approvedAt: raw.approvedAt,
     assignedAt: raw.assignedAt,
     executedAt: raw.executedAt,
