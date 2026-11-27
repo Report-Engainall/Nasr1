@@ -133,7 +133,15 @@ const STOCK_CLASSES: DeadStockClass[] = ["ACTIVE", "SLOW_MOVING", "STAGNANT", "Z
 const HORIZONS = [7, 30, 90] as const;
 
 function validTime(value: string): boolean {
-  return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)) {
+    return false;
+  }
+  const datePart = value.slice(0, 10);
+  const dateMillis = Date.parse(datePart + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dateMillis) &&
+    new Date(dateMillis).toISOString().slice(0, 10) === datePart;
 }
 function validPeriod(period: EvidencePeriod | null | undefined): period is EvidencePeriod {
   if (!period || !/^\d{4}-\d{2}-\d{2}$/.test(period.from) || !/^\d{4}-\d{2}-\d{2}$/.test(period.to)) return false;
@@ -463,6 +471,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   const suppliedConcentration = input.productRevenueConcentration ?? null;
   const concentrationAligned = Boolean(
     suppliedConcentration &&
+    validTime(suppliedConcentration.asOf) &&
     Date.parse(suppliedConcentration.asOf) === Date.parse(input.asOf) &&
     suppliedConcentration.period.from === input.period.from &&
     suppliedConcentration.period.to === input.period.to
@@ -494,6 +503,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
       );
   const suppliedSupplierActivity = input.supplierPostedPayableActivity ?? null;
   const supplierActivityAligned = Boolean(suppliedSupplierActivity &&
+    validTime(suppliedSupplierActivity.asOf) &&
     Date.parse(suppliedSupplierActivity.asOf) === Date.parse(input.asOf) &&
     suppliedSupplierActivity.period.from === input.period.from &&
     suppliedSupplierActivity.period.to === input.period.to);
