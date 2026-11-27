@@ -161,6 +161,14 @@ function page(input) {
     externalRequestId: "local-erp-" + input.label,
   };
 }
+function financialRecord(externalId, sourceUpdatedAt, fields) {
+  return {
+    external_id: externalId,
+    source_updated_at: sourceUpdatedAt,
+    idempotency_key: sha256(stableJson({ externalId, sourceUpdatedAt, fields })),
+    fields,
+  };
+}
 
 async function main() {
   await setRole("authenticated");
@@ -496,6 +504,136 @@ async function main() {
   const providerCheckpoint = await loadCheckpoint(providerScope);
   assert.equal(providerCheckpoint.version, 0, "ERP provider is an independent checkpoint dimension");
 
+  // Financial ERP projections are staged in their own object scopes. Amounts are
+  // decimal strings, currencies stay attached to each row, and no app ledger is posted.
+  const financeOrganization = randomUUID();
+  const invoiceScope = { ...baseScope, organizationId: financeOrganization, objectType: "customer_financial_documents" };
+  assert.equal((await loadCheckpoint(invoiceScope)).version, 0);
+  const invoice = financialRecord("ONYX-INVOICE-1001", timestamp3, {
+    external_customer_id: "ONYX-CUSTOMER-001",
+    document_number: "INV-1001",
+    document_type: "invoice",
+    document_status: "posted",
+    issue_date: "2026-11-27",
+    due_date: "2026-12-10",
+    currency_code: "YER",
+    total_amount: "1250.7500",
+    paid_amount: "250.7500",
+    outstanding_amount: "1000.0000",
+  });
+  const invoiceSaved = await persistPage({
+    ...page({
+      expectedVersion: 0,
+      label: "finance-invoice-valid",
+      records: [invoice],
+      nextCursor: null,
+      pendingWatermark: null,
+      completedWatermark: timestamp3,
+      completed: true,
+    }),
+    scope: invoiceScope,
+  });
+  assert.equal(invoiceSaved.counts.created, 1);
+  assert.equal(invoiceSaved.checkpoint.version, 1);
+
+  const badInvoice = financialRecord("ONYX-INVOICE-BAD-AMOUNT", timestamp3, {
+    ...invoice.fields,
+    document_number: "INV-BAD-AMOUNT",
+    total_amount: 1250.75,
+  });
+  await expectSql(
+    "financial invoice amount rejects JSON numbers and requires exact decimal strings",
+    () => persistPage({
+      ...page({
+        expectedVersion: 1,
+        label: "finance-invoice-invalid-number",
+        records: [badInvoice],
+        nextCursor: null,
+        pendingWatermark: null,
+        completedWatermark: timestamp3,
+        completed: true,
+      }),
+      scope: invoiceScope,
+    }),
+    "22023",
+  );
+  assert.equal((await loadCheckpoint(invoiceScope)).version, 1,
+    "invalid financial amount must not advance the invoice checkpoint");
+
+  const receiptScope = { ...baseScope, organizationId: financeOrganization, objectType: "customer_payment_receipts" };
+  const receipt = financialRecord("ONYX-RECEIPT-1001", timestamp3, {
+    external_customer_id: "ONYX-CUSTOMER-001",
+    receipt_number: "RCPT-1001",
+    receipt_date: "2026-11-28",
+    currency_code: "YER",
+    amount: "250.7500",
+    payment_status: "confirmed",
+    payment_method: "bank_transfer",
+    applied_document_number: "INV-1001",
+  });
+  const receiptSaved = await persistPage({
+    ...page({
+      expectedVersion: 0,
+      label: "finance-receipt-valid",
+      records: [receipt],
+      nextCursor: null,
+      pendingWatermark: null,
+      completedWatermark: timestamp3,
+      completed: true,
+    }),
+    scope: receiptScope,
+  });
+  assert.equal(receiptSaved.counts.created, 1);
+
+  const statementScope = { ...baseScope, organizationId: financeOrganization, objectType: "customer_statement_entries" };
+  const statementEntry = financialRecord("ONYX-ENTRY-1001", timestamp3, {
+    external_customer_id: "ONYX-CUSTOMER-001",
+    entry_reference: "ENTRY-1001",
+    entry_date: "2026-11-28",
+    currency_code: "YER",
+    entry_type: "invoice",
+    debit_amount: "1250.7500",
+    credit_amount: "0.0000",
+    source_document_number: "INV-1001",
+  });
+  const statementSaved = await persistPage({
+    ...page({
+      expectedVersion: 0,
+      label: "finance-statement-valid",
+      records: [statementEntry],
+      nextCursor: null,
+      pendingWatermark: null,
+      completedWatermark: timestamp3,
+      completed: true,
+    }),
+    scope: statementScope,
+  });
+  assert.equal(statementSaved.counts.created, 1);
+
+  const dualSidedEntry = financialRecord("ONYX-ENTRY-DUAL-SIDED", timestamp3, {
+    ...statementEntry.fields,
+    entry_reference: "ENTRY-DUAL-SIDED",
+    debit_amount: "10.00",
+    credit_amount: "10.00",
+  });
+  await expectSql(
+    "financial statement entry rejects simultaneous debit and credit amounts",
+    () => persistPage({
+      ...page({
+        expectedVersion: 1,
+        label: "finance-statement-dual-sided",
+        records: [dualSidedEntry],
+        nextCursor: null,
+        pendingWatermark: null,
+        completedWatermark: timestamp3,
+        completed: true,
+      }),
+      scope: statementScope,
+    }),
+    "22023",
+  );
+  assert.equal((await loadCheckpoint(statementScope)).version, 1,
+    "invalid dual-sided statement entry must not advance its checkpoint");
 
   await db.unsafe("reset role");
   const [records, receipts, checkpoints] = await Promise.all([
@@ -574,10 +712,10 @@ async function main() {
     [organizationA, organizationB],
   );
   await db.unsafe(
-    "delete from public.erp_sync_checkpoints where organization_id in ($1::uuid,$2::uuid)",
-    [organizationA, organizationB],
+    "delete from public.erp_sync_checkpoints where organization_id in ($1::uuid,$2::uuid,$3::uuid)",
+    [organizationA, organizationB, financeOrganization],
   );
-  console.log("ERP_SYNC_CHECKPOINT_POSTGRES17_PASS: service-role-only RPC ACLs, RLS, tenant/company/branch/warehouse/currency/object/provider isolation, encrypted cursor storage, immutable receipts, concurrent duplicate replay, competing-version CAS, injected post-staging receipt failure with full rollback, row idempotency, stale/conflict ordering, completed watermark preservation and isolated cleanup.");
+  console.log("ERP_SYNC_CHECKPOINT_POSTGRES17_PASS: service-role-only RPC ACLs, RLS, tenant/company/branch/warehouse/currency/object/provider isolation, encrypted cursor storage, immutable receipts, concurrent duplicate replay, competing-version CAS, injected post-staging receipt failure with full rollback, row idempotency, stale/conflict ordering, completed watermark preservation, invoice/receipt/statement staging, exact decimal-string validation and financial debit-credit exclusivity.");
 }
 
 try {
