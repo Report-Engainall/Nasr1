@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   DecisionMemoryBookResult,
   DecisionMemoryMetricResult,
@@ -43,10 +44,135 @@ function priorityRank(record: DecisionMemoryRecord): number {
   return priority === "P0" ? 0 : priority === "P1" ? 1 : priority === "P2" ? 2 : priority === "P3" ? 3 : 4;
 }
 
+export type DailyDecisionBoardFilter =
+  | "ALL" | "OPEN" | "OVERDUE" | "DUE_24H" | "DUE_7_DAYS"
+  | "UNSCHEDULED" | "AWAITING_MEASUREMENT" | "CLOSED";
+export type DailyDecisionBoardCounts = Record<DailyDecisionBoardFilter, number>;
+export type DailyDecisionPriorityFilter = "ALL" | "P0" | "P1" | "P2" | "P3" | "UNRANKED";
+
+export interface DailyDecisionAdvancedFilters {
+  owner?: string;
+  priority?: DailyDecisionPriorityFilter;
+}
+
+function isTerminalDecision(record: DecisionMemoryRecord): boolean {
+  return record.state === "REJECTED" || record.state === "MEASURED";
+}
+
+export function isDailyDecisionOverdue(record: DecisionMemoryRecord, now: number): boolean {
+  if (isTerminalDecision(record) || record.reviewDisposition !== "SCHEDULED" || !record.reviewAt) return false;
+  const dueAt = Date.parse(record.reviewAt);
+  return Number.isFinite(dueAt) && dueAt <= now;
+}
+
+export function isDailyDecisionDueWithin(
+  record: DecisionMemoryRecord,
+  now: number,
+  horizonMs: number,
+): boolean {
+  if (isTerminalDecision(record) || record.reviewDisposition !== "SCHEDULED" || !record.reviewAt ||
+      !Number.isFinite(horizonMs) || horizonMs <= 0) return false;
+  const dueAt = Date.parse(record.reviewAt);
+  return Number.isFinite(dueAt) && dueAt > now && dueAt <= now + horizonMs;
+}
+
+export function isDailyDecisionUnscheduled(record: DecisionMemoryRecord): boolean {
+  return !isTerminalDecision(record) && record.state !== "EXECUTED" &&
+    record.reviewDisposition === "NOT_SCHEDULED";
+}
+
+export function normalizeDailyDecisionSearch(value: string): string {
+  return value.normalize("NFKC")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .toLocaleLowerCase()
+    .trim();
+}
+
+function decisionSearchText(record: DecisionMemoryRecord): string {
+  const candidate = record.candidateSnapshot;
+  const evidenceNames = (record.snapshot?.evidenceRecords ?? [])
+    .flatMap(item => [item.source.name, item.id]);
+  const text = [
+    record.decisionId, record.candidateRef, record.ruleId, record.ruleVersion,
+    stateLabels[record.state], record.owner, record.proposedResult,
+    record.decisionReason ?? "", record.problem ?? "", record.actionTaken ?? "",
+    ...record.facts.map(item => item.text),
+    ...record.opinions.map(item => item.text),
+    ...record.hypotheses.map(item => item.text),
+    ...record.assumptions,
+    ...record.alternatives.flatMap(item => [item.label, item.rationale ?? ""]),
+    record.chosenAlternative?.label ?? "",
+    ...record.lessons,
+    candidate?.what ?? "", candidate?.why ?? "", candidate?.risk ?? "",
+    candidate?.owner ?? "", candidate?.whatNext ?? "", candidate?.expectedOutcome ?? "",
+    ...evidenceNames,
+  ].join(" ");
+  return normalizeDailyDecisionSearch(text);
+}
+
+function matchesDailyDecisionFilter(
+  record: DecisionMemoryRecord,
+  filter: DailyDecisionBoardFilter,
+  now: number,
+): boolean {
+  switch (filter) {
+    case "ALL": return true;
+    case "OPEN": return !isTerminalDecision(record);
+    case "OVERDUE": return isDailyDecisionOverdue(record, now);
+    case "DUE_24H": return isDailyDecisionDueWithin(record, now, 24 * 60 * 60 * 1000);
+    case "DUE_7_DAYS": return isDailyDecisionDueWithin(record, now, 7 * 24 * 60 * 60 * 1000);
+    case "UNSCHEDULED": return isDailyDecisionUnscheduled(record);
+    case "AWAITING_MEASUREMENT": return record.state === "EXECUTED";
+    case "CLOSED": return isTerminalDecision(record);
+  }
+}
+
+export function summarizeDailyDecisionBoard(
+  records: DecisionMemoryRecord[],
+  now: number,
+): DailyDecisionBoardCounts {
+  return {
+    ALL: records.length,
+    OPEN: records.filter(record => matchesDailyDecisionFilter(record, "OPEN", now)).length,
+    OVERDUE: records.filter(record => matchesDailyDecisionFilter(record, "OVERDUE", now)).length,
+    DUE_24H: records.filter(record => matchesDailyDecisionFilter(record, "DUE_24H", now)).length,
+    DUE_7_DAYS: records.filter(record => matchesDailyDecisionFilter(record, "DUE_7_DAYS", now)).length,
+    UNSCHEDULED: records.filter(record => matchesDailyDecisionFilter(record, "UNSCHEDULED", now)).length,
+    AWAITING_MEASUREMENT: records.filter(record => matchesDailyDecisionFilter(record, "AWAITING_MEASUREMENT", now)).length,
+    CLOSED: records.filter(record => matchesDailyDecisionFilter(record, "CLOSED", now)).length,
+  };
+}
+
+/** Filters only the records returned by the verified decision-memory source. */
+export function filterDailyDecisionRecords(
+  records: DecisionMemoryRecord[],
+  filter: DailyDecisionBoardFilter,
+  query: string,
+  now: number,
+  advanced: DailyDecisionAdvancedFilters = {},
+): DecisionMemoryRecord[] {
+  const normalizedQuery = normalizeDailyDecisionSearch(query);
+  return records
+    .filter(record => matchesDailyDecisionFilter(record, filter, now))
+    .filter(record => advanced.owner === undefined || advanced.owner === "ALL" ||
+      (record.owner.trim() || "غير معيّن") === advanced.owner)
+    .filter(record => {
+      if (!advanced.priority || advanced.priority === "ALL") return true;
+      const savedPriority = record.candidateSnapshot?.priority;
+      if (advanced.priority === "UNRANKED") return !savedPriority;
+      return savedPriority === advanced.priority;
+    })
+    .filter(record => !normalizedQuery || decisionSearchText(record).includes(normalizedQuery))
+    .sort((left, right) => compareOrder(left, right, now));
+}
+
 function followUpOrder(record: DecisionMemoryRecord, now: number): number[] {
-  const terminal = record.state === "REJECTED" || record.state === "MEASURED";
+  const terminal = isTerminalDecision(record);
   const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
-  const dueRank = terminal ? 2 : Number.isFinite(due) && due <= now ? 0 : 1;
+  const dueRank = terminal ? 2 : isDailyDecisionOverdue(record, now) ? 0 : 1;
   return [dueRank, stateOrder[record.state], Number.isFinite(due) ? due : Number.MAX_SAFE_INTEGER];
 }
 
@@ -71,12 +197,75 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
   return left.decisionId < right.decisionId ? -1 : left.decisionId > right.decisionId ? 1 : 0;
 }
 
+function csvCell(value: unknown): string {
+  let text = value === null || value === undefined ? "" : String(value);
+  // Prevent spreadsheet formula execution from user-controlled text fields.
+  if (/^[\s\u0000-\u001F]*[=+\-@]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export function buildDailyDecisionCsv(records: DecisionMemoryRecord[]): string {
+  const headers = [
+    "مرجع القرار", "القرار", "الحالة", "الأولوية المحفوظة", "المسؤول",
+    "تصنيف المراجعة", "موعد المراجعة", "الإجراء المسجل", "النتيجة المتوقعة",
+    "سبب القرار", "المشكلة", "مراجع الأدلة",
+  ];
+  const rows = records.map(record => {
+    const candidate = record.candidateSnapshot;
+    const reviewLabel = record.reviewDisposition === "SCHEDULED" ? "مجدولة"
+      : record.reviewDisposition === "NOT_SCHEDULED" ? "غير مجدولة"
+        : record.reviewDisposition === "NOT_REQUIRED" ? "غير مطلوبة" : "غير محددة";
+    const evidenceIds = [
+      ...(candidate?.proof.evidenceIds ?? []),
+      ...(record.snapshot?.evidenceRecords ?? []).map(item => item.id),
+    ];
+    return [
+      record.decisionId,
+      record.proposedResult,
+      stateLabels[record.state],
+      candidate ? candidate.priority + " · " + candidate.priorityScore : "غير محفوظة",
+      record.owner || "غير معيّن",
+      reviewLabel,
+      record.reviewAt ?? "",
+      record.actionTaken ?? "",
+      candidate?.expectedOutcome ?? "",
+      record.decisionReason ?? "",
+      record.problem ?? "",
+      [...new Set(evidenceIds)].join(" | "),
+    ];
+  });
+  const coverageNote = [
+    "تنبيه التغطية",
+    "هذا الملف يضم السجلات المحمّلة المطابقة للفلاتر فقط؛ عند وجود تحميل جزئي لا يمثل كامل سجل القرارات.",
+  ];
+  return "\uFEFF" + [coverageNote, headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
+}
+
+export function downloadDailyDecisionCsv(records: DecisionMemoryRecord[]): void {
+  if (records.length === 0) return;
+  const blob = new Blob([buildDailyDecisionCsv(records)], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "nasr1-daily-decisions-" + new Date().toISOString().slice(0, 10) + ".csv";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+}
+
 function decisionDue(record: DecisionMemoryRecord, now: number): string {
   if (record.reviewDisposition === "NOT_REQUIRED") return "لا تتطلب مراجعة مجدولة";
   if (record.reviewDisposition === "NOT_SCHEDULED") return "لم يُحدد موعد مراجعة";
   if (!record.reviewAt) return "المراجعة مجدولة لكن وقتها غير متاح";
   const time = new Date(record.reviewAt).toLocaleString("ar-YE");
-  return Date.parse(record.reviewAt) < now ? "متأخر: " + time : time;
+  return Date.parse(record.reviewAt) <= now ? "متأخر: " + time : time;
 }
 
 function DecisionProgress({ state }: { state: DecisionMemoryRecord["state"] }) {
@@ -123,9 +312,7 @@ function DecisionCard({
 }) {
   const evidence = record.snapshot?.evidenceRecords ?? [];
   const variance = record.metricComparison;
-  const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
-  const overdue = Number.isFinite(due) && due < now &&
-    record.state !== "REJECTED" && record.state !== "MEASURED";
+  const overdue = isDailyDecisionOverdue(record, now);
   const facts = record.facts.filter(item => item.text.trim());
   const hypotheses = record.hypotheses.filter(item => item.text.trim());
   const candidate = record.candidateSnapshot;
@@ -297,6 +484,47 @@ function DecisionCard({
   );
 }
 
+export const DAILY_DECISION_PAGE_SIZE = 10;
+
+export interface DailyDecisionBoardPage {
+  items: DecisionMemoryRecord[];
+  pageIndex: number;
+  pageCount: number;
+  firstItem: number;
+  lastItem: number;
+}
+
+export function paginateDailyDecisionRecords(
+  records: DecisionMemoryRecord[],
+  requestedPage: number,
+  pageSize = DAILY_DECISION_PAGE_SIZE,
+): DailyDecisionBoardPage {
+  const safePageSize = Number.isSafeInteger(pageSize) && pageSize > 0 ? pageSize : DAILY_DECISION_PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil(records.length / safePageSize));
+  const requested = Number.isSafeInteger(requestedPage) ? Math.max(0, requestedPage) : 0;
+  const pageIndex = Math.min(requested, pageCount - 1);
+  const start = pageIndex * safePageSize;
+  const items = records.slice(start, start + safePageSize);
+  return {
+    items,
+    pageIndex,
+    pageCount,
+    firstItem: records.length === 0 ? 0 : start + 1,
+    lastItem: Math.min(start + safePageSize, records.length),
+  };
+}
+
+const boardFilters: Array<{ value: DailyDecisionBoardFilter; label: string }> = [
+  { value: "ALL", label: "الكل" },
+  { value: "OPEN", label: "تحتاج إجراء" },
+  { value: "OVERDUE", label: "متأخرة" },
+  { value: "DUE_24H", label: "تستحق خلال 24 ساعة" },
+  { value: "DUE_7_DAYS", label: "تستحق خلال 7 أيام" },
+  { value: "UNSCHEDULED", label: "بلا موعد مراجعة" },
+  { value: "AWAITING_MEASUREMENT", label: "بانتظار القياس" },
+  { value: "CLOSED", label: "مغلقة" },
+];
+
 export function DailyDecisionBoard({
   result,
   onRetry,
@@ -305,16 +533,32 @@ export function DailyDecisionBoard({
   onRetry?: () => void;
 }) {
   const now = Date.now();
-  const sortedRecords = [...result.records].sort((left, right) => compareOrder(left, right, now));
-  const records = sortedRecords.slice(0, 10);
-  const omittedCount = Math.max(0, sortedRecords.length - records.length);
+  const [activeFilter, setActiveFilter] = useState<DailyDecisionBoardFilter>("OPEN");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
+  const [page, setPage] = useState(0);
+  const counts = summarizeDailyDecisionBoard(result.records, now);
+  const ownerOptions = Array.from(new Set(result.records.map(record => record.owner.trim() || "غير معيّن")))
+    .sort((left, right) => left.localeCompare(right, "ar"));
+  const filteredRecords = filterDailyDecisionRecords(result.records, activeFilter, searchQuery, now, {
+    owner: ownerFilter,
+    priority: priorityFilter,
+  });
+  const pageView = paginateDailyDecisionRecords(filteredRecords, page);
+  const currentPage = pageView.pageIndex;
+  const pageCount = pageView.pageCount;
+  const visibleRecords = pageView.items;
+  const firstVisible = pageView.firstItem;
+  const lastVisible = pageView.lastItem;
+
   return (
     <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="daily-decision-board-title" className="text-lg font-semibold">لوحة متابعة القرارات اليومية</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            أعلى عشرة قرارات محفوظة؛ الأولوية المحفوظة أولاً ثم الأثر القابل للمقارنة داخل العملة والوحدة، ثم الاستحقاق وحالة التنفيذ.
+            ابحث في القرارات المحفوظة، وافصل ما يحتاج إجراءً أو تأخر موعده أو ينتظر قياس النتيجة، ثم تابع سجل كل قرار.
           </p>
         </div>
         <span role="status" aria-live="polite" className="w-fit max-w-full rounded-full border px-3 py-1 text-xs break-words">
@@ -326,6 +570,26 @@ export function DailyDecisionBoard({
         <div className="min-w-0 break-words rounded-lg border p-3 text-xs text-muted-foreground">
           بعض القرارات القديمة لا تملك لقطة أولوية وأثر محفوظة؛ تبقى ظاهرة كسجل تاريخي ولا يُستنتج لها تصنيف بأثر رجعي.
         </div>
+      ) : null}
+
+      <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+        <p>
+          وقت تكوين لقطة المصدر: <strong className="font-medium text-foreground">
+            {Number.isFinite(Date.parse(result.generatedAt))
+              ? new Date(result.generatedAt).toLocaleString("ar-YE")
+              : "وقت المصدر غير صالح"}
+          </strong>
+        </p>
+        <p className="mt-1">إصدار سياسة الذاكرة: <span dir="ltr">{result.policyVersion}</span></p>
+      </div>
+
+      {result.warnings.length > 0 ? (
+        <section className="space-y-1 rounded-lg border p-3" aria-label="تحذيرات مصدر القرارات">
+          <h3 className="text-xs font-semibold">تحفظات مصدر القرار</h3>
+          {result.warnings.map((warning, index) => (
+            <p key={String(index) + warning} className="break-words text-xs text-muted-foreground">{warning}</p>
+          ))}
+        </section>
       ) : null}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -348,23 +612,125 @@ export function DailyDecisionBoard({
           <p className="text-sm">تعذر تحميل سجل القرارات من الخادم؛ لا تُعرض بطاقات افتراضية.</p>
           {onRetry ? <button type="button" className="mt-2 rounded-lg border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" onClick={onRetry}>إعادة المحاولة</button> : null}
         </div>
-      ) : records.length === 0 ? (
-        <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.</p>
       ) : (
-        <ol className="min-w-0 space-y-3" aria-label="قرارات محفوظة مرتبة للمتابعة">
-          {records.map(record => (
-            <li key={record.decisionId} className="min-w-0">
-              <DecisionCard record={record} now={now} onChanged={onRetry}/>
-            </li>
-          ))}
-        </ol>
+        <>
+          <label className="block space-y-1">
+            <span className="text-xs font-medium">البحث في القرار أو المسؤول أو السبب أو مرجع الدليل</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={event => { setSearchQuery(event.target.value); setPage(0); }}
+              placeholder="اكتب اسم القرار أو اسم المسؤول أو رقم المرجع..."
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              aria-label="البحث في سجل القرارات اليومية"
+            />
+          </label>
+
+          <div className="flex flex-wrap gap-2" role="group" aria-label="تصفية القرارات اليومية">
+            {boardFilters.map(filter => (
+              <button
+                key={filter.value}
+                type="button"
+                aria-pressed={activeFilter === filter.value}
+                onClick={() => { setActiveFilter(filter.value); setPage(0); }}
+                className={[
+                  "rounded-full border px-3 py-2 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+                  activeFilter === filter.value ? "border-primary bg-primary/10 font-semibold" : "bg-background hover:bg-muted/60",
+                ].join(" ")}
+              >
+                {filter.label} <span className="ms-1 tabular-nums">({counts[filter.value]})</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2" aria-label="تصفية حسب المسؤول والأولوية">
+            <label className="space-y-1 text-xs">
+              <span className="block font-medium">المسؤول</span>
+              <select
+                aria-label="تصفية حسب المسؤول"
+                value={ownerFilter}
+                onChange={event => { setOwnerFilter(event.target.value); setPage(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              >
+                <option value="ALL">كل المسؤولين</option>
+                {ownerOptions.map(owner => <option key={owner} value={owner}>{owner}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs">
+              <span className="block font-medium">الأولوية المحفوظة</span>
+              <select
+                aria-label="تصفية حسب الأولوية المحفوظة"
+                value={priorityFilter}
+                onChange={event => { setPriorityFilter(event.target.value as DailyDecisionPriorityFilter); setPage(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              >
+                <option value="ALL">كل الأولويات</option>
+                <option value="P0">P0 — حرجة</option>
+                <option value="P1">P1 — عالية</option>
+                <option value="P2">P2 — متوسطة</option>
+                <option value="P3">P3 — متابعة</option>
+                <option value="UNRANKED">تاريخية بلا أولوية محفوظة</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+              {firstVisible}–{lastVisible} من {filteredRecords.length} نتيجة مطابقة، ضمن {result.loadedCount} سجلاً محملاً من أصل {result.totalCount} قراراً محفوظاً.
+            </p>
+            <button
+              type="button"
+              className="rounded-lg border px-3 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={filteredRecords.length === 0}
+              onClick={() => downloadDailyDecisionCsv(filteredRecords)}
+            >
+              تصدير النتائج المصفّاة CSV
+            </button>
+          </div>
+
+          {result.records.length === 0 ? (
+            <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات محمّلة من المصدر لعرضها.</p>
+          ) : filteredRecords.length === 0 ? (
+            <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات تطابق عوامل البحث والتصفية الحالية ضمن السجلات المحمّلة.</p>
+          ) : (
+            <ol className="min-w-0 space-y-3" aria-label="قرارات محفوظة مرتبة للمتابعة">
+              {visibleRecords.map(record => (
+                <li key={record.decisionId} className="min-w-0">
+                  <DecisionCard record={record} now={now} onChanged={onRetry}/>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {filteredRecords.length > DAILY_DECISION_PAGE_SIZE ? (
+            <nav className="flex flex-wrap items-center justify-between gap-2 border-t pt-3" aria-label="صفحات قرارات المتابعة">
+              <p className="text-xs text-muted-foreground">الصفحة {currentPage + 1} من {pageCount}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage === 0}
+                  onClick={() => setPage(Math.max(0, currentPage - 1))}
+                  className="rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  السابق
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage >= pageCount - 1}
+                  onClick={() => setPage(Math.min(pageCount - 1, currentPage + 1))}
+                  className="rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  التالي
+                </button>
+              </div>
+            </nav>
+          ) : null}
+        </>
       )}
-      {omittedCount > 0 ? (
-        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {sortedRecords.length} قراراً في الصفحة الحالية؛ {omittedCount} قراراً آخر ضمن بقية السجل.</p>
-      ) : null}
+
       {result.status === "PARTIAL" || result.loadedCount < result.totalCount ? (
         <p className="text-xs text-muted-foreground" role="status">
-          لا تشمل هذه اللوحة كامل تاريخ القرارات. النتائج المعروضة محدودة بالسجلات المحملة والمتحقق منها فقط.
+          البحث والتصفية والتصفح يغطّي السجلات المحمّلة فقط؛ لا تعني النتيجة الخالية عدم وجود قرارات أخرى ضمن التاريخ الكامل.
         </p>
       ) : null}
     </section>
