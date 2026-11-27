@@ -71,7 +71,7 @@ function decisionSearchText(record: DecisionMemoryRecord): string {
   const candidate = record.candidateSnapshot;
   const evidenceNames = (record.snapshot?.evidenceRecords ?? [])
     .flatMap(item => [item.source.name, item.id]);
-  return [
+  const text = [
     record.decisionId, record.candidateRef, record.ruleId, record.ruleVersion,
     stateLabels[record.state], record.owner, record.proposedResult,
     record.decisionReason ?? "", record.problem ?? "", record.actionTaken ?? "",
@@ -85,7 +85,8 @@ function decisionSearchText(record: DecisionMemoryRecord): string {
     candidate?.what ?? "", candidate?.why ?? "", candidate?.risk ?? "",
     candidate?.owner ?? "", candidate?.whatNext ?? "", candidate?.expectedOutcome ?? "",
     ...evidenceNames,
-  ].join(" ").split(/\\s+/).map(normalizeDailyDecisionSearch).join(" ");
+  ].join(" ");
+  return normalizeDailyDecisionSearch(text);
 }
 
 function matchesDailyDecisionFilter(
