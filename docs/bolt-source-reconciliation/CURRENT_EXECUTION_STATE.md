@@ -5,7 +5,7 @@
 ## Canonical state
 
 - Official repository: `Report-Engainall/Nasr1`; `main` is the only source of truth.
-- Main HEAD immediately before this pointer-only refresh: `ff8f895701778fc9dc6574863e3fc3080c061593` (PR #674 merge plus the DLV-003 matrix leaf). This update changes only the canonical pointer; re-fetch `main` before the next write.
+- Main HEAD immediately before this pointer-only refresh: `0d4e6b619114f9ad957261ce13eed70b7ab010dc` (canonical execution-pointer refresh after PR #674 and the DLV-003 matrix leaf). This update changes only the canonical pointer; re-fetch `main` before the next write.
 - Last fully accepted application baseline remains `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` (PR #633). PR #641 adds an isolated PostgreSQL 17 supplier-invoice acceptance runner and workflow only; its exact-head P1/P2 runs passed and it merged at `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`.
 - PR #674 adds the shared predictive-search public-image guard and its focused tests. It merged at `7c20412c77a9c2ef01d99e16a304aaa9e773be37`. Exact PR-head `fbe332cd195188238c45c2662191610e452dd232` passed P1 (full Vitest, P1/P4 TypeScript, production build) and P2 public Chromium UI smoke. The broad P2 local Supabase/PostgreSQL 17 job `46055085516` remained IN_PROGRESS at 43/69 steps at this checkpoint with no failed steps. PR-run tooling exposes pull-request-triggered runs only; a post-merge push-run for SHA `7c20412` is not independently verified here. Do not call this leaf post-merge accepted or mark DO_NOT_REPEAT until its exact merge-SHA acceptance is established.
 - The DLV-003 matrix leaf for predictive-search image privacy is recorded in the canonical matrix. Wider DLV-003 remains OPEN.
@@ -41,11 +41,10 @@
 2. **PR #668 — system-health evidence integrity.**
    - Latest P3 head: `a40a0c66f56bfc6658aaa6e5eacbbc2edb51e82b`; changed paths are only `SystemHealthEngine.test.ts`, `P4AdminOperationsScreens.test.tsx`, and `system-health.ts`.
    - Latest exact-head P1 `46055464206` and P2 `46055464235`: **IN_PROGRESS**.
-   - Branch base is `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`; current main has advanced. P3 retains ownership. Re-sync/recheck against current main before merge; no old-head acceptance transfers.
-
-3. **PR #670 — verified customer-retention decisions integrated into daily decisions.**
-   - Head: `81f39f76ef7040b5ec5e243dc9fd3768e042b327`; P1 `46054061909` and P2 `46054061889` are terminal **SUCCESS** on that exact older head.
-   - This branch is based on `55d7c282e38d3f4f39016b0d237eab3a17b9a4b4`, is not mergeable against current main, and includes edits to the canonical execution pointer and acceptance matrix plus P2 workflow/checkpoint files. P3 owns the intelligence changes. Reconcile/sync the branch and preserve the latest canonical docs before considering merge; old-head PASS is not current-main acceptance.
+   - Branch base is `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`; current main has advanced. P3 retains ownership. Re-sync/recheck against current main before merge; 3. **PR #670 — verified customer-retention decisions integrated into daily decisions.**
+   - Latest P3 head: `fe6f7e42778dbce705f2f11d9efe142ca639ded5`; the current PR diff contains only six IntelligenceWorkspace/customer-retention/daily-decisions source and test paths. The formerly conflicting pointer, matrix, and workflow checkpoint files were removed from this head's diff.
+   - Exact-head P1 run `46055852281`: **SUCCESS**. Exact-head P2 run `46055852208`: public UI smoke **IN_PROGRESS** at checkpoint refresh; authenticated infrastructure gate **SUCCESS**; hosted customer/order/tenant E2E **SKIPPED**.
+   - Branch base is `6647a8cab4805d647c82448f66b7aa2cb16ee59a`; mergeability was true at the last live PR snapshot. Current main has advanced through canonical pointer-only commits; verify mergeability and compare current main before merge. P3 retains ownership. Do not transfer the older `81f39f7` P1/P2 results to this newer head.
 
 4. **PR #585 — reconciled; do not merge wholesale or rebuild its accepted work.**
    - Main already contains the product-facts server contract, Authorization V2, and relevant PG17 tests/workflow. Its focused database proof is not full DLV-003 acceptance.
