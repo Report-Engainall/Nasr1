@@ -72,3 +72,18 @@ describe("customer retention source timestamp contract", () => {
       .resolves.toMatchObject({ ok: false, status: "ERROR" });
   });
 });
+
+
+describe("customer retention exact source chronology", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+
+  it("rejects evidence timestamp one microsecond later than the requested snapshot", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: response("2026-11-28T12:00:00.123457Z"),
+      error: null,
+    });
+
+    await expect(fetchCustomerRetentionAggregate(30, asOf))
+      .resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+});

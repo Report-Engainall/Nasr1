@@ -84,3 +84,23 @@ describe("unavailable product search demand source timestamp contract", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
+
+
+describe("unavailable product demand exact source chronology", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+
+  it("rejects a product observation one microsecond later than the requested snapshot", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: response({
+        status: "VERIFIED",
+        totalCount: 1,
+        returnedCount: 1,
+        products: [product("2026-11-28T12:00:00.123457Z")],
+      }),
+      error: null,
+    });
+
+    await expect(fetchUnavailableProductSearchDemand(30, asOf))
+      .resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+});
