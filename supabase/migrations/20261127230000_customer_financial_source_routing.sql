@@ -1422,36 +1422,88 @@ BEGIN
       MESSAGE='APP_ONLY receipt print is not available for an external customer financial source';
   END IF;
 
+  -- Keep the global lock order consistent with customer receipt printing:
+  -- financial-source binding, receipt header, then allocation rows.
+  -- Re-read the header after the source lock and block FK KEY SHARE references
+  -- that could append a new allocation after validation.
+  SELECT r.*
+    INTO v_receipt
+    FROM public.customer_payment_receipts r
+   WHERE r.id=p_receipt_id
+     AND r.organization_id=v_org
+     AND r.customer_id=v_receipt.customer_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002',
+      MESSAGE='customer payment receipt was not found in the active organization';
+  END IF;
 
+  PERFORM cp.id
+    FROM public.customer_payments cp
+   WHERE cp.receipt_id=v_receipt.id
+   FOR SHARE;
+
+
+  -- Validate the exact allocation set and build the printable representation
+  -- from one materialized statement snapshot.
+  WITH staff_receipt_allocations AS MATERIALIZED (
+    SELECT
+      cp.id,
+      cp.invoice_id,
+      cp.amount,
+      cp.organization_id,
+      cp.customer_id,
+      invoice.id AS matched_invoice_id,
+      invoice.currency AS invoice_currency,
+      invoice.invoice_number,
+      invoice.issued_at
+    FROM public.customer_payments cp
+    LEFT JOIN public.customer_invoices invoice
+      ON invoice.id=cp.invoice_id
+     AND invoice.organization_id=cp.organization_id
+     AND invoice.customer_id=cp.customer_id
+    WHERE cp.receipt_id=v_receipt.id
+  )
   SELECT
     pg_catalog.count(*)::integer,
-    pg_catalog.count(DISTINCT cp.invoice_id)::integer,
-    COALESCE(pg_catalog.sum(cp.amount), 0)::numeric(15,2),
+    pg_catalog.count(DISTINCT staff_receipt_allocations.invoice_id)::integer,
+    COALESCE(pg_catalog.sum(staff_receipt_allocations.amount),0)::numeric(15,2),
     pg_catalog.count(*) FILTER (
-      WHERE cp.amount <= 0
-         OR cp.customer_id IS DISTINCT FROM v_receipt.customer_id
-         OR invoice.id IS NULL
-         OR invoice.currency IS DISTINCT FROM v_receipt.currency
-    )::integer
+      WHERE staff_receipt_allocations.amount IS NULL
+         OR staff_receipt_allocations.amount<=0
+         OR staff_receipt_allocations.organization_id IS DISTINCT FROM v_org
+         OR staff_receipt_allocations.customer_id IS DISTINCT FROM v_receipt.customer_id
+         OR staff_receipt_allocations.invoice_id IS NULL
+         OR staff_receipt_allocations.matched_invoice_id IS NULL
+         OR staff_receipt_allocations.invoice_currency IS DISTINCT FROM v_receipt.currency
+    )::integer,
+    COALESCE(
+      pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'invoice_number',staff_receipt_allocations.invoice_number,
+          'invoice_issued_at',staff_receipt_allocations.issued_at,
+          'currency',staff_receipt_allocations.invoice_currency,
+          'amount',staff_receipt_allocations.amount::text
+        )
+        ORDER BY staff_receipt_allocations.issued_at,staff_receipt_allocations.invoice_number,staff_receipt_allocations.id
+      ),
+      '[]'::jsonb
+    )
     INTO
       v_allocation_count,
       v_distinct_invoice_count,
       v_allocation_total,
-      v_invalid_allocation_count
-    FROM public.customer_payments cp
-    LEFT JOIN public.customer_invoices invoice
-      ON invoice.id = cp.invoice_id
-     AND invoice.organization_id = cp.organization_id
-     AND invoice.customer_id = cp.customer_id
-   WHERE cp.organization_id = v_org
-     AND cp.receipt_id = v_receipt.id;
+      v_invalid_allocation_count,
+      v_allocations
+    FROM staff_receipt_allocations;
 
   IF v_receipt.receipt_number IS NULL
      OR v_allocation_count <> v_receipt.allocation_count
      OR v_allocation_count NOT BETWEEN 2 AND 50
      OR v_distinct_invoice_count <> v_allocation_count
      OR v_invalid_allocation_count <> 0
-     OR v_allocation_total IS DISTINCT FROM v_receipt.total_amount THEN
+     OR v_allocation_total IS DISTINCT FROM v_receipt.total_amount
+     OR pg_catalog.jsonb_array_length(v_allocations) <> v_allocation_count THEN
     RAISE EXCEPTION USING ERRCODE = '22023',
       MESSAGE = 'receipt allocations do not reconcile to the saved receipt header; printing was denied';
   END IF;
@@ -1481,32 +1533,7 @@ BEGIN
       MESSAGE = 'active organization identity is unavailable for receipt printing';
   END IF;
 
-  SELECT COALESCE(
-    pg_catalog.jsonb_agg(
-      pg_catalog.jsonb_build_object(
-        'invoice_number', invoice.invoice_number,
-        'invoice_issued_at', invoice.issued_at,
-        'currency', invoice.currency,
-        'amount', cp.amount::text
-      )
-      ORDER BY invoice.issued_at, invoice.invoice_number, cp.id
-    ),
-    '[]'::jsonb
-  )
-    INTO v_allocations
-    FROM public.customer_payments cp
-    JOIN public.customer_invoices invoice
-      ON invoice.id = cp.invoice_id
-     AND invoice.organization_id = cp.organization_id
-     AND invoice.customer_id = cp.customer_id
-   WHERE cp.organization_id = v_org
-     AND cp.customer_id = v_receipt.customer_id
-     AND cp.receipt_id = v_receipt.id;
-
-  IF pg_catalog.jsonb_array_length(v_allocations) <> v_receipt.allocation_count THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'receipt allocation details are incomplete; printing was denied';
-  END IF;
+  -- v_allocations was reconciled and assembled in the same statement snapshot.
 
   -- Deliberately omit private notes, idempotency keys, raw organization IDs and internal payment IDs.
   RETURN pg_catalog.jsonb_build_object(
