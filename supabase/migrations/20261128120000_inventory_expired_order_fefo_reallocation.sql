@@ -824,127 +824,257 @@ COMMENT ON FUNCTION public.release_excess_order_reservations(uuid,text,text) IS
  'Manager/admin-only idempotent correction that releases only net order reservation excess, from least-urgent batches first; preserves actual order quantity and stock on hand.';
 
 CREATE OR REPLACE FUNCTION public.finalize_order_inventory()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=''
 AS $function$
-DECLARE v_actor uuid:=public.current_profile_id(); v_move record; v_after numeric(15,3);
+DECLARE
+  v_actor uuid:=public.current_profile_id();
+  v_move record;
+  v_after numeric(15,3);
 BEGIN
- IF NEW.status IS NOT DISTINCT FROM OLD.status THEN RETURN NEW; END IF;
- IF NEW.status IN ('shipped','delivered') AND OLD.status IN ('confirmed','processing','shipped')
- AND NOT EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='sale') THEN
-  IF EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve' AND inventory_batch_id IS NULL) THEN
-   RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation'; END IF;
+  IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+    RETURN NEW;
+  END IF;
 
-  -- A shipped/delivered order must have a complete net reservation for every
-  -- ordered product. Prevent partial stock settlement from falsely finalizing
-  -- the full commercial order after a partial release or ledger discrepancy.
-  IF EXISTS (
-    WITH ordered_quantities AS MATERIALIZED (
-      SELECT oi.product_id,pg_catalog.sum(oi.quantity)::numeric(15,3) AS quantity
-        FROM public.order_items oi
-       WHERE oi.order_id=NEW.id
-       GROUP BY oi.product_id
-    ),
-    net_reservations AS MATERIALIZED (
-      SELECT im.product_id,
+  IF NEW.status IN ('shipped','delivered')
+     AND OLD.status IN ('confirmed','processing','shipped')
+     AND NOT EXISTS (
+       SELECT 1 FROM public.inventory_movements
+        WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='sale'
+     ) THEN
+    IF EXISTS (
+      SELECT 1 FROM public.inventory_movements
+       WHERE reference_type='order' AND reference_id=NEW.id
+         AND movement_type='reserve' AND inventory_batch_id IS NULL
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation';
+    END IF;
+
+    -- The full commercial quantity must be reserved by product before any
+    -- batch can be settled; shortage/excess on one product cannot net against another.
+    IF EXISTS (
+      WITH ordered_quantities AS MATERIALIZED (
+        SELECT oi.product_id,pg_catalog.sum(oi.quantity)::numeric(15,3) AS quantity
+          FROM public.order_items oi
+         WHERE oi.order_id=NEW.id
+         GROUP BY oi.product_id
+      ),
+      net_reservations AS MATERIALIZED (
+        SELECT im.product_id,
+               pg_catalog.sum(
+                 CASE WHEN im.movement_type='reserve' THEN im.quantity
+                      WHEN im.movement_type='release_reservation' THEN -im.quantity
+                      ELSE 0 END
+               )::numeric(15,3) AS quantity
+          FROM public.inventory_movements im
+         WHERE im.reference_type='order'
+           AND im.reference_id=NEW.id
+           AND im.movement_type IN ('reserve','release_reservation')
+         GROUP BY im.product_id
+      )
+      SELECT 1
+        FROM ordered_quantities oq
+        FULL JOIN net_reservations nr
+          ON nr.product_id IS NOT DISTINCT FROM oq.product_id
+       WHERE coalesce(oq.quantity,0) IS DISTINCT FROM coalesce(nr.quantity,0)
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='55000',
+        MESSAGE='order net reservation quantity does not match ordered quantity; shipment refused';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+        FROM (
+          SELECT im.inventory_batch_id,
+                 pg_catalog.sum(
+                   CASE WHEN im.movement_type='reserve' THEN im.quantity
+                        WHEN im.movement_type='release_reservation' THEN -im.quantity
+                        ELSE 0 END
+                 ) AS reserved_quantity
+            FROM public.inventory_movements im
+           WHERE im.reference_type='order'
+             AND im.reference_id=NEW.id
+             AND im.movement_type IN ('reserve','release_reservation')
+             AND im.inventory_batch_id IS NOT NULL
+           GROUP BY im.inventory_batch_id
+          HAVING pg_catalog.sum(
+            CASE WHEN im.movement_type='reserve' THEN im.quantity
+                 WHEN im.movement_type='release_reservation' THEN -im.quantity
+                 ELSE 0 END
+          )>0
+        ) outstanding
+        JOIN public.inventory_batches b ON b.id=outstanding.inventory_batch_id
+       WHERE b.expiry_date IS NOT NULL
+         AND b.expiry_date<(pg_catalog.now() AT TIME ZONE 'UTC')::date
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='55000',
+        MESSAGE='order has an expired reserved batch; reallocate its reservation before shipment';
+    END IF;
+
+    PERFORM 1
+      FROM public.inventory_balances ib
+      JOIN (
+        SELECT DISTINCT product_id,warehouse_id
+          FROM public.inventory_movements
+         WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve'
+      ) r ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id
+     ORDER BY ib.product_id,ib.warehouse_id
+     FOR UPDATE OF ib;
+
+    FOR v_move IN
+      SELECT product_id,warehouse_id,inventory_batch_id,
              pg_catalog.sum(
-               CASE WHEN im.movement_type='reserve' THEN im.quantity
-                    WHEN im.movement_type='release_reservation' THEN -im.quantity
+               CASE WHEN movement_type='reserve' THEN quantity
+                    WHEN movement_type='release_reservation' THEN -quantity
                     ELSE 0 END
              )::numeric(15,3) AS quantity
+        FROM public.inventory_movements
+       WHERE reference_type='order' AND reference_id=NEW.id
+         AND movement_type IN ('reserve','release_reservation')
+         AND inventory_batch_id IS NOT NULL
+       GROUP BY product_id,warehouse_id,inventory_batch_id
+      HAVING pg_catalog.sum(
+        CASE WHEN movement_type='reserve' THEN quantity
+             WHEN movement_type='release_reservation' THEN -quantity
+             ELSE 0 END
+      )>0
+       ORDER BY product_id,warehouse_id,inventory_batch_id
+    LOOP
+      UPDATE public.inventory_batches
+         SET quantity_on_hand=quantity_on_hand-v_move.quantity,
+             quantity_reserved=quantity_reserved-v_move.quantity
+       WHERE id=v_move.inventory_batch_id
+         AND product_id=v_move.product_id
+         AND warehouse_id=v_move.warehouse_id
+         AND quantity_on_hand>=v_move.quantity
+         AND quantity_reserved>=v_move.quantity;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reserved batch settlement failed; shipment rolled back';
+      END IF;
+
+      UPDATE public.inventory_balances
+         SET quantity_on_hand=quantity_on_hand-v_move.quantity,
+             quantity_reserved=quantity_reserved-v_move.quantity,
+             last_movement_at=pg_catalog.statement_timestamp(),
+             updated_at=pg_catalog.statement_timestamp()
+       WHERE product_id=v_move.product_id
+         AND warehouse_id=v_move.warehouse_id
+         AND quantity_on_hand>=v_move.quantity
+         AND quantity_reserved>=v_move.quantity
+       RETURNING quantity_available INTO v_after;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='aggregate stock settlement failed; shipment rolled back';
+      END IF;
+
+      INSERT INTO public.inventory_movements(
+        product_id,warehouse_id,movement_type,quantity,balance_after,
+        reference_type,reference_id,reason,created_by,inventory_batch_id
+      ) VALUES(
+        v_move.product_id,v_move.warehouse_id,'sale',-v_move.quantity,v_after,
+        'order',NEW.id,'خصم المخزون عند الشحن من الدفعة المحجوزة',
+        v_actor,v_move.inventory_batch_id
+      );
+    END LOOP;
+
+  ELSIF NEW.status='cancelled' AND OLD.status IN ('confirmed','processing') THEN
+    IF EXISTS (
+      SELECT 1 FROM public.inventory_movements
+       WHERE reference_type='order' AND reference_id=NEW.id
+         AND movement_type='reserve' AND inventory_batch_id IS NULL
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
         FROM public.inventory_movements im
-       WHERE im.reference_type='order'
-         AND im.reference_id=NEW.id
+       WHERE im.reference_type='order' AND im.reference_id=NEW.id
          AND im.movement_type IN ('reserve','release_reservation')
-       GROUP BY im.product_id
-    )
-    SELECT 1
-      FROM ordered_quantities oq
-      FULL JOIN net_reservations nr
-        ON nr.product_id IS NOT DISTINCT FROM oq.product_id
-     WHERE coalesce(oq.quantity,0) IS DISTINCT FROM coalesce(nr.quantity,0)
-  ) THEN
-    RAISE EXCEPTION USING ERRCODE='55000',
-      MESSAGE='order net reservation quantity does not match ordered quantity; shipment refused';
+       GROUP BY im.product_id,im.warehouse_id,im.inventory_batch_id
+      HAVING pg_catalog.sum(
+        CASE WHEN im.movement_type='reserve' THEN im.quantity
+             WHEN im.movement_type='release_reservation' THEN -im.quantity
+             ELSE 0 END
+      )<0
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='negative reservation movement ledger; cancellation refused';
+    END IF;
+
+    PERFORM 1
+      FROM public.inventory_balances ib
+      JOIN (
+        SELECT DISTINCT product_id,warehouse_id
+          FROM public.inventory_movements
+         WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve'
+      ) r ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id
+     ORDER BY ib.product_id,ib.warehouse_id
+     FOR UPDATE OF ib;
+
+    -- Release only the remaining net reservation. Previously released source
+    -- lots (for example during FEFO reallocation) are never released twice.
+    FOR v_move IN
+      SELECT product_id,warehouse_id,inventory_batch_id,
+             pg_catalog.sum(
+               CASE WHEN movement_type='reserve' THEN quantity
+                    WHEN movement_type='release_reservation' THEN -quantity
+                    ELSE 0 END
+             )::numeric(15,3) AS quantity
+        FROM public.inventory_movements
+       WHERE reference_type='order' AND reference_id=NEW.id
+         AND movement_type IN ('reserve','release_reservation')
+         AND inventory_batch_id IS NOT NULL
+       GROUP BY product_id,warehouse_id,inventory_batch_id
+      HAVING pg_catalog.sum(
+        CASE WHEN movement_type='reserve' THEN quantity
+             WHEN movement_type='release_reservation' THEN -quantity
+             ELSE 0 END
+      )>0
+       ORDER BY product_id,warehouse_id,inventory_batch_id
+    LOOP
+      UPDATE public.inventory_batches
+         SET quantity_reserved=quantity_reserved-v_move.quantity
+       WHERE id=v_move.inventory_batch_id
+         AND product_id=v_move.product_id
+         AND warehouse_id=v_move.warehouse_id
+         AND quantity_reserved>=v_move.quantity;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='reserved batch cancellation release failed; transaction rolled back';
+      END IF;
+
+      UPDATE public.inventory_balances
+         SET quantity_reserved=quantity_reserved-v_move.quantity,
+             last_movement_at=pg_catalog.statement_timestamp(),
+             updated_at=pg_catalog.statement_timestamp()
+       WHERE product_id=v_move.product_id
+         AND warehouse_id=v_move.warehouse_id
+         AND quantity_reserved>=v_move.quantity
+       RETURNING quantity_available INTO v_after;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate cancellation release failed; transaction rolled back';
+      END IF;
+
+      INSERT INTO public.inventory_movements(
+        product_id,warehouse_id,movement_type,quantity,balance_after,
+        reference_type,reference_id,reason,created_by,inventory_batch_id
+      ) VALUES(
+        v_move.product_id,v_move.warehouse_id,'release_reservation',v_move.quantity,v_after,
+        'order',NEW.id,'تحرير حجز المخزون عند إلغاء الطلب',v_actor,v_move.inventory_batch_id
+      );
+    END LOOP;
   END IF;
 
-  IF EXISTS (
-   SELECT 1
-     FROM (
-       SELECT im.inventory_batch_id,
-              pg_catalog.sum(
-                CASE WHEN im.movement_type='reserve' THEN im.quantity
-                     WHEN im.movement_type='release_reservation' THEN -im.quantity
-                     ELSE 0 END
-              ) AS reserved_quantity
-         FROM public.inventory_movements im
-        WHERE im.reference_type='order'
-          AND im.reference_id=NEW.id
-          AND im.movement_type IN ('reserve','release_reservation')
-          AND im.inventory_batch_id IS NOT NULL
-        GROUP BY im.inventory_batch_id
-        HAVING pg_catalog.sum(
-          CASE WHEN im.movement_type='reserve' THEN im.quantity
-               WHEN im.movement_type='release_reservation' THEN -im.quantity
-               ELSE 0 END
-        )>0
-     ) outstanding
-     JOIN public.inventory_batches b ON b.id=outstanding.inventory_batch_id
-    WHERE b.expiry_date IS NOT NULL
-      AND b.expiry_date<(pg_catalog.now() AT TIME ZONE 'UTC')::date
-  ) THEN
-   RAISE EXCEPTION USING ERRCODE='55000',
-     MESSAGE='order has an expired reserved batch; reallocate its reservation before shipment';
-  END IF;
-  PERFORM 1 FROM public.inventory_balances ib JOIN
-   (SELECT DISTINCT product_id,warehouse_id FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve') r
-   ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id ORDER BY ib.product_id,ib.warehouse_id FOR UPDATE OF ib;
-  FOR v_move IN
-   SELECT product_id,warehouse_id,inventory_batch_id,
-          pg_catalog.sum(CASE WHEN movement_type='reserve' THEN quantity
-                              WHEN movement_type='release_reservation' THEN -quantity
-                              ELSE 0 END)::numeric(15,3) quantity
-     FROM public.inventory_movements
-    WHERE reference_type='order' AND reference_id=NEW.id
-      AND movement_type IN ('reserve','release_reservation')
-      AND inventory_batch_id IS NOT NULL
-    GROUP BY product_id,warehouse_id,inventory_batch_id
-   HAVING pg_catalog.sum(CASE WHEN movement_type='reserve' THEN quantity
-                              WHEN movement_type='release_reservation' THEN -quantity
-                              ELSE 0 END)>0
-    ORDER BY product_id,warehouse_id,inventory_batch_id LOOP
-   UPDATE public.inventory_batches SET quantity_on_hand=quantity_on_hand-v_move.quantity,quantity_reserved=quantity_reserved-v_move.quantity
-    WHERE id=v_move.inventory_batch_id AND product_id=v_move.product_id AND warehouse_id=v_move.warehouse_id
-    AND quantity_on_hand>=v_move.quantity AND quantity_reserved>=v_move.quantity;
-   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reserved batch settlement failed; shipment rolled back'; END IF;
-   UPDATE public.inventory_balances SET quantity_on_hand=quantity_on_hand-v_move.quantity,quantity_reserved=quantity_reserved-v_move.quantity,last_movement_at=pg_catalog.now(),updated_at=pg_catalog.now()
-    WHERE product_id=v_move.product_id AND warehouse_id=v_move.warehouse_id AND quantity_on_hand>=v_move.quantity AND quantity_reserved>=v_move.quantity
-    RETURNING quantity_available INTO v_after;
-   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='aggregate stock settlement failed; shipment rolled back'; END IF;
-   INSERT INTO public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id)
-   VALUES(v_move.product_id,v_move.warehouse_id,'sale',-v_move.quantity,v_after,'order',NEW.id,'خصم المخزون عند الشحن من الدفعة المحجوزة',v_actor,v_move.inventory_batch_id);
-  END LOOP;
- ELSIF NEW.status='cancelled' AND OLD.status IN ('confirmed','processing') THEN
-  IF EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve' AND inventory_batch_id IS NULL) THEN
-   RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation'; END IF;
-  PERFORM 1 FROM public.inventory_balances ib JOIN
-   (SELECT DISTINCT product_id,warehouse_id FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve') r
-   ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id ORDER BY ib.product_id,ib.warehouse_id FOR UPDATE OF ib;
-  FOR v_move IN
-   SELECT product_id,warehouse_id,inventory_batch_id,
-          pg_catalog.sum(
+  RETURN NEW;
+END;
+$function$;
 
-COMMIT;
-),
-  request_payload jsonb NOT NULL CHECK(pg_catalog.jsonb_typeof(request_payload)='object'),
-  result jsonb NOT NULL CHECK(pg_catalog.jsonb_typeof(result)='object'),
-  created_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
-  created_at timestamptz NOT NULL DEFAULT pg_catalog.statement_timestamp(),
-  UNIQUE(organization_id,idempotency_key)
-);
-ALTER TABLE public.inventory_order_reservation_reconciliations ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.inventory_order_reservation_reconciliations FROM PUBLIC,anon,authenticated,service_role;
-COMMENT ON TABLE public.inventory_order_reservation_reconciliations IS
-  'Private idempotency ledger for completing only missing order stock reservations.';
+REVOKE ALL ON FUNCTION public.finalize_order_inventory()
+  FROM PUBLIC,anon,authenticated,service_role;
+
+COMMENT ON FUNCTION public.finalize_order_inventory() IS
+  'Settles only exact net order batch reservations, blocks expired or incomplete shipment quantities, and releases only outstanding reservations on cancellation.';
 
 CREATE OR REPLACE FUNCTION public.reallocate_expired_order_reservations(
   p_order_id uuid,
@@ -1661,115 +1791,5 @@ GRANT EXECUTE ON FUNCTION public.list_orders_with_expired_fefo_reservations(inte
 
 COMMENT ON FUNCTION public.list_orders_with_expired_fefo_reservations(integer,integer) IS
   'Manager/admin work queue for confirmed/processing orders with positive net reservations in expired FEFO batches; returns only scoped safe batch facts and in-date replacement availability from one statement snapshot.';
-
-CREATE OR REPLACE FUNCTION public.finalize_order_inventory()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $function$
-DECLARE v_actor uuid:=public.current_profile_id(); v_move record; v_after numeric(15,3);
-BEGIN
- IF NEW.status IS NOT DISTINCT FROM OLD.status THEN RETURN NEW; END IF;
- IF NEW.status IN ('shipped','delivered') AND OLD.status IN ('confirmed','processing','shipped')
- AND NOT EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='sale') THEN
-  IF EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve' AND inventory_batch_id IS NULL) THEN
-   RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation'; END IF;
-
-  -- A shipped/delivered order must have a complete net reservation for every
-  -- ordered product. Prevent partial stock settlement from falsely finalizing
-  -- the full commercial order after a partial release or ledger discrepancy.
-  IF EXISTS (
-    WITH ordered_quantities AS MATERIALIZED (
-      SELECT oi.product_id,pg_catalog.sum(oi.quantity)::numeric(15,3) AS quantity
-        FROM public.order_items oi
-       WHERE oi.order_id=NEW.id
-       GROUP BY oi.product_id
-    ),
-    net_reservations AS MATERIALIZED (
-      SELECT im.product_id,
-             pg_catalog.sum(
-               CASE WHEN im.movement_type='reserve' THEN im.quantity
-                    WHEN im.movement_type='release_reservation' THEN -im.quantity
-                    ELSE 0 END
-             )::numeric(15,3) AS quantity
-        FROM public.inventory_movements im
-       WHERE im.reference_type='order'
-         AND im.reference_id=NEW.id
-         AND im.movement_type IN ('reserve','release_reservation')
-       GROUP BY im.product_id
-    )
-    SELECT 1
-      FROM ordered_quantities oq
-      FULL JOIN net_reservations nr
-        ON nr.product_id IS NOT DISTINCT FROM oq.product_id
-     WHERE coalesce(oq.quantity,0) IS DISTINCT FROM coalesce(nr.quantity,0)
-  ) THEN
-    RAISE EXCEPTION USING ERRCODE='55000',
-      MESSAGE='order net reservation quantity does not match ordered quantity; shipment refused';
-  END IF;
-
-  IF EXISTS (
-   SELECT 1
-     FROM (
-       SELECT im.inventory_batch_id,
-              pg_catalog.sum(
-                CASE WHEN im.movement_type='reserve' THEN im.quantity
-                     WHEN im.movement_type='release_reservation' THEN -im.quantity
-                     ELSE 0 END
-              ) AS reserved_quantity
-         FROM public.inventory_movements im
-        WHERE im.reference_type='order'
-          AND im.reference_id=NEW.id
-          AND im.movement_type IN ('reserve','release_reservation')
-          AND im.inventory_batch_id IS NOT NULL
-        GROUP BY im.inventory_batch_id
-        HAVING pg_catalog.sum(
-          CASE WHEN im.movement_type='reserve' THEN im.quantity
-               WHEN im.movement_type='release_reservation' THEN -im.quantity
-               ELSE 0 END
-        )>0
-     ) outstanding
-     JOIN public.inventory_batches b ON b.id=outstanding.inventory_batch_id
-    WHERE b.expiry_date IS NOT NULL
-      AND b.expiry_date<(pg_catalog.now() AT TIME ZONE 'UTC')::date
-  ) THEN
-   RAISE EXCEPTION USING ERRCODE='55000',
-     MESSAGE='order has an expired reserved batch; reallocate its reservation before shipment';
-  END IF;
-  PERFORM 1 FROM public.inventory_balances ib JOIN
-   (SELECT DISTINCT product_id,warehouse_id FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve') r
-   ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id ORDER BY ib.product_id,ib.warehouse_id FOR UPDATE OF ib;
-  FOR v_move IN
-   SELECT product_id,warehouse_id,inventory_batch_id,
-          pg_catalog.sum(CASE WHEN movement_type='reserve' THEN quantity
-                              WHEN movement_type='release_reservation' THEN -quantity
-                              ELSE 0 END)::numeric(15,3) quantity
-     FROM public.inventory_movements
-    WHERE reference_type='order' AND reference_id=NEW.id
-      AND movement_type IN ('reserve','release_reservation')
-      AND inventory_batch_id IS NOT NULL
-    GROUP BY product_id,warehouse_id,inventory_batch_id
-   HAVING pg_catalog.sum(CASE WHEN movement_type='reserve' THEN quantity
-                              WHEN movement_type='release_reservation' THEN -quantity
-                              ELSE 0 END)>0
-    ORDER BY product_id,warehouse_id,inventory_batch_id LOOP
-   UPDATE public.inventory_batches SET quantity_on_hand=quantity_on_hand-v_move.quantity,quantity_reserved=quantity_reserved-v_move.quantity
-    WHERE id=v_move.inventory_batch_id AND product_id=v_move.product_id AND warehouse_id=v_move.warehouse_id
-    AND quantity_on_hand>=v_move.quantity AND quantity_reserved>=v_move.quantity;
-   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reserved batch settlement failed; shipment rolled back'; END IF;
-   UPDATE public.inventory_balances SET quantity_on_hand=quantity_on_hand-v_move.quantity,quantity_reserved=quantity_reserved-v_move.quantity,last_movement_at=pg_catalog.now(),updated_at=pg_catalog.now()
-    WHERE product_id=v_move.product_id AND warehouse_id=v_move.warehouse_id AND quantity_on_hand>=v_move.quantity AND quantity_reserved>=v_move.quantity
-    RETURNING quantity_available INTO v_after;
-   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='aggregate stock settlement failed; shipment rolled back'; END IF;
-   INSERT INTO public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id)
-   VALUES(v_move.product_id,v_move.warehouse_id,'sale',-v_move.quantity,v_after,'order',NEW.id,'خصم المخزون عند الشحن من الدفعة المحجوزة',v_actor,v_move.inventory_batch_id);
-  END LOOP;
- ELSIF NEW.status='cancelled' AND OLD.status IN ('confirmed','processing') THEN
-  IF EXISTS(SELECT 1 FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve' AND inventory_batch_id IS NULL) THEN
-   RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation'; END IF;
-  PERFORM 1 FROM public.inventory_balances ib JOIN
-   (SELECT DISTINCT product_id,warehouse_id FROM public.inventory_movements WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve') r
-   ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id ORDER BY ib.product_id,ib.warehouse_id FOR UPDATE OF ib;
-  FOR v_move IN
-   SELECT product_id,warehouse_id,inventory_batch_id,
-          pg_catalog.sum(
 
 COMMIT;
