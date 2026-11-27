@@ -115,6 +115,19 @@ describe("system health evidence and source-clock contract",()=>{
   expect(result.warnings).toContain("DUPLICATE_REQUIRED_COMPONENT");
  });
 
+ it("does not report healthy when required component identities are invalid",()=>{
+  const result=build({requiredComponents:[" "]});
+  expect(result.status).toBe("UNKNOWN");
+  expect(result.components).toHaveLength(0);
+  expect(result.warnings).toContain("REQUIRED_COMPONENT_INVALID");
+ });
+
+ it("rejects a SYSTEM_PROBE record without a usable source name",()=>{
+  const result=build({evidenceRecords:[evidence({source:{kind:"SYSTEM_PROBE",name:" "}})]});
+  expect(result.status).toBe("UNKNOWN");
+  expect(result.warnings).toContain("HEALTH_EVIDENCE_SOURCE_KIND_INVALID");
+ });
+
  it("keeps an empty required set unknown",()=>{
   const result=build({requiredComponents:[],probes:[],evidenceRecords:[]});
   expect(result.status).toBe("UNKNOWN");
