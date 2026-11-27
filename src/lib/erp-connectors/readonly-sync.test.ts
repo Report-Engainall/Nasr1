@@ -552,6 +552,61 @@ describe("server-side ERP read connector contract", () => {
     expect(page.records).toHaveLength(1);
   });
 
+  it("returns a capped Retry-After hint to the scheduler after bounded 429 retries are exhausted", async () => {
+    const waits: number[] = [];
+    let calls = 0;
+    const store = new InMemoryCheckpointStore();
+    const connector = new OfficialJsonErpReadConnector({
+      ...connection,
+      maxRetries: 1,
+      maxRetryDelayMs: 1500,
+    }, productContract, {
+      fetcher: vi.fn(async () => {
+        calls += 1;
+        return new Response("{}", {
+          status: 429,
+          headers: { "retry-after": calls === 1 ? "60" : "30" },
+        });
+      }),
+      sleep: async (milliseconds) => { waits.push(milliseconds); },
+    });
+
+    const result = await runIncrementalReadOnlyBatch({
+      tasks: [{ scope, connector, store }],
+    });
+
+    expect(calls).toBe(2);
+    expect(waits).toEqual([1500]);
+    expect(result.status).toBe("partial_failure");
+    expect(result.tasks[0]).toMatchObject({
+      objectType: "products",
+      status: "failed",
+      errorCode: "ERP_RATE_LIMITED",
+      retryable: true,
+      retryAfterMs: 1500,
+    });
+    expect(store.committed).toHaveLength(0);
+  });
+
+  it("does not reinterpret a malformed numeric Retry-After value as an HTTP date", async () => {
+    const connector = new OfficialJsonErpReadConnector({
+      ...connection,
+      maxRetries: 0,
+    }, productContract, {
+      fetcher: vi.fn(async () => new Response("{}", {
+        status: 429,
+        headers: { "retry-after": "1.5" },
+      })),
+    });
+
+    await expect(connector.readPage({ cursor: null, modifiedSince: null }))
+      .rejects.toMatchObject({
+        code: "ERP_RATE_LIMITED",
+        retryable: true,
+        retryAfterMs: null,
+      });
+  });
+
   it("retries HTTP 408 and 425 temporary GET failures within the shared budget", async () => {
     let calls = 0;
     const waits: number[] = [];
