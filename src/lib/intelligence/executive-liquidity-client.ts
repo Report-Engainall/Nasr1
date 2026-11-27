@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 
 export type ExecutiveEvidenceStatus = "VERIFIED" | "NEEDS_REVIEW" | "UNVERIFIED" | "UNAVAILABLE";
 export type ExecutiveCompleteness = "COMPLETE" | "PARTIAL" | "UNKNOWN";
@@ -179,20 +180,21 @@ export function parseExecutiveLiquidityResponse(value: unknown): ExecutiveLiquid
   const period = record(raw?.period);
   const coverage = record(raw?.cashMovementCoverage);
   const warnings = strings(raw?.warnings, 100);
+  const asOfMicros = timestampMicroseconds(raw?.asOf);
   if (
     !raw || (raw.status !== "OK" && raw.status !== "PARTIAL") ||
     raw.sideEffects !== "NONE" ||
     authorization?.tenantScope !== "SERVER_RESOLVED_AUTHENTICATED_TENANT" ||
     !nonEmpty(authorization.effectiveRole, 50) ||
     !["admin", "manager"].includes(authorization.effectiveRole) ||
-    !isoTime(raw.asOf) ||
+    !isoTime(raw.asOf) || asOfMicros === null ||
     !period || !isoDay(period.from) || !isoDay(period.to) || period.from > period.to ||
     !warnings ||
     !coverage || !status(coverage.status) || !completeness(coverage.completeness) ||
     !integer(coverage.unclassifiedPostedCashJournalLines) ||
     !integer(coverage.unlinkedCashExpenses) || !integer(coverage.unlinkedCustomerPayments) ||
     !nonEmpty(coverage.formulaId, 150) || !nonEmpty(coverage.formulaVersion, 80) ||
-    !isoTime(coverage.calculatedAt)
+    !isoTime(coverage.calculatedAt) || timestampMicroseconds(coverage.calculatedAt)! > asOfMicros
   ) return fail("لم يرجع الخادم عقد مركز مالي مكتمل النطاق وآمن؛ أُوقف العرض.");
 
   const coverageWarnings = strings(coverage.warnings, 100);
@@ -217,7 +219,7 @@ export function parseExecutiveLiquidityResponse(value: unknown): ExecutiveLiquid
       !nonEmpty(row.currency, 3) || !ISO_CURRENCY.test(row.currency) ||
       countedAmount === null || countedAmount < 0 ||
       !integer(row.version, 1, 100000) || !isoTime(row.source_timestamp) ||
-      !nonEmpty(row.evidence_id, 200) || row.status !== "VERIFIED"
+      !nonEmpty(row.evidence_id, 200) || !isoTime(row.source_timestamp) || timestampMicroseconds(row.source_timestamp)! > asOfMicros || row.status !== "VERIFIED"
     ) return fail("يوجد عد نقدي غير صالح أو مكرر؛ أُوقف عرضه.");
     countIds.add(row.id);
     cashCounts.push({
@@ -272,11 +274,11 @@ export function parseExecutiveLiquidityResponse(value: unknown): ExecutiveLiquid
       outflowsMinor === null || outflows === null || outflows < 0 ||
       netMovementMinor === null || netMovement === null ||
       inflowsMinor - outflowsMinor !== netMovementMinor ||
-      !integer(row.movement_count, 0, 1_000_000) || !isoTime(row.last_movement_at) ||
+      !integer(row.movement_count, 0, 1_000_000) || !isoTime(row.last_movement_at) || timestampMicroseconds(row.last_movement_at)! > asOfMicros ||
       !sourceKinds || !evidenceIds || !rowWarnings ||
       row.status !== "NEEDS_REVIEW" ||
       !nonEmpty(row.formula_id, 150) || !nonEmpty(row.formula_version, 80) ||
-      !isoTime(row.calculated_at) || row.as_of !== raw.asOf ||
+      !isoTime(row.calculated_at) || timestampMicroseconds(row.calculated_at)! > asOfMicros || row.as_of !== raw.asOf ||
       !isoDay(row.period_from) || !isoDay(row.period_to) ||
       row.period_from !== period.from || row.period_to !== period.to
     ) return fail("حركة نقدية غير متصالحة أو غير موثقة؛ أُوقف الإجمالي.");
@@ -310,7 +312,7 @@ export function parseExecutiveLiquidityResponse(value: unknown): ExecutiveLiquid
       reserved === null || reserved < 0 || !isoDay(row.last_receipt_date) ||
       !isoTime(row.as_of) || row.as_of !== raw.asOf || !status(row.status) ||
       !nonEmpty(row.formula_id, 150) || !nonEmpty(row.formula_version, 80) ||
-      !isoTime(row.calculated_at) || !evidenceIds || !evidenceIds.length ||
+      !isoTime(row.calculated_at) || timestampMicroseconds(row.calculated_at)! > asOfMicros || !evidenceIds || !evidenceIds.length ||
       row.due_date_status !== "UNAVAILABLE" || !rowWarnings
     ) return fail("التزام مورد غير متحقق من إيصال وتغطية مالية صالحة؛ أُوقف العرض.");
     const key = row.supplier_id + ":" + row.currency;
@@ -345,7 +347,7 @@ export function parseExecutiveLiquidityResponse(value: unknown): ExecutiveLiquid
       !Array.isArray(row.aging_buckets) || row.aging_buckets.length > 6 ||
       !isoTime(row.as_of) || row.as_of !== raw.asOf || !status(row.status) ||
       !nonEmpty(row.formula_id, 150) || !nonEmpty(row.formula_version, 80) ||
-      !isoTime(row.calculated_at) || !rowWarnings
+      !isoTime(row.calculated_at) || timestampMicroseconds(row.calculated_at)! > asOfMicros || !rowWarnings
     ) return fail("ملخص الذمم أو أعمارها غير صالح؛ أُوقف العرض.");
     if (currencies.has(row.currency)) return fail("عملة ذمم مكررة؛ أُوقف العرض.");
     currencies.add(row.currency);
