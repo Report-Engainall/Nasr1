@@ -223,6 +223,8 @@ export type ErpSyncBatchTaskResult = {
   counts: ErpPersistCounts | null;
   errorCode: string | null;
   retryable: boolean;
+  /** Bounded server-provided delay for the scheduler after in-request retries are exhausted. */
+  retryAfterMs: number | null;
 };
 
 export type ErpSyncBatchResult = {
@@ -237,16 +239,23 @@ export class ErpConnectorError extends Error {
   readonly code: string;
   readonly httpStatus: number | null;
   readonly retryable: boolean;
+  readonly retryAfterMs: number | null;
 
   constructor(code: string, message: string, options: {
     httpStatus?: number | null;
     retryable?: boolean;
+    retryAfterMs?: number | null;
   } = {}) {
     super(message);
     this.name = "ErpConnectorError";
     this.code = code;
     this.httpStatus = options.httpStatus ?? null;
     this.retryable = options.retryable ?? false;
+    const retryAfterMs = options.retryAfterMs ?? null;
+    if (retryAfterMs !== null && (!Number.isSafeInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > 30_000)) {
+      throw new ErpConnectorError("INVALID_RETRY_AFTER_HINT", "مهلة إعادة المحاولة من مصدر ERP خارج الحد الآمن.");
+    }
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -899,7 +908,7 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
           throw new ErpConnectorError(
             response.status === 429 ? "ERP_RATE_LIMITED" : "ERP_PROVIDER_UNAVAILABLE",
             response.status === 429 ? "فرض مصدر ERP حدًا للطلبات؛ انتهت محاولات الإعادة المحدودة." : "مصدر ERP غير متاح بعد محاولات الإعادة المحدودة.",
-            { httpStatus: response.status, retryable: true },
+            { httpStatus: response.status, retryable: true, retryAfterMs: retryAfter },
           );
         }
         await this.sleep(retryAfter ?? Math.min(500 * (2 ** attempt), this.maxRetryDelayMs));
@@ -1318,6 +1327,7 @@ export async function runIncrementalReadOnlyBatch(input: {
         counts: result.counts,
         errorCode: null,
         retryable: false,
+        retryAfterMs: null,
       });
     } catch (error) {
       const safeConnectorError = error instanceof ErpConnectorError &&
@@ -1330,6 +1340,7 @@ export async function runIncrementalReadOnlyBatch(input: {
         counts: null,
         errorCode: safeConnectorError ? error.code : "ERP_SYNC_UNEXPECTED_FAILURE",
         retryable: safeConnectorError && error.retryable,
+        retryAfterMs: safeConnectorError ? error.retryAfterMs : null,
       });
     }
   }
