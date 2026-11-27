@@ -4,7 +4,7 @@ BEGIN;
 -- customer balances and journals. It stores only a reviewed canonical projection.
 CREATE TABLE public.erp_sync_checkpoints (
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
-  scope_key text NOT NULL CHECK (scope_key ~ '^[0-9a-f]{64}
+  scope_key text NOT NULL CHECK (scope_key ~ '^[0-9a-f]{64}$'),
   provider text NOT NULL CHECK (provider IN ('onyx_pro','al_mutakamel')),
   company_external_id text NOT NULL CHECK (length(btrim(company_external_id)) BETWEEN 1 AND 256),
   branch_external_id text NOT NULL CHECK (length(btrim(branch_external_id)) BETWEEN 1 AND 256),
