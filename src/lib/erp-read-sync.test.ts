@@ -55,23 +55,34 @@ describe("ERP read-sync client contract", () => {
   });
 
   it("rejects malformed counters, timestamps and checkpoint cursors", () => {
-    expect(() => parseErpReadSyncResult({ ...complete, records_read: -1 })).toThrow();
+    expect(() => parseErpReadSyncResult({ ...complete, records_read: -1 }, "customer_financial_documents")).toThrow();
     expect(() => parseErpReadSyncResult({
       ...complete,
       counts: { ...complete.counts, created: 1.5 },
-    })).toThrow();
+    }, "customer_financial_documents")).toThrow();
     expect(() => parseErpReadSyncResult({
       ...complete,
       checkpoint: { ...complete.checkpoint, has_cursor: "false" },
-    })).toThrow();
+    }, "customer_financial_documents")).toThrow();
     expect(() => parseErpReadSyncResult({
       ...complete,
       checkpoint: { ...complete.checkpoint, completed_watermark: "not-a-time" },
-    })).toThrow();
+    }, "customer_financial_documents")).toThrow();
   });
 
   it("invokes only the authenticated read-sync function with the selected bounded request", async () => {
-    mocks.invoke.mockResolvedValueOnce({ data: complete, error: null });
+    const productResult = {
+      ...complete,
+      preview: {
+        ...complete.preview,
+        records: [{
+          externalId: "ERP-PRODUCT-001",
+          sourceUpdatedAt: "2026-11-28T00:45:00Z",
+          fields: { item_code: "000125", name: "منتج" },
+        }],
+      },
+    };
+    mocks.invoke.mockResolvedValueOnce({ data: productResult, error: null });
     const request = {
       provider: "onyx_pro" as const,
       object_type: "products" as const,
@@ -82,7 +93,7 @@ describe("ERP read-sync client contract", () => {
       max_pages: 2,
       max_records: 500,
     };
-    await expect(runErpReadSync(request)).resolves.toEqual(complete);
+    await expect(runErpReadSync(request)).resolves.toEqual(productResult);
     expect(mocks.invoke).toHaveBeenCalledWith("erp-read-sync", { body: request });
   });
 
