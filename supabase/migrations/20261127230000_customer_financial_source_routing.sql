@@ -1788,7 +1788,8 @@ BEGIN
     pg_catalog.count(DISTINCT cp.invoice_id)::integer,
     COALESCE(pg_catalog.sum(cp.amount),0)::numeric(15,2),
     pg_catalog.count(*) FILTER (
-      WHERE cp.amount<=0
+      WHERE cp.amount IS NULL
+         OR cp.amount<=0
          OR cp.organization_id IS DISTINCT FROM v_org
          OR cp.customer_id IS DISTINCT FROM v_customer
          OR invoice.id IS NULL
@@ -1828,7 +1829,6 @@ BEGIN
     FROM public.customers c
    WHERE c.id=v_customer
      AND c.organization_id=v_org
-     AND c.profile_id=v_profile
      AND c.status='approved';
   IF v_customer_document IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='P0002',
