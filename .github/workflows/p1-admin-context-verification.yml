@@ -910,13 +910,13 @@ on:
       - "src/components/CustomerOrderAmendmentHistory.test.tsx"
       - ".github/workflows/p1-admin-context-verification.yml"
 
+      - "src/lib/intelligence/customer-retention-client.test.ts"
+      - "src/lib/intelligence/unavailable-product-search-demand-client.test.ts"
   workflow_dispatch:
 
 permissions:
   contents: read
 
-      - "src/lib/intelligence/customer-retention-client.test.ts"
-      - "src/lib/intelligence/unavailable-product-search-demand-client.test.ts"
 concurrency:
   group: p1-admin-context-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
