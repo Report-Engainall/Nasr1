@@ -78,6 +78,9 @@ export async function fetchStaffCustomerFinancialSource(customerId: string): Pro
   }
   const row = asRecord(data);
   if (!row) throw new Error("لم يُرجع الخادم مصدرًا ماليًا صالحًا للعميل.");
+  if (row.customer_id !== customerId) {
+    throw new Error("لم يطابق مصدر الحساب هوية العميل المحدد؛ أوقفنا تسجيل الدفعة.");
+  }
   const canReadAppLedger = row.source_mode === "APP_ONLY" &&
     row.source_status === "active" && row.is_stale === false;
   return parseCustomerFinancialSource({
