@@ -184,7 +184,7 @@ export async function fetchUnavailableProductSearchDemand(
           recordId: productRef,
           version: "1",
         },
-        sourceTimestamp: row.sourceTimestamp,
+        sourceTimestamp: row.sourceTimestamp as string,
         asOf,
         period: { from, to },
         status: evidenceStatus,
