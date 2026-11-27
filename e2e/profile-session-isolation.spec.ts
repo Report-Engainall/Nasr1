@@ -135,5 +135,21 @@ test.describe("profile Auth session isolation — disposable local Supabase only
     await expect(page.getByLabel("اسم الشركة")).toHaveValue("P2 Local E2E Customer A");
     await expect(page.getByText(/رقم العميل: P2E2EA/)).toBeVisible();
     await expect(page.getByText(/رقم العميل: P2E2EB/)).toHaveCount(0);
+
+    // Same user, new Auth session: sessionRevision must still reset all unsaved editor state.
+    const sameUserDraft = "P2 Local Same User Session Draft";
+    await page.getByLabel("اسم الشركة").fill(sameUserDraft);
+    await expect(page.getByLabel("اسم الشركة")).toHaveValue(sameUserDraft);
+    await signOutCurrentProfile(page);
+    await signInCurrentProfile(page, emailA, passwordA);
+    const renewedSessionProfileA = await readCurrentCustomerProfile(page);
+    expect(renewedSessionProfileA.subject).toBe(reloadedProfileA.subject);
+    expect(renewedSessionProfileA.sessionId).not.toBe(reloadedProfileA.sessionId);
+    expect(renewedSessionProfileA.customerCode).toBe(reloadedProfileA.customerCode);
+    expect(renewedSessionProfileA.businessName).toBe("P2 Local E2E Customer A");
+    await expect(page.getByLabel("اسم الشركة")).toHaveValue("P2 Local E2E Customer A");
+    await expect(page.getByText(/رقم العميل: P2E2EA/)).toBeVisible();
+    await expect(page.getByText(/رقم العميل: P2E2EB/)).toHaveCount(0);
+    await expect(page.getByLabel("اسم الشركة")).not.toHaveValue(sameUserDraft);
   });
 });
