@@ -63,6 +63,12 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
     ONYX_PRO_ENDPOINT_CONFIRMED: "true",
     ONYX_PRO_SANDBOX_AVAILABLE: "true",
     ONYX_PRO_READ_CONTRACTS_JSON: JSON.stringify({ products: contract }),
+    ONYX_PRO_ALLOWED_SCOPES_JSON: JSON.stringify([{
+      company_external_id: "company-01",
+      branch_external_ids: ["branch-01"],
+      warehouse_external_ids: ["warehouse-01"],
+      currency_codes: ["YER"],
+    }]),
   };
   const loadedScopes: ErpSyncScope[] = [];
   const createConnector = vi.fn((_connection: ErpConnection, _contract: ErpReadContract) => ({
@@ -234,6 +240,20 @@ describe("ERP read-only Edge Function handler", () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: "ERP_PROVIDER_TENANT_SCOPE_MISMATCH", retryable: false });
     expect(context.createConnector).not.toHaveBeenCalled();
+  });
+
+  it("rejects company or branch identifiers outside the server-owned tenant scope allowlist", async () => {
+    const context = buildDependencies();
+    const response = await createErpReadSyncHandler(context.dependencies)(
+      request({ ...scopeInput, company_external_id: "company-of-another-tenant" }),
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "ERP_PROVIDER_SCOPE_NOT_ALLOWED",
+      retryable: false,
+    });
+    expect(context.createConnector).not.toHaveBeenCalled();
+    expect(context.store.loadCheckpoint).not.toHaveBeenCalled();
   });
 
   it("rejects an origin not explicitly allowed by the server", async () => {
