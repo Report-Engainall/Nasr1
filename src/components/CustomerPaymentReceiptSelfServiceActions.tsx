@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Printer, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -36,9 +36,13 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const optionsRequestSequenceRef = useRef(0);
 
   const loadOptions = useCallback(async (targetOffset = 0, preferredId?: string | null) => {
-    if (!canReadCustomerAppLedger(source)) {
+    const requestId = ++optionsRequestSequenceRef.current;
+    if (!canReadCustomerAppLedger(sourceRef.current)) {
       setOptions(emptyOptions);
       setSelectedId("");
       setLoading(false);
@@ -53,6 +57,12 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
         p_offset: targetOffset,
       });
       if (result.error) throw new Error("تعذر تحميل سندات القبض الخاصة بحسابك.");
+      if (requestId !== optionsRequestSequenceRef.current) return;
+      if (!canReadCustomerAppLedger(sourceRef.current)) {
+        setOptions(emptyOptions);
+        setSelectedId("");
+        return;
+      }
       const parsed = readCustomerPaymentReceiptPrintOptions(result.data);
       if (parsed.limit !== PAGE_SIZE || parsed.offset !== targetOffset) {
         throw new Error("أعاد الخادم صفحة سندات قبض بحدود ترقيم غير مطابقة.");
@@ -64,22 +74,24 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
         : "";
       setSelectedId(preferred || parsed.receipts[0]?.id || "");
     } catch (cause) {
+      if (requestId !== optionsRequestSequenceRef.current) return;
       setOptions(emptyOptions);
       setSelectedId("");
       setError(cause instanceof Error ? cause.message : "تعذر تحميل سندات القبض الخاصة بحسابك.");
     } finally {
-      setLoading(false);
+      if (requestId === optionsRequestSequenceRef.current) setLoading(false);
     }
   }, [source]);
 
   useEffect(() => {
     void loadOptions(0);
+    return () => { optionsRequestSequenceRef.current += 1; };
   }, [loadOptions]);
 
   const selected = options.receipts.find((row) => row.id === selectedId) ?? null;
 
   async function printReceipt() {
-    if (!selected || busy || !canReadCustomerAppLedger(source)) return;
+    if (!selected || busy || !canReadCustomerAppLedger(sourceRef.current)) return;
     setError("");
     setNotice("");
     let printWindow: Window | null = null;
@@ -101,6 +113,12 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
       });
       if (result.error) throw new Error("تعذر استرجاع سند القبض من مصدر الحساب المعتمد.");
       const payload = readCustomerPaymentReceiptPrintPayload(result.data);
+      if (!canReadCustomerAppLedger(sourceRef.current)) {
+        throw new Error("تغير مصدر الحساب أثناء تجهيز السند؛ أوقفنا الطباعة وأغلقنا النافذة.");
+      }
+      if (payload.receipt.id !== selected.id) {
+        throw new Error("لم يطابق السند الذي أعاده الخادم السند المحدد؛ أوقفنا الطباعة.");
+      }
       renderCustomerPaymentReceiptDocument(printWindow.document, payload, options.organization_name);
       printWindow.focus();
       printWindow.onafterprint = () => closePrintWindow(printWindow);
