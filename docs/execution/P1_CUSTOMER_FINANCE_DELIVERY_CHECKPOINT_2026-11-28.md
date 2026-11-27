@@ -23,7 +23,8 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Added helper tests for unchanged APP_ONLY revision, ONYX cutover and resolver failure.
 
 ## Branch and ownership
-- Base head: `02a0144b06953618b81575dbb212e833ef1faf5d`. Branch update is conditional on that exact lease; no force update is permitted.
+- Implementation commit: `71a7653ca4581b5325852cb2d245ca28acc5d4d5` (first parent `02a0144b06953618b81575dbb212e833ef1faf5d`). The source changes are committed as one atomic tree update on the P1 branch.
+- The checkpoint-only follow-up is based on implementation commit `71a7653ca4581b5325852cb2d245ca28acc5d4d5`; it is applied with a non-forced expected-SHA lease.
 - Changed files: `src/lib/customer-financial-source.ts`, `src/lib/customer-financial-source.test.ts`, `src/components/CustomerWorkflows.tsx`, and this checkpoint.
 - P1 does not write production data, post payments, move inventory, call live ERP endpoints, add secrets, deploy or merge to `main`.
 
