@@ -10,7 +10,7 @@ import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/repleni
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
-import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
+import { buildDailyDecisions, selectTopDailyDecisionActions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildClaimEvidencePassports } from "@/lib/intelligence/claim-evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
@@ -1263,12 +1263,11 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
 
   const dailyDecisionActions = useMemo(() =>
-    [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions]
-      .sort((left,right) => right.decision.priorityScore-left.decision.priorityScore ||
-        (left.decision.impact && right.decision.impact &&
-         left.decision.impact.currency===right.decision.impact.currency
-          ? Math.abs(right.decision.impact.value)-Math.abs(left.decision.impact.value) : 0) ||
-        left.candidateId.localeCompare(right.candidateId)).slice(0,10),
+    selectTopDailyDecisionActions(
+      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions]
+        .map(action => ({ decision: action.decision, payload: action })),
+      10,
+    ).actions.map(item => item.payload),
   [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions]);
   const inventoryViewState = inventoryLoading
     ? "loading"
