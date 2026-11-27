@@ -199,9 +199,9 @@ try {
       "organization_id,asset_id,event_type,old_status,new_status,summary,reason,metadata,actor_profile_id" +
       ") values " +
       "($1::uuid,$2::uuid,'replacement','active','replaced',$3,$4," +
-      "jsonb_build_object('request_key',$5,'request_fingerprint',repeat('a',64),'new_asset_id',$6::text),$7::uuid)," +
+      "jsonb_build_object('request_key',$5::text,'request_fingerprint',repeat('a',64),'new_asset_id',$6::text),$7::uuid)," +
       "($1::uuid,$2::uuid,'replacement','active','replaced',$3,$4," +
-      "jsonb_build_object('request_key',$5,'request_fingerprint',repeat('b',64),'new_asset_id',$6::text),$7::uuid)",
+      "jsonb_build_object('request_key',$5::text,'request_fingerprint',repeat('b',64),'new_asset_id',$6::text),$7::uuid)",
       [organizationId, oldAssetId, "Preflight fixture", "Temporary duplicate history fixture",
         duplicateHistoryKey, newAssetId, profileId],
     );
