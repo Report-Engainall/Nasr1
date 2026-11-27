@@ -339,7 +339,6 @@ BEGIN
   IF FOUND THEN
     IF v_receipt.response_sha256 IS DISTINCT FROM p_response_sha256
        OR v_receipt.http_status IS DISTINCT FROM p_http_status
-       OR v_receipt.external_request_id IS DISTINCT FROM p_external_request_id
        OR v_receipt.records_received IS DISTINCT FROM v_records_received
        OR v_receipt.next_cursor_present IS DISTINCT FROM (p_next_cursor_ciphertext IS NOT NULL)
        OR v_receipt.completed IS DISTINCT FROM p_completed
