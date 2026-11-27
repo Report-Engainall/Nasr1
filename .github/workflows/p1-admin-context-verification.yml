@@ -916,6 +916,8 @@ on:
 
       - "src/lib/intelligence/customer-retention-client.test.ts"
       - "src/lib/intelligence/unavailable-product-search-demand-client.test.ts"
+      - "src/lib/intelligence/supplier-payable-concentration-trend.ts"
+      - "src/lib/intelligence/supplier-payable-concentration-trend.test.ts"
   workflow_dispatch:
 
 permissions:

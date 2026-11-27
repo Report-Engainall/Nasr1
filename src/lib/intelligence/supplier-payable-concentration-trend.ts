@@ -1,4 +1,5 @@
 import type { SupplierPostedPayableActivitySnapshot } from "./supplier-posted-payable-activity-client";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import {
   decimalToMinorUnits,
   percentageToHundredths,
@@ -43,17 +44,6 @@ function utcDay(value: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const millis = Date.parse(value + "T00:00:00.000Z");
   return Number.isFinite(millis) && new Date(millis).toISOString().slice(0, 10) === value ? millis : null;
-}
-function validTime(value: string): boolean {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
-    return false;
-  }
-  const day = value.slice(0, 10);
-  const dayMillis = Date.parse(day + "T00:00:00.000Z");
-  return Number.isFinite(Date.parse(value)) &&
-    Number.isFinite(dayMillis) &&
-    new Date(dayMillis).toISOString().slice(0, 10) === day;
 }
 function sameWindow(a: { from: string; to: string }, b: { from: string; to: string }): boolean {
   const af = utcDay(a.from), at = utcDay(a.to), bf = utcDay(b.from), bt = utcDay(b.to);
@@ -150,8 +140,10 @@ export function buildSupplierPayableConcentrationTrend(
   baseline: SupplierPostedPayableActivitySnapshot | null,
 ): SupplierPayableConcentrationTrend {
   if (!current || !baseline) return empty("UNAVAILABLE", current, baseline, "SUPPLIER_TREND_SOURCE_UNAVAILABLE");
-  if (!validTime(current.asOf) || !validTime(baseline.asOf) ||
-      Date.parse(current.asOf) !== Date.parse(baseline.asOf)) {
+  const currentAsOfMicros = timestampMicroseconds(current.asOf);
+  const baselineAsOfMicros = timestampMicroseconds(baseline.asOf);
+  if (currentAsOfMicros === null || baselineAsOfMicros === null ||
+      currentAsOfMicros !== baselineAsOfMicros) {
     return empty("NOT_COMPARABLE", current, baseline, "SUPPLIER_TREND_AS_OF_MISMATCH");
   }
   if (!sameWindow(baseline.period, current.period)) {
