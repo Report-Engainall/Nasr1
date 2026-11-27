@@ -25,6 +25,17 @@ function formatDate(value: string | null): string {
   return Number.isFinite(date.getTime()) ? date.toLocaleString("ar") : "غير متوفر";
 }
 
+function formatDisposition(value: "created" | "updated" | "unchanged" | "rejected" | "conflicted" | null): string {
+  switch (value) {
+    case "created": return "جديد";
+    case "updated": return "محدّث";
+    case "unchanged": return "مطابق دون تغيير";
+    case "rejected": return "مرفوض";
+    case "conflicted": return "متعارض";
+    default: return "لم يُسجل بعد";
+  }
+}
+
 const PREVIEW_FIELD_LABELS: Record<string, string> = {
   item_code: "رقم الصنف",
   sku: "SKU",
@@ -202,7 +213,12 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
                 : result.preview.records.map((record) => (
                   <article key={record.externalId} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, display: "grid", gap: 7 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                      <strong>{record.externalId}</strong>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <strong>{record.externalId}</strong>
+                        <span className="report-note" style={{ border: "1px solid var(--border)", borderRadius: 999, padding: "2px 8px" }}>
+                          {formatDisposition(record.lastDisposition)}
+                        </span>
+                      </div>
                       <span className="report-note">{formatDate(record.sourceUpdatedAt)}</span>
                     </div>
                     <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 7 }}>
