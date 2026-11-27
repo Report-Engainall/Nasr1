@@ -784,6 +784,50 @@ async function main() {
   assert.equal(statementReceiptHistory.records[0].has_next_cursor, false);
   assert.equal(statementReceiptHistory.records[0].committed_version, 1);
   assert.equal(statementReceiptHistory.has_cursor, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(statementReceiptHistory.records[0], "page_fingerprint"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(statementReceiptHistory.records[0], "response_sha256"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(statementReceiptHistory.records[0], "external_request_id"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(statementReceiptHistory.records[0], "cursor_ciphertext"), false);
+
+  // Prove multi-page history ordering and absolute page numbers across bounded offsets.
+  const receiptHistoryScope = { ...baseScope, branchExternalId: "branch-page-receipt-history" };
+  assert.equal((await loadCheckpoint(receiptHistoryScope)).version, 0);
+  await persistPage({
+    ...page({
+      expectedVersion: 0,
+      label: "receipt-history-page-one",
+      records: [stagedRecord("Receipt history one", timestamp1, {}, "ONYX-HISTORY-001")],
+      nextCursor: cursorCiphertext("receipt-history-page-one"),
+      pendingWatermark: timestamp1,
+      completedWatermark: null,
+      completed: false,
+    }),
+    scope: receiptHistoryScope,
+  });
+  await persistPage({
+    ...page({
+      expectedVersion: 1,
+      label: "receipt-history-page-two",
+      records: [stagedRecord("Receipt history two", timestamp2, {}, "ONYX-HISTORY-002")],
+      nextCursor: null,
+      pendingWatermark: null,
+      completedWatermark: timestamp2,
+      completed: true,
+    }),
+    scope: receiptHistoryScope,
+  });
+  const receiptHistoryPageOne = await previewPageReceipts(receiptHistoryScope, 1, 0);
+  const receiptHistoryPageTwo = await previewPageReceipts(receiptHistoryScope, 1, 1);
+  assert.equal(receiptHistoryPageOne.total, 2);
+  assert.equal(receiptHistoryPageOne.records.length, 1);
+  assert.equal(receiptHistoryPageOne.records[0].page_number, 1);
+  assert.equal(receiptHistoryPageOne.records[0].committed_version, 2,
+    "the newest receipt must be listed first");
+  assert.equal(receiptHistoryPageTwo.records.length, 1);
+  assert.equal(receiptHistoryPageTwo.records[0].page_number, 2,
+    "offset pagination must preserve absolute page numbering");
+  assert.equal(receiptHistoryPageTwo.records[0].committed_version, 1);
+
   await expectSql(
     "ERP receipt history rejects changed scope metadata",
     () => previewPageReceipts({ ...statementScope, companyExternalId: "other-company" }),
