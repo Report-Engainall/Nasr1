@@ -344,6 +344,129 @@ async function main() {
   assert.ok(sourceTestSinglePaymentId,
     "APP_ONLY finance accepts a real idempotent single-invoice payment");
 
+  // Existing invoice/payment journal writers use generic source_type values and
+  // can outlive their source records. Prove those journal headers/lines are bound
+  // to the same customer source even when a writer is bypassed or a draft is replayed.
+  const sourceTestInvoiceJournalId = randomUUID();
+  const sourceTestPaymentJournalId = randomUUID();
+  const invoicePaymentJournalFixtures = [
+    { id: sourceTestInvoiceJournalId, sourceType: "invoice", sourceId: sourceTestInvoiceId, description: "Financial-source customer invoice journal fixture" },
+    { id: sourceTestPaymentJournalId, sourceType: "payment", sourceId: sourceTestSinglePaymentId, description: "Financial-source customer payment journal fixture" },
+  ];
+  for (const fixture of invoicePaymentJournalFixtures) {
+    await db.unsafe(
+      "insert into public.accounting_journal_entries(" +
+        "id,organization_id,entry_date,description,source_type,source_reference,status," +
+        "idempotency_key,payload_fingerprint,created_by_profile_id" +
+      ") values($1::uuid,$2::uuid,(statement_timestamp() at time zone 'UTC')::date,$3::text," +
+        "$4::text,$5::text,'draft',$6::uuid,$7::text,$8::uuid)",
+      [fixture.id,orgId,fixture.description,fixture.sourceType,fixture.sourceId,randomUUID(),"6".repeat(32),manager.id],
+    );
+    await db.unsafe(
+      "insert into public.accounting_journal_lines(" +
+        "organization_id,journal_entry_id,line_number,account_id,debit,credit,memo" +
+      ") values($1::uuid,$2::uuid,1,$3::uuid,1.00,0.00,'Financial-source invoice/payment journal line fixture')",
+      [orgId,fixture.id,returnReceivableAccountId],
+    );
+  }
+  async function assertInvoicePaymentJournalsDenied(sourceLabel) {
+    for (const fixture of invoicePaymentJournalFixtures) {
+      const headerBefore = await db.unsafe(
+        "select organization_id::text as organization_id,source_type,source_reference,status,description " +
+        "from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+        [fixture.id,orgId],
+      );
+      assert.equal(headerBefore.length,1,sourceLabel+" "+fixture.sourceType+" journal fixture exists");
+      await expectFailure(
+        sourceLabel+" cannot mutate APP_ONLY "+fixture.sourceType+" journal header",
+        db.unsafe(
+          "update public.accounting_journal_entries set description=description " +
+          "where id=$1::uuid and organization_id=$2::uuid",
+          [fixture.id,orgId],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+      const headerAfter = await db.unsafe(
+        "select organization_id::text as organization_id,source_type,source_reference,status,description " +
+        "from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+        [fixture.id,orgId],
+      );
+      assert.deepEqual(headerAfter,headerBefore,
+        sourceLabel+" denied "+fixture.sourceType+" header update leaves the stored journal unchanged");
+
+      const lineBefore = await db.unsafe(
+        "select organization_id::text as organization_id,journal_entry_id::text as journal_entry_id," +
+          "line_number,account_id::text as account_id,debit::text as debit,credit::text as credit,memo " +
+        "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+        [orgId,fixture.id],
+      );
+      assert.equal(lineBefore.length,1,sourceLabel+" "+fixture.sourceType+" journal line fixture exists");
+      await expectFailure(
+        sourceLabel+" cannot mutate APP_ONLY "+fixture.sourceType+" journal line",
+        db.unsafe(
+          "update public.accounting_journal_lines set memo=memo " +
+          "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+          [orgId,fixture.id],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+      const lineAfter = await db.unsafe(
+        "select organization_id::text as organization_id,journal_entry_id::text as journal_entry_id," +
+          "line_number,account_id::text as account_id,debit::text as debit,credit::text as credit,memo " +
+        "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+        [orgId,fixture.id],
+      );
+      assert.deepEqual(lineAfter,lineBefore,
+        sourceLabel+" denied "+fixture.sourceType+" line update preserves debit, credit and account");
+
+      await expectFailure(
+        sourceLabel+" cannot insert a second APP_ONLY "+fixture.sourceType+" journal header",
+        db.unsafe(
+          "insert into public.accounting_journal_entries(" +
+            "id,organization_id,entry_date,description,source_type,source_reference,status," +
+            "idempotency_key,payload_fingerprint,created_by_profile_id" +
+          ") values($1::uuid,$2::uuid,(statement_timestamp() at time zone 'UTC')::date,$3::text," +
+            "$4::text,$5::text,'draft',$6::uuid,$7::text,$8::uuid)",
+          [randomUUID(),orgId,"Blocked duplicate "+fixture.sourceType+" journal",fixture.sourceType,fixture.sourceId,randomUUID(),"7".repeat(32),manager.id],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+      await expectFailure(
+        sourceLabel+" cannot insert an additional APP_ONLY "+fixture.sourceType+" journal line",
+        db.unsafe(
+          "insert into public.accounting_journal_lines(" +
+            "organization_id,journal_entry_id,line_number,account_id,debit,credit,memo" +
+          ") values($1::uuid,$2::uuid,2,$3::uuid,1.00,0.00,'Blocked external-source journal line')",
+          [orgId,fixture.id,returnReceivableAccountId],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+      await expectFailure(
+        sourceLabel+" cannot delete APP_ONLY "+fixture.sourceType+" journal line",
+        db.unsafe(
+          "delete from public.accounting_journal_lines " +
+          "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+          [orgId,fixture.id],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+      await expectFailure(
+        sourceLabel+" cannot delete APP_ONLY "+fixture.sourceType+" journal header",
+        db.unsafe(
+          "delete from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+          [fixture.id,orgId],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+    }
+  }
+
   const appOnlyCustomer360 = await rpc(managerDb,
     "select public.get_staff_customer_360($1::uuid) as result",
     [customerId]);
@@ -976,6 +1099,42 @@ async function main() {
   }
 
 
+
+  await db.begin(async tx => {
+    await tx.unsafe(
+      "update public.accounting_journal_lines set memo=memo " +
+      "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+      [orgId,sourceTestInvoiceJournalId],
+    );
+    await expectFailure(
+      "invoice journal-line mutation holds the customer binding against concurrent cutover",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings " +
+        "where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId,customerId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
+  await db.begin(async tx => {
+    await tx.unsafe(
+      "update public.accounting_journal_lines set memo=memo " +
+      "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+      [orgId,sourceTestPaymentJournalId],
+    );
+    await expectFailure(
+      "payment journal-line mutation holds the customer binding against concurrent cutover",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings " +
+        "where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId,customerId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
+
   await db.begin(async tx => {
     await tx.unsafe(
       "update public.accounting_journal_lines set memo=memo " +
@@ -1237,6 +1396,7 @@ async function main() {
   );
 
   await assertCreditMemoJournalWritesDenied("ONYX");
+  await assertInvoicePaymentJournalsDenied("ONYX");
   const [paymentLedgerAfterOnyxDenial,receiptLedgerAfterOnyxDenial] = await Promise.all([
     db.unsafe(
       "select count(*)::integer as count,coalesce(sum(amount),0)::numeric(15,2)::text as total " +
@@ -1484,6 +1644,7 @@ async function main() {
   );
 
   await assertCreditMemoJournalWritesDenied("MUTAKAMEL");
+  await assertInvoicePaymentJournalsDenied("MUTAKAMEL");
 
   await expectFailure(
     "MUTAKAMEL customer cannot list APP_ONLY receipts through the customer RPC",
@@ -1538,6 +1699,33 @@ async function main() {
   const appOnlyApproved = await reviewSource(accountantDb, appOnlyRequest.request_id, "approve", "all external balances reconciled to the app ledger before cutover");
   assert.equal(appOnlyApproved.source_mode, "APP_ONLY");
   assert.equal(appOnlyApproved.revision, 4);
+
+  for (const fixture of invoicePaymentJournalFixtures) {
+    const restoredHeader = await db.unsafe(
+      "update public.accounting_journal_entries set description=description " +
+      "where id=$1::uuid and organization_id=$2::uuid returning id",
+      [fixture.id,orgId],
+    );
+    assert.equal(restoredHeader.length,1,
+      "APP_ONLY restores "+fixture.sourceType+" journal header writes");
+    const restoredLine = await db.unsafe(
+      "update public.accounting_journal_lines set memo=memo " +
+      "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1 returning line_number",
+      [orgId,fixture.id],
+    );
+    assert.equal(restoredLine.length,1,
+      "APP_ONLY restores "+fixture.sourceType+" journal line writes");
+    await expectFailure(
+      "APP_ONLY "+fixture.sourceType+" journal cannot be detached from its immutable source identity",
+      db.unsafe(
+        "update public.accounting_journal_entries set source_type='manual',source_reference=NULL " +
+        "where id=$1::uuid and organization_id=$2::uuid",
+        [fixture.id,orgId],
+      ),
+      "55000",
+      "source identity",
+    );
+  }
 
   const restoredCreditMemoJournalHeader = await db.unsafe(
     "update public.accounting_journal_entries set description=description " +
