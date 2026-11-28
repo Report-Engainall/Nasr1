@@ -113,7 +113,7 @@ describe("customer retention action triage", () => {
   it("exports masked customer references with safe text, evidence lineage and honest coverage", () => {
     const action = {
       ...verifiedQueue.actions[0],
-      customerRef: "=HYPERLINK(\"https://example.invalid\")",
+      customerRef: "777123456",
       reason: "=SUM(1,2)",
     };
     const csv = buildCustomerRetentionActionsCsv({
@@ -127,8 +127,7 @@ describe("customer retention action triage", () => {
     expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain('"عميل #1"');
     expect(csv).toContain("customer_reference_label");
-    expect(csv).not.toContain("HYPERLINK");
-    expect(csv).not.toContain("example.invalid");
+    expect(csv).not.toContain("777123456");
     expect(csv).toContain("'=SUM(1,2)");
     expect(csv).toContain(",112,0,2,2,");
     expect(csv).toContain("evidence_ids");
