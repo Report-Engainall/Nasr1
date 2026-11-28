@@ -2224,6 +2224,20 @@ async function main() {
   assert.ok(["APP_ONLY","ONYX","MUTAKAMEL"].every(mode =>
     sourceHistory.records.some(row => row.target_source_mode === mode)),
     "history preserves all three approved source modes");
+  const historyPageIndex = await db.unsafe(
+    "select idx.indisvalid,pg_catalog.pg_get_indexdef(idx.indexrelid) as indexdef " +
+    "from pg_catalog.pg_index idx " +
+    "join pg_catalog.pg_class index_class on index_class.oid=idx.indexrelid " +
+    "join pg_catalog.pg_namespace ns on ns.oid=index_class.relnamespace " +
+    "where ns.nspname='public' and index_class.relname='customer_financial_source_change_history_page_idx'",
+  );
+  assert.equal(historyPageIndex.length,1,
+    "tenant/customer source history index is installed");
+  assert.equal(historyPageIndex[0].indisvalid,true,
+    "tenant/customer source history index is valid");
+  assert.match(historyPageIndex[0].indexdef,
+    /\(organization_id, customer_id, requested_at DESC, id DESC\)/i,
+    "history index supports the exact tenant/customer newest-first keyset order");
   const safeHistoryKeys = [
     "current_source_mode","expected_binding_revision","reconciliation_currency_codes",
     "reconciliation_record_counts","reconciliation_result","reconciliation_source_as_of",
