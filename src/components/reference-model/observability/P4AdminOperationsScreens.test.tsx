@@ -200,7 +200,7 @@ describe("P4 monitoring screens", () => {
 
     expect(await screen.findByText("استجابة المصدر مؤكدة")).toBeInTheDocument();
     expect(screen.getByText("غير مثبت · UNKNOWN")).toBeInTheDocument();
-    expect(screen.getByText(/HEALTH_EVIDENCE_MISSING_OR_UNVERIFIED/)).toBeInTheDocument();
+    expect(screen.getByText(/HEALTH_EVIDENCE_MISSING/)).toBeInTheDocument();
     expect(screen.getByText("public.get_ai_gateway_budget")).toBeInTheDocument();
   });
 
