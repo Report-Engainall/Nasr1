@@ -306,6 +306,15 @@ export function buildCustomerRetentionActionQueue(
 }
 
 
+function customerDecisionReferenceKey(value: string): string {
+  let hash = 14695981039346656037n;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= BigInt(value.charCodeAt(index));
+    hash = BigInt.asUintN(64, hash * 1099511628211n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
 /** Promote only a fully verified customer queue; do not infer customer value or recovered revenue. */
 export function buildCustomerRetentionDecisionCandidates(input: {
   asOf: string;
@@ -334,8 +343,8 @@ export function buildCustomerRetentionDecisionCandidates(input: {
         evidenceIds.length !== action.evidenceIds.length ||
         metricIds.length !== action.metricIds.length ||
         metricKeys.length !== action.metricKeys.length) continue;
-    const id = "customer.retention:" + customerRef + ":" + input.asOf.slice(0, 10);
-    if (id.length > 400 || seen.has(id)) continue;
+    const id = "customer.retention:" + customerDecisionReferenceKey(customerRef) + ":" + input.asOf.slice(0, 10);
+    if (id.length > 150 || seen.has(id)) continue;
     seen.add(id);
     const priority = action.priority === "HIGH" ? "P1" as const
       : action.priority === "MEDIUM" ? "P2" as const : "P3" as const;
