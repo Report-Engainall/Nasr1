@@ -478,7 +478,7 @@ describe("production intelligence workspace inventory screens", () => {
 
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
-      candidateId: "customer.retention:customer-retention-1:2026-10-31",
+      candidateId: expect.stringMatching(/^customer\\.retention:[0-9a-f]{16}:2026-10-31$/),
       ruleId: "customers.retention.follow-up", ruleVersion: "1.0.0",
       expectedOutcome: expect.stringContaining("دون احتساب إيراد مسترد"),
       candidateSnapshot: expect.objectContaining({
