@@ -842,6 +842,87 @@ async function main(){
   [product,warehouse,restoredNegativePeerBalance.available,ledgerOrderB,manager.id,ledgerBatchId]
  );
 
+
+ // A peer order with negative net on the same lot must not disappear from
+ // combined parity. Counter=1 would falsely match order A (+1) if order B (-1)
+ // were filtered out of the active movement ledger.
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe("update public.inventory_batches set quantity_reserved=1 where id=$1::uuid",[ledgerBatchId]);
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=1,last_movement_at=now(),updated_at=now() "+
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",[product,warehouse]
+  );
+ });
+ const negativePeerBalance=(await db.unsafe(
+  "select quantity_available::text available from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse]
+ ))[0];
+ await db.unsafe(
+  "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) "+
+  "values($1::uuid,$2::uuid,'release_reservation',2,$3::numeric,'order',$4::uuid,'Negative reservation-net acceptance fixture',$5::uuid,$6::uuid)",
+  [product,warehouse,negativePeerBalance.available,ledgerOrderB,manager.id,ledgerBatchId]
+ );
+ await as(manager);
+ const negativePeerExpiredQueue=await rpc("select public.list_orders_with_expired_fefo_reservations(50,0) result");
+ const negativePeerExpired=negativePeerExpiredQueue.orders.find(value=>value.order_id===ledgerOrderA);
+ assert.ok(negativePeerExpired,"positive peer order remains visible for expired-lot remediation");
+ assert.equal(negativePeerExpired.expired_lots[0].reservation_matches_batch,false,
+  "negative peer net must invalidate exact batch parity");
+ assert.equal(negativePeerExpired.expired_lots[0].reservation_matches_balance,false,
+  "negative peer net must invalidate exact warehouse parity");
+ const negativePeerIncompleteQueue=await rpc("select public.list_orders_with_incomplete_inventory_reservations(50,0) result");
+ const negativePeerIncomplete=negativePeerIncompleteQueue.orders.find(value=>value.order_id===ledgerOrderB);
+ assert.ok(negativePeerIncomplete,"negative-net order must appear as incomplete reservation");
+ assert.equal(negativePeerIncomplete.lines[0].reservation_batch_ledger_matches,false);
+ assert.equal(negativePeerIncomplete.lines[0].reservation_balance_ledger_matches,false);
+ const negativePeerBatchBefore=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]
+ ))[0];
+ const negativePeerBalanceBefore=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse]
+ ))[0];
+ const negativePeerMovesBefore=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=ANY($1::uuid[]) and movement_type in ('reserve','release_reservation')",
+  [[ledgerOrderA,ledgerOrderB]]
+ ))[0].count;
+ await assert.rejects(
+  ()=>rpc("select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
+   [ledgerOrderA,"fefo-negative-peer-"+randomUUID().replaceAll("-",""),"Reject negative peer reservation ledger"]),
+  error=>String(error?.code)==="40001" && String(error?.message).includes("negative active order reservation movement ledger"),
+  "FEFO reallocation must reject negative net on any active peer order before releasing source stock"
+ );
+ const negativePeerBatchAfter=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]
+ ))[0];
+ const negativePeerBalanceAfter=(await db.unsafe(
+  "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse]
+ ))[0];
+ const negativePeerMovesAfter=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=ANY($1::uuid[]) and movement_type in ('reserve','release_reservation')",
+  [[ledgerOrderA,ledgerOrderB]]
+ ))[0].count;
+ assert.equal(negativePeerBatchAfter.reserved,negativePeerBatchBefore.reserved);
+ assert.equal(negativePeerBalanceAfter.reserved,negativePeerBalanceBefore.reserved);
+ assert.equal(negativePeerMovesAfter,negativePeerMovesBefore);
+ await withReservationLedgerDriftFixture(async()=>{
+  await db.unsafe("update public.inventory_batches set quantity_reserved=2 where id=$1::uuid",[ledgerBatchId]);
+  await db.unsafe(
+   "update public.inventory_balances set quantity_reserved=2,last_movement_at=now(),updated_at=now() "+
+   "where product_id=$1::uuid and warehouse_id=$2::uuid",[product,warehouse]
+  );
+ });
+ const restoredNegativePeerBalance=(await db.unsafe(
+  "select quantity_available::text available from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+  [product,warehouse]
+ ))[0];
+ await db.unsafe(
+  "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) "+
+  "values($1::uuid,$2::uuid,'reserve',2,$3::numeric,'order',$4::uuid,'Restore negative reservation-net acceptance fixture',$5::uuid,$6::uuid)",
+  [product,warehouse,restoredNegativePeerBalance.available,ledgerOrderB,manager.id,ledgerBatchId]
+ );
+
  // Keep one real quantity deficit visible so the incomplete-reservation worklist
  // exposes its per-product batch and warehouse parity preflight fields.
  await db.unsafe(
