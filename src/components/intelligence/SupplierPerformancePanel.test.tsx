@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { SupplierPerformanceResult, SupplierPerformanceSupplier } from "@/lib/intelligence/supplier-performance";
+import { buildSupplierPerformanceCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
+vi.mock("@/lib/intelligence/intelligence-csv", async (importOriginal) => {
+ const original = await importOriginal<typeof import("@/lib/intelligence/intelligence-csv")>();
+ return { ...original, downloadIntelligenceCsv: vi.fn() };
+});
 import { filterSupplierPerformanceSuppliers, SupplierPerformancePanel } from "./SupplierPerformancePanel";
 
 const lateSupplier: SupplierPerformanceSupplier = {
@@ -68,6 +73,22 @@ describe("SupplierPerformancePanel triage", () => {
       .toEqual([reliableSupplier]);
     expect(filterSupplierPerformanceSuppliers(result.suppliers, "ALL", "مورد متأخر"))
       .toEqual([lateSupplier]);
+  });
+
+  it("exports only the suppliers selected by the current triage filter", () => {
+    render(<SupplierPerformancePanel result={result} />);
+    const region = screen.getByRole("region", { name: "ذكاء أداء الموردين" });
+    fireEvent.click(within(region).getByRole("button", { name: /تأخر مسجل/ }));
+    fireEvent.click(within(region).getByRole("button", { name: /تصدير الموردين المطابقين CSV/ }));
+    expect(downloadIntelligenceCsv).toHaveBeenCalledWith(
+      buildSupplierPerformanceCsv(result, [lateSupplier]),
+      "aghbari-supplier-performance.csv",
+    );
+    const csv = buildSupplierPerformanceCsv(result, [lateSupplier]);
+    expect(csv).toContain("PO-LATE-01");
+    expect(csv).toContain("SUP-LATE");
+    expect(csv).toContain("لا يتضمن الملف أسعار الشراء");
+    expect(csv).not.toContain("unit_cost");
   });
 
   it("lets the manager open the late-delivery queue in the existing panel", () => {
