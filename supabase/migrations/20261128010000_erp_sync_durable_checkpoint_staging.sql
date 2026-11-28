@@ -358,7 +358,8 @@ BEGIN
          OR (v_fields->>'external_customer_id') ~ '://'
          OR position('@' in v_fields->>'external_customer_id')>0
          OR jsonb_typeof(v_fields->'currency_code') IS DISTINCT FROM 'string'
-                  OR (v_fields->>'currency_code') !~ '^[A-Z]{3}
+         OR (v_fields->>'currency_code') !~ '^[A-Z]{3}$'
+         OR (v_fields->>'currency_code') IS DISTINCT FROM p_currency_code
       THEN
         RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial projection customer identity or currency is invalid';
       END IF;
