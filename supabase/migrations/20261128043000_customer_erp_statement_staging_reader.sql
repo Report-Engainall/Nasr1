@@ -246,6 +246,41 @@ BEGIN
 END
 $do$;
 
+
+-- The sync evidence trigger runs before record_customer_financial_source_sync updates
+-- the current binding watermark. Re-evaluate after that binding UPDATE as well, so
+-- P4-completed scopes map regardless of whether P4 or the P2 provider writer finishes first.
+CREATE OR REPLACE FUNCTION public.capture_customer_financial_source_statement_scope_from_binding()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=''
+AS $function$
+BEGIN
+  IF NEW.source_mode IS DISTINCT FROM OLD.source_mode
+     OR NEW.source_status IS DISTINCT FROM OLD.source_status
+     OR NEW.external_account_ref IS DISTINCT FROM OLD.external_account_ref
+     OR NEW.company_external_ref IS DISTINCT FROM OLD.company_external_ref
+     OR NEW.branch_external_ref IS DISTINCT FROM OLD.branch_external_ref
+     OR NEW.source_as_of IS DISTINCT FROM OLD.source_as_of
+     OR NEW.last_synced_at IS DISTINCT FROM OLD.last_synced_at
+     OR NEW.revision IS DISTINCT FROM OLD.revision THEN
+    PERFORM public.refresh_customer_financial_source_statement_scopes(
+      NEW.organization_id,NEW.customer_id
+    );
+  END IF;
+  RETURN NEW;
+END
+$function$;
+REVOKE ALL ON FUNCTION public.capture_customer_financial_source_statement_scope_from_binding()
+  FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE TRIGGER customer_financial_source_statement_scope_from_binding
+  AFTER UPDATE OF source_mode,source_status,external_account_ref,company_external_ref,
+    branch_external_ref,source_as_of,last_synced_at,revision
+  ON public.customer_financial_source_bindings
+  FOR EACH ROW EXECUTE FUNCTION public.capture_customer_financial_source_statement_scope_from_binding();
+
 -- The customer statement adapter reads only latest accepted P4 outcomes from every
 -- registered currency scope. It never reads or mutates operational invoices/payments,
 -- never combines different currencies, and refuses partial, stale or conflicted scopes.

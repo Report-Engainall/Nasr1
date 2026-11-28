@@ -1893,6 +1893,13 @@ async function main() {
       "to_regclass('public.erp_sync_page_receipts') is not null as receipts," +
       "to_regclass('public.erp_sync_page_record_outcomes') is not null as outcomes",
   );
+  const bindingScopeTrigger = await db.unsafe(
+    "select exists (select 1 from pg_catalog.pg_trigger where " +
+      "tgname='customer_financial_source_statement_scope_from_binding' " +
+      "and tgrelid='public.customer_financial_source_bindings'::regclass and not tgisinternal) as attached",
+  );
+  assert.equal(bindingScopeTrigger[0].attached,true,
+    "P2 binding watermark updates must re-evaluate completed P4 currency scopes after sync evidence writes");
   if (!p4StatementTables[0].checkpoints || !p4StatementTables[0].receipts || !p4StatementTables[0].outcomes) {
     await expectFailure(
       "fresh ONYX sync evidence cannot make an uninstalled ERP statement adapter fall back to APP_ONLY",
