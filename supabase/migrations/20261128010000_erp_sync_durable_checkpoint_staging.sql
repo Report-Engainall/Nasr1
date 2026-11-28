@@ -358,7 +358,1089 @@ BEGIN
          OR (v_fields->>'external_customer_id') ~ '://'
          OR position('@' in v_fields->>'external_customer_id')>0
          OR jsonb_typeof(v_fields->'currency_code') IS DISTINCT FROM 'string'
-         OR (v_fields->>'currency_code') !~ '^[A-Z]{3}
+                  OR (v_fields->>'currency_code') !~ '^[A-Z]{3}
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial projection customer identity or currency is invalid';
+      END IF;
+    END IF;
+
+    IF p_object_type='customer_financial_documents' THEN
+      IF jsonb_typeof(v_fields->'document_number') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'document_number')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'document_type') IS DISTINCT FROM 'string'
+         OR (v_fields->>'document_type') NOT IN ('invoice','credit_note','debit_note')
+         OR jsonb_typeof(v_fields->'document_status') IS DISTINCT FROM 'string'
+         OR (v_fields->>'document_status') NOT IN ('draft','posted','partial','paid','overdue','voided','cancelled','reversed')
+         OR jsonb_typeof(v_fields->'issue_date') IS DISTINCT FROM 'string'
+         OR (v_fields->>'issue_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'total_amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'total_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' AND
+             (jsonb_typeof(v_fields->'due_date') IS DISTINCT FROM 'string' OR (v_fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+         OR (v_fields ? 'paid_amount' AND jsonb_typeof(v_fields->'paid_amount')<>'null' AND
+             (jsonb_typeof(v_fields->'paid_amount') IS DISTINCT FROM 'string' OR (v_fields->>'paid_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'))
+         OR (v_fields ? 'outstanding_amount' AND jsonb_typeof(v_fields->'outstanding_amount')<>'null' AND
+             (jsonb_typeof(v_fields->'outstanding_amount') IS DISTINCT FROM 'string' OR (v_fields->>'outstanding_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'))
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial document fields must use approved statuses, ISO dates and canonical decimal strings';
+      END IF;
+      BEGIN
+        PERFORM (v_fields->>'issue_date')::date;
+        IF v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' THEN
+          PERFORM (v_fields->>'due_date')::date;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial document dates must be valid calendar dates';
+      END;
+    ELSIF p_object_type='customer_payment_receipts' THEN
+      IF jsonb_typeof(v_fields->'receipt_number') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'receipt_number')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'payment_status') IS DISTINCT FROM 'string'
+         OR (v_fields->>'payment_status') NOT IN ('confirmed','pending','voided','reversed')
+         OR jsonb_typeof(v_fields->'receipt_date') IS DISTINCT FROM 'string'
+         OR (v_fields->>'receipt_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP receipt fields must use approved statuses, ISO dates and canonical decimal strings';
+      END IF;
+      BEGIN
+        PERFORM (v_fields->>'receipt_date')::date;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP receipt date must be a valid calendar date';
+      END;
+    ELSIF p_object_type='customer_statement_entries' THEN
+      IF jsonb_typeof(v_fields->'entry_reference') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'entry_reference')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'entry_type') IS DISTINCT FROM 'string'
+         OR (v_fields->>'entry_type') NOT IN ('invoice','payment','credit_note','debit_note','opening_balance','adjustment')
+         OR jsonb_typeof(v_fields->'entry_date') IS DISTINCT FROM 'string'
+         OR (v_fields->>'entry_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'debit_amount') IS DISTINCT FROM 'string'
+         OR jsonb_typeof(v_fields->'credit_amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'debit_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields->>'credit_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' AND
+             (jsonb_typeof(v_fields->'due_date') IS DISTINCT FROM 'string' OR (v_fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry fields must use approved types, ISO dates and canonical decimal strings';
+      END IF;
+      BEGIN
+        PERFORM (v_fields->>'entry_date')::date;
+        IF v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' THEN
+          PERFORM (v_fields->>'due_date')::date;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement dates must be valid calendar dates';
+      END;
+      IF (v_fields->>'debit_amount')::numeric>0 AND (v_fields->>'credit_amount')::numeric>0 THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry cannot contain debit and credit amounts simultaneously';
+      END IF;
+    END IF;
+  END LOOP;
+
+  SELECT c.* INTO v_checkpoint
+    FROM public.erp_sync_checkpoints c
+   WHERE c.organization_id=p_organization_id AND c.scope_key=p_scope_key
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='ERP checkpoint must be initialized before persisting a page';
+  END IF;
+
+  IF v_checkpoint.provider IS DISTINCT FROM p_provider
+     OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+     OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+     OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+     OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+     OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+  THEN
+    RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP checkpoint scope hash is already bound to different scope metadata';
+  END IF;
+
+  -- An identical page replay must be recognized before CAS/version validation:
+  -- a provider may have committed the page while the caller lost the response.
+  SELECT r.* INTO v_receipt
+    FROM public.erp_sync_page_receipts r
+   WHERE r.organization_id=p_organization_id
+     AND r.scope_key=p_scope_key
+     AND r.page_fingerprint=p_page_fingerprint;
+  IF FOUND THEN
+    IF v_receipt.response_sha256 IS DISTINCT FROM p_response_sha256
+       OR v_receipt.http_status IS DISTINCT FROM p_http_status
+       OR v_receipt.records_received IS DISTINCT FROM v_records_received
+       OR v_receipt.next_cursor_present IS DISTINCT FROM (p_next_cursor_ciphertext IS NOT NULL)
+       OR v_receipt.completed IS DISTINCT FROM p_completed
+       OR v_receipt.pending_watermark IS DISTINCT FROM p_pending_watermark
+       OR v_receipt.completed_watermark IS DISTINCT FROM p_completed_watermark
+    THEN
+      RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP page fingerprint was replayed with different evidence metadata';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'checkpoint',pg_catalog.jsonb_build_object(
+        'version',v_checkpoint.version,
+        'cursor_ciphertext',v_checkpoint.cursor_ciphertext,
+        'pending_watermark',v_checkpoint.pending_watermark,
+        'completed_watermark',v_checkpoint.completed_watermark
+      ),
+      'counts',pg_catalog.jsonb_build_object(
+        'created',0,'updated',0,'unchanged',0,'rejected',0,'conflicted',0
+      ),
+      'duplicate_page',true
+    );
+  END IF;
+
+  IF v_checkpoint.version<>p_expected_version THEN
+    RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='ERP checkpoint version changed; reload before continuing';
+  END IF;
+  IF (v_checkpoint.completed_watermark IS NOT NULL AND
+      (p_completed_watermark IS NULL OR p_completed_watermark<v_checkpoint.completed_watermark))
+  THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP completed watermark cannot move backwards or be cleared';
+  END IF;
+  IF p_completed IS FALSE AND p_completed_watermark IS DISTINCT FROM v_checkpoint.completed_watermark THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='incomplete ERP pages must preserve the completed watermark';
+  END IF;
+  IF p_completed IS FALSE AND v_checkpoint.pending_watermark IS NOT NULL
+     AND (p_pending_watermark IS NULL OR p_pending_watermark<v_checkpoint.pending_watermark)
+  THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='incomplete ERP pages cannot move the pending watermark backwards';
+  END IF;
+
+  FOR v_record IN
+    SELECT entry.value FROM pg_catalog.jsonb_array_elements(p_records) AS entry(value)
+  LOOP
+    v_external_id:=v_record->>'external_id';
+    v_idempotency_key:=v_record->>'idempotency_key';
+    v_source_updated_at:=(v_record->>'source_updated_at')::timestamptz;
+    v_fields:=v_record->'fields';
+    v_disposition_reason:=NULL;
+
+    SELECT s.idempotency_key,s.source_updated_at,s.fields
+      INTO v_existing_key,v_existing_updated_at,v_existing_fields
+      FROM public.erp_sync_staged_records s
+     WHERE s.organization_id=p_organization_id
+       AND s.scope_key=p_scope_key
+       AND s.external_id=v_external_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+      INSERT INTO public.erp_sync_staged_records(
+        organization_id,scope_key,provider,object_type,external_id,
+        idempotency_key,source_updated_at,fields
+      ) VALUES (
+        p_organization_id,p_scope_key,p_provider,p_object_type,v_external_id,
+        v_idempotency_key,v_source_updated_at,v_fields
+      );
+      v_created:=v_created+1;
+      v_disposition:='created';
+    ELSIF v_existing_key=v_idempotency_key THEN
+      UPDATE public.erp_sync_staged_records
+         SET last_seen_at=statement_timestamp()
+       WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
+      v_unchanged:=v_unchanged+1;
+      v_disposition:='unchanged';
+    ELSIF v_source_updated_at>v_existing_updated_at THEN
+      UPDATE public.erp_sync_staged_records
+         SET idempotency_key=v_idempotency_key,
+             source_updated_at=v_source_updated_at,
+             fields=v_fields,
+             last_seen_at=statement_timestamp()
+       WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
+      v_updated:=v_updated+1;
+      v_disposition:='updated';
+    ELSIF v_source_updated_at<v_existing_updated_at THEN
+      v_rejected:=v_rejected+1;
+      v_disposition:='rejected';
+      v_disposition_reason:='source_timestamp_older';
+    ELSIF v_fields=v_existing_fields THEN
+      UPDATE public.erp_sync_staged_records
+         SET idempotency_key=v_idempotency_key,last_seen_at=statement_timestamp()
+       WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
+      v_unchanged:=v_unchanged+1;
+      v_disposition:='unchanged';
+    ELSE
+      v_conflicted:=v_conflicted+1;
+      v_disposition:='conflicted';
+      v_disposition_reason:='same_timestamp_payload_mismatch';
+    END IF;
+    v_outcomes:=v_outcomes || pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'external_id',v_external_id,
+        'source_updated_at',v_source_updated_at,
+        'fields',v_fields,
+        'disposition',v_disposition,
+        'disposition_reason',v_disposition_reason
+      )
+    );
+  END LOOP;
+
+
+  UPDATE public.erp_sync_checkpoints
+     SET version=version+1,
+         cursor_ciphertext=p_next_cursor_ciphertext,
+         pending_watermark=p_pending_watermark,
+         completed_watermark=p_completed_watermark,
+         updated_at=statement_timestamp()
+   WHERE organization_id=p_organization_id AND scope_key=p_scope_key
+   RETURNING * INTO v_checkpoint;
+
+  INSERT INTO public.erp_sync_page_receipts(
+    organization_id,scope_key,page_fingerprint,response_sha256,
+    next_cursor_present,http_status,external_request_id,pending_watermark,completed_watermark,records_received,
+    created_count,updated_count,unchanged_count,rejected_count,conflicted_count,
+    completed,committed_version
+  ) VALUES (
+    p_organization_id,p_scope_key,p_page_fingerprint,p_response_sha256,
+    (p_next_cursor_ciphertext IS NOT NULL),p_http_status,nullif(btrim(coalesce(p_external_request_id,'')),''),p_pending_watermark,p_completed_watermark,
+    v_records_received,v_created,v_updated,v_unchanged,v_rejected,v_conflicted,
+    p_completed,v_checkpoint.version
+  );
+
+  INSERT INTO public.erp_sync_page_record_outcomes(
+    organization_id,scope_key,page_fingerprint,external_id,source_updated_at,fields,disposition,disposition_reason
+  )
+  SELECT p_organization_id,p_scope_key,p_page_fingerprint,
+         outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
+    FROM pg_catalog.jsonb_to_recordset(v_outcomes) AS outcome(
+      external_id text,source_updated_at timestamptz,fields jsonb,disposition text,disposition_reason text
+    );
+
+  RETURN pg_catalog.jsonb_build_object(
+    'checkpoint',pg_catalog.jsonb_build_object(
+      'version',v_checkpoint.version,
+      'cursor_ciphertext',v_checkpoint.cursor_ciphertext,
+      'pending_watermark',v_checkpoint.pending_watermark,
+      'completed_watermark',v_checkpoint.completed_watermark
+    ),
+    'counts',pg_catalog.jsonb_build_object(
+      'created',v_created,'updated',v_updated,'unchanged',v_unchanged,
+      'rejected',v_rejected,'conflicted',v_conflicted
+    ),
+    'duplicate_page',false
+  );
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION public.reset_erp_sync_expired_cursor(
+  p_organization_id uuid,
+  p_scope_key text,
+  p_expected_version bigint
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=''
+AS $function$
+DECLARE
+  v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+BEGIN
+  IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+     OR p_expected_version IS NULL OR p_expected_version<0
+  THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid ERP checkpoint reset identity is required';
+  END IF;
+
+  SELECT c.* INTO v_checkpoint
+    FROM public.erp_sync_checkpoints c
+   WHERE c.organization_id=p_organization_id AND c.scope_key=p_scope_key
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP checkpoint was not found';
+  END IF;
+  IF v_checkpoint.version<>p_expected_version THEN
+    RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='ERP checkpoint version changed; reload before resetting';
+  END IF;
+
+  UPDATE public.erp_sync_checkpoints
+     SET version=version+1,cursor_ciphertext=NULL,pending_watermark=NULL,
+         updated_at=statement_timestamp()
+   WHERE organization_id=p_organization_id AND scope_key=p_scope_key
+   RETURNING * INTO v_checkpoint;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'version',v_checkpoint.version,
+    'cursor_ciphertext',v_checkpoint.cursor_ciphertext,
+    'pending_watermark',v_checkpoint.pending_watermark,
+    'completed_watermark',v_checkpoint.completed_watermark
+  );
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_erp_sync_staged_records(
+ p_organization_id uuid,p_scope_key text,p_provider text,p_company_external_id text,
+ p_branch_external_id text,p_warehouse_external_id text,p_currency_code text,p_object_type text,
+ p_limit integer DEFAULT 20,p_offset integer DEFAULT 0
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+ v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+ v_total bigint;
+ v_records jsonb;
+BEGIN
+ IF coalesce(auth.role(),'')<>'service_role' THEN
+  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP staged preview required';
+ END IF;
+ IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+    OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
+    OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
+    OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
+    OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
+    OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
+    OR p_object_type IS NULL OR p_object_type NOT IN (
+      'products','customers','warehouses','stock_balances','product_units','product_prices',
+      'customer_financial_documents','customer_payment_receipts','customer_statement_entries')
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+    OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 5000
+ THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid bounded ERP staged preview scope is required';
+ END IF;
+ SELECT checkpoint.* INTO v_checkpoint FROM public.erp_sync_checkpoints checkpoint
+  WHERE checkpoint.organization_id=p_organization_id AND checkpoint.scope_key=p_scope_key FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP staged preview scope has no checkpoint'; END IF;
+ IF v_checkpoint.provider IS DISTINCT FROM p_provider
+    OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+    OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+    OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+    OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+    OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+ THEN RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP staged preview scope hash is already bound to different scope metadata'; END IF;
+ WITH latest_outcomes AS MATERIALIZED (
+   SELECT DISTINCT ON (outcome.external_id)
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
+     FROM public.erp_sync_page_record_outcomes outcome
+    WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
+    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+ ),
+ preview_rows AS MATERIALIZED (
+   SELECT staged.external_id,
+          coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
+          coalesce(latest.fields,staged.fields) AS fields,
+          latest.disposition,
+          latest.disposition_reason
+     FROM public.erp_sync_staged_records staged
+     LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
+    WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+   UNION ALL
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition,latest.disposition_reason
+     FROM latest_outcomes latest
+    WHERE latest.disposition IN ('rejected','conflicted')
+      AND NOT EXISTS (
+        SELECT 1 FROM public.erp_sync_staged_records staged
+         WHERE staged.organization_id=p_organization_id
+           AND staged.scope_key=p_scope_key
+           AND staged.external_id=latest.external_id
+      )
+ )
+ SELECT count(*) INTO v_total FROM preview_rows;
+
+ WITH latest_outcomes AS MATERIALIZED (
+   SELECT DISTINCT ON (outcome.external_id)
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
+     FROM public.erp_sync_page_record_outcomes outcome
+    WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
+    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+ ),
+ preview_rows AS MATERIALIZED (
+   SELECT staged.external_id,
+          coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
+          coalesce(latest.fields,staged.fields) AS fields,
+          latest.disposition,
+          latest.disposition_reason
+     FROM public.erp_sync_staged_records staged
+     LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
+    WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+   UNION ALL
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition,latest.disposition_reason
+     FROM latest_outcomes latest
+    WHERE latest.disposition IN ('rejected','conflicted')
+      AND NOT EXISTS (
+        SELECT 1 FROM public.erp_sync_staged_records staged
+         WHERE staged.organization_id=p_organization_id
+           AND staged.scope_key=p_scope_key
+           AND staged.external_id=latest.external_id
+      )
+ )
+ SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+     'external_id',page.external_id,
+     'source_updated_at',page.source_updated_at,
+     'fields',page.fields,
+     'last_disposition',page.disposition,
+     'last_disposition_reason',page.disposition_reason)
+     ORDER BY page.source_updated_at DESC,page.external_id),'[]'::jsonb)
+  INTO v_records
+  FROM (
+    SELECT preview_row.external_id,preview_row.source_updated_at,preview_row.fields,preview_row.disposition
+      FROM preview_rows preview_row
+     ORDER BY preview_row.source_updated_at DESC,preview_row.external_id
+     LIMIT p_limit OFFSET p_offset
+  ) page;
+ RETURN pg_catalog.jsonb_build_object('records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
+   'checkpoint_version',v_checkpoint.version,'has_cursor',v_checkpoint.cursor_ciphertext IS NOT NULL,
+   'pending_watermark',v_checkpoint.pending_watermark,
+   'completed_watermark',v_checkpoint.completed_watermark);
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_erp_sync_page_receipts(
+ p_organization_id uuid,p_scope_key text,p_provider text,p_company_external_id text,
+ p_branch_external_id text,p_warehouse_external_id text,p_currency_code text,p_object_type text,
+ p_limit integer DEFAULT 10,p_offset integer DEFAULT 0
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+ v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+ v_total bigint;
+ v_records jsonb;
+BEGIN
+ IF coalesce(auth.role(),'')<>'service_role' THEN
+  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP page receipt history required';
+ END IF;
+ IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+    OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
+    OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
+    OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
+    OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
+    OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
+    OR p_object_type IS NULL OR p_object_type NOT IN (
+      'products','customers','warehouses','stock_balances','product_units','product_prices',
+      'customer_financial_documents','customer_payment_receipts','customer_statement_entries')
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+    OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 5000
+ THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid bounded ERP page receipt scope is required';
+ END IF;
+ SELECT checkpoint.* INTO v_checkpoint
+   FROM public.erp_sync_checkpoints checkpoint
+  WHERE checkpoint.organization_id=p_organization_id AND checkpoint.scope_key=p_scope_key
+  FOR SHARE;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP page receipt scope has no checkpoint';
+ END IF;
+ IF v_checkpoint.provider IS DISTINCT FROM p_provider
+    OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+    OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+    OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+    OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+    OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+ THEN
+  RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP page receipt scope hash is bound to different scope metadata';
+ END IF;
+ SELECT count(*) INTO v_total
+   FROM public.erp_sync_page_receipts receipt
+  WHERE receipt.organization_id=p_organization_id AND receipt.scope_key=p_scope_key;
+ SELECT coalesce(pg_catalog.jsonb_agg(
+   pg_catalog.jsonb_build_object(
+     'page_number',page.page_number,
+     'http_status',page.http_status,
+     'has_next_cursor',page.next_cursor_present,
+     'records_received',page.records_received,
+     'counts',pg_catalog.jsonb_build_object(
+       'created',page.created_count,'updated',page.updated_count,'unchanged',page.unchanged_count,
+       'rejected',page.rejected_count,'conflicted',page.conflicted_count
+     ),
+     'completed',page.completed,
+     'committed_version',page.committed_version,
+     'recorded_at',page.recorded_at,
+     'pending_watermark',page.pending_watermark,
+     'completed_watermark',page.completed_watermark
+   ) ORDER BY page.recorded_at DESC,page.committed_version DESC
+ ),'[]'::jsonb)
+ INTO v_records
+ FROM (
+   SELECT receipt.*,
+          pg_catalog.row_number() OVER (ORDER BY receipt.recorded_at DESC,receipt.committed_version DESC)::bigint AS page_number
+     FROM public.erp_sync_page_receipts receipt
+    WHERE receipt.organization_id=p_organization_id AND receipt.scope_key=p_scope_key
+    ORDER BY receipt.recorded_at DESC,receipt.committed_version DESC
+    LIMIT p_limit OFFSET p_offset
+ ) page;
+ RETURN pg_catalog.jsonb_build_object(
+   'records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
+   'checkpoint_version',v_checkpoint.version,'has_cursor',v_checkpoint.cursor_ciphertext IS NOT NULL
+ );
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) TO service_role;
+GRANT EXECUTE ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) TO service_role;
+GRANT EXECUTE ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) TO service_role;
+GRANT EXECUTE ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) TO service_role;
+COMMENT ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) IS
+  'Service-role-only bounded ERP page receipt history. Exposes disposition counts and watermarks without cursors, response hashes or provider request IDs.';
+
+-- P2 can be merged before P4. Attach the tenant/customer scope refresh trigger
+-- when the P2 resolver is already present; P2 performs the reverse-order attach.
+DO $do$
+BEGIN
+  IF pg_catalog.to_regprocedure('public.capture_customer_financial_source_statement_scope_from_checkpoint()') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_trigger
+        WHERE tgname='customer_financial_source_statement_scope_from_checkpoint'
+          AND tgrelid='public.erp_sync_checkpoints'::regclass
+          AND NOT tgisinternal
+     ) THEN
+    EXECUTE
+      'CREATE TRIGGER customer_financial_source_statement_scope_from_checkpoint ' ||
+      'AFTER UPDATE OF completed_watermark,cursor_ciphertext,pending_watermark ' ||
+      'ON public.erp_sync_checkpoints FOR EACH ROW ' ||
+      'EXECUTE FUNCTION public.capture_customer_financial_source_statement_scope_from_checkpoint()';
+  END IF;
+END
+$do$;
+
+COMMIT;
+
+         OR v_fields->>'currency_code' IS DISTINCT FROM p_currency_code
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial projection customer identity or currency is invalid';
+      END IF;
+    END IF;
+
+    IF p_object_type='customer_financial_documents' THEN
+      IF jsonb_typeof(v_fields->'document_number') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'document_number')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'document_type') IS DISTINCT FROM 'string'
+         OR (v_fields->>'document_type') NOT IN ('invoice','credit_note','debit_note')
+         OR jsonb_typeof(v_fields->'document_status') IS DISTINCT FROM 'string'
+         OR (v_fields->>'document_status') NOT IN ('draft','posted','partial','paid','overdue','voided','cancelled','reversed')
+         OR jsonb_typeof(v_fields->'issue_date') IS DISTINCT FROM 'string'
+         OR (v_fields->>'issue_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'total_amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'total_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' AND
+             (jsonb_typeof(v_fields->'due_date') IS DISTINCT FROM 'string' OR (v_fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+         OR (v_fields ? 'paid_amount' AND jsonb_typeof(v_fields->'paid_amount')<>'null' AND
+             (jsonb_typeof(v_fields->'paid_amount') IS DISTINCT FROM 'string' OR (v_fields->>'paid_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'))
+         OR (v_fields ? 'outstanding_amount' AND jsonb_typeof(v_fields->'outstanding_amount')<>'null' AND
+             (jsonb_typeof(v_fields->'outstanding_amount') IS DISTINCT FROM 'string' OR (v_fields->>'outstanding_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'))
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial document fields must use approved statuses, ISO dates and canonical decimal strings';
+      END IF;
+      BEGIN
+        PERFORM (v_fields->>'issue_date')::date;
+        IF v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' THEN
+          PERFORM (v_fields->>'due_date')::date;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial document dates must be valid calendar dates';
+      END;
+    ELSIF p_object_type='customer_payment_receipts' THEN
+      IF jsonb_typeof(v_fields->'receipt_number') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'receipt_number')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'payment_status') IS DISTINCT FROM 'string'
+         OR (v_fields->>'payment_status') NOT IN ('confirmed','pending','voided','reversed')
+         OR jsonb_typeof(v_fields->'receipt_date') IS DISTINCT FROM 'string'
+         OR (v_fields->>'receipt_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP receipt fields must use approved statuses, ISO dates and canonical decimal strings';
+      END IF;
+      BEGIN
+        PERFORM (v_fields->>'receipt_date')::date;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP receipt date must be a valid calendar date';
+      END;
+    ELSIF p_object_type='customer_statement_entries' THEN
+      IF jsonb_typeof(v_fields->'entry_reference') IS DISTINCT FROM 'string'
+         OR length(btrim(v_fields->>'entry_reference')) NOT BETWEEN 1 AND 160
+         OR jsonb_typeof(v_fields->'entry_type') IS DISTINCT FROM 'string'
+         OR (v_fields->>'entry_type') NOT IN ('invoice','payment','credit_note','debit_note','opening_balance','adjustment')
+         OR jsonb_typeof(v_fields->'entry_date') IS DISTINCT FROM 'string'
+         OR (v_fields->>'entry_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+         OR jsonb_typeof(v_fields->'debit_amount') IS DISTINCT FROM 'string'
+         OR jsonb_typeof(v_fields->'credit_amount') IS DISTINCT FROM 'string'
+         OR (v_fields->>'debit_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields->>'credit_amount') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+         OR (v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' AND
+             (jsonb_typeof(v_fields->'due_date') IS DISTINCT FROM 'string' OR (v_fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+      THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry fields must use approved types, ISO dates and canonical decimal strings';
+      END IF;
+      BEGIN
+        PERFORM (v_fields->>'entry_date')::date;
+        IF v_fields ? 'due_date' AND jsonb_typeof(v_fields->'due_date')<>'null' THEN
+          PERFORM (v_fields->>'due_date')::date;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement dates must be valid calendar dates';
+      END;
+      IF (v_fields->>'debit_amount')::numeric>0 AND (v_fields->>'credit_amount')::numeric>0 THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP statement entry cannot contain debit and credit amounts simultaneously';
+      END IF;
+    END IF;
+  END LOOP;
+
+  SELECT c.* INTO v_checkpoint
+    FROM public.erp_sync_checkpoints c
+   WHERE c.organization_id=p_organization_id AND c.scope_key=p_scope_key
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='ERP checkpoint must be initialized before persisting a page';
+  END IF;
+
+  IF v_checkpoint.provider IS DISTINCT FROM p_provider
+     OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+     OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+     OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+     OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+     OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+  THEN
+    RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP checkpoint scope hash is already bound to different scope metadata';
+  END IF;
+
+  -- An identical page replay must be recognized before CAS/version validation:
+  -- a provider may have committed the page while the caller lost the response.
+  SELECT r.* INTO v_receipt
+    FROM public.erp_sync_page_receipts r
+   WHERE r.organization_id=p_organization_id
+     AND r.scope_key=p_scope_key
+     AND r.page_fingerprint=p_page_fingerprint;
+  IF FOUND THEN
+    IF v_receipt.response_sha256 IS DISTINCT FROM p_response_sha256
+       OR v_receipt.http_status IS DISTINCT FROM p_http_status
+       OR v_receipt.records_received IS DISTINCT FROM v_records_received
+       OR v_receipt.next_cursor_present IS DISTINCT FROM (p_next_cursor_ciphertext IS NOT NULL)
+       OR v_receipt.completed IS DISTINCT FROM p_completed
+       OR v_receipt.pending_watermark IS DISTINCT FROM p_pending_watermark
+       OR v_receipt.completed_watermark IS DISTINCT FROM p_completed_watermark
+    THEN
+      RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP page fingerprint was replayed with different evidence metadata';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'checkpoint',pg_catalog.jsonb_build_object(
+        'version',v_checkpoint.version,
+        'cursor_ciphertext',v_checkpoint.cursor_ciphertext,
+        'pending_watermark',v_checkpoint.pending_watermark,
+        'completed_watermark',v_checkpoint.completed_watermark
+      ),
+      'counts',pg_catalog.jsonb_build_object(
+        'created',0,'updated',0,'unchanged',0,'rejected',0,'conflicted',0
+      ),
+      'duplicate_page',true
+    );
+  END IF;
+
+  IF v_checkpoint.version<>p_expected_version THEN
+    RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='ERP checkpoint version changed; reload before continuing';
+  END IF;
+  IF (v_checkpoint.completed_watermark IS NOT NULL AND
+      (p_completed_watermark IS NULL OR p_completed_watermark<v_checkpoint.completed_watermark))
+  THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP completed watermark cannot move backwards or be cleared';
+  END IF;
+  IF p_completed IS FALSE AND p_completed_watermark IS DISTINCT FROM v_checkpoint.completed_watermark THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='incomplete ERP pages must preserve the completed watermark';
+  END IF;
+  IF p_completed IS FALSE AND v_checkpoint.pending_watermark IS NOT NULL
+     AND (p_pending_watermark IS NULL OR p_pending_watermark<v_checkpoint.pending_watermark)
+  THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='incomplete ERP pages cannot move the pending watermark backwards';
+  END IF;
+
+  FOR v_record IN
+    SELECT entry.value FROM pg_catalog.jsonb_array_elements(p_records) AS entry(value)
+  LOOP
+    v_external_id:=v_record->>'external_id';
+    v_idempotency_key:=v_record->>'idempotency_key';
+    v_source_updated_at:=(v_record->>'source_updated_at')::timestamptz;
+    v_fields:=v_record->'fields';
+    v_disposition_reason:=NULL;
+
+    SELECT s.idempotency_key,s.source_updated_at,s.fields
+      INTO v_existing_key,v_existing_updated_at,v_existing_fields
+      FROM public.erp_sync_staged_records s
+     WHERE s.organization_id=p_organization_id
+       AND s.scope_key=p_scope_key
+       AND s.external_id=v_external_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+      INSERT INTO public.erp_sync_staged_records(
+        organization_id,scope_key,provider,object_type,external_id,
+        idempotency_key,source_updated_at,fields
+      ) VALUES (
+        p_organization_id,p_scope_key,p_provider,p_object_type,v_external_id,
+        v_idempotency_key,v_source_updated_at,v_fields
+      );
+      v_created:=v_created+1;
+      v_disposition:='created';
+    ELSIF v_existing_key=v_idempotency_key THEN
+      UPDATE public.erp_sync_staged_records
+         SET last_seen_at=statement_timestamp()
+       WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
+      v_unchanged:=v_unchanged+1;
+      v_disposition:='unchanged';
+    ELSIF v_source_updated_at>v_existing_updated_at THEN
+      UPDATE public.erp_sync_staged_records
+         SET idempotency_key=v_idempotency_key,
+             source_updated_at=v_source_updated_at,
+             fields=v_fields,
+             last_seen_at=statement_timestamp()
+       WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
+      v_updated:=v_updated+1;
+      v_disposition:='updated';
+    ELSIF v_source_updated_at<v_existing_updated_at THEN
+      v_rejected:=v_rejected+1;
+      v_disposition:='rejected';
+      v_disposition_reason:='source_timestamp_older';
+    ELSIF v_fields=v_existing_fields THEN
+      UPDATE public.erp_sync_staged_records
+         SET idempotency_key=v_idempotency_key,last_seen_at=statement_timestamp()
+       WHERE organization_id=p_organization_id AND scope_key=p_scope_key AND external_id=v_external_id;
+      v_unchanged:=v_unchanged+1;
+      v_disposition:='unchanged';
+    ELSE
+      v_conflicted:=v_conflicted+1;
+      v_disposition:='conflicted';
+      v_disposition_reason:='same_timestamp_payload_mismatch';
+    END IF;
+    v_outcomes:=v_outcomes || pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'external_id',v_external_id,
+        'source_updated_at',v_source_updated_at,
+        'fields',v_fields,
+        'disposition',v_disposition,
+        'disposition_reason',v_disposition_reason
+      )
+    );
+  END LOOP;
+
+
+  UPDATE public.erp_sync_checkpoints
+     SET version=version+1,
+         cursor_ciphertext=p_next_cursor_ciphertext,
+         pending_watermark=p_pending_watermark,
+         completed_watermark=p_completed_watermark,
+         updated_at=statement_timestamp()
+   WHERE organization_id=p_organization_id AND scope_key=p_scope_key
+   RETURNING * INTO v_checkpoint;
+
+  INSERT INTO public.erp_sync_page_receipts(
+    organization_id,scope_key,page_fingerprint,response_sha256,
+    next_cursor_present,http_status,external_request_id,pending_watermark,completed_watermark,records_received,
+    created_count,updated_count,unchanged_count,rejected_count,conflicted_count,
+    completed,committed_version
+  ) VALUES (
+    p_organization_id,p_scope_key,p_page_fingerprint,p_response_sha256,
+    (p_next_cursor_ciphertext IS NOT NULL),p_http_status,nullif(btrim(coalesce(p_external_request_id,'')),''),p_pending_watermark,p_completed_watermark,
+    v_records_received,v_created,v_updated,v_unchanged,v_rejected,v_conflicted,
+    p_completed,v_checkpoint.version
+  );
+
+  INSERT INTO public.erp_sync_page_record_outcomes(
+    organization_id,scope_key,page_fingerprint,external_id,source_updated_at,fields,disposition,disposition_reason
+  )
+  SELECT p_organization_id,p_scope_key,p_page_fingerprint,
+         outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
+    FROM pg_catalog.jsonb_to_recordset(v_outcomes) AS outcome(
+      external_id text,source_updated_at timestamptz,fields jsonb,disposition text,disposition_reason text
+    );
+
+  RETURN pg_catalog.jsonb_build_object(
+    'checkpoint',pg_catalog.jsonb_build_object(
+      'version',v_checkpoint.version,
+      'cursor_ciphertext',v_checkpoint.cursor_ciphertext,
+      'pending_watermark',v_checkpoint.pending_watermark,
+      'completed_watermark',v_checkpoint.completed_watermark
+    ),
+    'counts',pg_catalog.jsonb_build_object(
+      'created',v_created,'updated',v_updated,'unchanged',v_unchanged,
+      'rejected',v_rejected,'conflicted',v_conflicted
+    ),
+    'duplicate_page',false
+  );
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION public.reset_erp_sync_expired_cursor(
+  p_organization_id uuid,
+  p_scope_key text,
+  p_expected_version bigint
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=''
+AS $function$
+DECLARE
+  v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+BEGIN
+  IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+     OR p_expected_version IS NULL OR p_expected_version<0
+  THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid ERP checkpoint reset identity is required';
+  END IF;
+
+  SELECT c.* INTO v_checkpoint
+    FROM public.erp_sync_checkpoints c
+   WHERE c.organization_id=p_organization_id AND c.scope_key=p_scope_key
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP checkpoint was not found';
+  END IF;
+  IF v_checkpoint.version<>p_expected_version THEN
+    RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='ERP checkpoint version changed; reload before resetting';
+  END IF;
+
+  UPDATE public.erp_sync_checkpoints
+     SET version=version+1,cursor_ciphertext=NULL,pending_watermark=NULL,
+         updated_at=statement_timestamp()
+   WHERE organization_id=p_organization_id AND scope_key=p_scope_key
+   RETURNING * INTO v_checkpoint;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'version',v_checkpoint.version,
+    'cursor_ciphertext',v_checkpoint.cursor_ciphertext,
+    'pending_watermark',v_checkpoint.pending_watermark,
+    'completed_watermark',v_checkpoint.completed_watermark
+  );
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_erp_sync_staged_records(
+ p_organization_id uuid,p_scope_key text,p_provider text,p_company_external_id text,
+ p_branch_external_id text,p_warehouse_external_id text,p_currency_code text,p_object_type text,
+ p_limit integer DEFAULT 20,p_offset integer DEFAULT 0
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+ v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+ v_total bigint;
+ v_records jsonb;
+BEGIN
+ IF coalesce(auth.role(),'')<>'service_role' THEN
+  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP staged preview required';
+ END IF;
+ IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+    OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
+    OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
+    OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
+    OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
+    OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
+    OR p_object_type IS NULL OR p_object_type NOT IN (
+      'products','customers','warehouses','stock_balances','product_units','product_prices',
+      'customer_financial_documents','customer_payment_receipts','customer_statement_entries')
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+    OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 5000
+ THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid bounded ERP staged preview scope is required';
+ END IF;
+ SELECT checkpoint.* INTO v_checkpoint FROM public.erp_sync_checkpoints checkpoint
+  WHERE checkpoint.organization_id=p_organization_id AND checkpoint.scope_key=p_scope_key FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP staged preview scope has no checkpoint'; END IF;
+ IF v_checkpoint.provider IS DISTINCT FROM p_provider
+    OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+    OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+    OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+    OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+    OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+ THEN RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP staged preview scope hash is already bound to different scope metadata'; END IF;
+ WITH latest_outcomes AS MATERIALIZED (
+   SELECT DISTINCT ON (outcome.external_id)
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
+     FROM public.erp_sync_page_record_outcomes outcome
+    WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
+    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+ ),
+ preview_rows AS MATERIALIZED (
+   SELECT staged.external_id,
+          coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
+          coalesce(latest.fields,staged.fields) AS fields,
+          latest.disposition,
+          latest.disposition_reason
+     FROM public.erp_sync_staged_records staged
+     LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
+    WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+   UNION ALL
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition,latest.disposition_reason
+     FROM latest_outcomes latest
+    WHERE latest.disposition IN ('rejected','conflicted')
+      AND NOT EXISTS (
+        SELECT 1 FROM public.erp_sync_staged_records staged
+         WHERE staged.organization_id=p_organization_id
+           AND staged.scope_key=p_scope_key
+           AND staged.external_id=latest.external_id
+      )
+ )
+ SELECT count(*) INTO v_total FROM preview_rows;
+
+ WITH latest_outcomes AS MATERIALIZED (
+   SELECT DISTINCT ON (outcome.external_id)
+          outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
+     FROM public.erp_sync_page_record_outcomes outcome
+    WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
+    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+ ),
+ preview_rows AS MATERIALIZED (
+   SELECT staged.external_id,
+          coalesce(latest.source_updated_at,staged.source_updated_at) AS source_updated_at,
+          coalesce(latest.fields,staged.fields) AS fields,
+          latest.disposition,
+          latest.disposition_reason
+     FROM public.erp_sync_staged_records staged
+     LEFT JOIN latest_outcomes latest ON latest.external_id=staged.external_id
+    WHERE staged.organization_id=p_organization_id AND staged.scope_key=p_scope_key
+   UNION ALL
+   SELECT latest.external_id,latest.source_updated_at,latest.fields,latest.disposition,latest.disposition_reason
+     FROM latest_outcomes latest
+    WHERE latest.disposition IN ('rejected','conflicted')
+      AND NOT EXISTS (
+        SELECT 1 FROM public.erp_sync_staged_records staged
+         WHERE staged.organization_id=p_organization_id
+           AND staged.scope_key=p_scope_key
+           AND staged.external_id=latest.external_id
+      )
+ )
+ SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+     'external_id',page.external_id,
+     'source_updated_at',page.source_updated_at,
+     'fields',page.fields,
+     'last_disposition',page.disposition,
+     'last_disposition_reason',page.disposition_reason)
+     ORDER BY page.source_updated_at DESC,page.external_id),'[]'::jsonb)
+  INTO v_records
+  FROM (
+    SELECT preview_row.external_id,preview_row.source_updated_at,preview_row.fields,preview_row.disposition
+      FROM preview_rows preview_row
+     ORDER BY preview_row.source_updated_at DESC,preview_row.external_id
+     LIMIT p_limit OFFSET p_offset
+  ) page;
+ RETURN pg_catalog.jsonb_build_object('records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
+   'checkpoint_version',v_checkpoint.version,'has_cursor',v_checkpoint.cursor_ciphertext IS NOT NULL,
+   'pending_watermark',v_checkpoint.pending_watermark,
+   'completed_watermark',v_checkpoint.completed_watermark);
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION public.list_erp_sync_page_receipts(
+ p_organization_id uuid,p_scope_key text,p_provider text,p_company_external_id text,
+ p_branch_external_id text,p_warehouse_external_id text,p_currency_code text,p_object_type text,
+ p_limit integer DEFAULT 10,p_offset integer DEFAULT 0
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+ v_checkpoint public.erp_sync_checkpoints%ROWTYPE;
+ v_total bigint;
+ v_records jsonb;
+BEGIN
+ IF coalesce(auth.role(),'')<>'service_role' THEN
+  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='service-role ERP page receipt history required';
+ END IF;
+ IF p_organization_id IS NULL OR p_scope_key IS NULL OR p_scope_key !~ '^[0-9a-f]{64}$'
+    OR p_provider IS NULL OR p_provider NOT IN ('onyx_pro','al_mutakamel')
+    OR p_company_external_id IS NULL OR length(btrim(p_company_external_id)) NOT BETWEEN 1 AND 256
+    OR p_branch_external_id IS NULL OR length(btrim(p_branch_external_id)) NOT BETWEEN 1 AND 256
+    OR (p_warehouse_external_id IS NOT NULL AND length(btrim(p_warehouse_external_id)) NOT BETWEEN 1 AND 256)
+    OR (p_currency_code IS NOT NULL AND p_currency_code !~ '^[A-Z]{3}$')
+    OR p_object_type IS NULL OR p_object_type NOT IN (
+      'products','customers','warehouses','stock_balances','product_units','product_prices',
+      'customer_financial_documents','customer_payment_receipts','customer_statement_entries')
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+    OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 5000
+ THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid bounded ERP page receipt scope is required';
+ END IF;
+ SELECT checkpoint.* INTO v_checkpoint
+   FROM public.erp_sync_checkpoints checkpoint
+  WHERE checkpoint.organization_id=p_organization_id AND checkpoint.scope_key=p_scope_key
+  FOR SHARE;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='ERP page receipt scope has no checkpoint';
+ END IF;
+ IF v_checkpoint.provider IS DISTINCT FROM p_provider
+    OR v_checkpoint.company_external_id IS DISTINCT FROM btrim(p_company_external_id)
+    OR v_checkpoint.branch_external_id IS DISTINCT FROM btrim(p_branch_external_id)
+    OR v_checkpoint.warehouse_external_id IS DISTINCT FROM nullif(btrim(coalesce(p_warehouse_external_id,'')),'')
+    OR v_checkpoint.currency_code IS DISTINCT FROM p_currency_code
+    OR v_checkpoint.object_type IS DISTINCT FROM p_object_type
+ THEN
+  RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='ERP page receipt scope hash is bound to different scope metadata';
+ END IF;
+ SELECT count(*) INTO v_total
+   FROM public.erp_sync_page_receipts receipt
+  WHERE receipt.organization_id=p_organization_id AND receipt.scope_key=p_scope_key;
+ SELECT coalesce(pg_catalog.jsonb_agg(
+   pg_catalog.jsonb_build_object(
+     'page_number',page.page_number,
+     'http_status',page.http_status,
+     'has_next_cursor',page.next_cursor_present,
+     'records_received',page.records_received,
+     'counts',pg_catalog.jsonb_build_object(
+       'created',page.created_count,'updated',page.updated_count,'unchanged',page.unchanged_count,
+       'rejected',page.rejected_count,'conflicted',page.conflicted_count
+     ),
+     'completed',page.completed,
+     'committed_version',page.committed_version,
+     'recorded_at',page.recorded_at,
+     'pending_watermark',page.pending_watermark,
+     'completed_watermark',page.completed_watermark
+   ) ORDER BY page.recorded_at DESC,page.committed_version DESC
+ ),'[]'::jsonb)
+ INTO v_records
+ FROM (
+   SELECT receipt.*,
+          pg_catalog.row_number() OVER (ORDER BY receipt.recorded_at DESC,receipt.committed_version DESC)::bigint AS page_number
+     FROM public.erp_sync_page_receipts receipt
+    WHERE receipt.organization_id=p_organization_id AND receipt.scope_key=p_scope_key
+    ORDER BY receipt.recorded_at DESC,receipt.committed_version DESC
+    LIMIT p_limit OFFSET p_offset
+ ) page;
+ RETURN pg_catalog.jsonb_build_object(
+   'records',v_records,'total',v_total,'limit',p_limit,'offset',p_offset,
+   'checkpoint_version',v_checkpoint.version,'has_cursor',v_checkpoint.cursor_ciphertext IS NOT NULL
+ );
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.load_erp_sync_checkpoint(uuid,text,text,text,text,text,text,text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.persist_erp_sync_page_atomically(uuid,text,text,text,text,text,text,text,bigint,text,integer,text,text,jsonb,text,timestamptz,timestamptz,boolean) TO service_role;
+GRANT EXECUTE ON FUNCTION public.reset_erp_sync_expired_cursor(uuid,text,bigint) TO service_role;
+GRANT EXECUTE ON FUNCTION public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer) TO service_role;
+GRANT EXECUTE ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) TO service_role;
+COMMENT ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) IS
+  'Service-role-only bounded ERP page receipt history. Exposes disposition counts and watermarks without cursors, response hashes or provider request IDs.';
+
+-- P2 can be merged before P4. Attach the tenant/customer scope refresh trigger
+-- when the P2 resolver is already present; P2 performs the reverse-order attach.
+DO $do$
+BEGIN
+  IF pg_catalog.to_regprocedure('public.capture_customer_financial_source_statement_scope_from_checkpoint()') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_trigger
+        WHERE tgname='customer_financial_source_statement_scope_from_checkpoint'
+          AND tgrelid='public.erp_sync_checkpoints'::regclass
+          AND NOT tgisinternal
+     ) THEN
+    EXECUTE
+      'CREATE TRIGGER customer_financial_source_statement_scope_from_checkpoint ' ||
+      'AFTER UPDATE OF completed_watermark,cursor_ciphertext,pending_watermark ' ||
+      'ON public.erp_sync_checkpoints FOR EACH ROW ' ||
+      'EXECUTE FUNCTION public.capture_customer_financial_source_statement_scope_from_checkpoint()';
+  END IF;
+END
+$do$;
+
+COMMIT;
+
+         OR (v_fields->>'currency_code') IS DISTINCT FROM p_currency_code
       THEN
         RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP financial projection customer identity or currency is invalid';
       END IF;
