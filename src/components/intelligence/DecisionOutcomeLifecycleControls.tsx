@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 import {
   createCashflowScheduleRequestForPeriod,
   fetchCashflowSchedule,
@@ -37,7 +38,7 @@ const labels: Partial<Record<DecisionOutcomeEventType, string>> = {
   REJECT: "رفض القرار",
   DEFER: "تأجيل القرار مع حفظ السبب",
   RESUBMIT_FOR_REVIEW: "إعادة القرار للمراجعة بسبب موثق",
-  ASSIGN: "تثبيت المسؤول المعتمد",
+  ASSIGN: "إسناد القرار إلى حسابي",
   START_EXECUTION: "بدء التنفيذ",
   COMPLETE_EXECUTION: "تسجيل اكتمال التنفيذ",
 };
@@ -67,7 +68,13 @@ export function DecisionOutcomeLifecycleControls({
   const [feedbackError, setFeedbackError] = useState(false);
   const [measurementProof, setMeasurementProof] = useState<CashflowMeasurementProof | null>(null);
   const [proofStatus, setProofStatus] = useState<"IDLE" | "LOADING" | "READY" | "DENIED" | "UNAVAILABLE" | "ERROR" | "WITHHELD">("IDLE");
-  const events = allowedEvents(state, ownerProfileId);
+  const { user } = useAuth();
+  const canAssignToSelf = Boolean(
+    user?.profileId && Array.isArray(user.roles) &&
+    (user.roles.includes("admin") || user.roles.includes("manager")),
+  );
+  const assignmentProfileId = canAssignToSelf ? user?.profileId ?? null : null;
+  const events = allowedEvents(state, assignmentProfileId);
 
   async function loadMeasurementProof() {
     if (busy || pending || state !== "EXECUTED") return;
@@ -205,7 +212,7 @@ export function DecisionOutcomeLifecycleControls({
             expectedVersion: command.expectedVersion,
             eventType: command.eventType,
             reason: command.reason,
-            ...(command.eventType === "ASSIGN" && ownerProfileId ? { ownerProfileId } : {}),
+            ...(command.eventType === "ASSIGN" && assignmentProfileId ? { ownerProfileId: assignmentProfileId } : {}),
             eventId: command.eventId,
             idempotencyKey: command.idempotencyKey,
             ...(command.measuredOutcome ? { measuredOutcome: command.measuredOutcome } : {}),
@@ -270,8 +277,8 @@ export function DecisionOutcomeLifecycleControls({
           ))}
         </div>
         {pending ? <p className="text-xs text-muted-foreground">حُفظ مفتاح الأمر لهذه المحاولة؛ لا تغيّر السبب أو الإجراء حتى يؤكد الخادم النتيجة.</p> : null}
-      </> : state === "APPROVED" && !ownerProfileId ? (
-        <p className="text-sm text-muted-foreground">لا يمكن تثبيت الإسناد: لم يرجع المصدر معرف مسؤول موثوقاً لهذا القرار.</p>
+      </> : state === "APPROVED" && !assignmentProfileId ? (
+        <p className="text-sm text-muted-foreground">إسناد القرار إلى حسابك متاح للمدير أو المشرف المخول بعد تسجيل الدخول؛ اطلب من أحدهما إسناد القرار.</p>
       ) : state === "EXECUTED" ? (
         <div className="space-y-2 rounded-lg border p-3">
           <h5 className="text-sm font-semibold">قياس رصيد التحصيلات المستحقة — لا يمثل المقبوضات البنكية</h5>
