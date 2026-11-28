@@ -217,6 +217,37 @@ REVOKE ALL ON TABLE public.customer_financial_source_bindings FROM service_role;
 REVOKE ALL ON TABLE public.customer_financial_source_change_requests FROM service_role;
 REVOKE ALL ON TABLE public.customer_financial_source_reconciliation_evidence FROM service_role;
 REVOKE ALL ON TABLE public.customer_financial_source_sync_evidence FROM service_role;
+
+-- Reconciliation and provider-sync evidence are immutable facts. All evidence enters
+-- through their narrowly scoped RPCs; no later UPDATE/DELETE may rewrite history.
+CREATE OR REPLACE FUNCTION public.reject_customer_financial_source_evidence_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path=''
+AS $function$
+BEGIN
+  RAISE EXCEPTION USING ERRCODE='55000',
+    MESSAGE='customer financial source evidence is append-only';
+  RETURN NULL;
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.reject_customer_financial_source_evidence_mutation()
+  FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE TRIGGER customer_financial_source_reconciliation_evidence_append_only
+  BEFORE UPDATE OR DELETE ON public.customer_financial_source_reconciliation_evidence
+  FOR EACH ROW EXECUTE FUNCTION public.reject_customer_financial_source_evidence_mutation();
+
+CREATE TRIGGER customer_financial_source_sync_evidence_append_only
+  BEFORE UPDATE OR DELETE ON public.customer_financial_source_sync_evidence
+  FOR EACH ROW EXECUTE FUNCTION public.reject_customer_financial_source_evidence_mutation();
+
+COMMENT ON TABLE public.customer_financial_source_reconciliation_evidence IS
+  'Append-only provider reconciliation evidence. Corrections require a new evidence row; existing evidence cannot be updated or deleted.';
+COMMENT ON TABLE public.customer_financial_source_sync_evidence IS
+  'Append-only provider sync evidence. Corrections require a new evidence row; existing evidence cannot be updated or deleted.';
+
 -- The narrowly scoped SECURITY DEFINER RPCs below are the only write path; do not grant direct table DML to the ERP service role.
 
 INSERT INTO public.customer_financial_source_bindings(

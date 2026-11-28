@@ -300,3 +300,11 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - Updated the strict history DTO allowlist and Boolean-type assertion in test commit `24a253e5bea64487ec7d2a127043333161c5a959`, so the privacy test recognizes the new affordance while continuing to reject raw ERP identifiers, hashes and balance values.
 - API/OPS wording was synchronized in commit `c39cc7d15a06c6365b244d4ace9c747a4909b4a0`; the affordance is explicitly documented as UI guidance, not authorization.
 - Exact-head P1/P2 runs created before this follow-up do not prove the current source/test state. Require terminal-success results tied to the final branch SHA. No migration was applied to production, no ERP provider was called, and no financial or inventory business row was changed by this read-only work.
+
+
+## 2026-11-28 — PostgreSQL append-only protection for source evidence
+
+- Closed a database-level evidence-integrity gap: both `customer_financial_source_reconciliation_evidence` and `customer_financial_source_sync_evidence` now have `BEFORE UPDATE OR DELETE` triggers. Reconciliation and provider-sync facts may only be added through their existing narrow RPCs; a correction must be represented by a new evidence row, never by rewriting/deleting the accepted row.
+- The shared trigger raises SQLSTATE `55000` with an explicit append-only message. Direct table DML remains revoked from `PUBLIC`, `anon`, `authenticated` and `service_role`; the trigger additionally protects against accidental owner-level UPDATE/DELETE.
+- Extended the PostgreSQL acceptance test to attempt UPDATE and DELETE against both evidence tables, then compare the complete selected evidence projection before/after to prove a rejected mutation left the source evidence unchanged.
+- Synchronized the API/OPS contract. Exact-head PostgreSQL 17/P2/P1 execution is still required for the new SHA; no runtime PASS is claimed. No production database, live ERP endpoint, customer balance, payment, inventory or journal was modified.

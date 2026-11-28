@@ -1431,6 +1431,41 @@ async function main() {
     requestId, "matched", matchedTime[0].as_of, matchedHash, "ONYX-REF-001", matchingCurrencyBalances,
   );
   assert.equal(matchedEvidence.status, "pending_approval");
+  const reconciliationEvidenceBefore = await db.unsafe(
+    "select id::text,evidence_sha256,reconciliation_result,recorded_at " +
+    "from public.customer_financial_source_reconciliation_evidence " +
+    "where request_id=$1::uuid and evidence_sha256=$2::text",
+    [requestId, matchedHash],
+  );
+  assert.equal(reconciliationEvidenceBefore.length,1,
+    "one immutable reconciliation evidence row is recorded for the accepted hash");
+  await expectFailure(
+    "reconciliation evidence cannot be updated after recording",
+    db.unsafe(
+      "update public.customer_financial_source_reconciliation_evidence " +
+      "set recorded_at=recorded_at where id=$1::uuid",
+      [reconciliationEvidenceBefore[0].id],
+    ),
+    "55000",
+    "append-only",
+  );
+  await expectFailure(
+    "reconciliation evidence cannot be deleted after recording",
+    db.unsafe(
+      "delete from public.customer_financial_source_reconciliation_evidence where id=$1::uuid",
+      [reconciliationEvidenceBefore[0].id],
+    ),
+    "55000",
+    "append-only",
+  );
+  const reconciliationEvidenceAfter = await db.unsafe(
+    "select id::text,evidence_sha256,reconciliation_result,recorded_at " +
+    "from public.customer_financial_source_reconciliation_evidence " +
+    "where request_id=$1::uuid and evidence_sha256=$2::text",
+    [requestId, matchedHash],
+  );
+  assert.deepEqual(reconciliationEvidenceAfter,reconciliationEvidenceBefore,
+    "rejected reconciliation evidence mutations leave the original evidence byte-for-byte unchanged");
   const reviewerPendingHistory = await rpc(accountantDb,
     "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
     [customerId]);
@@ -1777,6 +1812,41 @@ async function main() {
   assert.equal(syncIdentity.length, 1);
   assert.equal(syncIdentity[0].company_external_ref, "ONYX-COMPANY-01");
   assert.equal(syncIdentity[0].branch_external_ref, "ONYX-BRANCH-01");
+  const syncEvidenceBefore = await db.unsafe(
+    "select id::text,evidence_sha256,source_as_of,record_count,recorded_at " +
+    "from public.customer_financial_source_sync_evidence " +
+    "where organization_id=$1::uuid and customer_id=$2::uuid and evidence_sha256=$3::text",
+    [orgId, customerId, syncHash],
+  );
+  assert.equal(syncEvidenceBefore.length,1,
+    "one immutable sync evidence row is recorded for the accepted provider hash");
+  await expectFailure(
+    "provider sync evidence cannot be updated after recording",
+    db.unsafe(
+      "update public.customer_financial_source_sync_evidence " +
+      "set record_count=record_count where id=$1::uuid",
+      [syncEvidenceBefore[0].id],
+    ),
+    "55000",
+    "append-only",
+  );
+  await expectFailure(
+    "provider sync evidence cannot be deleted after recording",
+    db.unsafe(
+      "delete from public.customer_financial_source_sync_evidence where id=$1::uuid",
+      [syncEvidenceBefore[0].id],
+    ),
+    "55000",
+    "append-only",
+  );
+  const syncEvidenceAfter = await db.unsafe(
+    "select id::text,evidence_sha256,source_as_of,record_count,recorded_at " +
+    "from public.customer_financial_source_sync_evidence " +
+    "where organization_id=$1::uuid and customer_id=$2::uuid and evidence_sha256=$3::text",
+    [orgId, customerId, syncHash],
+  );
+  assert.deepEqual(syncEvidenceAfter,syncEvidenceBefore,
+    "rejected provider evidence mutations leave the original sync evidence byte-for-byte unchanged");
 
   const syncStateBeforeFuture = await serviceDb.unsafe(
     "select source_as_of,last_synced_at,source_evidence_sha256 " +
@@ -2371,6 +2441,7 @@ async function main() {
         concurrentIdempotency: true,
         sourceEvidenceAndFreshness: true,
         syncReplayAndMonotonicWatermark: true,
+        sourceEvidenceAppendOnly: true,
         makerChecker: true,
         financialPaymentWriteGuards: true,
         appOnlyPaymentWritesRestored: true,
