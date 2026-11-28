@@ -8,10 +8,15 @@ import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishme
 vi.mock("@/lib/api", () => ({
   fetchProducts: vi.fn().mockResolvedValue([{ id: "product-a", name: "أرز بسمتي", item_code: "RICE-A" }]),
 }));
+vi.mock("@/lib/intelligence/intelligence-csv", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/intelligence/intelligence-csv")>();
+  return { ...original, downloadIntelligenceCsv: vi.fn() };
+});
 vi.mock("./ReplenishmentPurchaseDraft", () => ({
   ReplenishmentPurchaseDraft: () => <div>مسودة شراء اختبارية</div>,
 }));
 
+import { buildReplenishmentCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import { ReplenishmentCard, selectReplenishmentRecommendations } from "./ReplenishmentCard";
 
 const recommendation: ReplenishmentRecommendation = {
@@ -166,6 +171,24 @@ describe("ReplenishmentCard prioritization and triage", () => {
       [scenario, recommendation], "ALL", "basmati", { "product-a": "أرز بسمتي" },
     ).map(item => item.productRef)).toEqual(["product-a"]);
     expect([scenario, recommendation]).toHaveLength(2);
+  });
+
+  it("exports every loaded recommendation with the current filter and source lineage", async () => {
+    const withheld = {
+      ...recommendation,
+      productRef: "unverified-product",
+      status: "NEEDS_REVIEW" as const,
+      action: "WITHHELD" as const,
+      recommendedQuantity: null,
+    };
+    render(<ReplenishmentCard recommendations={[recommendation, withheld]} />);
+    const region = screen.getByRole("region", { name: "توصيات إعادة التوريد" });
+    await screen.findByText("أرز بسمتي");
+    fireEvent.click(within(region).getByRole("button", { name: /تصدير نتائج التوريد CSV/ }));
+    expect(downloadIntelligenceCsv).toHaveBeenCalledWith(
+      buildReplenishmentCsv([recommendation, withheld], { "product-a": "أرز بسمتي" }, 2),
+      "aghbari-replenishment.csv",
+    );
   });
 
   it("exposes the highest-priority filter in the existing replenishment card", () => {
