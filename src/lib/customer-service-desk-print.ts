@@ -1,3 +1,4 @@
+import { parseCustomerDocumentReviewReference, type CustomerDocumentReviewReference } from "@/lib/customer-service-document-review-reference";
 import type {
   CustomerServiceDeskCase,
   CustomerServiceDeskFilters,
@@ -35,6 +36,7 @@ export type CustomerServiceDeskPrintDocument = {
     assignedToName: string;
     taskDueAt: string | null;
     hasLinkedTask: boolean;
+    documentReview: Omit<CustomerDocumentReviewReference, "customerMessage"> | null;
   }>;
 };
 
@@ -236,6 +238,14 @@ export function projectCustomerServiceDeskPrintDocument(input: {
       assignedToName: requiredText(row.assigned_to_name, "المسؤول", 240),
       taskDueAt: nullableDate(row.task_due_at, "استحقاق المهمة"),
       hasLinkedTask: taskId !== null,
+      documentReview: typeof row.description === "string"
+        ? (() => {
+            const reference = parseCustomerDocumentReviewReference(row.description as string);
+            if (!reference) return null;
+            const { customerMessage: _customerMessage, ...approvedReference } = reference;
+            return approvedReference;
+          })()
+        : null,
     };
   });
 

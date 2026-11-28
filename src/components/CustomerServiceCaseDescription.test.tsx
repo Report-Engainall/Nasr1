@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import {
   CustomerServiceCaseDescription,
-  parseCustomerDocumentReviewReference,
 } from "./CustomerServiceCaseDescription";
+import { parseCustomerDocumentReviewReference } from "@/lib/customer-service-document-review-reference";
 
 const reviewOnlyNote =
   "مراجعة فقط؛ لا يغيّر هذا الطلب الرصيد ولا ينشئ دفعة أو يرحّل قيدًا محاسبيًا.";

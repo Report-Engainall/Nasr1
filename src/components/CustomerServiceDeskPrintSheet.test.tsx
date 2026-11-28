@@ -43,6 +43,16 @@ const report: CustomerServiceDeskPrintDocument = {
     assignedToName: "مسؤول الخدمة",
     taskDueAt: "2026-11-13T10:00:00.000Z",
     hasLinkedTask: true,
+    documentReview: {
+      documentNumber: "INV-2026-014",
+      entryReference: "ERP-INV-014",
+      currencyCode: "YER",
+      sourceMode: "ONYX",
+      sourceLabel: "Onyx Pro",
+      sourceAsOf: "2026-11-28T05:30:00.000Z",
+      entryType: "invoice",
+      entryTypeLabel: "فاتورة",
+    },
   }],
 };
 
@@ -57,6 +67,9 @@ describe("CustomerServiceDeskPrintSheet", () => {
       .not.toBeNull();
     expect(screen.getByText("مؤشرات المؤسسة — جميع الحالات المفتوحة")).not.toBeNull();
     expect(screen.getByText("تفاصيل الحالات ضمن الصفحات المحمّلة")).not.toBeNull();
+    expect(screen.getByText("INV-2026-014")).not.toBeNull();
+    expect(screen.getByText("ERP-INV-014")).not.toBeNull();
+    expect(screen.getByText("مرجع عميل غير معتمد")).not.toBeNull();
   });
 
   it("does not show the continuation warning after the loaded queue is complete", () => {
