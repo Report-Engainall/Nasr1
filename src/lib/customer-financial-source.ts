@@ -146,6 +146,16 @@ export type CustomerFinancialSourceChangeHistory = {
   limit: number;
 };
 
+
+export type CustomerFinancialSourceChangeHistoryCursor = {
+  requested_at: string;
+  request_id: string;
+};
+export type CustomerFinancialSourceChangeHistoryPage = CustomerFinancialSourceChangeHistory & {
+  has_more: boolean;
+  next_cursor: CustomerFinancialSourceChangeHistoryCursor | null;
+};
+
 function parseSourceChangeHistory(value: unknown): CustomerFinancialSourceChangeHistory {
   const row = asRecord(value);
   if (!row || !Array.isArray(row.records) || row.records.length > 20 ||
@@ -266,6 +276,55 @@ export async function reviewCustomerFinancialSourceChange(
     throw new Error("لم يُرجع الخادم نتيجة موثوقة لمراجعة طلب مصدر الحساب.");
   }
   return { request_id: row.request_id, status: expectedStatus, replayed: row.replayed };
+}
+
+
+export async function fetchCustomerFinancialSourceChangeHistoryPage(
+  customerId: string,
+  limit = 10,
+  cursor: CustomerFinancialSourceChangeHistoryCursor | null = null,
+): Promise<CustomerFinancialSourceChangeHistoryPage> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(customerId) || !Number.isSafeInteger(limit) || limit < 1 || limit > 20) {
+    throw new Error("معرف العميل أو حد سجل تغييرات المصدر غير صالح.");
+  }
+  let beforeRequestedAt: string | null = null;
+  let beforeRequestId: string | null = null;
+  if (cursor !== null) {
+    beforeRequestedAt = parseTimestamp(cursor.requested_at, "history_cursor.requested_at");
+    beforeRequestId = cursor.request_id;
+    if (!beforeRequestedAt || typeof beforeRequestId !== "string" || !uuidPattern.test(beforeRequestId)) {
+      throw new Error("مؤشر سجل تغييرات المصدر غير صالح.");
+    }
+  }
+  const { data, error } = await supabase.rpc("get_customer_financial_source_change_history_page", {
+    p_customer_id: customerId,
+    p_limit: limit,
+    p_before_requested_at: beforeRequestedAt,
+    p_before_request_id: beforeRequestId,
+  });
+  if (error) {
+    throw new Error("تعذر تحميل صفحة سجل تغييرات مصدر الحساب. تحقق من صلاحية القراءة ومن اتصال قاعدة البيانات.");
+  }
+  const page = asRecord(data);
+  const base = parseSourceChangeHistory(data);
+  if (!page || typeof page.has_more !== "boolean") {
+    throw new Error("استجابة ترقيم سجل تغييرات مصدر الحساب غير مكتملة.");
+  }
+  let nextCursor: CustomerFinancialSourceChangeHistoryCursor | null = null;
+  if (page.next_cursor !== null) {
+    const rawCursor = asRecord(page.next_cursor);
+    const requestedAt = rawCursor ? parseTimestamp(rawCursor.requested_at, "next_cursor.requested_at") : null;
+    const requestId = rawCursor?.request_id;
+    if (!requestedAt || typeof requestId !== "string" || !uuidPattern.test(requestId)) {
+      throw new Error("أعاد الخادم مؤشرًا غير صالح لسجل تغييرات مصدر الحساب.");
+    }
+    nextCursor = { requested_at: requestedAt, request_id: requestId };
+  }
+  if (page.has_more !== Boolean(nextCursor) || (page.has_more && base.records.length === 0)) {
+    throw new Error("تعارض مؤشر الصفحة مع حالة المزيد في سجل تغييرات مصدر الحساب.");
+  }
+  return { ...base, has_more: page.has_more, next_cursor: nextCursor };
 }
 
 export type CustomerFinancialSourceChangeRequestInput = {

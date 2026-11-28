@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
-import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchCustomerFinancialSourceChangeHistoryPage, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
 const appOnly = { source_mode:"APP_ONLY", source_status:"active", source_as_of:null, last_synced_at:null, verified_at:null, revision:1, is_stale:false, can_read_app_ledger:true };
 describe("customer financial source contract", () => {
   it("allows the app ledger only when the server confirms APP_ONLY and active status", () => {
@@ -436,5 +436,76 @@ describe("customer financial source maker-checker review", () => {
     await expect(reviewCustomerFinancialSourceChange(
       requestId, "approve", "سبب اعتماد صالح",
     )).rejects.toThrow(/رفض الخادم مراجعة/);
+  });
+});
+
+
+describe("customer financial source history keyset pagination", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+  const customerId = "11111111-1111-4111-8111-111111111111";
+  const firstRequestId = "55555555-5555-4555-8555-555555555555";
+  const secondRequestId = "66666666-6666-4666-8666-666666666666";
+  const baseRecord = {
+    request_id: firstRequestId,
+    current_source_mode: "APP_ONLY",
+    target_source_mode: "ONYX",
+    status: "pending_reconciliation",
+    can_review: false,
+    reason: "نقل الحساب إلى المصدر الخارجي",
+    review_reason: null,
+    expected_binding_revision: 2,
+    requested_at: "2026-11-28T00:00:00Z",
+    reviewed_at: null,
+    reconciliation_result: null,
+    reconciliation_source_as_of: null,
+    reconciliation_currency_codes: null,
+    reconciliation_record_counts: null,
+  };
+
+  it("requests the first keyset page and returns the validated next cursor", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        records: [baseRecord], total: 11, limit: 10, has_more: true,
+        next_cursor: { requested_at: baseRecord.requested_at, request_id: firstRequestId },
+      },
+      error: null,
+    });
+    const page = await fetchCustomerFinancialSourceChangeHistoryPage(customerId, 10);
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_financial_source_change_history_page", {
+      p_customer_id: customerId, p_limit: 10,
+      p_before_requested_at: null, p_before_request_id: null,
+    });
+    expect(page.has_more).toBe(true);
+    expect(page.next_cursor).toEqual({ requested_at: baseRecord.requested_at, request_id: firstRequestId });
+  });
+
+  it("uses both cursor components and returns the final page without a cursor", async () => {
+    const cursor = { requested_at: baseRecord.requested_at, request_id: firstRequestId };
+    mocks.rpc.mockResolvedValue({
+      data: {
+        records: [{ ...baseRecord, request_id: secondRequestId, requested_at: "2026-11-27T23:59:00Z" }],
+        total: 11, limit: 10, has_more: false, next_cursor: null,
+      },
+      error: null,
+    });
+    const page = await fetchCustomerFinancialSourceChangeHistoryPage(customerId, 10, cursor);
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_financial_source_change_history_page", {
+      p_customer_id: customerId, p_limit: 10,
+      p_before_requested_at: cursor.requested_at, p_before_request_id: cursor.request_id,
+    });
+    expect(page.records[0].request_id).toBe(secondRequestId);
+    expect(page.has_more).toBe(false);
+    expect(page.next_cursor).toBeNull();
+  });
+
+  it("rejects malformed cursors and inconsistent pagination metadata", async () => {
+    await expect(fetchCustomerFinancialSourceChangeHistoryPage(customerId, 10, {
+      requested_at: "2026-11-28T00:00:00Z", request_id: "bad",
+    })).rejects.toThrow(/مؤشر سجل تغييرات المصدر غير صالح/);
+    mocks.rpc.mockResolvedValue({
+      data: { records: [baseRecord], total: 11, limit: 10, has_more: true, next_cursor: null },
+      error: null,
+    });
+    await expect(fetchCustomerFinancialSourceChangeHistoryPage(customerId)).rejects.toThrow(/تعارض مؤشر الصفحة/);
   });
 });

@@ -17,7 +17,7 @@ import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retent
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
 import { CustomerAssetsPanel } from '@/components/CustomerAssetsPanel';
 import { CustomerFinancialSourceNotice } from '@/components/CustomerFinancialSourceNotice';
-import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode, type CustomerFinancialSourceChangeHistoryItem, type CustomerFinancialSourceReviewDecision } from '@/lib/customer-financial-source';
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistoryPage, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode, type CustomerFinancialSourceChangeHistoryItem, type CustomerFinancialSourceChangeHistoryCursor, type CustomerFinancialSourceReviewDecision } from '@/lib/customer-financial-source';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -876,6 +876,9 @@ function CustomerFinancialSourceChangeHistory({
   items,
   loading,
   error,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   activeReviewRequestId,
   reviewReason,
   reviewBusyRequestId,
@@ -888,6 +891,9 @@ function CustomerFinancialSourceChangeHistory({
   items: CustomerFinancialSourceChangeHistoryItem[];
   loading: boolean;
   error: string;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   activeReviewRequestId: string | null;
   reviewReason: string;
   reviewBusyRequestId: string | null;
@@ -977,6 +983,13 @@ function CustomerFinancialSourceChangeHistory({
           })}
         </tbody>
       </table>
+      {hasMore ? (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+          <Button type="button" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? "جارٍ تحميل بقية السجل…" : "تحميل المزيد من الطلبات"}
+          </Button>
+        </div>
+      ) : null}
     </TableWrap>
   );
 }
@@ -1004,6 +1017,9 @@ function CustomerFinancialSourceChangeRequestPanel({
   const [history, setHistory] = useState<CustomerFinancialSourceChangeHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState("");
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyCursor, setHistoryCursor] = useState<CustomerFinancialSourceChangeHistoryCursor | null>(null);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [activeReviewRequestId, setActiveReviewRequestId] = useState<string | null>(null);
   const [reviewReason, setReviewReason] = useState("");
   const [reviewBusyRequestId, setReviewBusyRequestId] = useState<string | null>(null);
@@ -1013,11 +1029,16 @@ function CustomerFinancialSourceChangeRequestPanel({
   const reloadHistory = useCallback(async () => {
     const requestSequence = ++historyRequestSequence.current;
     setHistoryLoading(true);
+    setHistoryLoadingMore(false);
     setHistoryError("");
+    setHistoryHasMore(false);
+    setHistoryCursor(null);
     try {
-      const result = await fetchCustomerFinancialSourceChangeHistory(customerId, 10);
+      const result = await fetchCustomerFinancialSourceChangeHistoryPage(customerId, 10);
       if (historyRequestSequence.current !== requestSequence) return;
       setHistory(result.records);
+      setHistoryHasMore(result.has_more);
+      setHistoryCursor(result.next_cursor);
     } catch (cause) {
       if (historyRequestSequence.current !== requestSequence) return;
       setHistory([]);
@@ -1026,6 +1047,30 @@ function CustomerFinancialSourceChangeRequestPanel({
       if (historyRequestSequence.current === requestSequence) setHistoryLoading(false);
     }
   }, [customerId]);
+
+  const loadMoreHistory = useCallback(async () => {
+    const cursor = historyCursor;
+    if (!historyHasMore || !cursor || historyLoadingMore) return;
+    const requestSequence = historyRequestSequence.current;
+    setHistoryLoadingMore(true);
+    setHistoryError("");
+    try {
+      const result = await fetchCustomerFinancialSourceChangeHistoryPage(customerId, 10, cursor);
+      if (historyRequestSequence.current !== requestSequence) return;
+      setHistory((current) => {
+        const seen = new Set(current.map((item) => item.request_id));
+        return [...current, ...result.records.filter((item) => !seen.has(item.request_id))];
+      });
+      setHistoryHasMore(result.has_more);
+      setHistoryCursor(result.next_cursor);
+    } catch (cause) {
+      if (historyRequestSequence.current === requestSequence) {
+        setHistoryError(cause instanceof Error ? cause.message : "تعذر تحميل بقية سجل طلبات تغيير المصدر.");
+      }
+    } finally {
+      if (historyRequestSequence.current === requestSequence) setHistoryLoadingMore(false);
+    }
+  }, [customerId, historyCursor, historyHasMore, historyLoadingMore]);
 
 
   useEffect(() => {
@@ -1206,6 +1251,9 @@ function CustomerFinancialSourceChangeRequestPanel({
           items={history}
           loading={historyLoading}
           error={historyError}
+          hasMore={historyHasMore}
+          loadingMore={historyLoadingMore}
+          onLoadMore={() => { void loadMoreHistory(); }}
           activeReviewRequestId={activeReviewRequestId}
           reviewReason={reviewReason}
           reviewBusyRequestId={reviewBusyRequestId}

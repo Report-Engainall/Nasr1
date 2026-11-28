@@ -45,7 +45,7 @@ vi.mock("@/lib/customer-financial-source", () => ({
   fetchStaffCustomerFinancialSource: mocks.fetchFinancialSource,
   requestCustomerFinancialSourceChange: mocks.requestFinancialSourceChange,
   reviewCustomerFinancialSourceChange: mocks.reviewFinancialSourceChange,
-  fetchCustomerFinancialSourceChangeHistory: mocks.fetchFinancialSourceHistory,
+  fetchCustomerFinancialSourceChangeHistoryPage: mocks.fetchFinancialSourceHistory,
   canReadCustomerAppLedger: (source: any) => Boolean(
     source && source.source_mode === "APP_ONLY" && source.source_status === "active" &&
     !source.is_stale && source.can_read_app_ledger
@@ -76,7 +76,7 @@ beforeEach(() => {
   mocks.fetchFinancialSource.mockResolvedValue(onyxSource);
   mocks.fetchSummary.mockRejectedValue(new Error("summary should remain blocked in this test"));
   mocks.fetchInteractions.mockResolvedValue([]);
-  mocks.fetchFinancialSourceHistory.mockResolvedValue({ records: [], total: 0, limit: 10 });
+  mocks.fetchFinancialSourceHistory.mockResolvedValue({ records: [], total: 0, limit: 10, has_more: false, next_cursor: null });
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
@@ -120,7 +120,7 @@ describe("AdminCustomer360 financial source gate", () => {
       changed: true,
     });
     mocks.fetchFinancialSourceHistory
-      .mockResolvedValueOnce({ records: [], total: 0, limit: 10 })
+      .mockResolvedValueOnce({ records: [], total: 0, limit: 10, has_more: false, next_cursor: null })
       .mockResolvedValueOnce({
         records: [{
           request_id: "44444444-4444-4444-8444-444444444444",
@@ -132,7 +132,7 @@ describe("AdminCustomer360 financial source gate", () => {
           reconciliation_result: null, reconciliation_source_as_of: null,
           reconciliation_currency_codes: [], reconciliation_record_counts: {},
         }],
-        total: 1, limit: 10,
+        total: 1, limit: 10, has_more: false, next_cursor: null,
       });
     render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
     expect(await screen.findByText(/إدارة مصدر الحساب المالي/)).toBeInTheDocument();
@@ -162,6 +162,35 @@ describe("AdminCustomer360 financial source gate", () => {
   });
 
 
+
+
+
+  it("loads a next keyset page without duplicating the first request", async () => {
+    const first = {
+      request_id: "11111111-1111-4111-8111-111111111111",
+      current_source_mode: "APP_ONLY", target_source_mode: "ONYX",
+      status: "pending_reconciliation", can_review: false,
+      reason: "ترحيل حساب العميل إلى ERP", review_reason: null,
+      expected_binding_revision: 1, requested_at: "2026-11-28T00:01:00Z",
+      reviewed_at: null, reconciliation_result: null, reconciliation_source_as_of: null,
+      reconciliation_currency_codes: [], reconciliation_record_counts: {},
+    };
+    const second = {
+      ...first,
+      request_id: "22222222-2222-4222-8222-222222222222",
+      requested_at: "2026-11-28T00:00:00Z",
+    };
+    const cursor = { requested_at: first.requested_at, request_id: first.request_id };
+    mocks.fetchFinancialSourceHistory
+      .mockResolvedValueOnce({ records: [first], total: 2, limit: 10, has_more: true, next_cursor: cursor })
+      .mockResolvedValueOnce({ records: [second], total: 2, limit: 10, has_more: false, next_cursor: null });
+    render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
+    expect(await screen.findByText(/11111111/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "تحميل المزيد من الطلبات" }));
+    expect(await screen.findByText(/22222222/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "تحميل المزيد من الطلبات" })).not.toBeInTheDocument();
+    expect(mocks.fetchFinancialSourceHistory).toHaveBeenNthCalledWith(2, customerId, 10, cursor);
+  });
 
   it("allows an independent checker to approve a matched request and reloads the authoritative source", async () => {
     const requestId = "55555555-5555-4555-8555-555555555555";
