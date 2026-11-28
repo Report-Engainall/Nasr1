@@ -10,7 +10,6 @@ on:
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
       - "scripts/test-customer-order-amendment-replay.mjs"
-      - "scripts/test-customer-asset-replacement.mjs"
       - "scripts/test-authorization-capability-registry.mjs"
       - "scripts/test-product-image-storage.ts"
       - "scripts/prepare-p2-local-storage-migrations.mjs"
@@ -30,6 +29,8 @@ on:
       - "src/lib/intelligence/cashflow-schedule-client.ts"
       - "src/lib/intelligence/cashflow-schedule-client.operating-commitments.test.ts"
       - "scripts/test-purchase-receipt-accounting.mjs"
+      - "scripts/test-supplier-invoice-three-way-accounting.mjs"
+      - "scripts/test-customer-asset-replacement.mjs"
       - "scripts/test-inventory-batch-fefo.mjs"
       - "scripts/test-product-gross-margin-batch-cogs.mjs"
       - "scripts/test-onyx-inventory-reconciliation-batch-manifest.mjs"
@@ -39,6 +40,7 @@ on:
       - "scripts/test-customer-receivable-aging-identity.mjs"
       - "scripts/test-inventory-adjustment-v2-authorization.mjs"
       - "scripts/test-decision-outcome-snapshot-required.mjs"
+      - "scripts/test-task-quality-review-authorization.mjs"
       - "scripts/test-decision-policy-learning-candidate.mjs"
       - "e2e/**"
       - "playwright.config.ts"
@@ -614,12 +616,14 @@ jobs:
         run: node scripts/test-claim-evidence-drilldown.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
         run: node scripts/test-customer-order-amendment-replay.mjs
-      - name: Test atomic customer asset replacement, SHA-256 idempotency, concurrency and tenant isolation on PostgreSQL 17
+      - name: Test customer asset atomic replacement, SHA-256 fingerprint, concurrent replay, tenant isolation and immutable event guard on PostgreSQL 17
         run: node scripts/test-customer-asset-replacement.mjs
       - name: Test server authorization capability registry and six-role legacy parity
         run: node scripts/test-authorization-capability-registry.mjs
       - name: Test immutable decision snapshot, append-only event, idempotency and legacy RPC denial on PostgreSQL 17
         run: node scripts/test-decision-outcome-snapshot-required.mjs
+      - name: Test task-quality review manager/admin authorization, tenant isolation, idempotency and append-only audit on PostgreSQL 17
+        run: node scripts/test-task-quality-review-authorization.mjs
       - name: Test evidence-backed outcome learning Candidate v2, immutable history and Maker/Checker on PostgreSQL 17
         run: node scripts/test-decision-policy-learning-candidate.mjs
       - name: Test RBAC V2 inventory adjustment and independent stock-count capability enforcement
@@ -645,6 +649,9 @@ jobs:
         run: node scripts/test-supplier-invoice-workspace-search.mjs
       - name: Test purchase receipt source-linked accounting draft, independent posting and restrictions
         run: node scripts/test-purchase-receipt-accounting.mjs
+
+      - name: Test supplier invoice three-way matching, independent variance review and accounting handoff
+        run: node scripts/test-supplier-invoice-three-way-accounting.mjs
       - name: Test product gross margin from exact receipt-rooted FEFO sale batches on PostgreSQL 17
         run: node scripts/test-product-gross-margin-batch-cogs.mjs
       - name: Test FEFO receipt lots, shipment consumption and cancellation release
@@ -719,6 +726,11 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/onyx-order-export.spec.ts"
+      - name: Prove profile Auth A-to-B session and tenant isolation in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/profile-session-isolation.spec.ts"
       - name: Run finance document and operational-task print acceptance in Chromium
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
@@ -746,6 +758,12 @@ jobs:
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
           E2E_PROOF_PATH: ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-product-price-edit.spec.ts"
+      - name: Prove manager product-image primary/gallery upload, retry, limits and tenant isolation in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          PRODUCT_IMAGE_UI_PROOF_PATH: ${{ runner.temp }}/product-image-ui-browser-proof.json
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/product-image-upload-admin.spec.ts"
       - name: Test admin access matrix responsive coverage and admin-only visibility
         timeout-minutes: 8
         env:
@@ -768,6 +786,7 @@ jobs:
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
           TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
           PRODUCT_IMAGE_STORAGE_PROOF_PATH: ${{ runner.temp }}/product-image-storage-proof.json
+          PRODUCT_IMAGE_UI_PROOF_PATH: ${{ runner.temp }}/product-image-ui-browser-proof.json
           E2E_PRICE_PROOF_PATH: ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
           E2E_CATEGORY_PROOF_PATH: ${{ runner.temp }}/admin-category-tree-browser-proof.json
         shell: bash
@@ -803,6 +822,7 @@ jobs:
           const storagePath = process.env.PRODUCT_IMAGE_STORAGE_PROOF_PATH;
           const storage = await readProof(storagePath, "Product-image Storage");
           const prices = await readProof(process.env.E2E_PRICE_PROOF_PATH, "Product tier-price Chromium");
+          const imageUi = await readProof(process.env.PRODUCT_IMAGE_UI_PROOF_PATH, "Product-image admin UI Chromium");
 
           assert.equal(storage.result, "PASS", "Storage proof must be PASS.");
           assert.equal(storage.sourceSha, expectedSha, "Storage proof must match the exact tested SHA.");
@@ -830,6 +850,27 @@ jobs:
           assert.equal(prices.reopenedFromServerAndConfirmed, true);
           assert.equal(prices.fixtureRestoredAndReopened, true);
           assert.deepEqual(prices.browserRuntimeErrors, []);
+
+          assert.equal(imageUi.result, "PASS", "Product-image UI proof must be PASS.");
+          assert.equal(imageUi.browserResult, "BROWSER_PROVEN");
+          assert.equal(imageUi.sourceSha, expectedSha, "Product-image UI proof must match the exact tested SHA.");
+          assert.equal(imageUi.environment, "disposable-local-supabase-postgresql-17-and-real-storage-api");
+          assert.equal(imageUi.route, "/admin/products");
+          assert.equal(imageUi.noProductionWrites, true);
+          assert.equal(imageUi.cleanup?.completed, true);
+          assert.equal(imageUi.checks?.managerAuthenticatedBrowserJourney, true);
+          assert.equal(imageUi.checks?.primaryAndGalleryPlacement, true);
+          assert.equal(imageUi.checks?.failedGalleryRetryOnly, true);
+          assert.equal(imageUi.checks?.successfulPrimaryWasNotUploadedAgain, true);
+          assert.equal(imageUi.checks?.persistedMediaSurvivedBrowserReload, true);
+          assert.equal(imageUi.checks?.galleryLimitVisibleAndBlockedInUi, true);
+          assert.equal(imageUi.checks?.galleryLimitEightEnforcedByPostgresAndHandler, true);
+          assert.equal(imageUi.checks?.ninthGalleryObjectCleanedAfterDenial, true);
+          assert.equal(imageUi.checks?.crossTenantProductUploadDenied, true);
+          assert.equal(imageUi.checks?.customerUploadDenied, true);
+          assert.equal(imageUi.checks?.storageApiWasRealLocalSupabase, true);
+          assert.equal(imageUi.checks?.finalGalleryCountBeforeCleanup, 8);
+          assert.deepEqual(imageUi.checks?.browserRuntimeErrors, []);
 
           const category = await readProof(process.env.E2E_CATEGORY_PROOF_PATH, "Admin category-tree Chromium");
           assert.equal(category.result, "PASS");
@@ -867,7 +908,7 @@ jobs:
 
           storage.postgresVersion = postgresVersion;
           await writeFile(storagePath, JSON.stringify(storage, null, 2) + "\n", "utf8");
-          console.log("EXACT_SHA_P2_PROOFS_PASS " + expectedSha + ": PostgreSQL 17, Storage, four-tier price editor and authenticated category-tree Chromium acceptance.");
+          console.log("EXACT_SHA_P2_PROOFS_PASS " + expectedSha + ": PostgreSQL 17, Storage, product-image admin UI, four-tier price editor and authenticated category-tree Chromium acceptance.");
           NODE
 
       - name: Record proof boundary
@@ -886,7 +927,8 @@ jobs:
             echo "- It proves finance invoice/statement/credit-memo and operational task printing by role only if finance-task-print.spec.ts completes; customer print UI must remain absent."
             echo "- It proves customer-manager directory privacy, audited tier/status changes, activation invitation, restricted direct routes, and negative RPC/table-read boundaries only if customer-manager-authorization.spec.ts completes."
             echo "- Server-backed multi-device inventory and individually revocable sessions are not covered by this UI/browser acceptance."
-            echo "- Product-image Storage is proven only if the isolated local Storage API integration script passes: bucket configuration, direct authenticated-write denial, WebP/8 MiB restrictions, service-role upload through the shared handler, public read, stale-link cleanup and unlink. Supabase Edge Runtime itself is not deployed or invoked."
+            echo "- Product-image Storage is proven only if the isolated local Storage API integration script passes: bucket configuration, direct authenticated-write denial, WebP/8 MiB restrictions, service-role upload through the shared handler, public read, stale-link cleanup and unlink."
+            echo "- Product-image admin UI is proven only if the exact-SHA Chromium step and proof verifier pass: manager primary/gallery placement, retry-only-failed behavior, persisted reload, eight-image cap, foreign-tenant denial and customer-role denial against real local Storage. The shared handler runs in-process; Supabase Edge Runtime itself is not deployed or invoked."
             echo "- No hosted Supabase project, production secret, remote migration, or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Capture local Supabase diagnostics on failure
@@ -925,5 +967,6 @@ jobs:
             ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
             ${{ runner.temp }}/admin-category-tree-browser-proof.json
             ${{ runner.temp }}/product-image-storage-proof.json
+            ${{ runner.temp }}/product-image-ui-browser-proof.json
             ${{ runner.temp }}/p2-local-supabase-diagnostics.log
           if-no-files-found: ignore

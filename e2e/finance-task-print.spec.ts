@@ -240,7 +240,34 @@ async function assertRouteViewportAtWidth(page: Page, route: string, width: numb
       right: element.getBoundingClientRect().right,
       left: element.getBoundingClientRect().left,
     }));
-    expect(scrollMetrics.clientWidth).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
+    const layoutChain = await journalLineScroller.evaluate((element) => {
+      const chain: Array<Record<string, string | number>> = [];
+      let current: HTMLElement | null = element as HTMLElement;
+      for (let depth = 0; depth < 8 && current; depth += 1) {
+        const rect = current.getBoundingClientRect();
+        const style = getComputedStyle(current);
+        chain.push({
+          depth,
+          tag: current.tagName.toLowerCase(),
+          className: typeof current.className === "string" ? current.className : "",
+          width: Math.round(rect.width),
+          clientWidth: current.clientWidth,
+          scrollWidth: current.scrollWidth,
+          minWidth: style.minWidth,
+          maxWidth: style.maxWidth,
+          display: style.display,
+          flex: style.flex,
+          gridTemplateColumns: style.gridTemplateColumns,
+          overflowX: style.overflowX,
+        });
+        current = current.parentElement;
+      }
+      return chain;
+    });
+    expect(
+      scrollMetrics.clientWidth,
+      "Journal line scroller exceeded the mobile viewport: " + JSON.stringify({ scrollMetrics, layoutChain }),
+    ).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
     expect(scrollMetrics.right).toBeLessThanOrEqual(scrollMetrics.viewportWidth + 1);
     expect(scrollMetrics.left).toBeGreaterThanOrEqual(-1);
     expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
@@ -483,7 +510,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const lastTaskOnSecondPage = Math.min(totalTaskCount, 20);
     const expectedSecondPageStatus = `عرض ${(11).toLocaleString("ar-YE")}–${lastTaskOnSecondPage.toLocaleString("ar-YE")} من ${totalTaskCount.toLocaleString("ar-YE")} مهمة`;
     await expect(taskPagination.getByRole("status")).toHaveText(expectedSecondPageStatus);
-    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(totalTaskCount - 10);
+    // Page 2 shows the inclusive range 11–20, so its rendered card count is capped at ten.
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(lastTaskOnSecondPage - 10);
     await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
     await expect(taskPagination).toContainText("صفحة ١");
     const taskStatusFilter = manager.getByRole("combobox", { name: "الحالة", exact: true });
@@ -907,23 +935,39 @@ test("manager records one receipt across two same-currency customer invoices and
     expect(invoiceBId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(invoiceAId).not.toBe(invoiceBId);
 
-    await primaryInvoice.selectOption(invoiceAId!);
-    await paymentForm.getByLabel("المبلغ", { exact: true }).fill("25.00");
-    await paymentForm.getByLabel("توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها", { exact: true }).check();
-    const invoiceBAllocation = paymentForm.getByRole("checkbox", { name: "تخصيص على الفاتورة " + invoiceBNumber, exact: true });
-    await expect(invoiceBAllocation).toBeVisible();
-    await invoiceBAllocation.check();
-    await paymentForm.getByLabel("مبلغ التخصيص على الفاتورة " + invoiceBNumber, { exact: true }).fill("35.00");
-    const privateNote = "PRIVATE-P2-MULTI-RECEIPT-" + Date.now().toString(36).toUpperCase();
-    await paymentForm.locator("textarea").first().fill(privateNote);
-    await paymentForm.getByRole("button", { name: "تسجيل سند القبض وتوزيعه", exact: true }).click();
-    await expect(manager.getByText("تم تسجيل سند القبض وتوزيعه على 2 فواتير مع تحديث أرصدتها.", { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
-    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
-
     const receiptSection = manager.locator('section[aria-labelledby="customer-payment-receipt-print-heading"]');
     await expect(receiptSection.getByRole("heading", { name: "سجل سندات القبض متعددة الفواتير" })).toBeVisible();
     const receiptSelect = receiptSection.getByLabel("سند القبض متعدد الفواتير", { exact: true });
+    // Playwright retries reuse the same disposable local database; never post twice.
+    await expect(receiptSection.getByRole("status")).toHaveCount(0, { timeout: 30_000 });
+    const existingFixtureReceipts = receiptSelect.locator("option").filter({ hasText: customerName });
+    const existingFixtureReceiptCount = await existingFixtureReceipts.count();
+    expect(existingFixtureReceiptCount, "A retry must never find more than one saved receipt for this unique local customer.").toBeLessThanOrEqual(1);
+    const privateNote = "PRIVATE-P2-MULTI-RECEIPT-" + Date.now().toString(36).toUpperCase();
+
+    if (existingFixtureReceiptCount === 1) {
+      const existingLabel = await existingFixtureReceipts.first().innerText();
+      expect(existingLabel).toContain("60.00 YER");
+      expect(existingLabel).toMatch(/فواتير/);
+      const existingReceiptId = await existingFixtureReceipts.first().getAttribute("value");
+      expect(existingReceiptId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      await receiptSelect.selectOption(existingReceiptId!);
+    } else {
+      await primaryInvoice.selectOption(invoiceAId!);
+      await paymentForm.getByLabel("المبلغ", { exact: true }).fill("25.00");
+      await paymentForm.getByLabel("توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها", { exact: true }).check();
+      const invoiceBAllocation = paymentForm.getByRole("checkbox", { name: "تخصيص على الفاتورة " + invoiceBNumber, exact: true });
+      await expect(invoiceBAllocation).toBeVisible();
+      await invoiceBAllocation.check();
+      await paymentForm.getByLabel("مبلغ التخصيص على الفاتورة " + invoiceBNumber, { exact: true }).fill("35.00");
+      await paymentForm.locator("textarea").first().fill(privateNote);
+      await paymentForm.getByRole("button", { name: "تسجيل سند القبض وتوزيعه", exact: true }).click();
+      await expect(manager.getByText("تم تسجيل سند القبض وتوزيعه على 2 فواتير مع تحديث أرصدتها.", { exact: true })).toBeVisible({ timeout: 30_000 });
+    }
+
+    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
+    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
+
     const savedReceiptOptions = receiptSelect.locator("option").filter({ hasText: /SND-\d{6}/ });
     await expect(savedReceiptOptions).toHaveCount(1, { timeout: 30_000 });
     const receiptLabel = await savedReceiptOptions.first().innerText();
@@ -955,7 +999,7 @@ test("manager records one receipt across two same-currency customer invoices and
       const styles = await printPage.locator("style").allTextContents();
       expect(styles.join(" ")).toContain("A4");
       const html = await printPage.locator("html").evaluate((element) => element.outerHTML);
-      expect(html).not.toContain(privateNote);
+      expect(html).not.toContain("PRIVATE-P2-MULTI-RECEIPT-");
       for (const internalKey of ["organization_id", "receipt_id", "customer_id", "invoice_id", "created_by", "actor_id", "idempotency_key", "private_note", "payment_id"]) {
         expect(html).not.toContain(internalKey);
       }

@@ -96,6 +96,33 @@ describe("supplier financial workspace hub", () => {
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2));
   });
 
+
+  it("allows retrying the General Ledger account lookup after an initial read failure", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: null, error: new Error("temporary ledger read failure") })
+      .mockResolvedValueOnce({
+        data: {
+          accounts: [{
+            id: "account-1",
+            code: "1101",
+            name: "الصندوق الرئيسي",
+            account_type: "asset",
+            is_active: true,
+          }],
+        },
+        error: null,
+      });
+
+    render(createElement(SupplierFinancialWorkspaceHub));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("temporary ledger read failure");
+    fireEvent.click(screen.getByRole("button", { name: "إعادة تحميل دليل حسابات الأستاذ" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByText("supplier-payment-workspace-mounted")).toBeInTheDocument();
+  });
+
   it("does not request or expose financial workspaces to a non-finance role", () => {
     mocks.useAuth.mockReturnValue({ ready: true, sessionRevision: 1, user: { id: "staff-1", profileId: "staff-profile-1", roles: ["staff"] } });
     render(createElement(SupplierFinancialWorkspaceHub));

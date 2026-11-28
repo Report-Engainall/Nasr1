@@ -63,15 +63,37 @@ export const EMPTY_ADMIN_STOREFRONT_PRODUCT_DETAILS: AdminStorefrontProductDetai
   complements: [],
 };
 
-type RpcError = { code?: string; message?: string } | null;
-type RpcResult = { data: unknown; error: RpcError };
+export type StorefrontRpcError = { code?: string; message?: string } | null;
+type RpcResult = { data: unknown; error: StorefrontRpcError };
 type RpcInvoker = (name: string, args: Record<string, unknown>) => Promise<RpcResult>;
+
+// Convert known database outcomes to user-facing Arabic messages; never expose raw
+// PostgreSQL/PostgREST messages, constraint names, function names or schema details.
+export function getSafeStorefrontRpcErrorMessage(
+  error: StorefrontRpcError,
+  fallback: string,
+  permissionDenied: string,
+): string {
+  if (error?.code === "42501") return permissionDenied;
+  if (error?.code === "22023" || error?.code === "23514") {
+    return "تحقق من بيانات المنتج ثم حاول مجدداً.";
+  }
+  if (error?.code === "23505") {
+    return "يوجد سجل مماثل بالفعل. راجع بيانات المنتج وحاول مجدداً.";
+  }
+  return fallback;
+}
 
 // The generated Supabase type file is refreshed by the schema-generation pipeline.
 // Keep the extended RPC contract typed locally until that generated snapshot lands.
-function invokeRpc(name: string, args: Record<string, unknown>): Promise<RpcResult> {
+async function invokeRpc(name: string, args: Record<string, unknown>): Promise<RpcResult> {
   // Keep module import and pure contract parsing independent from runtime Supabase configuration.
-  return (supabase as unknown as { rpc: RpcInvoker }).rpc(name, args);
+  // Network/client exceptions are normalized so raw error messages never reach the UI.
+  try {
+    return await (supabase as unknown as { rpc: RpcInvoker }).rpc(name, args);
+  } catch {
+    return { data: null, error: { code: "RPC_UNAVAILABLE" } };
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -246,7 +268,13 @@ export async function fetchStorefrontProductFacts(productId: string): Promise<St
     p_price_displayable_only: false,
     p_product_id: productId,
   });
-  if (error) throw new Error(error.message || "تعذر تحميل بيانات المنتج المعتمدة.");
+  if (error) {
+    throw new Error(getSafeStorefrontRpcErrorMessage(
+      error,
+      "تعذر تحميل معلومات المنتج الآن. حاول إعادة المحاولة.",
+      "لا تملك صلاحية عرض معلومات هذا المنتج.",
+    ));
+  }
   if (!isRecord(data) || !Array.isArray(data.items) || data.items.length !== 1) {
     throw new Error("المنتج غير منشور أو غير متاح ضمن مؤسسة المتجر الحالية.");
   }
@@ -307,7 +335,13 @@ export async function fetchAdminStorefrontProductDetails(productId: string): Pro
   const { data, error } = await invokeRpc("get_admin_storefront_product_details", {
     p_product_id: productId,
   });
-  if (error) throw new Error(error.message || "تعذر تحميل بيانات إدارة تفاصيل المنتج.");
+  if (error) {
+    throw new Error(getSafeStorefrontRpcErrorMessage(
+      error,
+      "تعذر تحميل تفاصيل المنتج الإدارية الآن. حاول إعادة المحاولة.",
+      "ليست لديك صلاحية عرض تفاصيل هذا المنتج.",
+    ));
+  }
   return parseAdminStorefrontProductDetails(data, productId);
 }
 
@@ -412,7 +446,13 @@ export async function saveAdminStorefrontProductDetails(
     "save_admin_storefront_product_details",
     normalizeAdminDetails(details, productId),
   );
-  if (error) throw new Error(error.message || "تعذر حفظ تفاصيل المنتج.");
+  if (error) {
+    throw new Error(getSafeStorefrontRpcErrorMessage(
+      error,
+      "تعذر حفظ تفاصيل المنتج. راجع البيانات وحاول مجدداً.",
+      "ليست لديك صلاحية تعديل تفاصيل هذا المنتج.",
+    ));
+  }
   if (!isRecord(data) || data.product_id !== productId || data.changed !== true) {
     throw new Error("لم يؤكد الخادم حفظ تفاصيل المنتج وتدقيقها.");
   }

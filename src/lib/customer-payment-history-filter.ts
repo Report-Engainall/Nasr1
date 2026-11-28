@@ -47,7 +47,31 @@ const CUSTOMER_PAYMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 const MAX_CUSTOMER_PAYMENT_INVOICES = 200;
 const MAX_CUSTOMER_PAYMENT_ROWS = 500;
 const PAYMENT_AMOUNT_DECIMAL = /^\d{1,13}(?:\.\d{1,2})?$/;
-const PAYMENT_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const PAYMENT_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):([0-5]\d))$/;
+
+function isValidCustomerPaymentTimestamp(value: string): boolean {
+  const match = PAYMENT_TIMESTAMP.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const zone = match[8];
+  if (month < 1 || month > 12) return false;
+
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (day < 1 || day > daysInMonth[month - 1]) return false;
+
+  if (zone !== "Z") {
+    const offsetHours = Number(match[10]);
+    const offsetMinutes = Number(match[11]);
+    if (offsetHours > 14 || (offsetHours === 14 && offsetMinutes !== 0)) return false;
+  }
+
+  return Number.isFinite(Date.parse(value));
+}
+
 
 function paymentPayloadRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -116,8 +140,7 @@ export function parseCustomerPaymentHistoryPayload(value: unknown): ValidatedCus
         amount === null ||
         (row.paid_at !== undefined && row.paid_at !== null &&
           (typeof row.paid_at !== "string" ||
-            !PAYMENT_TIMESTAMP.test(row.paid_at) ||
-            !Number.isFinite(Date.parse(row.paid_at))))) {
+            !isValidCustomerPaymentTimestamp(row.paid_at)))) {
       throw new Error("حركة الدفع رقم " + (index + 1) + " تحتوي معرفًا أو مرجعًا أو مبلغًا أو تاريخًا غير صالح.");
     }
     paymentIds.add(row.id.toLowerCase());

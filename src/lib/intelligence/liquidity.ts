@@ -32,7 +32,7 @@ interface MetricValue {value:number|null;minorUnits:bigint|null;status:EvidenceS
 const FORMULA_ID="liquidity.net-available";
 const FORMULA_VERSION="1.0.0";
 function strictTimestamp(value:unknown):number|null {
- if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value))return null;
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value))return null;
  const day=value.slice(0,10);
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return null;
  const dayTime=Date.parse(day+"T00:00:00.000Z");
@@ -96,8 +96,10 @@ function buildMetricEvidence(args:{
 }
 /** Computes reconciled liquidity independently by currency; this engine contains no FX conversion. */
 export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnapshot {
- const generatedAtMs=Date.parse(input.generatedAt);
- if(!Number.isFinite(generatedAtMs)||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
+ const generatedAtMs=strictTimestamp(input.generatedAt);
+ const asOfMs=strictTimestamp(input.asOf);
+ if(generatedAtMs===null||asOfMs===null||asOfMs>generatedAtMs)
+  throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps and asOf cannot be after generatedAt");
  const all=input.currencies.flatMap(allMetricInputs);
  const passport=buildEvidencePassport({id:"liquidity:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:all});
  const idCounts=new Map<string,number>();for(const m of passport.metrics)idCounts.set(m.id,(idCounts.get(m.id)??0)+1);

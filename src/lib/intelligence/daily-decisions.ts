@@ -19,7 +19,7 @@ function strictIsoDay(value:unknown):value is string {
  return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value;
 }
 function strictTimestamp(value:unknown):number|null {
- if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.]\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return null;
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value))return null;
  if(!strictIsoDay(value.slice(0,10)))return null;
  const parsed=Date.parse(value);
  return Number.isFinite(parsed)?parsed:null;
@@ -315,5 +315,38 @@ export function selectTopDailyDecisions(
     totalCandidates: ranked.length,
     omittedCount: Math.max(0, ranked.length - selected.length),
     limit,
+  };
+}
+
+
+export interface DailyDecisionActionEnvelope<T> {
+  decision: DecisionCandidate;
+  payload: T;
+}
+export interface DailyDecisionActionSelection<T> {
+  actions: DailyDecisionActionEnvelope<T>[];
+  totalCandidates: number;
+  omittedCount: number;
+  limit: number;
+}
+/** Reuse evidence-aware ranking without losing the action payload or duplicating IDs. */
+export function selectTopDailyDecisionActions<T>(
+  actions: readonly DailyDecisionActionEnvelope<T>[],
+  limit = 10,
+): DailyDecisionActionSelection<T> {
+  const unique = new Map<string, DailyDecisionActionEnvelope<T>>();
+  for (const action of actions) {
+    const id = typeof action?.decision?.id === "string" ? action.decision.id.trim() : "";
+    if (id && !unique.has(id)) unique.set(id, action);
+  }
+  const selection = selectTopDailyDecisions([...unique.values()].map(action => action.decision), limit);
+  return {
+    actions: selection.candidates.flatMap(decision => {
+      const action = unique.get(decision.id);
+      return action ? [action] : [];
+    }),
+    totalCandidates: selection.totalCandidates,
+    omittedCount: selection.omittedCount,
+    limit: selection.limit,
   };
 }

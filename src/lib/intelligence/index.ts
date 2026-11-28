@@ -18,6 +18,7 @@ export * from "./rbac-contract";
 export * from "./growth-opportunities";
 export * from "./business-health-map";
 export * from "./supplier-posted-payable-activity-client";
+export * from "./supplier-payable-concentration-trend";
 export * from "./customer-retention-client";
 export * from "./product-gross-margin-client";
 export * from "./decision-memory";

@@ -2,16 +2,16 @@ import { ClientOnly, createFileRoute, useNavigate } from "@tanstack/react-router
 import { Storefront } from "@/components/Storefront";
 import { MAX_CATALOG_SEARCH_LENGTH } from "@/lib/commerce-utils";
 
-const CATALOG_BRAND_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CATALOG_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type CatalogSearch = { q?: string; category?: string; available?: "1"; brand?: string; unit?: string; priced?: "1" };
 
 export const Route = createFileRoute("/catalog")({
   validateSearch: (search: Record<string, unknown>): CatalogSearch => {
     const parsed: CatalogSearch = {};
     if (typeof search.q === "string" && search.q.trim()) parsed.q = search.q.slice(0, MAX_CATALOG_SEARCH_LENGTH);
-    if (typeof search.category === "string" && search.category.trim()) parsed.category = search.category.slice(0, 128);
+    if (typeof search.category === "string" && CATALOG_UUID.test(search.category.trim())) parsed.category = search.category.trim();
     if (search.available === "1") parsed.available = "1";
-    if (typeof search.brand === "string" && CATALOG_BRAND_ID.test(search.brand)) parsed.brand = search.brand;
+    if (typeof search.brand === "string" && CATALOG_UUID.test(search.brand)) parsed.brand = search.brand;
     if (typeof search.unit === "string" && search.unit.trim() && search.unit.trim().length <= 40) parsed.unit = search.unit.trim();
     if (search.priced === "1") parsed.priced = "1";
     return parsed;

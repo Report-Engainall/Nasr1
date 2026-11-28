@@ -28,6 +28,14 @@ function isoDay(value:string):number|null {
  const time=Date.parse(value+"T00:00:00.000Z");
  return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
 }
+function isoInstant(value:unknown):number|null {
+ if(typeof value!=="string"||
+  !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)||
+  isoDay(value.slice(0,10))===null)return null;
+ const parsed=Date.parse(value);
+ return Number.isFinite(parsed)?parsed:null;
+}
+type MetricCheck={metric:MetricSnapshot|null;value:number|null;status:EvidenceStatus;warnings:string[]};
 function numberValue(value:number|string|null):number|null {
  if(typeof value==="number")return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER?value:null;
  if(typeof value!=="string"||! /^-?\d+(?:\.\d+)?$/.test(value.trim()))return null;
@@ -37,29 +45,39 @@ function metricIndex(metrics:MetricSnapshot[]):Map<string,MetricSnapshot> {
  const counts=new Map<string,number>();for(const m of metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const out=new Map<string,MetricSnapshot>();for(const m of metrics)if(counts.get(m.id)===1)out.set(m.id,m);return out;
 }
-function checkMetric(metric:MetricSnapshot|null,index:Map<string,MetricSnapshot>,unit:string,asOf:string,period?:EvidencePeriod,quantityUnit?:string):{metric:MetricSnapshot|null;value:number|null;status:EvidenceStatus} {
- if(!metric)return {metric:null,value:null,status:"UNAVAILABLE"};
- const source=index.get(metric.id);if(!source)return {metric:null,value:null,status:"UNVERIFIED"};
+function checkMetric(metric:MetricSnapshot|null,index:Map<string,MetricSnapshot>,unit:string,asOf:string,period?:EvidencePeriod,quantityUnit?:string):MetricCheck {
+ if(!metric)return {metric:null,value:null,status:"UNAVAILABLE",warnings:[]};
+ const source=index.get(metric.id);if(!source)return {metric:null,value:null,status:"UNVERIFIED",warnings:[]};
+ const timestampWarnings=(source.warnings??[]).filter(warning=>warning==="METRIC_CALCULATION_TIMESTAMP_INVALID");
  if(source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.unit!==unit||source.asOf!==asOf||!source.lineage.evidenceIds.length)
-  return {metric:source,value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status};
+  return {metric:source,value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status,warnings:timestampWarnings};
+
+ // Evidence can refer to a valid snapshot while the metric itself was calculated later.
+ // Do not use a future calculation as historical stock, cost or turnover evidence.
+ const asOfTime=isoInstant(asOf),calculatedAtTime=isoInstant(source.lineage.calculatedAt);
+ if(asOfTime===null||calculatedAtTime===null)
+  return {metric:source,value:null,status:"NEEDS_REVIEW",warnings:["METRIC_CALCULATION_TIMESTAMP_INVALID"]};
+ if(calculatedAtTime>asOfTime)
+  return {metric:source,value:null,status:"NEEDS_REVIEW",warnings:["METRIC_CALCULATED_AFTER_SNAPSHOT"]};
+
  if(unit==="QUANTITY"||unit==="CURRENCY_PER_UNIT"){
-  if(!quantityUnit?.trim()||!source.unitOfMeasure?.trim())return {metric:source,value:null,status:"NEEDS_REVIEW"};
-  if(source.unitOfMeasure.trim()!==quantityUnit.trim())return {metric:source,value:null,status:"UNVERIFIED"};
+  if(!quantityUnit?.trim()||!source.unitOfMeasure?.trim())return {metric:source,value:null,status:"NEEDS_REVIEW",warnings:[]};
+  if(source.unitOfMeasure.trim()!==quantityUnit.trim())return {metric:source,value:null,status:"UNVERIFIED",warnings:[]};
  }
- if(period&&(!source.period||source.period.from!==period.from||source.period.to!==period.to))return {metric:source,value:null,status:"NEEDS_REVIEW"};
- const value=numberValue(source.value);if(value===null||value<0)return {metric:source,value:null,status:"NEEDS_REVIEW"};
- return {metric:source,value,status:"VERIFIED"};
+ if(period&&(!source.period||source.period.from!==period.from||source.period.to!==period.to))return {metric:source,value:null,status:"NEEDS_REVIEW",warnings:[]};
+ const value=numberValue(source.value);if(value===null||value<0)return {metric:source,value:null,status:"NEEDS_REVIEW",warnings:[]};
+ return {metric:source,value,status:"VERIFIED",warnings:[]};
 }
 function coverageValid(item:DeadStockProductInput,asOf:string,days:number,evidence:Map<string,EvidenceRecord>):boolean {
  const end=isoDay(asOf.slice(0,10)),from=isoDay(item.movementCoverage.period.from),to=isoDay(item.movementCoverage.period.to);
  if(end===null||from===null||to===null||to!==end||from>end-(days-1)*86400000)return false;
- const ids=item.movementCoverage.evidenceIds,asOfTime=Date.parse(asOf);
+ const ids=item.movementCoverage.evidenceIds,asOfTime=isoInstant(asOf);
  if(item.movementCoverage.status!=="VERIFIED"||item.movementCoverage.completeness!=="COMPLETE"||item.movementCoverage.quality!=="ACCEPTABLE"||
-  !ids.length||new Set(ids).size!==ids.length||!Number.isFinite(asOfTime))return false;
+  !ids.length||new Set(ids).size!==ids.length||asOfTime===null)return false;
  return ids.every(id=>{
-  const record=evidence.get(id),sourceTime=record?Date.parse(record.sourceTimestamp):NaN;
+  const record=evidence.get(id),sourceTime=record?isoInstant(record.sourceTimestamp):null;
   return Boolean(record&&record.status==="VERIFIED"&&record.completeness==="COMPLETE"&&record.quality==="ACCEPTABLE"&&
-   record.asOf===asOf&&Number.isFinite(sourceTime)&&sourceTime<=asOfTime&&
+   record.asOf===asOf&&sourceTime!==null&&sourceTime<=asOfTime&&
    record.period?.from===item.movementCoverage.period.from&&record.period?.to===item.movementCoverage.period.to);
  });
 }
@@ -79,8 +97,8 @@ function classifyProductMovement(
 ): MovementClassification {
   const warnings: string[] = [];
   const current = isoDay(asOf.slice(0, 10));
-  const asOfTime = Date.parse(asOf);
-  const movement = product.lastMovementAt ? Date.parse(product.lastMovementAt) : null;
+  const asOfTime = isoInstant(asOf);
+  const movement = product.lastMovementAt ? isoInstant(product.lastMovementAt) : null;
   let classification: DeadStockClass = "UNKNOWN";
   let daysSinceMovement: number | null = null;
   const movementStatus: EvidenceStatus = historyOkay ? "VERIFIED" : "NEEDS_REVIEW";
@@ -92,7 +110,7 @@ function classifyProductMovement(
   if (product.lastMovementAt === null) {
     return { classification: "ZERO_MOVEMENT", daysSinceMovement, movementStatus, warnings };
   }
-  if (movement === null || !Number.isFinite(movement) || !Number.isFinite(asOfTime) || movement > asOfTime) {
+  if (movement === null || asOfTime === null || movement > asOfTime) {
     warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");
     return { classification, daysSinceMovement, movementStatus: "UNVERIFIED", warnings };
   }
@@ -213,7 +231,7 @@ function calculateDeadStockExposure(args: {
 export function buildDeadStockReport(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:DeadStockProductInput[];rule:DeadStockRule;
 }):DeadStockReport {
- if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be a valid timestamp");
+ if(isoInstant(input.asOf)===null)throw new Error("asOf must be a valid timestamp");
  const {rule}=input;
  if(!rule.id.trim()||!rule.version.trim()||!Number.isInteger(rule.activeWithinDays)||rule.activeWithinDays<0||
   !Number.isInteger(rule.stagnantAfterDays)||rule.stagnantAfterDays<=rule.activeWithinDays||
@@ -232,6 +250,7 @@ export function buildDeadStockReport(input:{
   const quantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"";
   const sold=checkMetric(product.soldQuantityWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
   const average=checkMetric(product.averageInventoryWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
+  warnings.push(...sold.warnings,...average.warnings);
   let turnoverRatio:number|null=null,lowTurnover:boolean|null=null;
   if(sold.status==="VERIFIED"&&average.status==="VERIFIED"&&average.value!==null&&sold.value!==null&&average.value>0){
    turnoverRatio=sold.value/average.value;
@@ -240,6 +259,7 @@ export function buildDeadStockReport(input:{
   }else warnings.push("TURNOVER_RATIO_UNAVAILABLE");
   const qty=checkMetric(product.availableQuantity,index,"QUANTITY",input.asOf,undefined,quantityUnit);
   const cost=checkMetric(product.unitCost,index,"CURRENCY_PER_UNIT",input.asOf,undefined,quantityUnit);
+  warnings.push(...qty.warnings,...cost.warnings);
   const exposureResult = calculateDeadStockExposure({
    product,
    quantityUnit,
@@ -256,7 +276,7 @@ export function buildDeadStockReport(input:{
   return {
    productRef:product.productRef,classification,daysSinceMovement,lowTurnover,turnoverRatio,
    availableQuantity:qty.value,unitCost,currency,financialExposure:exposure,exposureStatus,movementStatus,
-   formulaId:EXPOSURE_FORMULA,formulaVersion:EXPOSURE_VERSION,evidenceIds,warnings,
+   formulaId:EXPOSURE_FORMULA,formulaVersion:EXPOSURE_VERSION,evidenceIds,warnings:[...new Set(warnings)],
   };
  });
  const currencies=[...new Set(items.map(item=>item.currency).filter((c):c is string=>Boolean(c)))];

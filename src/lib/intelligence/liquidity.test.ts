@@ -53,11 +53,11 @@ function position(currency: string, values: { available: number | string; collec
   };
 }
 
-function build(positions: ReturnType<typeof position>[], generatedAt = asOf) {
+function build(positions: ReturnType<typeof position>[], generatedAt = asOf, reportAsOf = asOf) {
   return buildLiquiditySnapshot({
     id: "liquidity-fixture",
     generatedAt,
-    asOf,
+    asOf: reportAsOf,
     period,
     evidenceRecords: positions.flatMap(item => item.metrics.map(source => evidence(source.id, item.input.currency))),
     currencies: positions.map(item => item.input),
@@ -146,5 +146,54 @@ describe("liquidity metric generation clock", () => {
     item.metrics[0]=boundary;
     const result=build([item],generatedAt);
     expect(result.positions[0]).toMatchObject({status:"VERIFIED",netAvailableLiquidity:110});
+  });
+});
+
+describe("liquidity report clock integrity", () => {
+  it.each([
+    ["timezone-less generatedAt", "2026-11-26T00:05:00", asOf],
+    ["impossible generatedAt date", "2026-02-31T00:05:00.000Z", asOf],
+    ["timezone-less asOf", asOf, "2026-11-26T00:00:00"],
+    ["impossible asOf date", asOf, "2026-02-31T00:00:00.000Z"],
+  ])("rejects %s before evaluating liquidity metrics", (_label, generatedAt, reportAsOf) => {
+    expect(() => build(
+      [position("YER", { available: "100", collections: "20", obligations: "10" })],
+      generatedAt,
+      reportAsOf,
+    )).toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
+  });
+
+  it("rejects an as-of instant later than report generation", () => {
+    expect(() => build(
+      [position("YER", { available: "100", collections: "20", obligations: "10" })],
+      "2026-11-26T00:05:00.000Z",
+      "2026-11-26T00:06:00.000Z",
+    )).toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
+  });
+});
+
+describe("liquidity UTC offset ceiling", () => {
+  it.each([
+    ["+14:00", "2026-11-26T14:00:00.000+14:00", "2026-11-26T14:05:00.000+14:00"],
+    ["-14:00", "2026-11-25T10:00:00.000-14:00", "2026-11-25T10:05:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, reportAsOf, generatedAt) => {
+    const result = build(
+      [position("YER", { available: "100", collections: "20", obligations: "10" })],
+      generatedAt,
+      reportAsOf,
+    );
+    expect(result.asOf).toBe(reportAsOf);
+  });
+
+  it.each([
+    ["+14:01", "2026-11-26T14:00:00.000+14:01"],
+    ["-14:01", "2026-11-25T10:00:00.000-14:01"],
+    ["+23:59", "2026-11-26T23:59:00.000+23:59"],
+  ])("rejects an out-of-range UTC offset %s", (_label, reportAsOf) => {
+    expect(() => build(
+      [position("YER", { available: "100", collections: "20", obligations: "10" })],
+      asOf,
+      reportAsOf,
+    )).toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
   });
 });

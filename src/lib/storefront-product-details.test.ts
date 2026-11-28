@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_ADMIN_STOREFRONT_PRODUCT_DETAILS,
+  getSafeStorefrontRpcErrorMessage,
   parseAdminStorefrontProductDetails,
   parseStorefrontProductFactsRow,
 } from "@/lib/storefront-product-details";
@@ -170,3 +171,50 @@ describe("storefront product facts contract", () => {
     });
   });
 });
+
+describe("storefront RPC error messages", () => {
+  it("maps permission denials to an Arabic message without exposing the RPC failure", () => {
+    const message = getSafeStorefrontRpcErrorMessage(
+      { code: "42501", message: "permission denied for function get_storefront_catalog_page" },
+      "تعذر تحميل البيانات.",
+      "ليست لديك صلاحية عرض معلومات هذا المنتج.",
+    );
+    expect(message).toBe("ليست لديك صلاحية عرض معلومات هذا المنتج.");
+    expect(message).not.toContain("get_storefront_catalog_page");
+    expect(message).not.toContain("permission denied");
+  });
+
+  it("maps validation and uniqueness failures to safe user guidance", () => {
+    expect(getSafeStorefrontRpcErrorMessage(
+      { code: "22023", message: "invalid parameter in public.product_storefront_details" },
+      "تعذر حفظ البيانات.",
+      "غير مصرح.",
+    )).toBe("تحقق من بيانات المنتج ثم حاول مجدداً.");
+    expect(getSafeStorefrontRpcErrorMessage(
+      { code: "23514", message: "violates product_storefront_package_pair_check" },
+      "تعذر حفظ البيانات.",
+      "غير مصرح.",
+    )).toBe("تحقق من بيانات المنتج ثم حاول مجدداً.");
+    expect(getSafeStorefrontRpcErrorMessage(
+      { code: "23505", message: "duplicate key violates product_brands_org_name_uidx" },
+      "تعذر حفظ البيانات.",
+      "غير مصرح.",
+    )).toBe("يوجد سجل مماثل بالفعل. راجع بيانات المنتج وحاول مجدداً.");
+  });
+
+  it("uses the contextual fallback for unknown database and transport failures", () => {
+    const fallback = "تعذر تحميل معلومات المنتج الآن. حاول إعادة المحاولة.";
+    expect(getSafeStorefrontRpcErrorMessage(
+      { code: "XX000", message: "internal SQL error: private schema.table" },
+      fallback,
+      "غير مصرح.",
+    )).toBe(fallback);
+    expect(getSafeStorefrontRpcErrorMessage(
+      { code: "RPC_UNAVAILABLE", message: "https://private-project.supabase.co/rest/v1/rpc" },
+      fallback,
+      "غير مصرح.",
+    )).toBe(fallback);
+    expect(getSafeStorefrontRpcErrorMessage(null, fallback, "غير مصرح.")).toBe(fallback);
+  });
+});
+

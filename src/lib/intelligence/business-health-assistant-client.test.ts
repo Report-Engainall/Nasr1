@@ -82,6 +82,46 @@ describe("business health assistant source completeness", () => {
     }))).toMatchObject({ status: "PARTIAL", populationComplete: false, customerCount: null });
   });
 
+  it("requires every ready source to reference the same valid timezone-qualified snapshot", () => {
+    const complete = completeSources();
+    const supplierReady: Extract<BusinessHealthAssistantSources["supplierPostedPayableActivity"], { sourceStatus: "READY" }> = {
+      sourceStatus: "READY",
+      resultStatus: "VERIFIED",
+      sourceEntryCount: 10,
+      currencyCount: 1,
+      completeSourceAggregation: true,
+      asOf,
+    };
+    const revenueReady: Extract<BusinessHealthAssistantSources["productRevenueConcentration"], { status: "READY" }> = {
+      status: "READY",
+      invoiceCount: 20,
+      currencyCount: 1,
+      completePopulation: true,
+      asOf,
+    };
+    expect(areBusinessHealthAssistantSourcesComplete(complete, "VERIFIED")).toBe(true);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      supplierPostedPayableActivity: { ...supplierReady, asOf: "2026-11-17T11:59:59.000Z" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      supplierPostedPayableActivity: { ...supplierReady, asOf: "2026-02-31T12:00:00.000Z" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      inventory: { ...complete.inventory, asOf: "2026-11-17T12:00:00" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      productRevenueConcentration: { ...revenueReady, asOf: "2026-02-31T12:00:00.000Z" },
+    }, "VERIFIED")).toBe(false);
+    expect(areBusinessHealthAssistantSourcesComplete({
+      ...complete,
+      productRevenueConcentration: { ...revenueReady, asOf: "2026-11-17T12:00:00" },
+    }, "VERIFIED")).toBe(false);
+  });
+
   it("does not elevate the complete-source rollup when one important source is partial or missing", () => {
     const complete = completeSources();
     expect(areBusinessHealthAssistantSourcesComplete(complete, "VERIFIED")).toBe(true);

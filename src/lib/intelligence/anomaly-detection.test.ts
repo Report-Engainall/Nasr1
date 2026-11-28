@@ -299,3 +299,97 @@ describe("deterministic evidence-backed anomaly detection", () => {
     })).toThrow("anomaly_detection_timestamp_or_id_invalid");
   });
 });
+
+describe("anomaly metric unit admission", () => {
+  it("withholds numeric-looking TEXT values instead of emitting a numeric anomaly", () => {
+    const result = buildAnomalyDetection({
+      id: "text-metric-anomaly",
+      generatedAt: asOf,
+      asOf,
+      evidenceRecords: [
+        evidence("evidence-current", currentPeriod),
+        evidence("evidence-baseline", baselinePeriod),
+      ],
+      metrics: [
+        metric({
+          id: "outflow-current",
+          key: rule.metricKey,
+          value: "125.00",
+          unit: "TEXT",
+          period: currentPeriod,
+          evidenceId: "evidence-current",
+        }),
+        metric({
+          id: "outflow-baseline",
+          key: rule.metricKey,
+          value: "100.00",
+          unit: "TEXT",
+          period: baselinePeriod,
+          evidenceId: "evidence-baseline",
+        }),
+        metric({
+          id: "outflow-current-samples",
+          key: "cashflow.scheduled_outflow_sample_count",
+          value: 5,
+          unit: "COUNT",
+          period: currentPeriod,
+          evidenceId: "evidence-current",
+          formulaId: "sample.v1",
+        }),
+        metric({
+          id: "outflow-baseline-samples",
+          key: "cashflow.scheduled_outflow_sample_count",
+          value: 5,
+          unit: "COUNT",
+          period: baselinePeriod,
+          evidenceId: "evidence-baseline",
+          formulaId: "sample.v1",
+        }),
+      ],
+      rules: [rule],
+      signals: [signal],
+      sourceSnapshotVerified: true,
+    });
+
+    expect(result.anomalies).toHaveLength(0);
+    expect(result.withheld).toMatchObject([
+      { signalId: signal.id, reason: "METRIC_SCOPE_MISMATCH" },
+    ]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+});
+
+describe("anomaly detection ISO timestamp offset contract", () => {
+  function resultAt(timestamp: string) {
+    return buildAnomalyDetection({
+      id: "timestamp-offset-boundary",
+      generatedAt: timestamp,
+      asOf: timestamp,
+      evidenceRecords: [],
+      metrics: [],
+      rules: [],
+      signals: [],
+      sourceSnapshotVerified: true,
+    });
+  }
+
+  for (const timestamp of [
+    "2026-11-26T16:45:47.000+14:00",
+    "2026-11-25T12:45:47.000-14:00",
+  ]) {
+    it("accepts the ISO maximum UTC offset " + timestamp.slice(-6), () => {
+      expect(resultAt(timestamp).asOf).toBe(timestamp);
+    });
+  }
+
+  for (const timestamp of [
+    "2026-11-26T16:45:47.000+14:01",
+    "2026-11-25T12:45:47.000-14:01",
+    "2026-11-26T16:45:47.000+15:00",
+    "2026-11-25T12:45:47.000-23:59",
+  ]) {
+    it("rejects an ISO UTC offset beyond 14 hours: " + timestamp.slice(-6), () => {
+      expect(() => resultAt(timestamp)).toThrow("anomaly_detection_timestamp_or_id_invalid");
+    });
+  }
+});
