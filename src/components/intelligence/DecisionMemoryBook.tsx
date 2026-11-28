@@ -356,6 +356,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [precedentComparisonFilter,setPrecedentComparisonFilter]=useState<DecisionMemoryPrecedentFilter>("ALL");
   const [recordPage,setRecordPage]=useState(0);
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
+  const [learningTotal,setLearningTotal]=useState(0);
+  const [learningPage,setLearningPage]=useState(0);
   const [learningLoading,setLearningLoading]=useState(true);
   const [learningLoadError,setLearningLoadError]=useState("");
   const [learningBusy,setLearningBusy]=useState("");
@@ -369,24 +371,34 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   useEffect(()=>{
     let active=true;
     setLearningLoading(true);
-    void fetchDecisionPolicyLearningCandidates(50,0).then(response=>{
+    void fetchDecisionPolicyLearningCandidates(50,learningPage*50).then(response=>{
       if(!active)return;
       if(response.ok){
+        setLearningTotal(response.total);
+        const lastPage=Math.max(0,Math.ceil(response.total/50)-1);
+        if(learningPage>lastPage){
+          setLearningCandidates([]);
+          setLearningPage(lastPage);
+          setLearningLoading(false);
+          return;
+        }
         setLearningCandidates(response.items);
         setLearningLoadError("");
       }else{
         setLearningCandidates([]);
+        setLearningTotal(0);
         setLearningLoadError(response.message);
       }
       setLearningLoading(false);
     }).catch(()=>{
       if(!active)return;
       setLearningCandidates([]);
+      setLearningTotal(0);
       setLearningLoadError("تعذر تحميل المرشحات المحفوظة.");
       setLearningLoading(false);
     });
     return ()=>{active=false;};
-  },[learningRefreshKey]);
+  },[learningRefreshKey,learningPage]);
 
   async function createLearningCandidate(suggestion:ReturnType<typeof buildDecisionPolicyReviewSuggestions>[number]){
     const eligible=result?.status==="VERIFIED"&&result.loadedCount===result.totalCount&&
@@ -426,6 +438,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         response.candidate,
         ...current.filter(candidate=>candidate.id!==response.candidate.id),
       ]);
+      setLearningPage(0);
+      setLearningRefreshKey(value=>value+1);
       setLearningActionMessage(response.duplicate
         ?"هذا المصدر مرتبط مسبقاً بالمرشح المحفوظ؛ لم يُنشأ إصدار مكرر."
         :"حُفظ مرشح جديد من الأدلة المصدرية، وأصبح في انتظار الإرسال للمراجعة.");
@@ -619,7 +633,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <div className="space-y-2" aria-label="مرشحو التعلم المحفوظون">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-sm font-semibold">دورة Candidate v2 — المراجعة والاعتماد</h4>
-          <span className="text-xs text-muted-foreground">{learningCandidates.length} مرشحاً محمّلاً</span>
+          <span className="text-xs text-muted-foreground">
+            {learningTotal===0?"لا توجد مرشحات محفوظة": "عرض "+(learningPage*50+1)+"–"+(learningPage*50+learningCandidates.length)+" من "+learningTotal+" مرشحاً"}
+          </span>
         </div>
         <p className="text-xs text-muted-foreground">
           تحفظ هذه الدورة إصداراً مرشحاً منفصلاً من Profile الحالي (قاعدة {learningCandidates[0]?.baseProfileVersion??policyReviewSuggestions[0]?.ruleVersion??"غير محددة"}) دون تعديل الإصدار الأساسي. الاعتماد يسجل قرار المراجع فقط؛ لا يبدّل القاعدة النشطة ولا يشغّل أثراً مالياً أو مخزونياً.
@@ -751,6 +767,13 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             {candidate.state==="APPROVED"?<p className="text-xs text-muted-foreground">معتمد للمراجعة فقط — Profile {candidate.baseProfileVersion} ما زال كما هو، والمرشح غير نشط.</p>:null}
           </article>;
         })}
+        {learningTotal>50?<nav className="flex flex-wrap items-center justify-center gap-3 rounded-lg border p-3" aria-label="صفحات مرشحات التعلم">
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""||learningPage===0}
+            onClick={()=>setLearningPage(page=>Math.max(0,page-1))}>السابق</button>
+          <span className="text-xs text-muted-foreground">صفحة {learningPage+1} من {Math.ceil(learningTotal/50)}</span>
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""||learningPage+1>=Math.ceil(learningTotal/50)}
+            onClick={()=>setLearningPage(page=>Math.min(Math.ceil(learningTotal/50)-1,page+1))}>التالي</button>
+        </nav>:null}
         {!learningLoading&&!learningLoadError&&!learningCandidates.length
           ?<p className="text-xs text-muted-foreground">لا توجد مرشحات محفوظة بعد.</p>:null}
         {learningActionMessage?<p role={learningActionError?"alert":"status"} className={learningActionError?"text-xs text-destructive":"text-xs text-emerald-700"}>{learningActionMessage}</p>:null}
