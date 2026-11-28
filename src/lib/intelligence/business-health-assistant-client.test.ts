@@ -144,8 +144,12 @@ describe("business health assistant source completeness", () => {
     sources.inventory = { ...sources.inventory, asOf: precise };
     sources.cashflow = mapBusinessHealthCashflowSource(cashflow({ asOf: precise }));
     sources.retention = mapBusinessHealthRetentionSource(retention({ asOf: precise }));
-    sources.productRevenueConcentration = { ...sources.productRevenueConcentration, asOf: precise };
-    sources.supplierPostedPayableActivity = { ...sources.supplierPostedPayableActivity, asOf: precise };
+    const productSource = sources.productRevenueConcentration;
+    if (productSource.status !== "READY") throw new Error("expected a verified product concentration fixture");
+    sources.productRevenueConcentration = { ...productSource, asOf: precise };
+    const supplierSource = sources.supplierPostedPayableActivity;
+    if (supplierSource.sourceStatus !== "READY") throw new Error("expected a verified supplier activity fixture");
+    sources.supplierPostedPayableActivity = { ...supplierSource, asOf: precise };
     expect(areBusinessHealthAssistantSourcesComplete(sources, "VERIFIED")).toBe(true);
   });
 
