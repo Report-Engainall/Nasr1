@@ -141,6 +141,104 @@ export function summarizeDecisionMemoryPrecedents(
   };
 }
 
+function decisionMemoryCsvCell(value: string | number | null | undefined): string {
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+  const text = String(value ?? "").replace(/\\r\\n?/g, "\\n");
+  const protectedText = /^[\\s\\u0000-\\u001F]*[=+\\-@]/.test(text) ? "'" + text : text;
+  return "\"" + protectedText.replace(/"/g, '""') + "\"";
+}
+
+function decisionMemoryMetricContext(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.metricKey,
+    metric.unit,
+    metric.currency ?? "عملة غير محددة",
+    metric.unitOfMeasure ?? "وحدة صنف غير محددة",
+    metric.period.from + " — " + metric.period.to,
+    metric.formulaId + "@" + metric.formulaVersion,
+  ].join(" | ");
+}
+
+/** Exports only the supplied, already-filtered precedents; it never queries or invents records. */
+export function buildDecisionMemoryPrecedentCsv(input: {
+  matches: DecisionMemoryPrecedentMatch[];
+  reference: DecisionMemoryRecord;
+  loadedCount: number;
+  totalCount: number;
+}): string {
+  if (!input || !Array.isArray(input.matches) ||
+      !input.reference?.decisionId?.trim() ||
+      !Number.isInteger(input.loadedCount) || input.loadedCount < 0 ||
+      !Number.isInteger(input.totalCount) || input.totalCount < input.loadedCount) {
+    throw new Error("decision_memory_precedent_export_invalid");
+  }
+  const coverageNotice = input.loadedCount === input.totalCount
+    ? "عدد السجلات المحمّلة يساوي الإجمالي المبلغ من المصدر؛ لا يعني ذلك اكتمال أدلة كل قرار."
+    : "نطاق جزئي: " + input.loadedCount + " من " + input.totalCount +
+      " قراراً محمّلاً؛ قد توجد سوابق خارج النطاق.";
+  const headers = [
+    "reference_decision_id", "reference_rule", "reference_expected_context",
+    "reference_expected_value", "reference_actual_context", "reference_actual_value",
+    "reference_evidence_ids", "precedent_decision_id", "precedent_created_at",
+    "precedent_state", "precedent_rule", "precedent_rule_version", "comparison_status",
+    "match_reasons", "matched_terms", "context_differences",
+    "expected_metric_key", "expected_value", "expected_unit", "expected_currency",
+    "expected_unit_of_measure", "expected_period_from", "expected_period_to",
+    "expected_formula", "expected_evidence_ids", "actual_metric_key", "actual_value",
+    "actual_unit", "actual_currency", "actual_unit_of_measure", "actual_period_from",
+    "actual_period_to", "actual_formula", "actual_evidence_ids", "coverage_notice",
+  ];
+  const referenceExpected = input.reference.metricComparison.expected;
+  const referenceActual = input.reference.metricComparison.actual;
+  const referenceEvidence = unique([
+    ...(referenceExpected?.evidenceIds ?? []),
+    ...(referenceActual?.evidenceIds ?? []),
+  ]);
+  const rows = input.matches.map(match => {
+    const expected = match.record.metricComparison.expected;
+    const actual = match.record.metricComparison.actual;
+    return [
+      input.reference.decisionId,
+      input.reference.ruleId + "@" + input.reference.ruleVersion,
+      decisionMemoryMetricContext(referenceExpected),
+      referenceExpected?.value ?? null,
+      decisionMemoryMetricContext(referenceActual),
+      referenceActual?.value ?? null,
+      referenceEvidence.join(";"),
+      match.record.decisionId,
+      match.record.createdAt,
+      match.record.state,
+      match.record.ruleId,
+      match.record.ruleVersion,
+      match.comparisonStatus,
+      match.matchReasons.join(";"),
+      match.matchedTerms.join(";"),
+      match.contextDifferences.join(";"),
+      expected?.metricKey ?? null,
+      expected?.value ?? null,
+      expected?.unit ?? null,
+      expected?.currency ?? null,
+      expected?.unitOfMeasure ?? null,
+      expected?.period.from ?? null,
+      expected?.period.to ?? null,
+      expected ? expected.formulaId + "@" + expected.formulaVersion : null,
+      expected?.evidenceIds.join(";") ?? null,
+      actual?.metricKey ?? null,
+      actual?.value ?? null,
+      actual?.unit ?? null,
+      actual?.currency ?? null,
+      actual?.unitOfMeasure ?? null,
+      actual?.period.from ?? null,
+      actual?.period.to ?? null,
+      actual ? actual.formulaId + "@" + actual.formulaVersion : null,
+      actual?.evidenceIds.join(";") ?? null,
+      coverageNotice,
+    ].map(decisionMemoryCsvCell).join(",");
+  });
+  return "\\uFEFF" + [headers.map(decisionMemoryCsvCell).join(","), ...rows].join("\\r\\n");
+}
+
 const decisionSearchStopwords = new Set([
   "هذا","هذه","ذلك","تلك","على","الى","إلى","عن","من","في","مع","بعد","قبل",
   "عند","بين","ضمن","كان","كانت","تم","قد","هو","هي","ما","ماذا","كيف","هل",
