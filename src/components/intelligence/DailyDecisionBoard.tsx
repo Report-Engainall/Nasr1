@@ -137,6 +137,47 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
   return left.decisionId < right.decisionId ? -1 : left.decisionId > right.decisionId ? 1 : 0;
 }
 
+export interface DailyDecisionQueueSummary {
+  overdue: number;
+  dueWithin24Hours: number;
+  dueWithinSevenDays: number;
+  unscheduled: number;
+  inReview: number;
+  awaitingMeasurement: number;
+}
+
+export function summarizeDailyDecisionQueue(
+  records: DecisionMemoryRecord[],
+  now: number,
+): DailyDecisionQueueSummary {
+  const summary: DailyDecisionQueueSummary = {
+    overdue: 0,
+    dueWithin24Hours: 0,
+    dueWithinSevenDays: 0,
+    unscheduled: 0,
+    inReview: 0,
+    awaitingMeasurement: 0,
+  };
+  const dayAhead = now + 24 * 60 * 60 * 1000;
+  const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+  for (const record of records) {
+    if (record.state === "IN_REVIEW") summary.inReview += 1;
+    if (record.state === "EXECUTED") summary.awaitingMeasurement += 1;
+    const terminal = record.state === "REJECTED" || record.state === "MEASURED";
+    if (terminal) continue;
+    const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
+    if (record.reviewDisposition === "SCHEDULED" && Number.isFinite(due)) {
+      if (due <= now) summary.overdue += 1;
+      else if (due <= dayAhead) summary.dueWithin24Hours += 1;
+      else if (due <= weekAhead) summary.dueWithinSevenDays += 1;
+    } else if (!record.reviewAt &&
+      (record.reviewDisposition === "NOT_SCHEDULED" || record.reviewDisposition === null)) {
+      summary.unscheduled += 1;
+    }
+  }
+  return summary;
+}
+
 export interface DailyDecisionBoardSelection {
   records: DecisionMemoryRecord[];
   matchingRecords: DecisionMemoryRecord[];
@@ -539,6 +580,7 @@ export function DailyDecisionBoard({
   const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
   const [dueFilter, setDueFilter] = useState<DailyDecisionDueFilter>("ALL");
   const [requestedPageIndex, setRequestedPageIndex] = useState(0);
+  const queueSummary = summarizeDailyDecisionQueue(result.records, now);
   const selection = selectDailyDecisionBoardRows(result.records, {
     searchText, state: stateFilter, priority: priorityFilter, due: dueFilter,
   }, now, 10, requestedPageIndex * 10);
@@ -593,6 +635,20 @@ export function DailyDecisionBoard({
           <strong className="text-xl tabular-nums">{result.verifiedMeasurementCount}</strong>
         </article>
       </div>
+
+      {result.records.length > 0 ? (
+        <section className="space-y-2" aria-label="مؤشرات قائمة القرارات المحمّلة">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">متأخرة</p><strong className="text-lg tabular-nums">{queueSummary.overdue}</strong></article>
+            <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">خلال 24 ساعة</p><strong className="text-lg tabular-nums">{queueSummary.dueWithin24Hours}</strong></article>
+            <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">خلال 7 أيام</p><strong className="text-lg tabular-nums">{queueSummary.dueWithinSevenDays}</strong></article>
+            <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">غير مجدولة</p><strong className="text-lg tabular-nums">{queueSummary.unscheduled}</strong></article>
+            <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">قيد المراجعة</p><strong className="text-lg tabular-nums">{queueSummary.inReview}</strong></article>
+            <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">بانتظار القياس</p><strong className="text-lg tabular-nums">{queueSummary.awaitingMeasurement}</strong></article>
+          </div>
+          <p className="text-xs text-muted-foreground">المؤشرات أعلاه محسوبة من {result.loadedCount} قراراً محمّلاً فقط.</p>
+        </section>
+      ) : null}
 
       {result.records.length > 0 ? (
         <section className="space-y-2 rounded-lg border p-3" aria-label="بحث وتصفية القرارات اليومية">
