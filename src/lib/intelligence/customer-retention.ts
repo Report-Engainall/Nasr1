@@ -181,6 +181,7 @@ export interface CustomerRetentionAction {
 
 export interface CustomerRetentionActionQueue {
   status: EvidenceStatus;
+  asOf: string;
   actions: CustomerRetentionAction[];
   totalActionable: number;
   omittedCount: number;
@@ -203,6 +204,7 @@ export function buildCustomerRetentionActionQueue(
   if (report.status !== "VERIFIED") {
     return {
       status: report.status,
+      asOf: report.asOf,
       actions: [],
       totalActionable: 0,
       omittedCount: 0,
@@ -294,6 +296,7 @@ export function buildCustomerRetentionActionQueue(
 
   return {
     status: withheldCustomerCount === 0 ? "VERIFIED" : "NEEDS_REVIEW",
+    asOf: report.asOf,
     actions: actions.slice(0, limit),
     totalActionable: actions.length,
     omittedCount: Math.max(0, actions.length - limit),
