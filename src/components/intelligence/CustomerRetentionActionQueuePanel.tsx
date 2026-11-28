@@ -345,6 +345,11 @@ export function CustomerRetentionActionQueuePanel({
       {queue.actions.length > 0 ? (
         <section className="space-y-2" aria-label="شرائح مدة الانقطاع عن الشراء">
           <p className="text-xs text-muted-foreground">التقسيم حسب عدد الأيام منذ آخر طلب؛ هذه شرائح تشغيلية وليست توقعاً مؤكداً لفقدان العميل.</p>
+          <p className="text-xs text-muted-foreground" role="status">
+            العدّادات محسوبة من {queue.actions.length} إجراء محمّل من أصل {queue.totalActionable} إجراء مؤهل.
+            {queue.omittedCount > 0 ? " ما زال " + queue.omittedCount + " إجراء خارج الجزء المحمّل؛ لا تمثل الأعداد كامل القائمة." : " لا توجد إجراءات مؤهلة محذوفة من هذه اللقطة."}
+            {queue.withheldCustomerCount > 0 ? " عدد العملاء المحجوبين عن التوصية: " + queue.withheldCustomerCount + "." : ""}
+          </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
             <button type="button" aria-label="عرض العملاء الذين طلبوا خلال 30 يوماً" aria-pressed={recencyFilter === "0_30"}
               onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setRecencyFilter(recencyFilter === "0_30" ? "ALL" : "0_30"); setPage(0); }}
