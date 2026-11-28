@@ -17,6 +17,7 @@
 - Arabic/Persian numeral normalization changes search matching only. Privacy hardening changes customer-facing labels and decision display text, while preserving the original `customerRef`, source metrics/evidence, established decision identity key and database values.
 - Customer references are no longer rendered as raw or partially masked strings in the retention panel, CSV identity column, or decision display text; the UI and export use ordinal labels while source matching and evidence lineage remain unchanged.
 - Regression coverage includes a short phone-like reference in CSV and decision output, plus a long reference in the UI and decision output; none is copied into customer-facing labels or decision display text.
+- Residual privacy boundary: the established decision ID still uses an unkeyed deterministic 64-bit customer-reference fingerprint for same-day idempotency. It is pseudonymous, not encryption or an authorization token; source metric/evidence identifiers also remain intact for traceability. Do not claim cryptographic anonymization until a server-managed opaque/keyed identity contract and coordinated idempotency migration are delivered.
 - Demand what-if projections cover 7/30/90-day scenarios against matched verified ATP and forecast evidence; incoming purchase quantities are excluded without receipt-date proof, and no purchase/inventory side effect is created.
 
 ## Acceptance
