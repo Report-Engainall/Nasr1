@@ -139,6 +139,8 @@ export interface DailyDecisionBoardSelection {
   matchingRecords: DecisionMemoryRecord[];
   matchedCount: number;
   omittedCount: number;
+  pageIndex: number;
+  pageCount: number;
 }
 
 export function selectDailyDecisionBoardRows(
@@ -146,15 +148,23 @@ export function selectDailyDecisionBoardRows(
   filters: DailyDecisionFilters,
   now: number,
   limit = 10,
+  offset = 0,
 ): DailyDecisionBoardSelection {
   const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 50 ? limit : 10;
+  const requestedOffset = Number.isSafeInteger(offset) && offset > 0 ? offset : 0;
   const matching = filterDailyDecisionRecords(records, filters, now)
     .sort((left, right) => compareOrder(left, right, now));
+  const pageCount = Math.max(1, Math.ceil(matching.length / safeLimit));
+  const pageIndex = Math.min(Math.floor(requestedOffset / safeLimit), pageCount - 1);
+  const start = pageIndex * safeLimit;
+  const visible = matching.slice(start, start + safeLimit);
   return {
-    records: matching.slice(0, safeLimit),
+    records: visible,
     matchingRecords: matching,
     matchedCount: matching.length,
-    omittedCount: Math.max(0, matching.length - safeLimit),
+    omittedCount: Math.max(0, matching.length - visible.length),
+    pageIndex,
+    pageCount,
   };
 }
 
@@ -525,9 +535,10 @@ export function DailyDecisionBoard({
   const [stateFilter, setStateFilter] = useState<DailyDecisionStateFilter>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
   const [dueFilter, setDueFilter] = useState<DailyDecisionDueFilter>("ALL");
+  const [requestedPageIndex, setRequestedPageIndex] = useState(0);
   const selection = selectDailyDecisionBoardRows(result.records, {
     searchText, state: stateFilter, priority: priorityFilter, due: dueFilter,
-  }, now);
+  }, now, 10, requestedPageIndex * 10);
   const records = selection.records;
   const omittedCount = selection.omittedCount;
   const hasFilters = Boolean(searchText) || stateFilter !== "ALL" || priorityFilter !== "ALL" || dueFilter !== "ALL";
@@ -589,7 +600,7 @@ export function DailyDecisionBoard({
                 type="search"
                 aria-label="ابحث في القرارات اليومية"
                 value={searchText}
-                onChange={event => setSearchText(event.target.value)}
+                onChange={event => { setSearchText(event.target.value); setRequestedPageIndex(0); }}
                 placeholder="القرار أو المسؤول أو السبب أو الدليل..."
                 className="w-full rounded-lg border bg-background px-3 py-2"
               />
@@ -597,7 +608,7 @@ export function DailyDecisionBoard({
             <label className="space-y-1 text-sm">
               <span className="block">حالة القرار</span>
               <select aria-label="تصفية حالة القرار" value={stateFilter}
-                onChange={event => setStateFilter(event.target.value as DailyDecisionStateFilter)}
+                onChange={event => { setStateFilter(event.target.value as DailyDecisionStateFilter); setRequestedPageIndex(0); }}
                 className="w-full rounded-lg border bg-background px-3 py-2">
                 <option value="ALL">كل الحالات</option>
                 {Object.entries(stateLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -606,7 +617,7 @@ export function DailyDecisionBoard({
             <label className="space-y-1 text-sm">
               <span className="block">الأولوية المحفوظة</span>
               <select aria-label="تصفية أولوية القرار" value={priorityFilter}
-                onChange={event => setPriorityFilter(event.target.value as DailyDecisionPriorityFilter)}
+                onChange={event => { setPriorityFilter(event.target.value as DailyDecisionPriorityFilter); setRequestedPageIndex(0); }}
                 className="w-full rounded-lg border bg-background px-3 py-2">
                 <option value="ALL">كل الأولويات</option>
                 <option value="P0">P0 — حرجة</option>
@@ -619,7 +630,7 @@ export function DailyDecisionBoard({
             <label className="space-y-1 text-sm">
               <span className="block">موعد المراجعة</span>
               <select aria-label="تصفية موعد المراجعة" value={dueFilter}
-                onChange={event => setDueFilter(event.target.value as DailyDecisionDueFilter)}
+                onChange={event => { setDueFilter(event.target.value as DailyDecisionDueFilter); setRequestedPageIndex(0); }}
                 className="w-full rounded-lg border bg-background px-3 py-2">
                 <option value="ALL">كل المواعيد</option>
                 <option value="OVERDUE">متأخر أو مستحق الآن</option>
@@ -632,7 +643,7 @@ export function DailyDecisionBoard({
             <span>يعرض {records.length} من {selection.matchedCount} نتيجة مطابقة ضمن {result.loadedCount} قراراً محمّلاً</span>
             <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
               disabled={!hasFilters}
-              onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); }}>
+              onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}>
               مسح البحث والتصفية
             </button>
             <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
@@ -662,8 +673,23 @@ export function DailyDecisionBoard({
           ))}
         </ol>
       )}
+      {selection.pageCount > 1 ? (
+        <nav className="flex flex-wrap items-center justify-center gap-3 rounded-lg border p-3" aria-label="صفحات لوحة القرارات اليومية">
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+            disabled={selection.pageIndex === 0}
+            onClick={() => setRequestedPageIndex(selection.pageIndex - 1)}>
+            السابق
+          </button>
+          <span className="text-xs text-muted-foreground">صفحة {selection.pageIndex + 1} من {selection.pageCount} · {selection.matchedCount} نتيجة مطابقة</span>
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+            disabled={selection.pageIndex + 1 >= selection.pageCount}
+            onClick={() => setRequestedPageIndex(selection.pageIndex + 1)}>
+            التالي
+          </button>
+        </nav>
+      ) : null}
       {omittedCount > 0 ? (
-        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {selection.matchedCount} نتيجة مطابقة؛ {omittedCount} نتيجة مطابقة أخرى ضمن السجلات المحمّلة. وسّع التصفية لعرضها.</p>
+        <p className="text-xs text-muted-foreground" role="status">توجد {omittedCount} نتائج أخرى عبر صفحات بقية النتائج المطابقة؛ استخدم التنقل لفتحها كلها.</p>
       ) : null}
       {result.status === "PARTIAL" || result.loadedCount < result.totalCount ? (
         <p className="text-xs text-muted-foreground" role="status">
