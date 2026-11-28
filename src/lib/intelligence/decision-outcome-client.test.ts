@@ -230,6 +230,29 @@ describe("persisted decision outcome client", () => {
     expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
   });
 
+  it("matches assignment and execution timestamps to their audit events", async () => {
+    const mismatchedAssignment = {
+      ...measuredOutcome,
+      assignedAt: "2026-10-31T10:03:30.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedAssignment], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const mismatchedExecution = {
+      ...measuredOutcome,
+      executedAt: "2026-10-31T10:05:30.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedExecution], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const assignmentWithoutEvent = {
+      ...outcome,
+      assignedAt: "2026-10-31T10:03:00.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [assignmentWithoutEvent], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects an approved decision without its approval actor and timestamp", async () => {
     const incompleteApproval = {
       ...outcome,

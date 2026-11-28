@@ -293,11 +293,19 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
   const approvalMatches = approvalEvent
     ? raw.approvedAt === record(approvalEvent)?.at && raw.approvedBy === approvalActor?.id
     : raw.approvedAt === null && raw.approvedBy === null;
+  const assignmentEvent = raw.history.find(item => record(item)?.type === "ASSIGN");
+  const assignmentMatches = assignmentEvent
+    ? raw.assignedAt === record(assignmentEvent)?.at
+    : raw.assignedAt === null;
+  const executionEvent = raw.history.find(item => record(item)?.type === "COMPLETE_EXECUTION");
+  const executionMatches = executionEvent
+    ? raw.executedAt === record(executionEvent)?.at
+    : raw.executedAt === null;
   const latestEvent = raw.history[raw.history.length - 1] as UnknownRecord;
   if (
     eventStateByType[String(latestEvent.type)] !== raw.state ||
     (raw.state === "MEASURED") !== (measuredOutcome !== null) ||
-    !approvalMatches ||
+    !approvalMatches || !assignmentMatches || !executionMatches ||
     (raw.state === "MEASURED" && (!raw.executedAt || !raw.assignedAt || !raw.approvedAt)) ||
     (["ASSIGNED", "EXECUTING", "EXECUTED"].includes(String(raw.state)) && (!raw.approvedAt || !raw.assignedAt)) ||
     (raw.state === "EXECUTED" && !raw.executedAt) ||
