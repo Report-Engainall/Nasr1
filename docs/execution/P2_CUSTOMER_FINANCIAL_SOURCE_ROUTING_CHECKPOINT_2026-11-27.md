@@ -7,7 +7,7 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 ## Current source pointers
 - Latest observed main HEAD: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only execution directive refresh).
 - Latest code-bearing main SHA recorded in the shared execution state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
-- Latest P2 code/test head after source-bound journals, append-only posting evidence and restrictive staff RLS read isolation: `96d9cda3c2d29ad5078784eb6653d8263f878546`. Migration source-posting + RLS guard commits are `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
+- Latest P2 code/test head before this checkpoint refresh: `31071b0dfb955dcdc58b4aaf77bccc4e920c1fd4`. It includes the bounded source-history RPC tests and safe response allowlist assertions. Source-posting + RLS guard commits remain `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
 - PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
 - No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
 
@@ -259,3 +259,12 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - Direct table SELECT remains revoked. Cross-tenant customers and ordinary customers cannot read internal change-request history.
 - PostgreSQL 17 acceptance verifies maker visibility immediately after request creation, tenant/customer denial, bounded limits, and approver visibility of the final approved + matched audit state. No production operation or deployment was performed.
 - Exact-head migration/test execution remains pending in the isolated PostgreSQL 17 workflow; no runtime PASS is claimed.
+
+
+## 2026-11-28 — Source-history response contract acceptance strengthened
+
+- The bounded finance history RPC was added in migration `20261128030000_customer_financial_source_change_history.sql` (blob `9762f1e15291705e7edfed9968223a3a40ab0f66`). API/OPS contract row was added in commit `0cf7e08bc9af29d891c6ddf8206f90009fa8b473`.
+- Existing acceptance already proves the request maker can read a pending request, customer and cross-tenant reads are denied, limits above 20 fail, and the distinct approver can read the approved record with matched reconciliation metadata.
+- Additional acceptance commit `31071b0dfb955dcdc58b4aaf77bccc4e920c1fd4` constrains the returned record keys to the explicit staff-safe DTO allowlist, forbids raw ERP account/company/branch references, evidence hashes and per-currency balance values, verifies one-row pagination preserves the total, and asserts authenticated-only SECURITY DEFINER execute grants.
+- This is read-only audit visibility; it creates no financial or inventory mutation and does not expose raw provider identity or reconciliation balances. The migration and all assertions still require exact-head PostgreSQL 17 execution; no PASS is carried from earlier SHAs.
+- Last observed PR head before this checkpoint write: `31071b0dfb955dcdc58b4aaf77bccc4e920c1fd4`. This checkpoint commit will supersede it and becomes the new exact acceptance target. Keep PR #697 Draft until PostgreSQL 17, P2 and P1 workflows finish successfully on the final SHA.
