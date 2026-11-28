@@ -854,7 +854,9 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).not.toContain("25.00");
   });
 
-  it("clears customer invoice rows and details when the source changes before PDF download", async () => {
+  it.each(["تنزيل PDF عربي", "تنزيل Excel"])(
+    "clears customer invoice rows and details when the source changes before %s",
+    async (exportLabel) => {
     const invoiceId = "5b222222-2222-4222-8222-222222222222";
     mocks.user = {
       id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
@@ -905,20 +907,26 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("INV-PDF-OUTPUT-CUTOVER");
     expect(host?.textContent).toContain("25.00");
 
-    const pdfButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
-      .find((button) => button.textContent?.includes("تنزيل PDF عربي"));
-    expect(pdfButton).toBeDefined();
+    const exportButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes(exportLabel));
+    expect(exportButton).toBeDefined();
+    expect(exportButton?.disabled).toBe(false);
     await act(async () => {
-      pdfButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      exportButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(sourceReads).toBe(4);
-    expect(host?.textContent).toContain("تغير مصدر الحساب المالي؛ أوقفنا تنزيل الفاتورة من الدفتر السابق.");
+    expect(host?.textContent).toContain(
+      exportLabel === "تنزيل PDF عربي"
+        ? "تغير مصدر الحساب المالي؛ أوقفنا تنزيل الفاتورة من الدفتر السابق."
+        : "تغير مصدر الحساب؛ أوقفنا تصدير تفاصيل الفاتورة القديمة.",
+    );
     expect(host?.textContent).not.toContain("INV-PDF-OUTPUT-CUTOVER");
     expect(host?.textContent).not.toContain("25.00");
     expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')).toBeNull();
-  });
+    },
+  );
 
   it("omits invoice price columns and totals when the server hides invoice financial details", async () => {
     const invoiceId = "66666666-6666-4666-8666-666666666666";
