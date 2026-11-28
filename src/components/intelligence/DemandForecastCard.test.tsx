@@ -80,6 +80,28 @@ describe("DemandForecastCard", () => {
     );
   });
 
+  it("runs an interactive what-if demand simulation from the verified forecast without mutating the source", () => {
+    render(<DemandForecastCard result={forecast} state="ready" />);
+    const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
+    const slider = within(lab).getByRole("slider", { name: "نسبة تغير الطلب المفترضة" });
+    expect(within(lab).getByText("0%")).toBeInTheDocument();
+    fireEvent.change(slider, { target: { value: "20" } });
+    expect(within(lab).getByText("+20%")).toBeInTheDocument();
+    expect(within(lab).getByTestId("demand-scenario-expected-7")).toHaveAttribute("data-value", "33.6");
+    expect(within(lab).getByTestId("demand-scenario-expected-30")).toHaveAttribute("data-value", "144");
+    expect(within(lab).getByTestId("demand-scenario-expected-90")).toHaveAttribute("data-value", "432");
+    expect(forecast.forecasts[0].horizons[0].expectedQuantity).toBe(28);
+    expect(within(lab).getByText(/لا يغيّر الطلبات أو المخزون/)).toBeInTheDocument();
+  });
+
+  it("withholds what-if results whenever the forecast needs review", () => {
+    render(<DemandForecastCard result={{ ...forecast, status: "NEEDS_REVIEW" }} state="ready" />);
+    const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
+    fireEvent.change(within(lab).getByRole("slider", { name: "نسبة تغير الطلب المفترضة" }), { target: { value: "20" } });
+    expect(within(lab).getByRole("alert")).toHaveTextContent("المصدر أو كامل مجتمع المنتجات يحتاج إلى مراجعة");
+    expect(within(lab).queryByTestId("demand-scenario-expected-7")).not.toBeInTheDocument();
+  });
+
   it("does not render a forecast when the source is unavailable", () => {
     render(<DemandForecastCard result={null} state="unavailable" />);
     expect(screen.getByText("مصدر توقع الطلب غير متاح؛ لم تُنشأ توقعات بديلة.")).toBeInTheDocument();
