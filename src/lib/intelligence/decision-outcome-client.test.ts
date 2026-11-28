@@ -272,6 +272,24 @@ describe("persisted decision outcome client", () => {
     expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
   });
 
+  it("rejects an approval event that skips the required review transition", async () => {
+    const approvedWithoutReview = {
+      ...outcome,
+      state: "APPROVED",
+      version: 2,
+      updatedAt: "2026-10-31T10:01:00.000Z",
+      approvedAt: "2026-10-31T10:01:00.000Z",
+      approvedBy: "22222222-2222-4222-8222-222222222222",
+      eventCount: 2,
+      history: [
+        outcome.history[0],
+        historyEvent("approve-event", "APPROVE", 2, "2026-10-31T10:01:00.000Z", "تمت مراجعة الدليل"),
+      ],
+    };
+    rpc.mockResolvedValue({ data: { items: [approvedWithoutReview], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects an event count that does not reconcile to the full append-only history", async () => {
     rpc.mockResolvedValue({
       data: { items: [{ ...outcome, eventCount: 2 }], total: 1 },

@@ -109,6 +109,18 @@ function safeFailure(error: unknown): { status: DecisionOutcomeFailureStatus; me
   if (code === "22023") return { status: "ERROR", message: "رفض الخادم الانتقال لعدم استيفاء شروط القرار أو أدلته." };
   return { status: "UNAVAILABLE", message: "تعذر الوصول إلى خدمة القرارات؛ لم تُحفظ أي تغييرات محلية." };
 }
+const allowedDecisionEventTransitions: Record<DecisionOutcomeState, string[]> = {
+  PROPOSED: ["SUBMIT_FOR_REVIEW"],
+  IN_REVIEW: ["APPROVE", "REJECT", "DEFER"],
+  APPROVED: ["ASSIGN"],
+  REJECTED: [],
+  DEFERRED: ["RESUBMIT_FOR_REVIEW"],
+  ASSIGNED: ["START_EXECUTION"],
+  EXECUTING: ["COMPLETE_EXECUTION"],
+  EXECUTED: ["MEASURE"],
+  MEASURED: [],
+};
+
 const eventStateByType: Record<string, DecisionOutcomeState> = {
   CREATE: "PROPOSED",
   SUBMIT_FOR_REVIEW: "IN_REVIEW",
@@ -260,6 +272,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
   const history: DecisionOutcomeEventView[] = [];
   const eventIds = new Set<string>();
   let priorAt = Date.parse(raw.createdAt);
+  let priorState: DecisionOutcomeState = "PROPOSED";
   for (let index = 0; index < raw.history.length; index += 1) {
     const event = record(raw.history[index]);
     const actor = record(event?.actor);
@@ -268,6 +281,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
       !event || !actor ||
       !str(event.id, 100) || eventIds.has(event.id) ||
       typeof event.type !== "string" || !Object.prototype.hasOwnProperty.call(eventStateByType, event.type) ||
+      (index === 0 ? event.type !== "CREATE" : !allowedDecisionEventTransitions[priorState].includes(event.type)) ||
       event.version !== expectedVersion ||
       !iso(event.at) ||
       Date.parse(event.at) < priorAt ||
@@ -278,6 +292,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     ) return null;
     eventIds.add(event.id);
     priorAt = Date.parse(event.at);
+    if (index > 0) priorState = eventStateByType[event.type]!;
     history.push({
       id: event.id,
       type: event.type,
@@ -304,6 +319,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
   const latestEvent = raw.history[raw.history.length - 1] as UnknownRecord;
   if (
     eventStateByType[String(latestEvent.type)] !== raw.state ||
+    priorState !== raw.state ||
     (raw.state === "MEASURED") !== (measuredOutcome !== null) ||
     !approvalMatches || !assignmentMatches || !executionMatches ||
     (raw.state === "MEASURED" && (!raw.executedAt || !raw.assignedAt || !raw.approvedAt)) ||
