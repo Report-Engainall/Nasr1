@@ -40,10 +40,16 @@ const recommendation = {
   targetStock: 10,
   recommendedQuantity: 8,
   formulaId: "inventory.replenishment-target",
-  formulaVersion: "1.1.1",
+  formulaVersion: "1.2.0",
   evidenceIds: ["evidence-1"],
   warnings: [],
   automaticPurchase: false as const,
+  demandSource: "HISTORICAL" as const,
+  demandTrend: null,
+  forecastLeadTimeDemand: null,
+  forecastEvidenceIds: [],
+  forecastMetricKeys: [],
+  forecastFormulaVersions: [],
 };
 
 describe("ReplenishmentPurchaseDraft", () => {

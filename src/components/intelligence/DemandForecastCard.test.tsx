@@ -31,6 +31,7 @@ const forecast: DemandForecastResult = {
     baselinePeriod: { from: "2026-09-28", to: "2026-10-27" },
     asOf: "2026-11-26T02:45:47.000Z",
     evidenceIds: ["current-evidence", "baseline-evidence"],
+    metricKeys: ["product.order_items.quantity", "product.orders.sample_count"],
     formulaVersions: ["quantity@1", "sample@1"],
     warnings: [
       "ORDER_LINE_QUANTITY_IS_NOT_VERIFIED_SHIPPED_OR_RECOGNIZED_SALES",
