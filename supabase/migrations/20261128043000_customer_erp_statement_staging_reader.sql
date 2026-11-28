@@ -468,8 +468,14 @@ BEGIN
                outcome.external_id,outcome.fields,outcome.disposition,
                outcome.source_updated_at
           FROM public.erp_sync_page_record_outcomes outcome
+          JOIN public.erp_sync_page_receipts receipt
+            ON receipt.organization_id=outcome.organization_id
+           AND receipt.scope_key=outcome.scope_key
+           AND receipt.page_fingerprint=outcome.page_fingerprint
          WHERE outcome.organization_id=$1 AND outcome.scope_key=$2
-         ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+         ORDER BY outcome.external_id,receipt.committed_version DESC,
+                  receipt.recorded_at DESC,outcome.recorded_at DESC,
+                  outcome.page_fingerprint DESC
       )
       SELECT count(*)::integer
         FROM latest_outcomes latest
@@ -517,8 +523,14 @@ BEGIN
                outcome.external_id,outcome.fields,outcome.disposition,
                outcome.source_updated_at
           FROM public.erp_sync_page_record_outcomes outcome
+          JOIN public.erp_sync_page_receipts receipt
+            ON receipt.organization_id=outcome.organization_id
+           AND receipt.scope_key=outcome.scope_key
+           AND receipt.page_fingerprint=outcome.page_fingerprint
          WHERE outcome.organization_id=$1 AND outcome.scope_key=$2
-         ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+         ORDER BY outcome.external_id,receipt.committed_version DESC,
+                  receipt.recorded_at DESC,outcome.recorded_at DESC,
+                  outcome.page_fingerprint DESC
       ),
       account_entries AS MATERIALIZED (
         SELECT latest.external_id,

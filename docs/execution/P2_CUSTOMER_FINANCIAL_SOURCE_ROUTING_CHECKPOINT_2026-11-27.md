@@ -382,3 +382,11 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - The same exact-head test requires EXECUTE for `authenticated`, denies EXECUTE for `anon`, confirms `prosecdef=true`, and checks `proconfig` includes the empty `search_path` required by the SECURITY DEFINER routine. It also asserts the installed definition still calls the active customer `statement.read` capability guard.
 - Removed the obsolete duplicate API/OPS row that incorrectly claimed ONYX/MUTAKAMEL remained unsupported after the P2 P4-staging reader migration was added. The single canonical row now describes the actual completed-scope reader and fail-closed boundary.
 - The assertions are authored and require this PR head PostgreSQL 17 acceptance run; no test PASS or production deployment is claimed.
+
+
+## 2026-11-28 — ERP statement outcome ordering by committed page version
+
+- Both latest-outcome selectors in `get_customer_account_statement()` now join record outcomes to their page receipt and order by `receipt.committed_version DESC` before timestamp/fingerprint tie-breakers.
+- Recorded timestamps and opaque page fingerprints are not a reliable accepted-page ordering contract; the monotonic committed version now decides which correction supersedes an earlier outcome.
+- PostgreSQL 17 regression gives stale v2 and corrected v3 outcomes the same receipt/outcome timestamp, then deliberately makes the old page fingerprint lexicographically larger. The authenticated statement must return the v3 correction and never surface the stale rejected row.
+- The installed reader definition is inspected for `receipt.committed_version DESC`. Exact-head PG17 acceptance remains required; no PASS or production migration is claimed.

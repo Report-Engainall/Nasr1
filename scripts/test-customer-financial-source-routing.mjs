@@ -1944,6 +1944,9 @@ async function main() {
   assert.ok(statementReaderDefinition[0].definition.includes("current_customer_can('statement.read')"),
     "customer statement reader derives authorization from the current customer capability");
   assert.match(statementReaderDefinition[0].definition,
+    /receipt\.committed_version\s+DESC/i,
+    "external statement reader selects latest outcomes by committed page version");
+  assert.match(statementReaderDefinition[0].definition,
     /v_checkpoint\.version\s+IS\s+DISTINCT\s+FROM\s+v_scope\.checkpoint_version/i,
     "external statement reader must reject a checkpoint version that differs from its registered customer/currency scope");
   assert.match(statementReaderDefinition[0].definition,
@@ -2053,7 +2056,8 @@ async function main() {
 
   async function stageCustomerStatementPage(currencyCode, version, rows) {
     const scopeKey = statementScopeKeys[currencyCode];
-    const fingerprint = hash("P2-statement-" + currencyCode + "-page-" + version);
+    // Force the stale v2 fingerprint to sort after v3; commit version must win.
+    const fingerprint = version === 2 ? "f".repeat(64) : version === 3 ? "0".repeat(64) : hash("P2-statement-" + currencyCode + "-page-" + version);
     const createdCount = rows.filter(row => row.disposition === "created").length;
     const updatedCount = rows.filter(row => row.disposition === "updated").length;
     const unchangedCount = rows.filter(row => row.disposition === "unchanged").length;
@@ -2064,20 +2068,20 @@ async function main() {
         "organization_id,scope_key,page_fingerprint,response_sha256,next_cursor_present," +
         "http_status,external_request_id,pending_watermark,completed_watermark," +
         "records_received,created_count,updated_count,unchanged_count,rejected_count," +
-        "conflicted_count,completed,committed_version" +
+        "conflicted_count,completed,committed_version,recorded_at" +
       ") values($1::uuid,$2::text,$3::text,$4::text,false,200,null,null,$5::timestamptz," +
-        "$6::integer,$7::integer,$8::integer,$9::integer,$10::integer,$11::integer,true,$12::bigint)",
+        "$6::integer,$7::integer,$8::integer,$9::integer,$10::integer,$11::integer,true,$12::bigint,$13::timestamptz)",
       [orgId,scopeKey,fingerprint,hash("P2-statement-response-" + currencyCode + "-" + version),
-        statementWatermark,rows.length,createdCount,updatedCount,unchangedCount,rejectedCount,conflictedCount,version],
+        statementWatermark,rows.length,createdCount,updatedCount,unchangedCount,rejectedCount,conflictedCount,version,statementWatermark],
     );
     for (const row of rows) {
       await db.unsafe(
         "insert into public.erp_sync_page_record_outcomes(" +
           "organization_id,scope_key,page_fingerprint,external_id,source_updated_at," +
-          "fields,disposition,disposition_reason" +
-        ") values($1::uuid,$2::text,$3::text,$4::text,$5::timestamptz,$6::jsonb,$7::text,$8::text)",
+          "fields,disposition,disposition_reason,recorded_at" +
+        ") values($1::uuid,$2::text,$3::text,$4::text,$5::timestamptz,$6::jsonb,$7::text,$8::text,$9::timestamptz)",
         [orgId,scopeKey,fingerprint,row.externalId,statementWatermark,
-          JSON.stringify(row.fields),row.disposition,row.dispositionReason ?? null],
+          JSON.stringify(row.fields),row.disposition,row.dispositionReason ?? null,statementWatermark],
       );
     }
     await db.unsafe(
@@ -2226,6 +2230,9 @@ async function main() {
   assert.equal(Number(correctedYer.total_debit),101);
   assert.equal(Number(correctedYer.total_credit),20);
   assert.equal(Number(correctedYer.closing_balance),81);
+  assert.ok("f".repeat(64) > "0".repeat(64), "stale v2 fingerprint deliberately sorts after corrected v3");
+  assert.equal(correctedYer.entries.some(row=>row.entry_reference==="WRONG-CURRENCY-001"),false,
+    "stale rejected outcome cannot shadow the later committed correction when outcome timestamps tie");
 
   await stageCustomerStatementPage("YER",4,[
     {
