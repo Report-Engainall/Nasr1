@@ -3,6 +3,7 @@ import type { DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
 import {
   filterDailyDecisionRecords,
   normalizeDailyDecisionSearch,
+  selectDailyDecisionBoardRows,
   type DailyDecisionFilters,
 } from "./DailyDecisionBoard";
 
@@ -156,6 +157,41 @@ describe("daily decision queue search and filters", () => {
       .map(item => item.decisionId)).toEqual(["upcoming"]);
     expect(filterDailyDecisionRecords(records, { ...allFilters, due: "UNSCHEDULED" }, now)
       .map(item => item.decisionId)).toEqual(["unscheduled"]);
+  });
+
+  it("filters the entire loaded population before selecting the top ten visible cards", () => {
+    const firstTen = Array.from({ length: 10 }, (_, index) => decision({
+      decisionId: "top-" + index,
+      proposedResult: "قرار أولوية قصوى " + index,
+      candidateSnapshot: {
+        ...decision().candidateSnapshot!,
+        priority: "P0",
+        priorityScore: 400,
+      },
+    }));
+    const eleventh = decision({
+      decisionId: "eleventh",
+      proposedResult: "مراجعة خاصة لمورد متأخر",
+      candidateSnapshot: {
+        ...decision().candidateSnapshot!,
+        priority: "P3",
+        priorityScore: 100,
+      },
+    });
+
+    const defaultSelection = selectDailyDecisionBoardRows([...firstTen, eleventh], allFilters, now);
+    expect(defaultSelection.records).toHaveLength(10);
+    expect(defaultSelection.matchedCount).toBe(11);
+    expect(defaultSelection.omittedCount).toBe(1);
+    expect(defaultSelection.records.some(item => item.decisionId === "eleventh")).toBe(false);
+
+    const searchedSelection = selectDailyDecisionBoardRows([...firstTen, eleventh], {
+      ...allFilters,
+      searchText: "مورد متأخر",
+    }, now);
+    expect(searchedSelection.records.map(item => item.decisionId)).toEqual(["eleventh"]);
+    expect(searchedSelection.matchedCount).toBe(1);
+    expect(searchedSelection.omittedCount).toBe(0);
   });
 
   it("searches evidence references and event reasons without treating hypotheses as facts", () => {
