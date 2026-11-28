@@ -91,8 +91,8 @@ function customerReference(value: string): string {
 
 function customerRetentionCsvCell(value: string | number | null | undefined): string {
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
-  const text = String(value ?? "").replace(/\\r\\n?/g, "\\n");
-  const protectedText = /^[\\s\\u0000-\\u001F]*[=+\\-@]/.test(text) ? "'" + text : text;
+  const text = String(value ?? "").replace(/\r\n?/g, "\n");
+  const protectedText = /^[\s\u0000-\u001F]*[=+\-@]/.test(text) ? "'" + text : text;
   return "\"" + protectedText.replace(/"/g, '""') + "\"";
 }
 
@@ -139,7 +139,7 @@ export function buildCustomerRetentionActionsCsv(input: {
     action.formulaVersions.join(";"),
     coverageNotice,
   ].map(customerRetentionCsvCell).join(","));
-  return "\\uFEFF" + [headers.map(customerRetentionCsvCell).join(","), ...rows].join("\\r\\n");
+  return "\uFEFF" + [headers.map(customerRetentionCsvCell).join(","), ...rows].join("\r\n");
 }
 
 export interface CustomerRetentionActionQueuePanelProps {
