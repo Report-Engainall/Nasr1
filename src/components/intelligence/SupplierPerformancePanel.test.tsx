@@ -14,14 +14,14 @@ const lateSupplier: SupplierPerformanceSupplier = {
   averageLeadDays: 9, medianLeadDays: 8, p90LeadDays: 12,
   promisedDeliverySampleCount: 3, onTimeCount: 1, onTimePercent: 33.3,
   completedWithoutPromiseCount: 0,
-  latestSubmittedAt: "2026-11-25T09:00:00.000Z",
+  latestSubmittedAt: "2026-11-20T09:00:00.000Z",
   recentOrders: [{
     purchaseOrderId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     purchaseOrderNumber: "PO-LATE-01", status: "received",
     submittedAt: "2026-11-20T09:00:00.000Z",
-    lastReceivedAt: "2026-11-29T09:00:00.000Z",
+    lastReceivedAt: "2026-11-27T09:00:00.000Z",
     lineCount: 3, pendingLineCount: 0, receiptCount: 1,
-    actualLeadDays: 9, promisedDeliveryDays: 5, onTime: false,
+    actualLeadDays: 7, promisedDeliveryDays: 5, onTime: false,
   }],
 };
 
