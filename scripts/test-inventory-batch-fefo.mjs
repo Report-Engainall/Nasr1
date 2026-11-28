@@ -806,6 +806,22 @@ async function main(){
   [[ledgerOrderA,ledgerOrderB]]
  ))[0].count;
  await assert.rejects(
+  ()=>status(manager,ledgerOrderA,"shipped"),
+  error=>String(error?.code)==="40001" && String(error?.message).includes("negative active order reservation movement ledger"),
+  "shipment must refuse a negative peer reservation ledger before posting any sale"
+ );
+ const statusAfterNegativePeerShip=(await db.unsafe(
+  "select status from public.orders where id=$1::uuid",[ledgerOrderA]
+ ))[0];
+ const salesAfterNegativePeerShip=(await db.unsafe(
+  "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='sale'",
+  [ledgerOrderA]
+ ))[0].count;
+ assert.equal(statusAfterNegativePeerShip.status,"processing",
+  "rejected shipment must leave the order in processing");
+ assert.equal(salesAfterNegativePeerShip,0,
+  "rejected shipment must not post a sale movement");
+ await assert.rejects(
   ()=>rpc("select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
    [ledgerOrderA,"fefo-negative-peer-"+randomUUID().replaceAll("-",""),"Reject negative peer reservation ledger"]),
   error=>String(error?.code)==="40001" && String(error?.message).includes("negative active order reservation movement ledger"),
