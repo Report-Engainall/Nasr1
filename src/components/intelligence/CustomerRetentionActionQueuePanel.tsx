@@ -107,6 +107,7 @@ export function filterCustomerRetentionActions(
       item.action,
       item.priority,
       item.lastOrderAt ?? "",
+      validDaysSinceLastOrder(item.daysSinceLastOrder) ?? "",
     ].join(" ")).includes(normalizedQuery))
     .sort((left, right) =>
       rank[left.priority] - rank[right.priority] ||
