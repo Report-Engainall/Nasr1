@@ -1,16 +1,10 @@
 import { useState } from "react";
-import { useAuth } from "@/lib/auth";
-import {
-  buildCustomerRetentionDecisionCandidates,
-  type CustomerRetentionAction,
-  type CustomerRetentionActionKind,
-  type CustomerRetentionActionPriority,
-  type CustomerRetentionActionQueue,
+import type {
+  CustomerRetentionAction,
+  CustomerRetentionActionKind,
+  CustomerRetentionActionPriority,
+  CustomerRetentionActionQueue,
 } from "@/lib/intelligence/customer-retention";
-import {
-  createDecisionOutcomeProposal,
-  type DecisionCandidateSnapshot,
-} from "@/lib/intelligence/decision-outcome-client";
 
 const priorityLabels = {
   HIGH: "أولوية مرتفعة",
@@ -151,19 +145,16 @@ export function buildCustomerRetentionActionsCsv(input: {
 export interface CustomerRetentionActionQueuePanelProps {
   queue: CustomerRetentionActionQueue | null;
   loading: boolean;
-  onRetry?: () => void;
+  canCreateDecision?: boolean;
+  onCreateDecisionProposal?: (action: CustomerRetentionAction) => Promise<boolean>;
 }
 
 export function CustomerRetentionActionQueuePanel({
   queue,
   loading,
-  onRetry,
+  canCreateDecision = false,
+  onCreateDecisionProposal,
 }: CustomerRetentionActionQueuePanelProps) {
-  const { user } = useAuth();
-  const canCreateDecision = Boolean(
-    user && typeof user.profileId === "string" && user.profileId &&
-    Array.isArray(user.roles) && (user.roles.includes("admin") || user.roles.includes("manager")),
-  );
   const [busyCustomerRef, setBusyCustomerRef] = useState<string | null>(null);
   const [decisionMessages, setDecisionMessages] = useState<Record<string, string>>({});
   const [searchText, setSearchText] = useState("");
@@ -207,79 +198,22 @@ export function CustomerRetentionActionQueuePanel({
   );
   const pageView = paginateCustomerRetentionActions(filteredActions, page);
   async function createCustomerDecision(action: CustomerRetentionAction) {
-    if (!queue || queue.status !== "VERIFIED" || !queue.asOf ||
-        queue.withheldCustomerCount !== 0 || !canCreateDecision || !user?.profileId ||
-        busyCustomerRef !== null) return;
-
-    const candidates = buildCustomerRetentionDecisionCandidates({
-      asOf: queue.asOf,
-      queue: { ...queue, actions: [action], totalActionable: 1, omittedCount: 0 },
-    });
-    const candidate = candidates[0];
-    if (!candidate || candidate.id.length > 150 ||
-        candidate.proof.evidenceIds.length === 0 ||
-        candidate.proof.metricKeys.length === 0 ||
-        candidate.proof.formulaVersions.length === 0) {
-      setDecisionMessages(current => ({
-        ...current,
-        [action.customerRef]: "لم يُنشأ القرار: لا تتوفر لقطة مصدر مكتملة أو أن مرجع القرار يتجاوز حد الخادم.",
-      }));
-      return;
-    }
-
-    const expectedOutcome = candidate.expectedOutcome.slice(0, 2000);
-    const candidateSnapshot: DecisionCandidateSnapshot = {
-      schemaVersion: "1.0.0",
-      candidateId: candidate.id,
-      ruleId: candidate.ruleId,
-      ruleVersion: candidate.ruleVersion,
-      priority: candidate.priority,
-      priorityScore: candidate.priorityScore,
-      what: candidate.what.slice(0, 500),
-      why: candidate.why.slice(0, 2000),
-      risk: candidate.soWhat.slice(0, 2000),
-      soWhat: candidate.soWhat.slice(0, 2000),
-      whatNext: candidate.whatNext.slice(0, 2000),
-      owner: candidate.owner.slice(0, 150),
-      expectedOutcome,
-      impact: null,
-      impactStatus: "WITHHELD",
-      impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
-      proof: {
-        evidenceIds: [...candidate.proof.evidenceIds],
-        metricKeys: [...candidate.proof.metricKeys],
-        asOf: candidate.proof.asOf,
-        formulaVersions: [...candidate.proof.formulaVersions],
-      },
-      createdAt: candidate.createdAt,
-      expiresAt: candidate.expiresAt,
-    };
-
+    if (!queue || queue.status !== "VERIFIED" || queue.withheldCustomerCount !== 0 ||
+        !canCreateDecision || !onCreateDecisionProposal || busyCustomerRef !== null) return;
     setBusyCustomerRef(action.customerRef);
     setDecisionMessages(current => ({ ...current, [action.customerRef]: "" }));
     try {
-      const saved = await createDecisionOutcomeProposal({
-        candidateId: candidate.id,
-        ruleId: candidate.ruleId,
-        ruleVersion: candidate.ruleVersion,
-        ownerProfileId: user.profileId,
-        expectedOutcome,
-        reason: candidate.why.slice(0, 2000),
-        candidateSnapshot,
-      });
+      const saved = await onCreateDecisionProposal(action);
       setDecisionMessages(current => ({
         ...current,
-        [action.customerRef]: saved.ok
-          ? saved.duplicate
-            ? "القرار محفوظ مسبقاً؛ أُعيد استخدام السجل دون إنشاء نسخة."
-            : "حُفظ قرار متابعة العميل بالخادم مع أولوية P1/P2/P3 وأدلته. لم يُعتمد أو يُنفذ تلقائياً."
-          : saved.message,
+        [action.customerRef]: saved
+          ? "حُفظ قرار متابعة العميل بالخادم مع أدلته وأولويته؛ لم يُعتمد أو يُنفذ تلقائياً."
+          : "لم يتم تأكيد حفظ القرار؛ راجع نتيجة دورة القرارات قبل إعادة المحاولة.",
       }));
-      if (saved.ok) onRetry?.();
     } catch {
       setDecisionMessages(current => ({
         ...current,
-        [action.customerRef]: "تعذر تأكيد حفظ القرار من الخادم؛ لم تُعرض نتيجة نجاح غير مؤكدة. أعد المحاولة.",
+        [action.customerRef]: "تعذر تأكيد حفظ القرار؛ راجع سجل دورة القرارات قبل إعادة المحاولة.",
       }));
     } finally {
       setBusyCustomerRef(null);
