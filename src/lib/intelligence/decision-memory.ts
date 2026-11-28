@@ -109,6 +109,37 @@ export interface DecisionMemoryPrecedentMatch {
   contextDifferences: string[];
 }
 
+export type DecisionMemoryPrecedentFilter =
+  | "ALL" | DecisionMemoryPrecedentMatch["comparisonStatus"];
+
+export interface DecisionMemoryPrecedentSummary {
+  total: number;
+  comparable: number;
+  notComparable: number;
+  outcomeUnverified: number;
+}
+
+export function filterDecisionMemoryPrecedents(
+  matches: DecisionMemoryPrecedentMatch[],
+  filter: DecisionMemoryPrecedentFilter,
+): DecisionMemoryPrecedentMatch[] {
+  if (!Array.isArray(matches)) throw new Error("decision_memory_precedent_filter_invalid");
+  if (filter === "ALL") return matches;
+  return matches.filter(match => match.comparisonStatus === filter);
+}
+
+export function summarizeDecisionMemoryPrecedents(
+  matches: DecisionMemoryPrecedentMatch[],
+): DecisionMemoryPrecedentSummary {
+  if (!Array.isArray(matches)) throw new Error("decision_memory_precedent_summary_invalid");
+  return {
+    total: matches.length,
+    comparable: matches.filter(match => match.comparisonStatus === "COMPARABLE").length,
+    notComparable: matches.filter(match => match.comparisonStatus === "NOT_COMPARABLE").length,
+    outcomeUnverified: matches.filter(match => match.comparisonStatus === "OUTCOME_UNVERIFIED").length,
+  };
+}
+
 const decisionSearchStopwords = new Set([
   "هذا","هذه","ذلك","تلك","على","الى","إلى","عن","من","في","مع","بعد","قبل",
   "عند","بين","ضمن","كان","كانت","تم","قد","هو","هي","ما","ماذا","كيف","هل",
