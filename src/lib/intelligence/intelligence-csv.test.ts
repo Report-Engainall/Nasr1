@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { DemandForecastResult } from "./demand-forecast";
 import type { DeadStockReport } from "./dead-stock";
+import type { SupplierPerformanceResult } from "./supplier-performance";
+import type { ProcessBottleneckResult } from "./process-bottlenecks";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import {
   buildDeadStockCsv,
+  buildSupplierPerformanceCsv,
+  buildProcessBottlenecksCsv,
   buildDemandForecastCsv,
   buildReplenishmentCsv,
   serializeIntelligenceCsv,
@@ -142,6 +146,110 @@ const deadStockReport: DeadStockReport = {
   ]
 };
 
+const supplierExportFixture: SupplierPerformanceResult = {
+  "state": "PARTIAL",
+  "asOf": "2026-11-28T02:00:00.000Z",
+  "period": {
+    "from": "2026-10-01",
+    "to": "2026-11-28",
+    "timeZone": "UTC"
+  },
+  "totalSupplierCount": 5,
+  "returnedSupplierCount": 1,
+  "completePopulation": false,
+  "suppliers": [
+    {
+      "supplierId": "11111111-1111-4111-8111-111111111111",
+      "supplierName": "مورد =مراجعة",
+      "supplierCode": "SUP-A",
+      "purchaseOrderCount": 4,
+      "completedOrderCount": 2,
+      "openOrderCount": 1,
+      "inconsistentReceivedCount": 1,
+      "backlogLineCount": 2,
+      "leadTimeSampleCount": 2,
+      "averageLeadDays": null,
+      "medianLeadDays": null,
+      "p90LeadDays": null,
+      "promisedDeliverySampleCount": 1,
+      "onTimeCount": 0,
+      "onTimePercent": 0,
+      "completedWithoutPromiseCount": 1,
+      "latestSubmittedAt": "2026-11-27T09:00:00.000Z",
+      "recentOrders": [
+        {
+          "purchaseOrderId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "purchaseOrderNumber": "PO-A",
+          "status": "partially_received",
+          "submittedAt": "2026-11-26T09:00:00.000Z",
+          "lastReceivedAt": null,
+          "lineCount": 3,
+          "pendingLineCount": 2,
+          "receiptCount": 0,
+          "actualLeadDays": null,
+          "promisedDeliveryDays": 5,
+          "onTime": null
+        }
+      ]
+    }
+  ],
+  "withheldReasons": [
+    "SOME_SUPPLIERS_NOT_LOADED"
+  ]
+};
+const processExportFixture: ProcessBottleneckResult = {
+  "state": "PARTIAL",
+  "asOf": "2026-11-28T02:00:00.000Z",
+  "period": {
+    "from": "2026-10-29",
+    "to": "2026-11-28",
+    "timeZone": "UTC"
+  },
+  "baselinePeriod": null,
+  "findings": [
+    {
+      "processKey": "PURCHASE",
+      "stageKey": "receiving",
+      "waitClass": "MIXED_SUPPLIER_RECEIVING",
+      "sampleCount": 5,
+      "averageMinutes": 240,
+      "medianMinutes": 180,
+      "p90Minutes": 420,
+      "recommendation": "=راجع الاستلام"
+    }
+  ],
+  "comparisons": [],
+  "queues": [
+    {
+      "processKey": "PURCHASE",
+      "openCount": 3,
+      "oldestOpenedAt": "2026-11-20T02:00:00.000Z",
+      "oldestAgeMinutes": 1920,
+      "asOf": "2026-11-28T02:00:00.000Z"
+    }
+  ],
+  "sourceCoverage": [
+    {
+      "key": "PURCHASE",
+      "status": "VERIFIED",
+      "source": "purchase_orders",
+      "asOf": "2026-11-28T02:00:00.000Z",
+      "period": {
+        "from": "2026-10-29",
+        "to": "2026-11-28",
+        "timeZone": "UTC"
+      },
+      "sampleCount": 5,
+      "completePopulation": true,
+      "message": "المصدر متاح"
+    }
+  ],
+  "reopenedTasks": null,
+  "withheldReasons": [
+    "TASKS_SOURCE_UNAVAILABLE"
+  ]
+};
+
 describe("intelligence spreadsheet exports", () => {
   it("uses a UTF-8 BOM, CRLF rows, spreadsheet-safe text and numeric cells", () => {
     const csv = serializeIntelligenceCsv([
@@ -196,6 +304,25 @@ describe("intelligence spreadsheet exports", () => {
     expect(csv).toContain("لا يتم تحويل أو جمع عملات مختلفة");
     expect(csv).toContain("PARTIAL_SOURCE_COVERAGE");
     expect(csv).toContain(',40,"VERIFIED","VERIFIED","dead-stock.exposure","1.1.0","stock-evidence",');
+  });
+
+  it("exports supplier samples, recent purchase-order references and partial coverage without price data", () => {
+    const csv = buildSupplierPerformanceCsv(supplierExportFixture);
+    expect(csv).toContain("SOME_SUPPLIERS_NOT_LOADED");
+    expect(csv).toContain("PO-A");
+    expect(csv).toContain("مورد =مراجعة");
+    expect(csv).toContain("لا يتضمن الملف أسعار الشراء");
+    expect(csv).toContain("PARTIAL");
+  });
+
+  it("exports process queues, findings and source coverage with formula-safe recommendations", () => {
+    const csv = buildProcessBottlenecksCsv(processExportFixture);
+    expect(csv).toContain("OPEN_QUEUE");
+    expect(csv).toContain("BOTTLENECK");
+    expect(csv).toContain("receiving");
+    expect(csv).toContain("TASKS_SOURCE_UNAVAILABLE");
+    expect(csv).toContain("'=راجع الاستلام");
+    expect(csv).toContain("MIXED_SUPPLIER_RECEIVING");
   });
 
   it("escapes formula-like product labels and never changes numeric quantities into text", () => {
