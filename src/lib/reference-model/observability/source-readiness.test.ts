@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { REFERENCE_SOURCE_READINESS } from "./source-readiness";
 
 describe("reference model source readiness", () => {
-  it("separates the persisted prompt governance source from remaining blocked contracts", () => {
+  it("records persistent tenant-scoped error events with manager/admin triage", () => {
     expect(REFERENCE_SOURCE_READINESS).toHaveLength(4);
     expect(REFERENCE_SOURCE_READINESS.map((item) => item.id)).toEqual([
       "ai_audit",
@@ -13,7 +13,7 @@ describe("reference model source readiness", () => {
     expect(REFERENCE_SOURCE_READINESS.map((item) => item.status)).toEqual([
       "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY",
       "PERSISTENT_SOURCE_ADMIN_ONLY",
-      "BLOCKED_NO_PERSISTENT_SOURCE",
+      "PERSISTENT_SOURCE_ADMIN_MANAGER_TRIAGE",
       "BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE",
     ]);
   });

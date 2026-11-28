@@ -9,6 +9,7 @@ on:
       - "public/**"
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
+      - "scripts/test-runtime-error-log.mjs"
       - "scripts/test-customer-order-amendment-replay.mjs"
       - "scripts/test-authorization-capability-registry.mjs"
       - "scripts/test-product-image-storage.ts"
@@ -611,6 +612,8 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test durable runtime error log, tenant isolation and audited triage on local PostgreSQL 17
+        run: node scripts/test-runtime-error-log.mjs
       - name: Test tenant-safe claim evidence raw drill-down on local PostgreSQL 17
         run: node scripts/test-claim-evidence-drilldown.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
@@ -697,6 +700,14 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/critical-path.spec.ts"
+      - name: Run durable admin runtime-error capture and audited triage in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          E2E_SUPABASE_URL: ${{ env.E2E_SUPABASE_URL }}
+          E2E_MANAGER_EMAIL: ${{ env.E2E_MANAGER_EMAIL }}
+          E2E_MANAGER_PASSWORD: ${{ env.E2E_MANAGER_PASSWORD }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-error-log.spec.ts"
       - name: Run warehouse stock-count XLSX download acceptance in Chromium
         env:
           E2E_BASE_URL: http://127.0.0.1:4173

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   fetchOnyxSnapshots: vi.fn(),
   fetchAiGatewayBudget: vi.fn(),
   listMyAsyncExportJobs: vi.fn(),
+  fetchRuntimeErrorEvents: vi.fn(),
+  transitionRuntimeErrorEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -23,6 +25,10 @@ vi.mock("@/lib/async-export-jobs", () => ({
 }));
 vi.mock("@/lib/intelligence/ai-gateway-operations-client", () => ({
   fetchAiGatewayBudget: mocks.fetchAiGatewayBudget,
+}));
+vi.mock("@/lib/runtime-error-events", () => ({
+  fetchAdminRuntimeErrorEvents: mocks.fetchRuntimeErrorEvents,
+  transitionAdminRuntimeErrorEvent: mocks.transitionRuntimeErrorEvent,
 }));
 
 import {
@@ -263,15 +269,58 @@ describe("P4 monitoring screens", () => {
     expect(screen.queryByText("سليم · HEALTHY")).not.toBeInTheDocument();
   });
 
-  it("does not render temporary raw errors as a persistent error log", () => {
-    render(<ErrorLogScreen />);
+  it("loads real source-backed errors and moves them through acknowledged to resolved", async () => {
+    const openEvent = {
+      id: "11111111-1111-4111-8111-111111111111",
+      error_kind: "type_error",
+      http_status: null,
+      boundary: "tanstack_root_error_component",
+      source: "browser",
+      status: "open",
+      occurrence_count: 3,
+      created_at: READ_AT,
+      last_seen_at: READ_AT,
+      acknowledged_at: null,
+      resolved_at: null,
+    };
+    const acknowledgedEvent = { ...openEvent, status: "acknowledged", acknowledged_at: READ_AT };
+    const resolvedEvent = { ...acknowledgedEvent, status: "resolved", resolved_at: READ_AT };
+    mocks.fetchRuntimeErrorEvents
+      .mockResolvedValueOnce({ items: [openEvent], total: 1, limit: 50, offset: 0, read_at: READ_AT })
+      .mockResolvedValueOnce({ items: [acknowledgedEvent], total: 1, limit: 50, offset: 0, read_at: READ_AT })
+      .mockResolvedValueOnce({ items: [resolvedEvent], total: 1, limit: 50, offset: 0, read_at: READ_AT });
+    mocks.transitionRuntimeErrorEvent.mockImplementation(async (id: string, status: string) => ({
+      event_id: id, status, changed: true,
+    }));
 
-    expect(screen.getByRole("region", { name: "سجل الأخطاء" })).toBeInTheDocument();
-    expect(screen.getByText("BLOCKED_NO_PERSISTENT_SOURCE")).toBeInTheDocument();
-    expect(screen.getByText(/لا يوجد سجل أخطاء دائم قابل للقراءة/)).toBeInTheDocument();
-    expect(screen.getByText(/لن نُنشئ معرفات أو أوقاتاً أو تصنيفات/)).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    render(<ErrorLogScreen />);
+    expect(await screen.findByText("خطأ نوع")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "إقرار الخطأ 11111111-1111-4111-8111-111111111111" }));
+    expect(await screen.findByText("تم الإقرار")).toBeInTheDocument();
+    expect(mocks.transitionRuntimeErrorEvent).toHaveBeenLastCalledWith("11111111-1111-4111-8111-111111111111", "acknowledged");
+
+    fireEvent.click(screen.getByRole("button", { name: "حل الخطأ 11111111-1111-4111-8111-111111111111" }));
+    expect(await screen.findByText("تم الحل")).toBeInTheDocument();
+    expect(mocks.transitionRuntimeErrorEvent).toHaveBeenLastCalledWith("11111111-1111-4111-8111-111111111111", "resolved");
+  });
+
+  it("shows honest empty and unavailable states without rendering raw source failures", async () => {
+    mocks.fetchRuntimeErrorEvents.mockResolvedValueOnce({
+      items: [], total: 0, limit: 50, offset: 0, read_at: READ_AT,
+    });
+    const { unmount } = render(<ErrorLogScreen />);
+    expect(await screen.findByText("لا توجد سجلات ضمن الحالة المحددة")).toBeInTheDocument();
+    unmount();
+
+    mocks.fetchRuntimeErrorEvents.mockRejectedValueOnce(
+      new Error("Bearer private-token customer@example.test raw stack"),
+    );
+    render(<ErrorLogScreen />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر قراءة سجل الأخطاء");
+    expect(document.body.textContent).not.toContain("private-token");
+    expect(document.body.textContent).not.toContain("customer@example.test");
   });
 
   it("renders architecture from the actual route tree and canonical navigation registry", () => {

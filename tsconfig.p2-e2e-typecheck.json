@@ -11,6 +11,7 @@
     "e2e/checkout-lost-response-replay.spec.ts",
     "e2e/admin-category-tree.spec.ts",
     "e2e/product-image-upload-admin.spec.ts",
-    "e2e/profile-session-isolation.spec.ts"
+    "e2e/profile-session-isolation.spec.ts",
+    "e2e/admin-error-log.spec.ts"
   ]
 }

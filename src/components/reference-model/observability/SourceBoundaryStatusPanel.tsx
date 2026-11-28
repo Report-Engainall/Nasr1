@@ -1,7 +1,7 @@
 import { AlertTriangle, Database, GitBranch, ScrollText, ShieldAlert, ShieldCheck } from "lucide-react";
 import { REFERENCE_SOURCE_READINESS } from "@/lib/reference-model/observability/source-readiness";
 
-const persistentStatuses = new Set(["PERSISTENT_SOURCE_ADMIN_ONLY", "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY"]);
+const persistentStatuses = new Set(["PERSISTENT_SOURCE_ADMIN_ONLY", "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY", "PERSISTENT_SOURCE_ADMIN_MANAGER_TRIAGE"]);
 
 const icons = {
   ai_audit: ScrollText,
