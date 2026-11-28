@@ -1582,8 +1582,10 @@ describe("customer quote workspace tenant boundary", () => {
 
     await mountQuoteWorkspace("/payments");
     expect(sourceReads).toBe(2);
-    expect(host?.textContent).toContain("INV-PAYMENT-OUTPUT-CUTOVER");
-    expect(host?.textContent).toContain("75.00");
+    const paymentRow = Array.from(host?.querySelectorAll<HTMLTableRowElement>("tbody tr") ?? [])
+      .find((row) => row.textContent?.includes("INV-PAYMENT-OUTPUT-CUTOVER"));
+    expect(paymentRow).toBeDefined();
+    expect(paymentRow?.textContent).toContain("٧٥");
     const exportButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
       .find((button) => button.textContent?.includes("تنزيل Excel"));
     expect(exportButton).toBeDefined();
@@ -1597,7 +1599,10 @@ describe("customer quote workspace tenant boundary", () => {
     expect(sourceReads).toBe(3);
     expect(host?.textContent).toContain("تغير مصدر الحساب؛ أوقفنا تصدير سجل الدفعات القديم.");
     expect(host?.textContent).not.toContain("INV-PAYMENT-OUTPUT-CUTOVER");
-    expect(host?.textContent).not.toContain("75.00");
+    expect(
+      Array.from(host?.querySelectorAll<HTMLTableRowElement>("tbody tr") ?? [])
+        .some((row) => row.textContent?.includes("٧٥")),
+    ).toBe(false);
     expect(mocks.downloadPaymentHistoryWorkbook).not.toHaveBeenCalled();
   });
 
