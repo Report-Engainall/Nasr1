@@ -11,6 +11,8 @@ const providerLabels = { ONYX: "Onyx Pro", MUTAKAMEL: "المتكامل" } as co
 function documentReviewHref(
   entry: CustomerExternalStatement["currencies"][number]["entries"][number],
   currencyCode: string,
+  sourceMode: CustomerExternalStatement["source_mode"],
+  sourceAsOf: string,
 ): string {
   const params = new URLSearchParams({
     request: "document_review",
@@ -18,6 +20,8 @@ function documentReviewHref(
     reference: entry.entry_reference,
     currency: currencyCode,
     type: entry.entry_type,
+    source_mode: sourceMode,
+    source_as_of: sourceAsOf,
   });
   return "/service-cases?" + params.toString();
 }
@@ -93,7 +97,7 @@ export function CustomerExternalAccountStatement({ statement }: Props) {
                         <span>{entry.source_document_number ?? "—"}</span>
                         <a
                           className="btn secondary"
-                          href={documentReviewHref(entry, currency.currency_code)}
+                          href={documentReviewHref(entry, currency.currency_code, statement.source_mode, statement.source_as_of)}
                           aria-label={"طلب مراجعة الحركة " + (entry.source_document_number ?? entry.entry_reference)}
                           style={{ textDecoration: "none", fontSize: 12, padding: "4px 8px" }}
                         >

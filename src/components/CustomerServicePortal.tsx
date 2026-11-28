@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { addMyCustomerServiceCaseMessage,createMyCustomerServiceCase,fetchMyCustomerServiceCasesPage,fetchMyCustomerServicePortalContext,newCustomerServicePortalRequestKey,type CustomerServicePortalCase,type CustomerServicePortalMessage,type CustomerServicePortalCursor } from "@/lib/customer-service-portal";
 import type { CustomerServiceCasePriority,CustomerServiceCaseStatus,CustomerServiceCaseType } from "@/lib/customer-service-cases";
 import { getCustomerServiceCaseCodeFromSearch } from "@/lib/customer-service-notification-link";
+import { isSameCustomerExternalStatementSourceAsOf } from "@/lib/customer-external-statement";
 
 const types:Record<CustomerServiceCaseType,string>={complaint:"شكوى",inquiry:"استفسار",service_request:"طلب خدمة",delivery_issue:"مشكلة تسليم",other:"أخرى"};
 const priorities:Record<CustomerServiceCasePriority,string>={low:"منخفضة",medium:"متوسطة",high:"عالية",urgent:"عاجلة"};
@@ -16,8 +17,11 @@ type CustomerDocumentReviewContext = {
  documentNumber: string;
  entryReference: string;
  currencyCode: string;
+ sourceMode: "ONYX" | "MUTAKAMEL";
+ sourceAsOf: string;
  entryType: "invoice" | "payment" | "credit_note" | "debit_note" | "opening_balance" | "adjustment";
 };
+const statementSourceLabels: Record<CustomerDocumentReviewContext["sourceMode"], string> = { ONYX: "Onyx Pro", MUTAKAMEL: "المتكامل" };
 const statementEntryTypeLabels: Record<CustomerDocumentReviewContext["entryType"], string> = {
  invoice: "فاتورة",
  payment: "دفعة",
@@ -33,15 +37,20 @@ function readCustomerDocumentReviewContext(searchStr: string): CustomerDocumentR
  const documentNumber=(params.get("document")??"").trim();
  const entryReference=(params.get("reference")??"").trim();
  const currencyCode=(params.get("currency")??"").trim();
+ const sourceMode=params.get("source_mode");
+ const sourceAsOf=(params.get("source_as_of")??"").trim();
  const entryType=params.get("type");
  const knownEntryTypes=new Set(["invoice","payment","credit_note","debit_note","opening_balance","adjustment"]);
  const hasControls=(value:string)=>/[\u0000-\u001f\u007f]/.test(value);
  if(!documentNumber||documentNumber.length>100||hasControls(documentNumber)||
     !entryReference||entryReference.length>100||hasControls(entryReference)||
-    !/^[A-Z]{3}$/.test(currencyCode)||!entryType||!knownEntryTypes.has(entryType)){
+    !/^[A-Z]{3}$/.test(currencyCode)||
+    (sourceMode!=="ONYX"&&sourceMode!=="MUTAKAMEL")||
+    !sourceAsOf||!isSameCustomerExternalStatementSourceAsOf(sourceAsOf,sourceAsOf)||
+    !entryType||!knownEntryTypes.has(entryType)){
   return null;
  }
- return {documentNumber,entryReference,currencyCode,entryType:entryType as CustomerDocumentReviewContext["entryType"]};
+ return {documentNumber,entryReference,currencyCode,sourceMode,sourceAsOf,entryType:entryType as CustomerDocumentReviewContext["entryType"]};
 }
 function readCustomerFinancialRequestIntent(searchStr:string):CustomerFinancialRequestIntent|null{
  const query=searchStr.startsWith("?")?searchStr.slice(1):searchStr;
@@ -192,6 +201,8 @@ function Workspace(){
    description+="\n\nالمستند المحدد: "+documentReviewContext.documentNumber+
     "\nمرجع الحركة: "+documentReviewContext.entryReference+
     "\nالعملة: "+documentReviewContext.currencyCode+
+    "\nالمصدر المعتمد: "+statementSourceLabels[documentReviewContext.sourceMode]+
+    "\nتاريخ لقطة المصدر: "+documentReviewContext.sourceAsOf+
     "\nنوع الحركة: "+statementEntryTypeLabels[documentReviewContext.entryType]+"."+
     "\nمراجعة فقط؛ لا يغيّر هذا الطلب الرصيد ولا ينشئ دفعة أو يرحّل قيدًا محاسبيًا.";
   }
@@ -225,7 +236,7 @@ function Workspace(){
    <div role="group" aria-label="طلبات الحساب المالي" style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
     <button type="button" className={financialRequestIntent==="balance_review"?"btn primary":"btn secondary"} aria-pressed={financialRequestIntent==="balance_review"} disabled={saving} onClick={()=>chooseFinancialRequest("balance_review")}>طلب مراجعة الرصيد</button>
     <button type="button" className={financialRequestIntent==="statement_period"?"btn primary":"btn secondary"} aria-pressed={financialRequestIntent==="statement_period"} disabled={saving} onClick={()=>chooseFinancialRequest("statement_period")}>طلب كشف حساب لفترة</button>
-    {financialRequestIntent==="document_review"&&documentReviewContext&&<span role="status" className="customer-service-portal-notice">طلب مراجعة المستند المحدد: {documentReviewContext.documentNumber} · {documentReviewContext.currencyCode}</span>}
+    {financialRequestIntent==="document_review"&&documentReviewContext&&<span role="status" className="customer-service-portal-notice">طلب مراجعة المستند المحدد: {documentReviewContext.documentNumber} · {documentReviewContext.currencyCode} · {statementSourceLabels[documentReviewContext.sourceMode]} · {documentReviewContext.sourceAsOf}</span>}
     {financialRequestIntent&&<button type="button" className="btn secondary" disabled={saving} onClick={clearFinancialRequest}>طلب خدمة عام</button>}
    </div>
    <form onSubmit={e=>{void create(e);}}><div className="customer-service-portal-form-grid">

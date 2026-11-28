@@ -75,6 +75,8 @@ describe("customer external account statement workspace", () => {
     expect(yerReview.searchParams.get("reference")).toBe("JV-001");
     expect(yerReview.searchParams.get("currency")).toBe("YER");
     expect(yerReview.searchParams.get("type")).toBe("invoice");
+    expect(yerReview.searchParams.get("source_mode")).toBe("ONYX");
+    expect(yerReview.searchParams.get("source_as_of")).toBe(statement.source_as_of);
     const usdReview = new URL(reviewLinks[1].getAttribute("href") ?? "", "http://localhost");
     expect(usdReview.searchParams.get("document")).toBe("JV-USD-001");
     expect(usdReview.searchParams.get("currency")).toBe("USD");

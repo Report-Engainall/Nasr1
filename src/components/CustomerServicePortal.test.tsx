@@ -126,7 +126,7 @@ describe("CustomerServicePortal financial service requests", () => {
     window.history.replaceState(
       {},
       "",
-      "/service-cases?request=document_review&document=INV-001&reference=JV-001&currency=YER&type=invoice",
+      "/service-cases?request=document_review&document=INV-001&reference=JV-001&currency=YER&type=invoice&source_mode=ONYX&source_as_of=2026-11-27T20%3A00%3A00Z",
     );
     const user = userEvent.setup();
     render(<CustomerServicePortal />);
@@ -139,7 +139,7 @@ describe("CustomerServicePortal financial service requests", () => {
     expect(mocks.createCase).toHaveBeenCalledWith(expect.objectContaining({
       caseType: "service_request",
       subject: "طلب مراجعة المستند INV-001",
-      description: expect.stringContaining("المستند المحدد: INV-001\nمرجع الحركة: JV-001\nالعملة: YER\nنوع الحركة: فاتورة"),
+      description: expect.stringContaining("المستند المحدد: INV-001\nمرجع الحركة: JV-001\nالعملة: YER\nالمصدر المعتمد: Onyx Pro\nتاريخ لقطة المصدر: 2026-11-27T20:00:00Z\nنوع الحركة: فاتورة"),
     }));
     expect(mocks.createCase.mock.calls[0][0].description).toContain("لا يغيّر هذا الطلب الرصيد");
   });
@@ -149,13 +149,26 @@ describe("CustomerServicePortal financial service requests", () => {
     window.history.replaceState(
       {},
       "",
-      "/service-cases?request=document_review&document=" + oversizedDocument + "&reference=JV-001&currency=YER&type=invoice",
+      "/service-cases?request=document_review&document=" + oversizedDocument + "&reference=JV-001&currency=YER&type=invoice&source_mode=ONYX&source_as_of=2026-11-27T20%3A00%3A00Z",
     );
     render(<CustomerServicePortal />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("رابط مراجعة المستند غير صالح أو ناقص");
     expect(screen.getByLabelText("موضوع الحالة")).toHaveValue("");
     expect(screen.queryByText(/طلب مراجعة المستند المحدد:/)).not.toBeInTheDocument();
+    expect(mocks.createCase).not.toHaveBeenCalled();
+  });
+
+  it("rejects a document-review link without a valid source watermark", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/service-cases?request=document_review&document=INV-001&reference=JV-001&currency=YER&type=invoice&source_mode=ONYX&source_as_of=invalid",
+    );
+    render(<CustomerServicePortal />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("رابط مراجعة المستند غير صالح أو ناقص");
+    expect(screen.getByLabelText("موضوع الحالة")).toHaveValue("");
     expect(mocks.createCase).not.toHaveBeenCalled();
   });
 

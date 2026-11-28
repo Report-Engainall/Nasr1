@@ -201,3 +201,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Exact document/reference/currency/type must survive the route handoff without becoming an authorization input; the server continues to derive customer, company and create permission.
 - Invalid parameters must not preselect a document-review intent. This flow creates only a service case; it must never post a journal or perform an invoice/payment mutation.
 - The new regression cases require terminal P1 Vitest/strict TypeScript and applicable P2 browser acceptance on the same final branch SHA.
+
+
+## P1 follow-up — bind document-review handoff to the statement snapshot (2026-11-28)
+
+- Extended the review deep link with the server-accepted statement source mode and exact source watermark in addition to document number, entry reference, currency and entry type.
+- The portal validates the provider allowlist and checks the timestamp with the same strict microsecond-aware comparator used by external statement output. Missing or malformed watermark/provider metadata rejects the prefilled intent.
+- The generated service-case narrative preserves the selected provider and exact statement snapshot time, so accounting staff can identify the view the customer is reporting. These query values remain descriptive metadata, never authorization inputs or a lookup path.
+- Added regression assertions for the source mode/watermark round-trip and rejection of invalid watermark values. Test outcomes remain pending exact-head P1/P2 acceptance.
+- No source reader, database RPC, ledger data, payment posting or ERP write was added.
