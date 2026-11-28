@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { CustomerExternalAccountStatement } from "./CustomerExternalAccountStatement";
+import { CustomerExternalAccountStatement, CustomerExternalFinanceEntries } from "./CustomerExternalAccountStatement";
 import type { CustomerExternalStatement } from "@/lib/customer-external-statement";
 
 afterEach(cleanup);
@@ -115,5 +115,72 @@ describe("customer external account statement workspace", () => {
     expect(screen.getByRole("status")).toHaveTextContent("أحدث 500 حركة فقط");
     expect(screen.getByText("JV-500")).toBeInTheDocument();
     expect(screen.getByText(/١٬٠٠٠|1,000|1000/)).toBeInTheDocument();
+  });
+});
+
+
+const externalRowsStatement: CustomerExternalStatement = {
+  ...statement,
+  currencies: [{
+    ...statement.currencies[0],
+    entry_count: 3,
+    total_debit: "1600.0000",
+    total_credit: "550.0000",
+    closing_balance: "1050.0000",
+    entries: [
+      statement.currencies[0].entries[0],
+      {
+        entry_reference: "RC-001",
+        entry_date: "2026-11-28",
+        due_date: null,
+        entry_type: "payment",
+        debit_amount: "0",
+        credit_amount: "500.0000",
+        running_balance: "1000.0000",
+        source_document_number: "RCT-001",
+        description: "سند قبض خارجي",
+      },
+      {
+        entry_reference: "CM-001",
+        entry_date: "2026-11-28",
+        due_date: "2026-11-28",
+        entry_type: "credit_note",
+        debit_amount: "100.0000",
+        credit_amount: "50.0000",
+        running_balance: "1050.0000",
+        source_document_number: "CN-001",
+        description: "إشعار دائن خارجي",
+      },
+    ],
+  }],
+};
+
+describe("source-bound ERP customer invoice and payment views", () => {
+  it("shows only invoice and credit-note movements in the invoice workspace", () => {
+    render(<CustomerExternalFinanceEntries statement={externalRowsStatement} view="invoices" />);
+    expect(screen.getByRole("heading", { name: /مستندات وفواتير الحساب — Onyx Pro/ })).toBeInTheDocument();
+    expect(screen.getByText("INV-001")).toBeInTheDocument();
+    expect(screen.getByText("CN-001")).toBeInTheDocument();
+    expect(screen.queryByText("RCT-001")).not.toBeInTheDocument();
+    expect(screen.getByText("فاتورة")).toBeInTheDocument();
+    expect(screen.getByText("إشعار دائن")).toBeInTheDocument();
+    expect(screen.getByText(/ليست ملفات PDF الأصلية/)).toBeInTheDocument();
+    const review = screen.getByRole("link", { name: "طلب مراجعة المستند CN-001" });
+    const url = new URL(review.getAttribute("href") ?? "", "http://localhost");
+    expect(url.pathname).toBe("/service-cases");
+    expect(url.searchParams.get("document")).toBe("CN-001");
+    expect(url.searchParams.get("currency")).toBe("YER");
+    expect(url.searchParams.get("source_mode")).toBe("ONYX");
+    expect(url.searchParams.get("source_as_of")).toBe(statement.source_as_of);
+  });
+
+  it("shows only payment movements in the payment workspace without fabricating receipt PDFs", () => {
+    render(<CustomerExternalFinanceEntries statement={externalRowsStatement} view="payments" />);
+    expect(screen.getByRole("heading", { name: /حركات السداد — Onyx Pro/ })).toBeInTheDocument();
+    expect(screen.getByText("RCT-001")).toBeInTheDocument();
+    expect(screen.queryByText("INV-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("CN-001")).not.toBeInTheDocument();
+    expect(screen.getByText("سند قبض خارجي")).toBeInTheDocument();
+    expect(screen.getByText(/لا ينشئ هذا العرض مستندًا بديلًا/)).toBeInTheDocument();
   });
 });
