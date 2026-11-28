@@ -1917,12 +1917,32 @@ async function main() {
     externalStatementReaderDefinition[0].definition.includes("nullif(btrim(latest.fields->>'external_customer_id'),'') IS NULL"),
     "P2 blocks a statement scope when a rejected outcome cannot be attributed to a customer",
   );
+  const statementReaderPrivileges = await db.unsafe(
+    "select " +
+      "has_function_privilege('authenticated','public.get_customer_account_statement()','EXECUTE') as authenticated_execute," +
+      "has_function_privilege('anon','public.get_customer_account_statement()','EXECUTE') as anon_execute," +
+      "(select proc.prosecdef from pg_catalog.pg_proc proc where proc.oid='public.get_customer_account_statement()'::regprocedure) as security_definer," +
+      "(select coalesce(array_to_string(proc.proconfig,','),'') from pg_catalog.pg_proc proc where proc.oid='public.get_customer_account_statement()'::regprocedure) as function_config",
+  );
+  assert.equal(statementReaderPrivileges.length, 1);
+  assert.equal(statementReaderPrivileges[0].authenticated_execute, true,
+    "authenticated customer RPC execution remains explicitly granted");
+  assert.equal(statementReaderPrivileges[0].anon_execute, false,
+    "anonymous callers cannot read a customer financial statement");
+  assert.equal(statementReaderPrivileges[0].security_definer, true,
+    "customer statement RPC uses its reviewed SECURITY DEFINER boundary");
+  assert.match(statementReaderPrivileges[0].function_config,
+    /search_path=""(?:,|$)/,
+    "customer statement SECURITY DEFINER uses an empty search_path");
+
   const statementReaderDefinition = await db.unsafe(
     "select pg_catalog.pg_get_functiondef(" +
       "'public.get_customer_account_statement()'::regprocedure) as definition",
   );
   assert.equal(statementReaderDefinition.length, 1,
     "the source-routed customer statement reader must be installed");
+  assert.ok(statementReaderDefinition[0].definition.includes("current_customer_can('statement.read')"),
+    "customer statement reader derives authorization from the current customer capability");
   assert.match(statementReaderDefinition[0].definition,
     /v_checkpoint\.version\s+IS\s+DISTINCT\s+FROM\s+v_scope\.checkpoint_version/i,
     "external statement reader must reject a checkpoint version that differs from its registered customer/currency scope");

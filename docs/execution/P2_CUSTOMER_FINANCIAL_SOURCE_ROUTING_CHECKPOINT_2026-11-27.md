@@ -374,3 +374,11 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - No production database, live provider credentials, payment, invoice, inventory, or journal was touched.
 
 - The end-to-end PG17 fixture now writes page receipt disposition counters that match the exact `created`, `updated`, `unchanged`, `rejected` and `conflicted` outcomes instead of folding updates into the created count.
+
+
+## 2026-11-28 — Customer statement reader execute boundary acceptance
+
+- Extended the isolated PostgreSQL 17 acceptance to inspect the installed `get_customer_account_statement()` catalog entry directly.
+- The same exact-head test requires EXECUTE for `authenticated`, denies EXECUTE for `anon`, confirms `prosecdef=true`, and checks `proconfig` includes the empty `search_path` required by the SECURITY DEFINER routine. It also asserts the installed definition still calls the active customer `statement.read` capability guard.
+- Removed the obsolete duplicate API/OPS row that incorrectly claimed ONYX/MUTAKAMEL remained unsupported after the P2 P4-staging reader migration was added. The single canonical row now describes the actual completed-scope reader and fail-closed boundary.
+- The assertions are authored and require this PR head PostgreSQL 17 acceptance run; no test PASS or production deployment is claimed.
