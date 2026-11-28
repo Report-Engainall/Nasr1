@@ -105,6 +105,57 @@ describe("DecisionOutcomeLifecycleControls", () => {
     expect(mocks.commandDecisionOutcome).not.toHaveBeenCalled();
   });
 
+  it("retries an unavailable assignment with the identical target and idempotency keys", async () => {
+    mocks.commandDecisionOutcome
+      .mockResolvedValueOnce({
+        ok: false,
+        status: "UNAVAILABLE",
+        message: "انقطع الاتصال بالخادم؛ أعد الأمر نفسه.",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        duplicate: false,
+        outcome: {} as never,
+      });
+    const view = render(
+      <DecisionOutcomeLifecycleControls
+        outcomeId="223e4567-e89b-42d3-a456-426614174000"
+        state="APPROVED"
+        version={2}
+        ownerProfileId={null}
+        expectedMetric={null}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("سبب الإجراء وسجل القرار"), {
+      target: { value: "إسناد موثق للمسؤول الحالي." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "إسناد القرار إلى حسابي" }));
+    expect(await screen.findByText("انقطع الاتصال بالخادم؛ أعد الأمر نفسه.")).toBeInTheDocument();
+    const firstCommand = mocks.commandDecisionOutcome.mock.calls[0][0];
+
+    mocks.user = { profileId: "323e4567-e89b-42d3-a456-426614174000", roles: ["manager"] };
+    view.rerender(
+      <DecisionOutcomeLifecycleControls
+        outcomeId="223e4567-e89b-42d3-a456-426614174000"
+        state="APPROVED"
+        version={2}
+        ownerProfileId={null}
+        expectedMetric={null}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة بنفس الأمر" }));
+
+    await waitFor(() => expect(mocks.commandDecisionOutcome).toHaveBeenCalledTimes(2));
+    expect(mocks.commandDecisionOutcome.mock.calls[1][0]).toMatchObject({
+      ownerProfileId: profileId,
+      eventId: firstCommand.eventId,
+      idempotencyKey: firstCommand.idempotencyKey,
+      expectedVersion: firstCommand.expectedVersion,
+      reason: firstCommand.reason,
+    });
+  });
+
   it("keeps failed server assignments visible as failures without refreshing the record", async () => {
     mocks.commandDecisionOutcome.mockResolvedValue({
       ok: false,
