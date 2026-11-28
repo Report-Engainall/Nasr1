@@ -257,8 +257,12 @@ describe("process bottleneck before/after comparison windows", () => {
     valid.asOf = "2026-11-30T23:59:59.123456Z";
     valid.metrics = valid.metrics.map(item => ({
       ...item,
-      firstCompletedAt: "2026-11-25T08:00:00.123456Z",
-      lastCompletedAt: "2026-11-27T18:00:00.123456Z",
+      firstCompletedAt: item.window === "CURRENT"
+        ? "2026-11-02T08:00:00.123456Z"
+        : "2026-10-03T08:00:00.123456Z",
+      lastCompletedAt: item.window === "CURRENT"
+        ? "2026-11-29T18:00:00.123456Z"
+        : "2026-10-30T18:00:00.123456Z",
     }));
     valid.sourceCoverage = valid.sourceCoverage.map(item => ({ ...item, asOf: valid.asOf }));
     expect(parseProcessBottleneckSnapshot(valid)).not.toBeNull();
