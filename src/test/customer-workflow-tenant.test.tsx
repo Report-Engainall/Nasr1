@@ -1491,6 +1491,9 @@ describe("customer quote workspace tenant boundary", () => {
       });
       expect(sourceReads).toBe(3);
       expect(printSpy).toHaveBeenCalledTimes(1);
+      expect(document.body).toHaveAttribute("data-print-mode", "customer-account-statement");
+      window.dispatchEvent(new Event("afterprint"));
+      expect(document.body).not.toHaveAttribute("data-print-mode");
     } finally {
       if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
       else Reflect.deleteProperty(window, "print");

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   customerExternalStatementEntryTypeLabel,
   formatCustomerExternalStatementAmount,
@@ -28,52 +27,13 @@ function documentReviewHref(
 }
 
 export function CustomerExternalAccountStatement({ statement }: Props) {
-  const [printError, setPrintError] = useState("");
   const totalEntries = statement.currencies.reduce((sum, currency) => sum + currency.entry_count, 0);
-
-  function printStatement() {
-    setPrintError("");
-    if (typeof window === "undefined" || typeof document === "undefined" ||
-        !document.body || typeof window.print !== "function") {
-      setPrintError("الطباعة غير متاحة في هذا المتصفح؛ استخدم أمر الطباعة من قائمة المتصفح.");
-      return;
-    }
-
-    const body = document.body;
-    const previousPrintMode = body.getAttribute("data-print-mode");
-    let restored = false;
-    const restorePrintMode = () => {
-      if (restored) return;
-      restored = true;
-      if (previousPrintMode === null) body.removeAttribute("data-print-mode");
-      else body.setAttribute("data-print-mode", previousPrintMode);
-      window.removeEventListener("afterprint", restorePrintMode);
-    };
-
-    body.setAttribute("data-print-mode", "customer-external-statement");
-    window.addEventListener("afterprint", restorePrintMode, { once: true });
-    try {
-      window.print();
-    } catch {
-      restorePrintMode();
-      setPrintError("تعذر فتح طباعة كشف الحساب؛ لم يتم تغيير أي بيانات مالية.");
-    }
-  }
   return (
     <section className="customer-external-account-statement" dir="rtl" aria-labelledby="external-account-statement-heading" style={{ display: "grid", gap: 14 }}>
       <header className="panel">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <h2 id="external-account-statement-heading" style={{ margin: 0 }}>
-            كشف الحساب الخارجي — {providerLabels[statement.source_mode]}
-          </h2>
-          <div className="customer-external-statement-print-controls no-print">
-            <button type="button" className="btn secondary" onClick={printStatement}
-              aria-label="طباعة كشف الحساب الخارجي">
-              طباعة الكشف / حفظ PDF
-            </button>
-          </div>
-        </div>
-        {printError && <p role="alert" style={{ color: "#a32929", margin: "10px 0 0" }}>{printError}</p>}
+<h2 id="external-account-statement-heading" style={{ margin: 0 }}>
+          كشف الحساب الخارجي — {providerLabels[statement.source_mode]}
+        </h2>
         <p role="note" style={{ marginBottom: 0 }}>
           هذا كشف مستقل من المصدر المعتمد. العملات منفصلة ولا تُجمع مع دفتر متجر الأغبري أو مع بعضها.
           تاريخ لقطة المصدر: {new Date(statement.source_as_of).toLocaleString("ar-YE", { timeZone: "UTC" })}.

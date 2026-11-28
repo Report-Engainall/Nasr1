@@ -1427,6 +1427,7 @@ function Statement() {
   const [error, setError] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [printError, setPrintError] = useState("");
   const [xlsxBusy, setXlsxBusy] = useState(false);
   const [xlsxError, setXlsxError] = useState("");
   const [summaryAsOfUtc, setSummaryAsOfUtc] = useState("");
@@ -1717,6 +1718,7 @@ function Statement() {
   }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable, financialSource, externalStatement, clearStatementProjection]);
 
   const printStatement = useCallback(async () => {
+    setPrintError("");
     const sourceSnapshot = financialSource;
     const requestId = statementReadSequenceRef.current;
     if (!sourceSnapshot) return;
@@ -1753,7 +1755,30 @@ function Statement() {
       setFinancialSourceError("تغيرت لقطة كشف ERP أثناء الطباعة؛ أوقفنا إخراج التفاصيل القديمة.");
       return;
     }
-    window.print();
+
+    if (typeof window.print !== "function" || !document.body) {
+      setPrintError("الطباعة غير متاحة في هذا المتصفح؛ لم يتم تغيير أي بيانات مالية.");
+      return;
+    }
+    const body = document.body;
+    const previousPrintMode = body.getAttribute("data-print-mode");
+    let restored = false;
+    const restorePrintMode = () => {
+      if (restored) return;
+      restored = true;
+      if (previousPrintMode === null) body.removeAttribute("data-print-mode");
+      else body.setAttribute("data-print-mode", previousPrintMode);
+      window.removeEventListener("afterprint", restorePrintMode);
+    };
+
+    body.setAttribute("data-print-mode", "customer-account-statement");
+    window.addEventListener("afterprint", restorePrintMode, { once: true });
+    try {
+      window.print();
+    } catch {
+      restorePrintMode();
+      setPrintError("تعذر فتح طباعة كشف الحساب؛ لم يتم تغيير أي بيانات مالية.");
+    }
   }, [financialSource, externalStatement, clearStatementProjection]);
 
   useEffect(() => {
@@ -1773,6 +1798,7 @@ function Statement() {
     : externalLedgerAvailable;
   return (
     <WorkspaceShell title="كشف الحساب" subtitle="ملخص من مصدر الحساب المالي الذي يحدده الخادم.">
+      <div className="customer-account-statement-print-scope">
       <CustomerFinancialSourceNotice source={financialSource} loading={loading && !financialSourceError} error={financialSourceError} />
       <div
         className="no-print"
@@ -1807,6 +1833,7 @@ function Statement() {
       {error && <ErrorBox message={error} retry={() => void load()} />}
       {pdfError && <ErrorBox message={pdfError} retry={() => void downloadStatementPdf()} />}
       {xlsxError && <ErrorBox message={xlsxError} retry={downloadStatementXlsx} />}
+      {printError && <div className="no-print"><ErrorBox message={printError} retry={() => void printStatement()} /></div>}
       {appLedgerAvailable && !loading && !creditDetailsAvailable && (
         <p role="note" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
           تنزيل Excel غير متاح حتى يعيد الخادم تفاصيل الإشعارات الدائنة مع ملخص دفتر العميل الكامل.
@@ -1983,6 +2010,7 @@ function Statement() {
           <p style={quiet}>عدد الدفعات المسجلة: {payments.length}؛ الإشعارات الدائنة المعروضة: {credits.length}.</p>
         </>
       )}
+      </div>
     </WorkspaceShell>
   );
 }

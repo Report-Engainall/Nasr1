@@ -212,9 +212,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - No source reader, database RPC, ledger data, payment posting or ERP write was added.
 
 
-## P1 follow-up — external ERP statement print (2026-11-28)
+## P1 follow-up — source-checked customer statement print (2026-11-28)
 
-- Added a real browser print / Save as PDF action to the existing external customer statement. It prints the server-stamped ONYX/MUTAKAMEL snapshot, retains separate per-currency totals and the source timestamp, preserves the disclosure when details are capped at 500 rows, and hides interactive review links from the printed copy.
-- Print mode is scoped to the statement and restores the page's previous print-mode attribute after the browser fires `afterprint`; unsupported/throwing print implementations restore the page state and show an error. No financial RPC, payment, ledger, or source data is mutated by printing.
-- Added component regressions for successful print lifecycle and failed-print cleanup. The original invoice document itself is not represented as printable content in the current external statement DTO; invoice entries continue to use the existing audited document-review request rather than fabricating an ERP invoice copy.
-- Acceptance is pending the P1/Vitest and browser workflows on the resulting exact PR head; no PASS is transferred from an earlier SHA.
+- Reused the existing `طباعة من المتصفح` action in the customer statement workspace; no duplicate print button or unguarded component print path remains.
+- After the existing server-side source revision recheck and exact ERP source/watermark comparison, the action now activates a dedicated `customer-account-statement` print mode. The new A4 landscape RTL layout prints the current customer statement only, retains independent currency totals/closing balances and the external source snapshot timestamps, repeats table headers, and hides refresh/export/review actions.
+- The temporary body print mode is restored after `afterprint`, or immediately if native printing is unavailable/throws. Print does not call a financial mutation RPC or alter a payment, ledger or balance.
+- Extended the existing customer workflow integration test to assert the print mode appears only after the source recheck and is restored when the print dialog closes. Component tests verify the external statement's review actions are excluded from the printed copy.
+- The external statement DTO still does not contain the original ERP invoice document; those rows link to the existing audited document-review request instead of fabricating a vendor invoice.
+- Exact-head P1/Vitest and browser checks are pending; earlier queued or prior-SHA results do not count as acceptance.
+
