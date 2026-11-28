@@ -351,3 +351,9 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - Added PostgreSQL acceptance introspection on the installed statement reader definition for both exact comparisons. Existing runtime checks still prove missing/unmapped P4 staging rejects rather than falling back to APP_ONLY. A full positive P4→P2→customer statement acceptance still requires both migrations and source rows in the same isolated PG17 environment.
 - Changed paths: `supabase/migrations/20261128043000_customer_erp_statement_staging_reader.sql`, `scripts/test-customer-financial-source-routing.mjs`, this checkpoint. No APP_ONLY invoices/payments, customer balances, journals, inventory rows, production database or live ERP were touched.
 - New exact-head PG17/P1/P2 checks are required; prior SHA results are not transferred.
+
+
+### Currency-isolated ERP statement acceptance
+
+- The P2 reader now independently verifies that every accepted customer statement row's canonical `currency_code` equals the authenticated customer's exact checkpoint currency scope before any totals or balances are computed. A mismatch blocks the statement with the existing fail-closed SQLSTATE 55000 path.
+- P2 PostgreSQL 17 acceptance inspects the installed statement function definition and asserts the database-side currency equality guard is present; P4 additionally rejects a financial record before staging when its currency differs from the requested sync scope.

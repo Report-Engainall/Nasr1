@@ -1893,6 +1893,13 @@ async function main() {
       "to_regclass('public.erp_sync_page_receipts') is not null as receipts," +
       "to_regclass('public.erp_sync_page_record_outcomes') is not null as outcomes",
   );
+  const externalStatementReaderDefinition = await db.unsafe(
+    "select pg_get_functiondef('public.get_customer_account_statement()'::regprocedure) as definition",
+  );
+  assert.ok(
+    externalStatementReaderDefinition[0].definition.includes("latest.fields->>'currency_code' IS DISTINCT FROM $4"),
+    "P2 refuses customer ERP entries whose currency does not match the checkpoint scope",
+  );
   const statementReaderDefinition = await db.unsafe(
     "select pg_catalog.pg_get_functiondef(" +
       "'public.get_customer_account_statement()'::regprocedure) as definition",

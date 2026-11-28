@@ -477,6 +477,7 @@ BEGIN
          AND (
            latest.disposition IN ('rejected','conflicted')
            OR latest.disposition NOT IN ('created','updated','unchanged')
+           OR latest.fields->>'currency_code' IS DISTINCT FROM $4
            OR jsonb_typeof(latest.fields->'entry_reference') IS DISTINCT FROM 'string'
            OR length(btrim(coalesce(latest.fields->>'entry_reference',''))) NOT BETWEEN 1 AND 160
            OR jsonb_typeof(latest.fields->'entry_type') IS DISTINCT FROM 'string'
@@ -504,7 +505,7 @@ BEGIN
          )
       $query$
       INTO v_bad_records
-      USING v_org,v_scope.scope_key,v_binding.external_account_ref;
+      USING v_org,v_scope.scope_key,v_binding.external_account_ref,v_scope.currency_code;
     IF v_bad_records>0 THEN
       RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='ERP customer statement contains rejected or invalid records for this account; app ledger fallback is prohibited';
     END IF;
