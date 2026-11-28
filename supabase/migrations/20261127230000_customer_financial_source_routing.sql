@@ -2831,11 +2831,9 @@ CREATE TRIGGER accounting_return_credit_memo_reversals_app_only_financial_source
 
 
 
--- Generic journal headers and lines are a separate write surface from the
--- credit-memo source/link tables above. Bind those rows to the same customer
--- source lock so a draft APP_ONLY credit journal cannot be posted or edited
--- after its customer has moved to ONYX/MUTAKAMEL.
-CREATE OR REPLACE FUNCTION public.assert_customer_app_only_credit_memo_journal_source(
+-- Customer invoice/payment and return-credit journals are source-bound ledger rows.
+-- Resolve source ownership from the persisted document, not caller-supplied customer IDs.
+CREATE OR REPLACE FUNCTION public.assert_customer_app_only_customer_journal_source(
   p_organization_id uuid,
   p_source_type text,
   p_source_reference text
@@ -2862,23 +2860,37 @@ BEGIN
      WHERE m.organization_id=p_organization_id
        AND 'customer-return-credit-memo-reversal:'||m.id::text=p_source_reference
      FOR SHARE;
+  ELSIF p_source_type='invoice' THEN
+    SELECT i.customer_id INTO v_customer_id
+      FROM public.customer_invoices i
+     WHERE i.organization_id=p_organization_id
+       AND i.id::text=p_source_reference
+     FOR SHARE;
+  ELSIF p_source_type='payment' THEN
+    SELECT i.customer_id INTO v_customer_id
+      FROM public.customer_payments p
+      JOIN public.customer_invoices i
+        ON i.organization_id=p.organization_id AND i.id=p.invoice_id
+     WHERE p.organization_id=p_organization_id
+       AND p.id::text=p_source_reference
+     FOR SHARE OF p,i;
   ELSE
     RETURN false;
   END IF;
 
   IF v_customer_id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='23503',
-      MESSAGE='source-linked customer return credit memo journal parent is missing';
+      MESSAGE='source-linked customer journal document is missing from the active organization';
   END IF;
 
   PERFORM public.assert_customer_app_only_financial_write(p_organization_id,v_customer_id);
   RETURN true;
 END
 $function$;
-REVOKE ALL ON FUNCTION public.assert_customer_app_only_credit_memo_journal_source(uuid,text,text)
+REVOKE ALL ON FUNCTION public.assert_customer_app_only_customer_journal_source(uuid,text,text)
   FROM PUBLIC,anon,authenticated,service_role;
 
-CREATE OR REPLACE FUNCTION public.enforce_customer_app_only_credit_memo_journal_entry_source()
+CREATE OR REPLACE FUNCTION public.enforce_customer_app_only_customer_journal_entry_source()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -2889,13 +2901,13 @@ DECLARE
   v_old_linked boolean:=false;
 BEGIN
   IF TG_OP<>'INSERT' THEN
-    v_old_linked:=public.assert_customer_app_only_credit_memo_journal_source(
+    v_old_linked:=public.assert_customer_app_only_customer_journal_source(
       OLD.organization_id,OLD.source_type,OLD.source_reference
     );
   END IF;
 
   IF TG_OP<>'DELETE' THEN
-    PERFORM public.assert_customer_app_only_credit_memo_journal_source(
+    PERFORM public.assert_customer_app_only_customer_journal_source(
       NEW.organization_id,NEW.source_type,NEW.source_reference
     );
   END IF;
@@ -2905,7 +2917,7 @@ BEGIN
        OR NEW.source_type IS DISTINCT FROM OLD.source_type
        OR NEW.source_reference IS DISTINCT FROM OLD.source_reference) THEN
     RAISE EXCEPTION USING ERRCODE='55000',
-      MESSAGE='source identity of a customer return credit memo journal entry is immutable';
+      MESSAGE='source identity of a customer financial journal entry is immutable';
   END IF;
 
   IF TG_OP='DELETE' THEN
@@ -2914,10 +2926,10 @@ BEGIN
   RETURN NEW;
 END
 $function$;
-REVOKE ALL ON FUNCTION public.enforce_customer_app_only_credit_memo_journal_entry_source()
+REVOKE ALL ON FUNCTION public.enforce_customer_app_only_customer_journal_entry_source()
   FROM PUBLIC,anon,authenticated,service_role;
 
-CREATE OR REPLACE FUNCTION public.enforce_customer_app_only_credit_memo_journal_line_source()
+CREATE OR REPLACE FUNCTION public.enforce_customer_app_only_customer_journal_line_source()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -2941,7 +2953,7 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE='23503',
         MESSAGE='journal entry parent is required for source-bound journal line mutation';
     END IF;
-    v_old_linked:=public.assert_customer_app_only_credit_memo_journal_source(
+    v_old_linked:=public.assert_customer_app_only_customer_journal_source(
       OLD.organization_id,v_old_source_type,v_old_source_reference
     );
   END IF;
@@ -2956,7 +2968,7 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE='23503',
         MESSAGE='journal entry parent is required for source-bound journal line mutation';
     END IF;
-    PERFORM public.assert_customer_app_only_credit_memo_journal_source(
+    PERFORM public.assert_customer_app_only_customer_journal_source(
       NEW.organization_id,v_new_source_type,v_new_source_reference
     );
   END IF;
@@ -2965,7 +2977,7 @@ BEGIN
      AND (NEW.organization_id IS DISTINCT FROM OLD.organization_id
        OR NEW.journal_entry_id IS DISTINCT FROM OLD.journal_entry_id) THEN
     RAISE EXCEPTION USING ERRCODE='55000',
-      MESSAGE='source identity of a customer return credit memo journal line is immutable';
+      MESSAGE='source identity of a customer financial journal line is immutable';
   END IF;
 
   IF TG_OP='DELETE' THEN
@@ -2974,19 +2986,23 @@ BEGIN
   RETURN NEW;
 END
 $function$;
-REVOKE ALL ON FUNCTION public.enforce_customer_app_only_credit_memo_journal_line_source()
+REVOKE ALL ON FUNCTION public.enforce_customer_app_only_customer_journal_line_source()
   FROM PUBLIC,anon,authenticated,service_role;
 
 DROP TRIGGER IF EXISTS accounting_journal_entries_app_only_credit_memo_source_guard
   ON public.accounting_journal_entries;
-CREATE TRIGGER accounting_journal_entries_app_only_credit_memo_source_guard
-  BEFORE INSERT OR UPDATE OR DELETE ON public.accounting_journal_entries
-  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_credit_memo_journal_entry_source();
-
 DROP TRIGGER IF EXISTS accounting_journal_lines_app_only_credit_memo_source_guard
   ON public.accounting_journal_lines;
-CREATE TRIGGER accounting_journal_lines_app_only_credit_memo_source_guard
+DROP TRIGGER IF EXISTS accounting_journal_entries_app_only_customer_source_guard
+  ON public.accounting_journal_entries;
+CREATE TRIGGER accounting_journal_entries_app_only_customer_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.accounting_journal_entries
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_customer_journal_entry_source();
+
+DROP TRIGGER IF EXISTS accounting_journal_lines_app_only_customer_source_guard
+  ON public.accounting_journal_lines;
+CREATE TRIGGER accounting_journal_lines_app_only_customer_source_guard
   BEFORE INSERT OR UPDATE OR DELETE ON public.accounting_journal_lines
-  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_credit_memo_journal_line_source();
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_customer_journal_line_source();
 
 COMMIT;
