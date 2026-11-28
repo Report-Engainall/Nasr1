@@ -241,7 +241,7 @@ describe("daily decision queue search and filters", () => {
       totalCount: 4,
     });
 
-    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain("'=HYPERLINK");
     expect(csv).toContain("'=SUM(1,2)");
     expect(csv).toContain(",15,");
