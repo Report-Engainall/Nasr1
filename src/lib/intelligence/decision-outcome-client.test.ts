@@ -206,6 +206,30 @@ describe("persisted decision outcome client", () => {
     expect(result).toMatchObject({ ok: true, outcome: { state: "MEASURED", version: 7 } });
   });
 
+  it("requires approval metadata to match the exact approval audit event", async () => {
+    const mismatchedTimestamp = {
+      ...measuredOutcome,
+      approvedAt: "2026-10-31T10:03:30.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedTimestamp], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const mismatchedActor = {
+      ...measuredOutcome,
+      approvedBy: "33333333-3333-4333-8333-333333333333",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedActor], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const approvalWithoutEvent = {
+      ...outcome,
+      approvedAt: "2026-10-31T10:02:00.000Z",
+      approvedBy: "22222222-2222-4222-8222-222222222222",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [approvalWithoutEvent], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects an approved decision without its approval actor and timestamp", async () => {
     const incompleteApproval = {
       ...outcome,

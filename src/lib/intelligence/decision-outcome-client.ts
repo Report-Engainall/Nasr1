@@ -288,11 +288,16 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     });
   }
 
+  const approvalEvent = raw.history.find(item => record(item)?.type === "APPROVE");
+  const approvalActor = record(record(approvalEvent)?.actor);
+  const approvalMatches = approvalEvent
+    ? raw.approvedAt === record(approvalEvent)?.at && raw.approvedBy === approvalActor?.id
+    : raw.approvedAt === null && raw.approvedBy === null;
   const latestEvent = raw.history[raw.history.length - 1] as UnknownRecord;
   if (
     eventStateByType[String(latestEvent.type)] !== raw.state ||
     (raw.state === "MEASURED") !== (measuredOutcome !== null) ||
-    (raw.state === "APPROVED" && (!raw.approvedAt || !raw.approvedBy)) ||
+    !approvalMatches ||
     (raw.state === "MEASURED" && (!raw.executedAt || !raw.assignedAt || !raw.approvedAt)) ||
     (["ASSIGNED", "EXECUTING", "EXECUTED"].includes(String(raw.state)) && (!raw.approvedAt || !raw.assignedAt)) ||
     (raw.state === "EXECUTED" && !raw.executedAt) ||
