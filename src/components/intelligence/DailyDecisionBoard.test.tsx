@@ -138,6 +138,9 @@ describe("daily decision queue search and filters", () => {
       "allocation:partial-02",
       "receivables.customer-aging",
       "2026-11-01",
+      "customer.orders.current",
+      "evidence-1",
+      "orders@1",
     ]) {
       expect(filterDailyDecisionRecords([record], { ...allFilters, searchText }, now)).toEqual([record]);
     }
