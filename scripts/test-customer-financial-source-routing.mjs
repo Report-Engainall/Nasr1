@@ -957,6 +957,28 @@ async function main() {
     "55000",
     "active APP_ONLY financial source",
   );
+  const invoiceLineBeforeExternalMutation = await db.unsafe(
+    "select description,quantity::text as quantity,unit_price::text as unit_price,line_total::text as line_total " +
+    "from public.customer_invoice_items where id=$1::uuid and organization_id=$2::uuid",
+    [sourceTestInvoiceItemId,orgId],
+  );
+  await expectFailure(
+    "ONYX source cannot mutate an APP_ONLY invoice line",
+    db.unsafe(
+      "update public.customer_invoice_items set description=description " +
+      "where id=$1::uuid and organization_id=$2::uuid and invoice_id=$3::uuid",
+      [sourceTestInvoiceItemId,orgId,sourceTestInvoiceId],
+    ),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  const invoiceLineAfterExternalMutation = await db.unsafe(
+    "select description,quantity::text as quantity,unit_price::text as unit_price,line_total::text as line_total " +
+    "from public.customer_invoice_items where id=$1::uuid and organization_id=$2::uuid",
+    [sourceTestInvoiceItemId,orgId],
+  );
+  assert.deepEqual(invoiceLineAfterExternalMutation,invoiceLineBeforeExternalMutation,
+    "rejected external-source invoice-line mutation must not alter the existing APP_ONLY line");
   await expectFailure(
     "ONYX source cannot create an internal return credit memo",
     db.unsafe(

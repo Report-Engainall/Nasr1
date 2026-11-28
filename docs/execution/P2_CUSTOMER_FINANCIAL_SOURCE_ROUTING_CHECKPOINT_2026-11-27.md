@@ -214,3 +214,5 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Return credit-memo preparation, posting, voiding and reversal all touch the guarded credit memo/document tables; if the source is external, the transaction cannot commit an internal credit document or its linked posting/reversal rows.
 - PostgreSQL acceptance attempts direct internal invoice insert/update and credit-memo creation after ONYX cutover and requires `55000`. After approved APP_ONLY return, a real internal invoice header insert is allowed inside a rollback-only order transaction; neither fixture remains afterward.
 - The existing payment-ledger guards continue to protect single/multi receipts, idempotent replay and direct DML. The exact updated migration and full local PostgreSQL 17 sequence must pass before this batch is accepted.
+
+- Added an additional external-source invoice-line mutation regression: an attempted `UPDATE` against the existing APP_ONLY invoice item must fail with `55000`, and a before/after projection of its description, quantity, price and line total must remain identical.
