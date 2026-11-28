@@ -402,3 +402,10 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - Code/test commit: `97c6179f348627d863dabf51e014c01aab88773c`; SQL layout repair commit: `f4664096688acdd45eee1fc027bcfeb20af6fb54`.
 - A validation edit initially produced a malformed combined `due_date` line. It was detected during exact-file review and repaired in `f4664096688acdd45eee1fc027bcfeb20af6fb54`; the final migration block was re-read after repair. The PostgreSQL execution result is still unproven.
 - Exact-head PG17/P2/P1 workflow runs must finish terminal SUCCESS against the resulting code SHA. At checkpoint refresh time the workflow listing had no terminal result for this head; queued, cancelled, empty or earlier-SHA results are not PASS.
+
+## 2026-11-28 — Exact boundary and due-date regression coverage
+
+- Follow-up test commit: `4800edc49e94fdf5cc828a42086e7ed1eda65a89`, based on the bounded-input implementation at `f4664096688acdd45eee1fc027bcfeb20af6fb54`.
+- PostgreSQL 17 acceptance now proves the exact upper boundaries are accepted: a 500-character description and a 160-character source-document number. Inputs above those limits remain rejected.
+- Added a separate impossible `due_date` case (`2026-02-31`) followed by a corrected later committed outcome for the same external ID. The statement reader must return the corrected due date and preserve YER closing balance `81`.
+- Exact-head acceptance for current P2 code/test head `4800edc49e94fdf5cc828a42086e7ed1eda65a89` is pending; no local PostgreSQL execution or terminal CI PASS is claimed.
