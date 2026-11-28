@@ -2254,6 +2254,111 @@ async function main() {
     "ERP customer statement contains rejected or invalid records",
   );
 
+  // Bound customer-visible ERP text and reject impossible dates. Each malformed
+  // row is corrected under the same external ID in a later committed version.
+  await stageCustomerStatementPage("YER",5,[
+    {
+      externalId:"ONYX-YER-UNATTRIBUTABLE-001",
+      fields:statementEntryFields({
+        entry_reference:"UNATTRIBUTABLE-001",entry_date:statementToday,entry_type:"adjustment",
+        debit_amount:"0",credit_amount:"0",description:"Corrected customer attribution",
+      }),
+      disposition:"updated",
+    },
+    {
+      externalId:"ONYX-YER-DESCRIPTION-LIMIT-001",
+      fields:statementEntryFields({
+        entry_reference:"DESCRIPTION-LIMIT-001",entry_date:statementToday,entry_type:"adjustment",
+        debit_amount:"0",credit_amount:"0",description:"D".repeat(501),
+      }),
+      disposition:"created",
+    },
+  ]);
+  await expectFailure(
+    "customer statement rejects ERP descriptions longer than 500 characters",
+    rpc(customerDb,"select public.get_customer_account_statement() as result"),
+    "55000",
+    "ERP customer statement contains rejected or invalid records",
+  );
+  await stageCustomerStatementPage("YER",6,[
+    {
+      externalId:"ONYX-YER-DESCRIPTION-LIMIT-001",
+      fields:statementEntryFields({
+        entry_reference:"DESCRIPTION-LIMIT-001",entry_date:statementToday,entry_type:"adjustment",
+        debit_amount:"0",credit_amount:"0",description:"Bounded statement description",
+      }),
+      disposition:"updated",
+    },
+  ]);
+  const afterDescriptionRepair = await rpc(customerDb,"select public.get_customer_account_statement() as result");
+  const yerAfterDescriptionRepair = afterDescriptionRepair.external_statement.currencies.find(row=>row.currency_code==="YER");
+  assert.ok(yerAfterDescriptionRepair);
+  assert.equal(yerAfterDescriptionRepair.entry_count,5);
+  assert.equal(Number(yerAfterDescriptionRepair.closing_balance),81);
+
+  await stageCustomerStatementPage("YER",7,[
+    {
+      externalId:"ONYX-YER-DOCUMENT-LIMIT-001",
+      fields:statementEntryFields({
+        entry_reference:"DOCUMENT-LIMIT-001",entry_date:statementToday,entry_type:"adjustment",
+        debit_amount:"0",credit_amount:"0",source_document_number:"D".repeat(161),
+      }),
+      disposition:"created",
+    },
+  ]);
+  await expectFailure(
+    "customer statement rejects source document numbers longer than 160 characters",
+    rpc(customerDb,"select public.get_customer_account_statement() as result"),
+    "55000",
+    "ERP customer statement contains rejected or invalid records",
+  );
+  await stageCustomerStatementPage("YER",8,[
+    {
+      externalId:"ONYX-YER-DOCUMENT-LIMIT-001",
+      fields:statementEntryFields({
+        entry_reference:"DOCUMENT-LIMIT-001",entry_date:statementToday,entry_type:"adjustment",
+        debit_amount:"0",credit_amount:"0",source_document_number:"ERP-DOCUMENT-160",
+      }),
+      disposition:"updated",
+    },
+  ]);
+  const afterDocumentRepair = await rpc(customerDb,"select public.get_customer_account_statement() as result");
+  const yerAfterDocumentRepair = afterDocumentRepair.external_statement.currencies.find(row=>row.currency_code==="YER");
+  assert.ok(yerAfterDocumentRepair);
+  assert.equal(Number(yerAfterDocumentRepair.closing_balance),81);
+
+  await stageCustomerStatementPage("YER",9,[
+    {
+      externalId:"ONYX-YER-INVALID-CALENDAR-DATE-001",
+      fields:statementEntryFields({
+        entry_reference:"INVALID-CALENDAR-DATE-001",entry_date:"2026-02-31",entry_type:"adjustment",
+        debit_amount:"0",credit_amount:"0",
+      }),
+      disposition:"created",
+    },
+  ]);
+  await expectFailure(
+    "customer statement rejects impossible calendar dates with a controlled integrity error",
+    rpc(customerDb,"select public.get_customer_account_statement() as result"),
+    "55000",
+    "ERP customer statement contains rejected or invalid records",
+  );
+  await stageCustomerStatementPage("YER",10,[
+    {
+      externalId:"ONYX-YER-INVALID-CALENDAR-DATE-001",
+      fields:statementEntryFields({
+        entry_reference:"INVALID-CALENDAR-DATE-001",entry_date:statementToday,entry_type:"adjustment",
+        debit_amount:"0",credit_amount:"0",
+      }),
+      disposition:"updated",
+    },
+  ]);
+  const afterDateRepair = await rpc(customerDb,"select public.get_customer_account_statement() as result");
+  const yerAfterDateRepair = afterDateRepair.external_statement.currencies.find(row=>row.currency_code==="YER");
+  assert.ok(yerAfterDateRepair);
+  assert.equal(Number(yerAfterDateRepair.closing_balance),81);
+  assert.equal(yerAfterDateRepair.entries.some(row=>row.entry_reference==="INVALID-CALENDAR-DATE-001"),true);
+
   await db.unsafe(
     "delete from public.customer_financial_source_statement_scopes " +
     "where organization_id=$1::uuid and customer_id=$2::uuid",
