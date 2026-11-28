@@ -67,6 +67,8 @@ describe("customer retention action triage", () => {
       .map(item => item.customerRef)).toEqual(["customer-medium"]);
     expect(filterCustomerRetentionActions(actions, "", "HIGH", "ALL")
       .map(item => item.customerRef)).toEqual(["customer-high-oldest", "customer-1234567890"]);
+    expect(filterCustomerRetentionActions(actions, "112", "ALL", "ALL")
+      .map(item => item.customerRef)).toEqual(["customer-1234567890"]);
   });
 
   it("filters exact purchase-recency bands and keeps missing or invalid ages separate", () => {
