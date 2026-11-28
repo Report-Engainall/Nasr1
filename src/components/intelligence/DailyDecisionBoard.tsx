@@ -165,13 +165,13 @@ export function summarizeDailyDecisionQueue(
     if (record.state === "IN_REVIEW") summary.inReview += 1;
     if (record.state === "EXECUTED") summary.awaitingMeasurement += 1;
     const terminal = record.state === "REJECTED" || record.state === "MEASURED";
-    if (terminal || record.state === "EXECUTED") continue;
+    if (terminal) continue;
     const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
     if (record.reviewDisposition === "SCHEDULED" && Number.isFinite(due)) {
       if (due <= now) summary.overdue += 1;
       else if (due <= dayAhead) summary.dueWithin24Hours += 1;
       else if (due <= weekAhead) summary.dueWithinSevenDays += 1;
-    } else if (!record.reviewAt &&
+    } else if (record.state !== "EXECUTED" && !record.reviewAt &&
       (record.reviewDisposition === "NOT_SCHEDULED" || record.reviewDisposition === null)) {
       summary.unscheduled += 1;
     }
