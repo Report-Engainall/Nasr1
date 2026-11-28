@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminCustomer360 } from "./AdminCustomer360";
 
@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   fetchSummary: vi.fn(),
   fetchInteractions: vi.fn(),
   requestFinancialSourceChange: vi.fn(),
+  reviewFinancialSourceChange: vi.fn(),
 }));
 
 vi.mock("@/components/AdminPages", () => ({
@@ -43,6 +44,7 @@ vi.mock("@/lib/supabase", () => ({
 vi.mock("@/lib/customer-financial-source", () => ({
   fetchStaffCustomerFinancialSource: mocks.fetchFinancialSource,
   requestCustomerFinancialSourceChange: mocks.requestFinancialSourceChange,
+  reviewCustomerFinancialSourceChange: mocks.reviewFinancialSourceChange,
   fetchCustomerFinancialSourceChangeHistory: mocks.fetchFinancialSourceHistory,
   canReadCustomerAppLedger: (source: any) => Boolean(
     source && source.source_mode === "APP_ONLY" && source.source_status === "active" &&
@@ -123,7 +125,8 @@ describe("AdminCustomer360 financial source gate", () => {
         records: [{
           request_id: "44444444-4444-4444-8444-444444444444",
           current_source_mode: "APP_ONLY", target_source_mode: "ONYX",
-          status: "pending_reconciliation", reason: "توحيد حساب العميل مع سجل Onyx Pro",
+          status: "pending_reconciliation", can_review: false,
+          reason: "توحيد حساب العميل مع سجل Onyx Pro",
           review_reason: null, expected_binding_revision: 2,
           requested_at: "2026-11-28T00:00:00Z", reviewed_at: null,
           reconciliation_result: null, reconciliation_source_as_of: null,
@@ -156,6 +159,84 @@ describe("AdminCustomer360 financial source gate", () => {
     expect(screen.getByText(/سجل طلبات تغيير المصدر/)).toBeInTheDocument();
     expect(mocks.fetchFinancialSourceHistory).toHaveBeenCalledWith(customerId, 10);
     expect(mocks.fetchSummary).not.toHaveBeenCalled();
+  });
+
+
+
+  it("allows an independent checker to approve a matched request and reloads the authoritative source", async () => {
+    const requestId = "55555555-5555-4555-8555-555555555555";
+    const reviewable = {
+      request_id: requestId,
+      current_source_mode: "APP_ONLY",
+      target_source_mode: "ONYX",
+      status: "pending_approval",
+      can_review: true,
+      reason: "توحيد حساب العميل مع سجل Onyx Pro",
+      review_reason: null,
+      expected_binding_revision: 2,
+      requested_at: "2026-11-28T00:00:00Z",
+      reviewed_at: null,
+      reconciliation_result: "matched",
+      reconciliation_source_as_of: "2026-11-28T00:00:00Z",
+      reconciliation_currency_codes: ["YER", "USD"],
+      reconciliation_record_counts: { invoices: 2, payments: 1, statement_entries: 3 },
+    };
+    const completed = {
+      ...reviewable,
+      status: "approved",
+      can_review: false,
+      review_reason: "تمت مطابقة الأرصدة وتفعيل المصدر",
+      reviewed_at: "2026-11-28T00:30:00Z",
+    };
+    mocks.fetchFinancialSourceHistory
+      .mockResolvedValueOnce({ records: [reviewable], total: 1, limit: 10 })
+      .mockResolvedValueOnce({ records: [completed], total: 1, limit: 10 });
+    mocks.reviewFinancialSourceChange.mockResolvedValue({
+      request_id: requestId, status: "approved", replayed: false,
+    });
+
+    render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
+    expect(await screen.findByText(/بانتظار اعتماد المحاسبة/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "مراجعة الطلب" }));
+    fireEvent.change(screen.getByLabelText("سبب مراجعة 55555555"), {
+      target: { value: "تمت مطابقة أرصدة YER وUSD واعتماد التحويل" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "اعتماد وتفعيل المصدر" }));
+
+    await waitFor(() => expect(mocks.reviewFinancialSourceChange).toHaveBeenCalledWith(
+      requestId, "approve", "تمت مطابقة أرصدة YER وUSD واعتماد التحويل",
+    ));
+    expect(await screen.findByText("معتمد")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.fetchFinancialSource).toHaveBeenCalledTimes(2));
+    expect(mocks.fetchSummary).not.toHaveBeenCalled();
+  });
+
+  it("does not offer source activation while a request is awaiting reconciliation", async () => {
+    const requestId = "77777777-7777-4777-8777-777777777777";
+    mocks.fetchFinancialSourceHistory.mockResolvedValue({
+      records: [{
+        request_id: requestId,
+        current_source_mode: "APP_ONLY",
+        target_source_mode: "ONYX",
+        status: "pending_reconciliation",
+        can_review: true,
+        reason: "توحيد الحساب مع النظام الخارجي",
+        review_reason: null,
+        expected_binding_revision: 2,
+        requested_at: "2026-11-28T00:00:00Z",
+        reviewed_at: null,
+        reconciliation_result: "mismatch",
+        reconciliation_source_as_of: "2026-11-28T00:00:00Z",
+        reconciliation_currency_codes: ["YER"],
+        reconciliation_record_counts: { invoices: 2 },
+      }],
+      total: 1,
+      limit: 10,
+    });
+    render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "مراجعة الطلب" }));
+    expect(screen.queryByRole("button", { name: "اعتماد وتفعيل المصدر" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "رفض الطلب" })).toBeInTheDocument();
   });
 
   it("does not render source-change controls for a suspended financial source", async () => {

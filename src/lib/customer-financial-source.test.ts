@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
-import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
 const appOnly = { source_mode:"APP_ONLY", source_status:"active", source_as_of:null, last_synced_at:null, verified_at:null, revision:1, is_stale:false, can_read_app_ledger:true };
 describe("customer financial source contract", () => {
   it("allows the app ledger only when the server confirms APP_ONLY and active status", () => {
@@ -316,6 +316,7 @@ describe("customer financial source-change history", () => {
     current_source_mode: "APP_ONLY",
     target_source_mode: "ONYX",
     status: "approved",
+    can_review: false,
     reason: "توحيد الحساب مع سجل Onyx Pro",
     review_reason: "تمت مطابقة الأرصدة واعتماد التحويل",
     expected_binding_revision: 3,
@@ -343,6 +344,7 @@ describe("customer financial source-change history", () => {
         records: [{
           ...record,
           status: "pending_reconciliation",
+          can_review: false,
           review_reason: null,
           reviewed_at: null,
           reconciliation_result: null,
@@ -381,5 +383,58 @@ describe("customer financial source-change history", () => {
   it("fails closed when the history resolver rejects access", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "permission denied" } });
     await expect(fetchCustomerFinancialSourceChangeHistory(customerId)).rejects.toThrow(/تعذر تحميل سجل تغييرات/);
+  });
+});
+
+
+describe("customer financial source maker-checker review", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+  const requestId = "66666666-6666-4666-8666-666666666666";
+
+  it("submits an approve decision and accepts only the matching server result", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { request_id: requestId, status: "approved", replayed: false, source_mode: "ONYX", revision: 3 },
+      error: null,
+    });
+    const result = await reviewCustomerFinancialSourceChange(
+      requestId, "approve", "تمت مطابقة أرصدة العميل واعتماد التحويل",
+    );
+    expect(mocks.rpc).toHaveBeenCalledWith("review_customer_financial_source_change", {
+      p_request_id: requestId,
+      p_decision: "approve",
+      p_reason: "تمت مطابقة أرصدة العميل واعتماد التحويل",
+    });
+    expect(result).toEqual({ request_id: requestId, status: "approved", replayed: false });
+  });
+
+  it("submits a reject decision and records its reason", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { request_id: requestId, status: "rejected", replayed: false },
+      error: null,
+    });
+    const result = await reviewCustomerFinancialSourceChange(
+      requestId, "reject", "مراجع الحساب الخارجي لا يطابق السجل المعتمد",
+    );
+    expect(result).toEqual({ request_id: requestId, status: "rejected", replayed: false });
+  });
+
+  it("rejects invalid review metadata and mismatched server decisions", async () => {
+    await expect(reviewCustomerFinancialSourceChange("not-a-uuid", "approve", "سبب اعتماد صالح"))
+      .rejects.toThrow(/مطلوبة بصيغة صالحة/);
+    await expect(reviewCustomerFinancialSourceChange(requestId, "approve", "قصير"))
+      .rejects.toThrow(/مطلوبة بصيغة صالحة/);
+    mocks.rpc.mockResolvedValue({
+      data: { request_id: requestId, status: "rejected", replayed: false },
+      error: null,
+    });
+    await expect(reviewCustomerFinancialSourceChange(requestId, "approve", "سبب اعتماد صالح"))
+      .rejects.toThrow(/نتيجة موثوقة/);
+  });
+
+  it("does not claim review success when the backend denies the actor", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "maker-checker rejected" } });
+    await expect(reviewCustomerFinancialSourceChange(
+      requestId, "approve", "سبب اعتماد صالح",
+    )).rejects.toThrow(/رفض الخادم مراجعة/);
   });
 });

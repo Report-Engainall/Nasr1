@@ -128,6 +128,7 @@ export type CustomerFinancialSourceChangeHistoryItem = {
   current_source_mode: CustomerFinancialSourceMode;
   target_source_mode: CustomerFinancialSourceMode;
   status: "pending_reconciliation" | "pending_approval" | "approved" | "rejected" | "cancelled";
+  can_review: boolean;
   reason: string;
   review_reason: string | null;
   expected_binding_revision: number;
@@ -165,6 +166,7 @@ function parseSourceChangeHistory(value: unknown): CustomerFinancialSourceChange
         !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.request_id) ||
         !validMode(item.current_source_mode) || !validMode(item.target_source_mode) ||
         !validStatus(item.status) ||
+        typeof item.can_review !== "boolean" ||
         typeof item.reason !== "string" || item.reason.length < 5 || item.reason.length > 500 ||
         !(item.review_reason === null || typeof item.review_reason === "string" && item.review_reason.length <= 500) ||
         typeof item.expected_binding_revision !== "number" ||
@@ -195,6 +197,7 @@ function parseSourceChangeHistory(value: unknown): CustomerFinancialSourceChange
       current_source_mode: item.current_source_mode,
       target_source_mode: item.target_source_mode,
       status: item.status,
+      can_review: item.can_review,
       reason: item.reason,
       review_reason: item.review_reason as string | null,
       expected_binding_revision: item.expected_binding_revision,
@@ -225,6 +228,44 @@ export async function fetchCustomerFinancialSourceChangeHistory(
     throw new Error("تعذر تحميل سجل تغييرات مصدر الحساب. يلزم توفر صلاحية طلب أو اعتماد المصدر المالي.");
   }
   return parseSourceChangeHistory(data);
+}
+
+
+export type CustomerFinancialSourceReviewDecision = "approve" | "reject";
+
+export type CustomerFinancialSourceReviewResult = {
+  request_id: string;
+  status: "approved" | "rejected";
+  replayed: boolean;
+};
+
+export async function reviewCustomerFinancialSourceChange(
+  requestId: string,
+  decision: CustomerFinancialSourceReviewDecision,
+  reason: string,
+): Promise<CustomerFinancialSourceReviewResult> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) ||
+      (decision !== "approve" && decision !== "reject") ||
+      reason.trim().length < 5 || reason.trim().length > 500) {
+    throw new Error("معرف الطلب وقرار المراجعة وسببها مطلوبة بصيغة صالحة.");
+  }
+  const { data, error } = await supabase.rpc("review_customer_financial_source_change", {
+    p_request_id: requestId,
+    p_decision: decision,
+    p_reason: reason.trim(),
+  });
+  if (error) {
+    throw new Error("رفض الخادم مراجعة طلب مصدر الحساب. تحقّق من صلاحية الاعتماد وفصل المُنشئ عن المراجع وحالة المطابقة.");
+  }
+  const row = asRecord(data);
+  const expectedStatus = decision === "approve" ? "approved" : "rejected";
+  if (!row || typeof row.request_id !== "string" ||
+      row.request_id.toLowerCase() !== requestId.toLowerCase() ||
+      row.status !== expectedStatus ||
+      typeof row.replayed !== "boolean") {
+    throw new Error("لم يُرجع الخادم نتيجة موثوقة لمراجعة طلب مصدر الحساب.");
+  }
+  return { request_id: row.request_id, status: expectedStatus, replayed: row.replayed };
 }
 
 export type CustomerFinancialSourceChangeRequestInput = {

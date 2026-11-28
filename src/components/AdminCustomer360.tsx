@@ -17,7 +17,7 @@ import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retent
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
 import { CustomerAssetsPanel } from '@/components/CustomerAssetsPanel';
 import { CustomerFinancialSourceNotice } from '@/components/CustomerFinancialSourceNotice';
-import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode, type CustomerFinancialSourceChangeHistoryItem } from '@/lib/customer-financial-source';
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode, type CustomerFinancialSourceChangeHistoryItem, type CustomerFinancialSourceReviewDecision } from '@/lib/customer-financial-source';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -876,10 +876,26 @@ function CustomerFinancialSourceChangeHistory({
   items,
   loading,
   error,
+  activeReviewRequestId,
+  reviewReason,
+  reviewBusyRequestId,
+  reviewError,
+  onBeginReview,
+  onCancelReview,
+  onReviewReasonChange,
+  onReview,
 }: {
   items: CustomerFinancialSourceChangeHistoryItem[];
   loading: boolean;
   error: string;
+  activeReviewRequestId: string | null;
+  reviewReason: string;
+  reviewBusyRequestId: string | null;
+  reviewError: string;
+  onBeginReview: (requestId: string) => void;
+  onCancelReview: () => void;
+  onReviewReasonChange: (reason: string) => void;
+  onReview: (requestId: string, decision: CustomerFinancialSourceReviewDecision) => void;
 }) {
   if (loading) return <p className="report-note" role="status">جارٍ تحميل سجل طلبات تغيير المصدر…</p>;
   if (error) return <p className="report-note" role="status">{error}</p>;
@@ -887,28 +903,78 @@ function CustomerFinancialSourceChangeHistory({
   return (
     <TableWrap>
       <table>
-        <thead><tr><th>الطلب</th><th>المصدر</th><th>الحالة</th><th>التاريخ</th><th>السبب والمراجعة</th></tr></thead>
+        <thead><tr><th>الطلب</th><th>المصدر</th><th>الحالة</th><th>التاريخ</th><th>السبب والمراجعة</th><th>الإجراء</th></tr></thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={item.request_id}>
-              <td><code dir="ltr">{item.request_id.slice(0, 8)}</code><small style={{ display: "block" }}>الإصدار {formatNumber(item.expected_binding_revision)}</small></td>
-              <td>{financialSourceModeLabel[item.current_source_mode]} ← {financialSourceModeLabel[item.target_source_mode]}</td>
-              <td>
-                <strong>{financialSourceRequestStatusLabel[item.status]}</strong>
-                {item.reconciliation_result ? (
-                  <small style={{ display: "block" }}>
-                    المطابقة: {item.reconciliation_result === "matched" ? "مطابقة" : "اختلاف"}
-                    {item.reconciliation_currency_codes.length ? " · " + item.reconciliation_currency_codes.join("، ") : ""}
-                  </small>
-                ) : null}
-              </td>
-              <td>{formatDateShort(item.requested_at)}{item.reviewed_at ? <small style={{ display: "block" }}>المراجعة: {formatDateShort(item.reviewed_at)}</small> : null}</td>
-              <td>
-                <span>{item.reason}</span>
-                {item.review_reason ? <small style={{ display: "block", color: "var(--muted, #667085)" }}>ملاحظة المراجع: {item.review_reason}</small> : null}
-              </td>
-            </tr>
-          ))}
+          {items.map((item) => {
+            const reviewable = item.can_review &&
+              (item.status === "pending_reconciliation" || item.status === "pending_approval");
+            const reviewingThisRequest = activeReviewRequestId === item.request_id;
+            const busy = reviewBusyRequestId === item.request_id;
+            return (
+              <tr key={item.request_id}>
+                <td><code dir="ltr">{item.request_id.slice(0, 8)}</code><small style={{ display: "block" }}>الإصدار {formatNumber(item.expected_binding_revision)}</small></td>
+                <td>{financialSourceModeLabel[item.current_source_mode]} ← {financialSourceModeLabel[item.target_source_mode]}</td>
+                <td>
+                  <strong>{financialSourceRequestStatusLabel[item.status]}</strong>
+                  {item.reconciliation_result ? (
+                    <small style={{ display: "block" }}>
+                      المطابقة: {item.reconciliation_result === "matched" ? "مطابقة" : "اختلاف"}
+                      {item.reconciliation_currency_codes.length ? " · " + item.reconciliation_currency_codes.join("، ") : ""}
+                    </small>
+                  ) : null}
+                </td>
+                <td>{formatDateShort(item.requested_at)}{item.reviewed_at ? <small style={{ display: "block" }}>المراجعة: {formatDateShort(item.reviewed_at)}</small> : null}</td>
+                <td>
+                  <span>{item.reason}</span>
+                  {item.review_reason ? <small style={{ display: "block", color: "var(--muted, #667085)" }}>ملاحظة المراجع: {item.review_reason}</small> : null}
+                </td>
+                <td>
+                  {reviewable ? (
+                    reviewingThisRequest ? (
+                      <div style={{ display: "grid", gap: 6, minWidth: 190 }}>
+                        <label style={{ display: "grid", gap: 4 }}>
+                          <span>سبب قرار المراجعة</span>
+                          <textarea
+                            aria-label={"سبب مراجعة " + item.request_id.slice(0, 8)}
+                            value={reviewReason}
+                            minLength={5}
+                            maxLength={500}
+                            rows={3}
+                            disabled={Boolean(reviewBusyRequestId)}
+                            onChange={(event) => onReviewReasonChange(event.target.value)}
+                          />
+                        </label>
+                        {item.status === "pending_approval" && item.reconciliation_result === "matched" ? (
+                          <Button
+                            type="button"
+                            disabled={busy || reviewReason.trim().length < 5}
+                            onClick={() => onReview(item.request_id, "approve")}
+                          >
+                            {busy ? "جارٍ الاعتماد…" : "اعتماد وتفعيل المصدر"}
+                          </Button>
+                        ) : (
+                          <small className="report-note">لا يتاح التفعيل قبل اكتمال المطابقة وإرسال الطلب للاعتماد.</small>
+                        )}
+                        <Button
+                          type="button"
+                          disabled={busy || reviewReason.trim().length < 5}
+                          onClick={() => onReview(item.request_id, "reject")}
+                        >
+                          {busy ? "جارٍ الرفض…" : "رفض الطلب"}
+                        </Button>
+                        <Button type="button" disabled={Boolean(reviewBusyRequestId)} onClick={onCancelReview}>إلغاء</Button>
+                        {reviewError ? <ErrorBox message={reviewError} /> : null}
+                      </div>
+                    ) : (
+                      <Button type="button" disabled={Boolean(reviewBusyRequestId)} onClick={() => onBeginReview(item.request_id)}>
+                        مراجعة الطلب
+                      </Button>
+                    )
+                  ) : <span>—</span>}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </TableWrap>
@@ -918,9 +984,11 @@ function CustomerFinancialSourceChangeHistory({
 function CustomerFinancialSourceChangeRequestPanel({
   customerId,
   source,
+  onSourceChanged,
 }: {
   customerId: string;
   source: CustomerFinancialSource;
+  onSourceChanged: () => Promise<void>;
 }) {
   const [targetMode, setTargetMode] = useState<CustomerFinancialSourceMode>(
     source.source_mode === "APP_ONLY" ? "ONYX" : source.source_mode,
@@ -936,6 +1004,10 @@ function CustomerFinancialSourceChangeRequestPanel({
   const [history, setHistory] = useState<CustomerFinancialSourceChangeHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState("");
+  const [activeReviewRequestId, setActiveReviewRequestId] = useState<string | null>(null);
+  const [reviewReason, setReviewReason] = useState("");
+  const [reviewBusyRequestId, setReviewBusyRequestId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState("");
   const historyRequestSequence = useRef(0);
 
   const reloadHistory = useCallback(async () => {
@@ -1023,6 +1095,46 @@ function CustomerFinancialSourceChangeRequestPanel({
     }
   }
 
+  function beginReview(requestId: string) {
+    setActiveReviewRequestId(requestId);
+    setReviewReason("");
+    setReviewError("");
+  }
+
+  function cancelReview() {
+    setActiveReviewRequestId(null);
+    setReviewReason("");
+    setReviewError("");
+  }
+
+  async function submitReview(
+    requestId: string,
+    decision: CustomerFinancialSourceReviewDecision,
+  ) {
+    if (reviewBusyRequestId || reviewReason.trim().length < 5) {
+      setReviewError("أدخل سبب مراجعة واضحًا لا يقل عن خمسة أحرف.");
+      return;
+    }
+    setReviewBusyRequestId(requestId);
+    setReviewError("");
+    setError("");
+    setNotice("");
+    try {
+      const result = await reviewCustomerFinancialSourceChange(requestId, decision, reviewReason);
+      setNotice(
+        (decision === "approve" ? "تم اعتماد وتفعيل مصدر الحساب." : "تم رفض طلب تغيير المصدر.") +
+        (result.replayed ? " تم تأكيد القرار السابق." : "")
+      );
+      cancelReview();
+      await reloadHistory();
+      if (decision === "approve") await onSourceChanged();
+    } catch (cause) {
+      setReviewError(cause instanceof Error ? cause.message : "تعذر مراجعة طلب تغيير مصدر الحساب.");
+    } finally {
+      setReviewBusyRequestId(null);
+    }
+  }
+
   return (
     <section className="panel" aria-label="طلب تغيير مصدر الحساب المالي">
       <h3>إدارة مصدر الحساب المالي</h3>
@@ -1090,7 +1202,19 @@ function CustomerFinancialSourceChangeRequestPanel({
       {error && <ErrorBox message={error} />}
       <div style={{ marginTop: 14 }}>
         <h4>سجل طلبات تغيير المصدر</h4>
-        <CustomerFinancialSourceChangeHistory items={history} loading={historyLoading} error={historyError} />
+        <CustomerFinancialSourceChangeHistory
+          items={history}
+          loading={historyLoading}
+          error={historyError}
+          activeReviewRequestId={activeReviewRequestId}
+          reviewReason={reviewReason}
+          reviewBusyRequestId={reviewBusyRequestId}
+          reviewError={reviewError}
+          onBeginReview={beginReview}
+          onCancelReview={cancelReview}
+          onReviewReasonChange={setReviewReason}
+          onReview={(requestId, decision) => { void submitReview(requestId, decision); }}
+        />
       </div>
     </section>
   );
@@ -1252,6 +1376,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
           key={customer.id}
           customerId={customer.id}
           source={currentFinancialSource}
+          onSourceChanged={loadCustomer360}
         />
       ) : null}
       {currentFinancialSource && currentFinancialSource.source_mode !== 'APP_ONLY' ? (
