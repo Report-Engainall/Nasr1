@@ -7,6 +7,7 @@ const customerEmail = requiredEnv("E2E_EMAIL").toLowerCase();
 const foreignCustomerEmail = requiredEnv("E2E_EMAIL_B").toLowerCase();
 const managerEmail = requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
 const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL").toLowerCase();
+const returnReceivableAccountId = requiredEnv("E2E_RETURN_RECEIVABLE_ACCOUNT_ID");
 
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const customerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -757,13 +758,6 @@ async function main() {
   const sourceTestCreditMemoRequestId = randomUUID();
   const sourceTestCreditMemoId = randomUUID();
   const sourceTestCreditMemoJournalId = randomUUID();
-  const sourceTestCreditMemoJournalLineAccount = await db.unsafe(
-    "select id::text as id from public.accounting_accounts " +
-      "where organization_id=$1::uuid order by id limit 1",
-    [orgId],
-  );
-  assert.equal(sourceTestCreditMemoJournalLineAccount.length, 1,
-    "financial-source acceptance requires the tenant's seeded chart of accounts");
   await db.unsafe(
     "insert into public.customer_return_requests(" +
       "id,organization_id,customer_id,order_id,request_number,status,reason,requested_by,idempotency_key,payload_fingerprint" +
@@ -800,7 +794,7 @@ async function main() {
     "insert into public.accounting_journal_lines(" +
       "organization_id,journal_entry_id,line_number,account_id,debit,credit,memo" +
     ") values($1::uuid,$2::uuid,1,$3::uuid,1.00,0.00,'Financial-source source-bound journal line fixture')",
-    [orgId,sourceTestCreditMemoJournalId,sourceTestCreditMemoJournalLineAccount[0].id],
+    [orgId,sourceTestCreditMemoJournalId,returnReceivableAccountId],
   );
   async function assertCreditMemoJournalWritesDenied(sourceLabel) {
     const headerBefore = await db.unsafe(
