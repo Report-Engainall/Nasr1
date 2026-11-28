@@ -204,6 +204,7 @@ describe("customer quote workspace tenant boundary", () => {
     if (originalOnlineDescriptor) {
       Object.defineProperty(window.navigator, "onLine", originalOnlineDescriptor);
     }
+    document.body.removeAttribute("data-print-mode");
     if (root) {
       await act(async () => root?.unmount());
       root = undefined;

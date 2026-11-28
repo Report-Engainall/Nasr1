@@ -123,7 +123,7 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
   const stopRequestedRef = useRef(false);
 
   function clearPreviousScope() {
-    clearPreviousScope();
+    setActiveRequest(null);
     setResult(null);
     setTaskRuns([]);
     setError("");

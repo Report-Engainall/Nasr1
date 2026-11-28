@@ -232,3 +232,10 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - The UI calls the existing single-object server contract because the P4 batch orchestrator is currently a shared engine primitive, not an exposed endpoint in `erp-read-sync`. This avoids claiming that the UI invokes a batch API that does not yet exist; the server-side object scope/checkpoint and authorization remain authoritative.
 - Exact-head acceptance is pending the P1/Vitest and browser checks on the resulting PR SHA.
 
+
+
+## P1 correction — integration batch scope cleanup (2026-11-28)
+
+- Corrected the scope-reset helper in the multi-stream ERP panel so provider/company/branch/warehouse/currency edits clear the active request, displayed result and per-stream outcomes without recursive invocation.
+- The customer-workflow test teardown now removes the transient statement print mode even if an assertion aborts before the simulated browser `afterprint` event.
+- Exact-head acceptance is pending for the updated P1 PR SHA; no results transfer from prior heads.
