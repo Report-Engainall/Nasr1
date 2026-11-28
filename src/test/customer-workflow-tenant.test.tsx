@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   fetchSettingsMap: vi.fn(),
   from: vi.fn(),
   rpc: vi.fn(),
+  getSession: vi.fn(),
   signOut: vi.fn(),
   responses: {} as Record<string, unknown[]>,
   queries: [] as Array<{
@@ -55,6 +56,7 @@ vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: mocks.from,
     rpc: mocks.rpc,
+    auth: { getSession: mocks.getSession },
   },
 }));
 
@@ -163,6 +165,7 @@ describe("customer quote workspace tenant boundary", () => {
     Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
     window.localStorage.clear();
     vi.clearAllMocks();
+    mocks.getSession.mockReset();
     mocks.user = null;
     mocks.queries.splice(0);
     mocks.responses = {
@@ -852,6 +855,123 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).not.toContain("INV-DETAIL-UNVERIFIED");
     expect(host?.textContent).not.toContain("سعر الوحدة");
     expect(host?.textContent).not.toContain("25.00");
+  });
+
+  it("cancels a stale invoice PDF preflight when a newer invoice is opened", async () => {
+    const invoiceAId = "5c222222-2222-4222-8222-222222222222";
+    const invoiceBId = "5c333333-3333-4333-8333-333333333333";
+    const orderId = "5c444444-4444-4444-8444-444444444444";
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: "test-access-token" } },
+      error: null,
+    });
+    mocks.responses = {
+      customer_invoices: [
+        {
+          id: invoiceAId, invoice_number: "INV-CONCURRENT-A", order_id: orderId,
+          customer_id: "5c555555-5555-4555-8555-555555555555",
+          status: "issued", issued_at: "2026-11-28T00:00:00Z", due_at: null, currency: "YER",
+        },
+        {
+          id: invoiceBId, invoice_number: "INV-CONCURRENT-B", order_id: orderId,
+          customer_id: "5c555555-5555-4555-8555-555555555555",
+          status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null, currency: "YER",
+        },
+      ],
+      orders: [{
+        quantity_review_required: false, customer_adjustment_note: null,
+        customer_payment_requested_at: null, payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+
+    let sourceReads = 0;
+    let releaseDeferredSource: ((result: { data: unknown; error: null }) => void) | undefined;
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        if (sourceReads === 4) {
+          return await new Promise<{ data: unknown; error: null }>((resolve) => {
+            releaseDeferredSource = resolve;
+          });
+        }
+        return {
+          data: {
+            source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+            last_synced_at: null, verified_at: null, revision: 71,
+            is_stale: false, can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
+      if (name === "get_customer_invoice_pdf") {
+        expect([invoiceAId, invoiceBId]).toContain(args.p_invoice_id);
+        return { data: createCustomerInvoicePdfPayload(args.p_invoice_id ?? ""), error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(sourceReads).toBe(2);
+    const openRowInvoice = async (invoiceNumber: string) => {
+      const button = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((candidate) => candidate.textContent?.includes("عرض / طباعة") &&
+          candidate.closest("tr")?.textContent?.includes(invoiceNumber));
+      expect(button).toBeDefined();
+      await act(async () => {
+        button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+
+    await openRowInvoice("INV-CONCURRENT-A");
+    expect(sourceReads).toBe(3);
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).toContain("INV-CONCURRENT-A");
+
+    const pdfButton = Array.from(host?.querySelectorAll<HTMLButtonElement>('[aria-label="تفاصيل الفاتورة"] button') ?? [])
+      .find((button) => button.textContent?.includes("تنزيل PDF عربي"));
+    expect(pdfButton).toBeDefined();
+    await act(async () => {
+      pdfButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(sourceReads).toBe(4);
+    expect(releaseDeferredSource).toBeDefined();
+    expect(mocks.getSession).not.toHaveBeenCalled();
+
+    const closeButton = Array.from(host?.querySelectorAll<HTMLButtonElement>('[aria-label="تفاصيل الفاتورة"] button') ?? [])
+      .find((button) => button.textContent?.includes("إغلاق"));
+    expect(closeButton).toBeDefined();
+    await act(async () => {
+      closeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')).toBeNull();
+
+    await openRowInvoice("INV-CONCURRENT-B");
+    expect(sourceReads).toBe(5);
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).toContain("INV-CONCURRENT-B");
+
+    await act(async () => {
+      releaseDeferredSource?.({
+        data: {
+          source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+          last_synced_at: null, verified_at: null, revision: 71,
+          is_stale: false, can_read_app_ledger: true,
+        },
+        error: null,
+      });
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.getSession).not.toHaveBeenCalled();
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).toContain("INV-CONCURRENT-B");
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).not.toContain("INV-CONCURRENT-A");
   });
 
   it.each(["تنزيل PDF عربي", "تنزيل Excel"])(
