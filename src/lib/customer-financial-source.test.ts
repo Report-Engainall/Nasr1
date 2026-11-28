@@ -337,6 +337,33 @@ describe("customer financial source-change history", () => {
       reconciliation_currency_codes: ["YER", "USD"],
     });
   });
+  it("accepts a pending request whose reconciliation evidence has not been recorded yet", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        records: [{
+          ...record,
+          status: "pending_reconciliation",
+          review_reason: null,
+          reviewed_at: null,
+          reconciliation_result: null,
+          reconciliation_source_as_of: null,
+          reconciliation_currency_codes: null,
+          reconciliation_record_counts: null,
+        }],
+        total: 1,
+        limit: 10,
+      },
+      error: null,
+    });
+    const history = await fetchCustomerFinancialSourceChangeHistory(customerId);
+    expect(history.records[0]).toMatchObject({
+      status: "pending_reconciliation",
+      reconciliation_result: null,
+      reconciliation_currency_codes: [],
+      reconciliation_record_counts: {},
+      reviewed_at: null,
+    });
+  });
   it("drops unexpected raw ERP reference fields from the allowlisted DTO", async () => {
     mocks.rpc.mockResolvedValue({
       data: { records: [{ ...record, target_external_account_ref: "ERP-ACCOUNT-RAW" }], total: 1, limit: 10 },

@@ -175,14 +175,17 @@ function parseSourceChangeHistory(value: unknown): CustomerFinancialSourceChange
     if (!requestedAt) throw new Error("سجل تغيير مصدر الحساب يفتقد وقت الطلب.");
     const reviewedAt = parseTimestamp(item.reviewed_at, "reviewed_at");
     const reconciliationAsOf = parseTimestamp(item.reconciliation_source_as_of, "reconciliation_source_as_of");
+    const currencyCodes = item.reconciliation_currency_codes === null ? [] : item.reconciliation_currency_codes;
     if (!(item.reconciliation_result === null || item.reconciliation_result === "matched" || item.reconciliation_result === "mismatch") ||
-        !Array.isArray(item.reconciliation_currency_codes) ||
-        item.reconciliation_currency_codes.length > 10 ||
-        item.reconciliation_currency_codes.some(code => typeof code !== "string" || !/^[A-Z]{3}$/.test(code)) ||
-        new Set(item.reconciliation_currency_codes).size !== item.reconciliation_currency_codes.length) {
+        !Array.isArray(currencyCodes) ||
+        currencyCodes.length > 10 ||
+        currencyCodes.some(code => typeof code !== "string" || !/^[A-Z]{3}$/.test(code)) ||
+        new Set(currencyCodes).size !== currencyCodes.length) {
       throw new Error("بيانات المطابقة في سجل مصدر الحساب غير صالحة.");
     }
-    const counts = asRecord(item.reconciliation_record_counts);
+    const counts = item.reconciliation_record_counts === null
+      ? {}
+      : asRecord(item.reconciliation_record_counts);
     if (!counts || Object.values(counts).some(count =>
       typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)) {
       throw new Error("عدادات المطابقة في سجل مصدر الحساب غير صالحة.");
@@ -199,7 +202,7 @@ function parseSourceChangeHistory(value: unknown): CustomerFinancialSourceChange
       reviewed_at: reviewedAt,
       reconciliation_result: item.reconciliation_result as "matched" | "mismatch" | null,
       reconciliation_source_as_of: reconciliationAsOf,
-      reconciliation_currency_codes: [...item.reconciliation_currency_codes] as string[],
+      reconciliation_currency_codes: [...currencyCodes] as string[],
       reconciliation_record_counts: counts as Record<string, number>,
     };
   });
