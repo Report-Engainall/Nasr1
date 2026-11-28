@@ -615,6 +615,23 @@ function Invoices() {
   const invoiceReadSequenceRef = useRef(0);
   const invoiceDetailSequenceRef = useRef(0);
   chosenInvoiceIdRef.current = chosen?.id ?? null;
+  const clearInvoiceProjection = () => {
+    invoiceDetailSequenceRef.current += 1;
+    setRows([]);
+    setHasMoreInvoices(false);
+    setChosen(null);
+    setItems([]);
+    setChosenCustomer(null);
+    setChosenFinancials(null);
+    setFinancialDetailsVisible(false);
+    setInvoiceOrder(null);
+    setDetailBusy(false);
+    setPdfBusyId(null);
+    setPrintBusy(false);
+    setPdfError("");
+    setXlsxError("");
+    setPrintError("");
+  };
   const [olderInvoicesError, setOlderInvoicesError] = useState("");
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingOlderInvoices, setLoadingOlderInvoices] = useState(false);
@@ -638,6 +655,15 @@ function Invoices() {
     setHasMoreInvoices(false);
     setChosen(null);
     setItems([]);
+    setChosenCustomer(null);
+    setChosenFinancials(null);
+    setFinancialDetailsVisible(false);
+    setInvoiceOrder(null);
+    setPdfBusyId(null);
+    setPdfError("");
+    setXlsxError("");
+    setPrintBusy(false);
+    setPrintError("");
     try {
       let source: CustomerFinancialSource;
       try {
@@ -743,6 +769,10 @@ function Invoices() {
     const sourceSnapshot = financialSource;
     if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
     const detailRequestId = ++invoiceDetailSequenceRef.current;
+    setPdfBusyId(null);
+    setPdfError("");
+    setXlsxError("");
+    setPrintBusy(false);
     setPrintError("");
     setChosen(i);
     setDetailBusy(true);
@@ -891,24 +921,35 @@ function Invoices() {
     setDetailBusy(false);
   }
   async function downloadInvoicePdf(invoiceId: string) {
+    const detailRequestId = invoiceDetailSequenceRef.current;
+    const isCurrentRequest = () =>
+      detailRequestId === invoiceDetailSequenceRef.current &&
+      chosenInvoiceIdRef.current === invoiceId;
     setPdfBusyId(invoiceId);
     setPdfError("");
     const sourceSnapshot = financialSource;
     try {
-      if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) throw new Error("مصدر الحساب لا يسمح بتنزيل مستندات دفتر التطبيق.");
+      if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) {
+        throw new Error("مصدر الحساب لا يسمح بتنزيل مستندات دفتر التطبيق.");
+      }
       let sourceBefore: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
       try { sourceBefore = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
-      catch (cause) {
+      catch {
+        if (!isCurrentRequest()) return;
         setFinancialSource(null);
         setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تنزيل الفاتورة؛ أوقفنا إخراج المستند.");
-        throw cause;
+        clearInvoiceProjection();
+        return;
       }
+      if (!isCurrentRequest()) return;
       if (!sourceBefore.unchanged) {
         setFinancialSource(sourceBefore.source);
         setFinancialSourceError("تغير مصدر الحساب المالي؛ أوقفنا تنزيل الفاتورة من الدفتر السابق.");
-        throw new Error("تغير مصدر الحساب المالي؛ حدّث الفواتير قبل إعادة التنزيل.");
+        clearInvoiceProjection();
+        return;
       }
       const sessionResult = await supabase.auth.getSession();
+      if (!isCurrentRequest()) return;
       const accessToken = sessionResult.data.session?.access_token;
       if (sessionResult.error || !accessToken) {
         throw new Error("سجّل الدخول مجددًا لتنزيل الفاتورة.");
@@ -922,6 +963,7 @@ function Invoices() {
         },
         cache: "no-store",
       });
+      if (!isCurrentRequest()) return;
       if (!response.ok) {
         let message = "تعذر إنشاء ملف PDF للفاتورة.";
         try {
@@ -937,18 +979,25 @@ function Invoices() {
         throw new Error("استجابة المستند غير صحيحة؛ لم يتم تنزيل الملف.");
       }
       const blob = await response.blob();
-      if (blob.size < 500) throw new Error("ملف PDF فارغ أو غير صالح.");
+      if (!isCurrentRequest()) return;
+      if (blob.size < 500 || (blob.type && !blob.type.toLowerCase().includes("application/pdf"))) {
+        throw new Error("ملف PDF فارغ أو غير صالح.");
+      }
       let sourceAfter: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
       try { sourceAfter = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
-      catch (cause) {
+      catch {
+        if (!isCurrentRequest()) return;
         setFinancialSource(null);
         setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد تجهيز الفاتورة؛ أوقفنا التنزيل.");
-        throw cause;
+        clearInvoiceProjection();
+        return;
       }
+      if (!isCurrentRequest()) return;
       if (!sourceAfter.unchanged) {
         setFinancialSource(sourceAfter.source);
         setFinancialSourceError("تغير مصدر الحساب أثناء إنشاء ملف الفاتورة؛ ألغينا تنزيل النسخة القديمة.");
-        throw new Error("تغير مصدر الحساب أثناء إعداد الفاتورة؛ لم يتم تنزيل الملف.");
+        clearInvoiceProjection();
+        return;
       }
 
       const objectUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
@@ -961,63 +1010,79 @@ function Invoices() {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
     } catch (cause) {
-      setPdfError(cause instanceof Error ? cause.message : "تعذر تنزيل الفاتورة.");
+      if (isCurrentRequest()) setPdfError(cause instanceof Error ? cause.message : "تعذر تنزيل الفاتورة.");
     } finally {
-      setPdfBusyId(null);
+      if (isCurrentRequest()) setPdfBusyId(null);
     }
   }
   async function downloadInvoiceXlsx() {
-    setXlsxError("");
+    const invoice = chosen;
+    const requestId = invoiceDetailSequenceRef.current;
+    const isCurrentRequest = () =>
+      requestId === invoiceDetailSequenceRef.current &&
+      invoice !== null &&
+      chosenInvoiceIdRef.current === invoice.id;
     const sourceSnapshot = financialSource;
+    const itemSnapshot = items;
+    const customerSnapshot = chosenCustomer;
+    const financialSnapshot = chosenFinancials;
+    const showFinancialDetails = financialDetailsVisible;
+    setXlsxError("");
     try {
-      if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) throw new Error("مصدر الحساب لا يسمح بتصدير فواتير دفتر التطبيق.");
-      if (!chosen || detailBusy || items.length === 0) {
+      if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) {
+        throw new Error("مصدر الحساب لا يسمح بتصدير فواتير دفتر التطبيق.");
+      }
+      if (!invoice || detailBusy || itemSnapshot.length === 0) {
         throw new Error("حمّل تفاصيل الفاتورة أولًا قبل إنشاء ملف Excel.");
       }
       let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
       try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
-      catch (cause) {
+      catch {
+        if (!isCurrentRequest()) return;
         setFinancialSource(null);
         setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تصدير الفاتورة؛ أوقفنا التصدير.");
-        throw cause;
+        clearInvoiceProjection();
+        return;
       }
+      if (!isCurrentRequest()) return;
       if (!sourceCheck.unchanged) {
         setFinancialSource(sourceCheck.source);
         setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا تصدير تفاصيل الفاتورة القديمة.");
-        throw new Error("تغير مصدر الحساب؛ حدّث تفاصيل الفاتورة ثم أعد التصدير.");
+        clearInvoiceProjection();
+        return;
       }
       downloadCustomerInvoiceWorkbookXlsx({
-        invoiceNumber: chosen.invoice_number,
-        status: chosen.status,
-        issuedAt: chosen.issued_at,
-        dueAt: chosen.due_at,
-        currency: chosen.currency,
+        invoiceNumber: invoice.invoice_number,
+        status: invoice.status,
+        issuedAt: invoice.issued_at,
+        dueAt: invoice.due_at,
+        currency: invoice.currency,
         customer: {
-          code: chosenCustomer?.customer_code ?? "",
-          businessName: chosenCustomer?.business_name ?? "",
-          contactName: chosenCustomer?.contact_name ?? null,
-          tierLabel: chosenCustomer?.tier_label ?? null,
+          code: customerSnapshot?.customer_code ?? "",
+          businessName: customerSnapshot?.business_name ?? "",
+          contactName: customerSnapshot?.contact_name ?? null,
+          tierLabel: customerSnapshot?.tier_label ?? null,
         },
-        items: items.map((line) => ({
+        items: itemSnapshot.map((line) => ({
           itemCode: line.item_code ?? null,
           description: line.description,
           unit: line.unit ?? null,
           quantity: line.quantity,
-          ...(financialDetailsVisible && line.unit_price !== undefined && line.line_total !== undefined
+          ...(showFinancialDetails && line.unit_price !== undefined && line.line_total !== undefined
             ? { unitPrice: line.unit_price, lineTotal: line.line_total }
             : {}),
         })),
-        financialDetailsVisible,
-        financials: chosenFinancials
+        financialDetailsVisible: showFinancialDetails,
+        financials: financialSnapshot
           ? {
-              subtotal: chosenFinancials.subtotal,
-              taxAmount: chosenFinancials.tax_amount,
-              totalAmount: chosenFinancials.total_amount,
+              subtotal: financialSnapshot.subtotal,
+              taxAmount: financialSnapshot.tax_amount,
+              totalAmount: financialSnapshot.total_amount,
             }
           : null,
       });
     } catch (cause) {
-      setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel للفاتورة.");
+      if (isCurrentRequest()) setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel للفاتورة.");
     }
   }
 
@@ -1188,7 +1253,7 @@ function Invoices() {
             className="no-print"
             style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
           >
-            <button style={secondary} onClick={() => { invoiceDetailSequenceRef.current += 1; setChosen(null); setItems([]); setPrintError(""); }}>
+            <button style={secondary} onClick={() => { invoiceDetailSequenceRef.current += 1; setChosen(null); setItems([]); setChosenCustomer(null); setChosenFinancials(null); setFinancialDetailsVisible(false); setInvoiceOrder(null); setPdfBusyId(null); setPrintBusy(false); setPrintError(""); }}>
               إغلاق
             </button>
             <button
