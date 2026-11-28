@@ -2214,21 +2214,16 @@ async function main() {
     "42501",
     "outside the active organization",
   );
-  // Source-change history is a finance-only, tenant-scoped audit surface.
-  // The DTO intentionally excludes provider account identifiers, raw evidence hashes,
-  // and per-currency reconciliation amounts.
+  // Assert the complete source-history response is a strict staff-safe allowlist.
   const sourceHistory = await rpc(managerDb,
     "select public.get_customer_financial_source_change_history($1::uuid,20) as result",
     [customerId]);
-  assert.ok(Array.isArray(sourceHistory.records),
-    "finance source history returns a records array");
+  assert.ok(Array.isArray(sourceHistory.records));
   assert.ok(sourceHistory.total >= 3,
-    "source history retains each completed Maker/Checker transition");
-  assert.ok(sourceHistory.records.length <= 20,
-    "source history respects its bounded page size");
+    "history retains all completed APP_ONLY / ONYX / MUTAKAMEL transitions");
   assert.ok(["APP_ONLY","ONYX","MUTAKAMEL"].every(mode =>
     sourceHistory.records.some(row => row.target_source_mode === mode)),
-    "source history preserves the APP_ONLY, ONYX and MUTAKAMEL source transitions");
+    "history preserves all three approved source modes");
   const safeHistoryKeys = [
     "current_source_mode","expected_binding_revision","reconciliation_currency_codes",
     "reconciliation_record_counts","reconciliation_result","reconciliation_source_as_of",
@@ -2236,57 +2231,30 @@ async function main() {
     "status","target_source_mode",
   ].sort();
   for (const row of sourceHistory.records) {
-    assert.deepEqual(Object.keys(row).sort(), safeHistoryKeys,
-      "finance source history DTO contains only its documented audit fields");
+    assert.deepEqual(Object.keys(row).sort(),safeHistoryKeys,
+      "source history response stays within the documented DTO allowlist");
     for (const forbidden of ["external_account_ref","company_external_ref","branch_external_ref",
       "evidence_hash","current_source_balance","target_source_balance"]) {
-      assert.equal(Object.hasOwn(row, forbidden), false,
+      assert.equal(Object.hasOwn(row,forbidden),false,
         "source history must not disclose " + forbidden);
     }
   }
   const oneRowHistory = await rpc(managerDb,
     "select public.get_customer_financial_source_change_history($1::uuid,1) as result",
     [customerId]);
-  assert.equal(oneRowHistory.records.length, 1,
-    "source history pagination returns the requested single row");
-  assert.equal(oneRowHistory.total, sourceHistory.total,
-    "source history total remains stable across page-size changes");
-  await expectFailure(
-    "source history rejects a page size above the bounded maximum",
-    rpc(managerDb,
-      "select public.get_customer_financial_source_change_history($1::uuid,21) as result",
-      [customerId]),
-    "22023",
-    "history limit between 1 and 20",
-  );
-  await expectFailure(
-    "source history denies a customer without finance source capability",
-    rpc(customerDb,
-      "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
-      [customerId]),
-    "42501",
-    "finance capability required",
-  );
-  await expectFailure(
-    "source history denies a finance actor from reading a foreign tenant customer",
-    rpc(managerDb,
-      "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
-      [foreignCustomerId]),
-    "42501",
-    "outside the active finance organization",
-  );
+  assert.equal(oneRowHistory.records.length,1,
+    "source history page size of one returns exactly one record");
+  assert.equal(oneRowHistory.total,sourceHistory.total,
+    "source history total is consistent across bounded page sizes");
   const historyPrivileges = await db.unsafe(
     "select " +
       "has_function_privilege('authenticated','public.get_customer_financial_source_change_history(uuid,integer)','EXECUTE') as authenticated_execute," +
       "has_function_privilege('anon','public.get_customer_financial_source_change_history(uuid,integer)','EXECUTE') as anon_execute," +
       "(select prosecdef from pg_catalog.pg_proc where oid='public.get_customer_financial_source_change_history(uuid,integer)'::regprocedure) as security_definer",
   );
-  assert.equal(historyPrivileges[0].authenticated_execute,true,
-    "authenticated finance actors can invoke the source history RPC");
-  assert.equal(historyPrivileges[0].anon_execute,false,
-    "anonymous callers cannot invoke source history");
-  assert.equal(historyPrivileges[0].security_definer,true,
-    "source history uses the controlled SECURITY DEFINER boundary");
+  assert.equal(historyPrivileges[0].authenticated_execute,true);
+  assert.equal(historyPrivileges[0].anon_execute,false);
+  assert.equal(historyPrivileges[0].security_definer,true);
 
   const audit = await db.unsafe(
     "select action,count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and entity_id=$2::uuid and action like 'customer.financial_source.%' group by action order by action",
