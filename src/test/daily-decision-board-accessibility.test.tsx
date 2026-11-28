@@ -79,7 +79,12 @@ describe("daily decision board accessibility and responsive structure", () => {
     const { container } = render(<DailyDecisionBoard result={result} />);
     const reason = screen.getByRole("textbox", { name: "سبب الإجراء وسجل القرار" });
     const action = screen.getByRole("button", { name: "إرسال للمراجعة" });
-    const focusable = Array.from(container.querySelectorAll<HTMLElement>("textarea, button"));
+    const lifecycle = container.querySelector<HTMLElement>('[aria-label="دورة اعتماد القرار وتنفيذه"]');
+
+    expect(lifecycle).not.toBeNull();
+    // The board also has searchable filters and workload shortcut buttons.
+    // Assert the action order inside its own lifecycle region, not across the whole board.
+    const focusable = Array.from(lifecycle!.querySelectorAll<HTMLElement>("textarea, button"));
 
     expect(focusable).toEqual([reason, action]);
     expect(reason.tabIndex).toBe(0);
@@ -115,6 +120,8 @@ describe("daily decision board accessibility and responsive structure", () => {
     expect(progress.className).toContain("lg:grid-cols-7");
     expect(screen.getAllByRole("status")[0]).toHaveTextContent("تغطية جزئية");
     expect(screen.getByText("غير محفوظة في السجل التاريخي")).toBeInTheDocument();
-    expect(screen.getByText(/لا تشمل هذه اللوحة كامل تاريخ القرارات/)).toBeInTheDocument();
+    expect(screen.getByText(
+      /لا تشمل هذه اللوحة كامل تاريخ القرارات|لا تعني النتيجة الخالية عدم وجود قرارات أخرى ضمن التاريخ الكامل/,
+    )).toBeInTheDocument();
   });
 });
