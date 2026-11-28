@@ -3,17 +3,14 @@ import { useAuth } from "@/lib/auth";
 import {
   buildCustomerRetentionDecisionCandidates,
   type CustomerRetentionAction,
+  type CustomerRetentionActionKind,
+  type CustomerRetentionActionPriority,
   type CustomerRetentionActionQueue,
 } from "@/lib/intelligence/customer-retention";
 import {
   createDecisionOutcomeProposal,
   type DecisionCandidateSnapshot,
 } from "@/lib/intelligence/decision-outcome-client";
-import type {
-  CustomerRetentionActionKind,
-  CustomerRetentionActionPriority,
-  CustomerRetentionActionQueue,
-} from "@/lib/intelligence/customer-retention";
 
 const priorityLabels = {
   HIGH: "أولوية مرتفعة",
