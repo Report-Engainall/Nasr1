@@ -124,6 +124,12 @@ CREATE UNIQUE INDEX customer_financial_source_one_pending_change
   ON public.customer_financial_source_change_requests(organization_id,customer_id)
   WHERE status IN ('pending_reconciliation','pending_approval');
 
+-- Keep the bounded source-change history tenant/customer scoped and already ordered.
+-- A partial pending-only index cannot serve the full audit timeline.
+CREATE INDEX customer_financial_source_change_history_page_idx
+  ON public.customer_financial_source_change_requests
+    (organization_id,customer_id,requested_at DESC,id DESC);
+
 CREATE TABLE public.customer_financial_source_reconciliation_evidence (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
