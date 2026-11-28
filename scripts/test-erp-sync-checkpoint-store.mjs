@@ -272,6 +272,16 @@ async function main() {
     [false,false,true,false,false,true,false,false,true,false,false,true,false,false,true,false,false,false],
     "ERP checkpoint RPC ACLs must grant EXECUTE only to service_role",
   );
+  const stagedPreviewDefinition = await db.unsafe(
+    "select pg_catalog.pg_get_functiondef(" +
+      "'public.list_erp_sync_staged_records(uuid,text,text,text,text,text,text,text,integer,integer)'::regprocedure) as definition",
+  );
+  assert.equal(stagedPreviewDefinition.length, 1);
+  const committedVersionOrderMatches = stagedPreviewDefinition[0].definition.match(/receipt\\.committed_version\\s+DESC/gi) ?? [];
+  assert.equal(committedVersionOrderMatches.length, 2,
+    "both ERP preview count and page selectors order latest dispositions by committed page receipt version");
+  assert.equal((stagedPreviewDefinition[0].definition.match(/JOIN public\\.erp_sync_page_receipts receipt/gi) ?? []).length, 2,
+    "both ERP preview selectors join the exact page receipt for committed-version ordering");
   const initialized = await loadCheckpoint(baseScope);
   assert.equal(initialized.version, 0);
   assert.equal(initialized.cursor_ciphertext, null);

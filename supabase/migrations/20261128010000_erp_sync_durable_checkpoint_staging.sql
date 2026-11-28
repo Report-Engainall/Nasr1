@@ -710,8 +710,14 @@ BEGIN
    SELECT DISTINCT ON (outcome.external_id)
           outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
      FROM public.erp_sync_page_record_outcomes outcome
+     JOIN public.erp_sync_page_receipts receipt
+       ON receipt.organization_id=outcome.organization_id
+      AND receipt.scope_key=outcome.scope_key
+      AND receipt.page_fingerprint=outcome.page_fingerprint
     WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
-    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+    ORDER BY outcome.external_id,receipt.committed_version DESC,
+             receipt.recorded_at DESC,outcome.recorded_at DESC,
+             outcome.page_fingerprint DESC
  ),
  preview_rows AS MATERIALIZED (
    SELECT staged.external_id,
@@ -739,8 +745,14 @@ BEGIN
    SELECT DISTINCT ON (outcome.external_id)
           outcome.external_id,outcome.source_updated_at,outcome.fields,outcome.disposition,outcome.disposition_reason
      FROM public.erp_sync_page_record_outcomes outcome
+     JOIN public.erp_sync_page_receipts receipt
+       ON receipt.organization_id=outcome.organization_id
+      AND receipt.scope_key=outcome.scope_key
+      AND receipt.page_fingerprint=outcome.page_fingerprint
     WHERE outcome.organization_id=p_organization_id AND outcome.scope_key=p_scope_key
-    ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+    ORDER BY outcome.external_id,receipt.committed_version DESC,
+             receipt.recorded_at DESC,outcome.recorded_at DESC,
+             outcome.page_fingerprint DESC
  ),
  preview_rows AS MATERIALIZED (
    SELECT staged.external_id,

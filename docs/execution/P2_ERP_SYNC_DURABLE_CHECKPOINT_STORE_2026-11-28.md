@@ -61,3 +61,12 @@ The P2 PostgreSQL 17 suite is required on the exact resulting commit SHA. Queued
 - This complements P2's customer statement currency guard: P4 rejects bad currency at ingestion, and P2 independently rechecks accepted outcomes before presenting a customer ledger.
 - Changed paths: `supabase/migrations/20261128010000_erp_sync_durable_checkpoint_staging.sql`, `scripts/test-erp-sync-checkpoint-store.mjs`, this checkpoint. No ERP endpoint, live customer account, finance journal, inventory row, production database, secret or deployment was used.
 - New exact-head P1/P2 and dedicated PG17 acceptance is required; earlier CI results are not transferable.
+
+
+## 2026-11-28 — ERP staged preview outcomes ordered by committed page version
+
+- Updated both `latest_outcomes` selectors in `list_erp_sync_staged_records()` to join the exact page receipt and order record dispositions by `receipt.committed_version DESC` before timestamp/fingerprint tie-breakers.
+- This keeps the count query and record-page query on the same deterministic committed-page order; rejected/conflicted corrections cannot be shadowed by an older outcome merely because timestamps tie or opaque fingerprints sort differently.
+- PostgreSQL 17 acceptance now inspects the installed SECURITY DEFINER preview definition and requires both selectors to join `erp_sync_page_receipts` and order by committed version. Existing created/updated/rejected/conflicted preview assertions exercise the live reader after staged persistence.
+- Exact-head PostgreSQL 17 and P1/P2 CI are still required; no PASS or production deployment is claimed.
+- No operational product, stock, invoice, payment or journal data is mutated by this reader correction.
