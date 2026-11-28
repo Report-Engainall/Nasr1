@@ -268,6 +268,17 @@ function decisionDue(record: DecisionMemoryRecord, now: number): string {
   return Date.parse(record.reviewAt) < now ? "متأخر: " + time : time;
 }
 
+export function splitDailyDecisionTimelineEvents(
+  events: DecisionMemoryRecord["events"],
+  recentLimit = 8,
+): { earlier: DecisionMemoryRecord["events"]; recent: DecisionMemoryRecord["events"] } {
+  const safeLimit = Number.isSafeInteger(recentLimit) && recentLimit > 0 && recentLimit <= 50 ? recentLimit : 8;
+  return {
+    earlier: events.slice(0, Math.max(0, events.length - safeLimit)),
+    recent: events.slice(-safeLimit),
+  };
+}
+
 function DecisionProgress({ state }: { state: DecisionMemoryRecord["state"] }) {
   const terminal = state === "REJECTED";
   // Deferral is resumable through RESUBMIT_FOR_REVIEW; retain the review step as reached.
@@ -318,6 +329,7 @@ function DecisionCard({
   const facts = record.facts.filter(item => item.text.trim());
   const hypotheses = record.hypotheses.filter(item => item.text.trim());
   const candidate = record.candidateSnapshot;
+  const timeline = splitDailyDecisionTimelineEvents(record.events);
 
   return (
     <article className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby={"daily-decision-" + record.decisionId}>
@@ -463,14 +475,29 @@ function DecisionCard({
       </section>
 
       {record.events.length ? (
-        <section className="space-y-1 rounded-lg border p-3">
-          <h4 className="text-sm font-semibold">سجل الانتقالات</h4>
-          {record.events.slice(-8).map(event => (
-            <p key={event.id} className="text-xs text-muted-foreground">
-              {event.type} · {event.actorRole} · {new Date(event.at).toLocaleString("ar-YE")}
-              {event.reason ? " · " + event.reason : ""}
-            </p>
-          ))}
+        <section className="space-y-2 rounded-lg border p-3">
+          <h4 className="text-sm font-semibold">سجل الانتقالات الكامل ({record.events.length} حدث)</h4>
+          {timeline.earlier.length ? (
+            <details className="rounded-md border p-2">
+              <summary className="cursor-pointer text-xs font-medium">عرض {timeline.earlier.length} حدث أقدم</summary>
+              <div className="mt-2 space-y-2">
+                {timeline.earlier.map(event => (
+                  <p key={event.id} className="text-xs text-muted-foreground">
+                    {event.type} · الإصدار {event.version} · {event.actorRole} · {new Date(event.at).toLocaleString("ar-YE")}
+                    {event.reason ? " · " + event.reason : ""}
+                  </p>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          <div className="space-y-2">
+            {timeline.recent.map(event => (
+              <p key={event.id} className="text-xs text-muted-foreground">
+                {event.type} · الإصدار {event.version} · {event.actorRole} · {new Date(event.at).toLocaleString("ar-YE")}
+                {event.reason ? " · " + event.reason : ""}
+              </p>
+            ))}
+          </div>
         </section>
       ) : null}
 
