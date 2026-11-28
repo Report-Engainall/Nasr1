@@ -136,6 +136,7 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
 
 export interface DailyDecisionBoardSelection {
   records: DecisionMemoryRecord[];
+  matchingRecords: DecisionMemoryRecord[];
   matchedCount: number;
   omittedCount: number;
 }
@@ -151,9 +152,112 @@ export function selectDailyDecisionBoardRows(
     .sort((left, right) => compareOrder(left, right, now));
   return {
     records: matching.slice(0, safeLimit),
+    matchingRecords: matching,
     matchedCount: matching.length,
     omittedCount: Math.max(0, matching.length - safeLimit),
   };
+}
+
+function dailyDecisionCsvCell(value: string | number | null | undefined): string {
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+  const text = String(value ?? "").replace(/\r\n?/g, "\n");
+  const protectedText = /^[\s\u0000-\u001F]*[=+\-@]/.test(text) ? "'" + text : text;
+  return "\"" + protectedText.replace(/"/g, '""') + "\"";
+}
+
+function dailyDecisionMetricContext(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.metricKey,
+    metric.unit,
+    metric.currency ?? "عملة غير محددة",
+    metric.unitOfMeasure ?? "وحدة صنف غير محددة",
+    metric.period.from + " — " + metric.period.to,
+    metric.formulaId + "@" + metric.formulaVersion,
+  ].join(" | ");
+}
+
+/** Exports every filtered, loaded decision rather than only the ten visible cards. */
+export function buildDailyDecisionBoardCsv(input: {
+  records: DecisionMemoryRecord[];
+  loadedCount: number;
+  totalCount: number;
+}): string {
+  if (!input || !Array.isArray(input.records) ||
+      ![input.loadedCount, input.totalCount].every(value => Number.isSafeInteger(value) && value >= 0) ||
+      input.loadedCount > input.totalCount || input.records.length > input.loadedCount) {
+    throw new Error("daily_decision_export_invalid");
+  }
+  const coverageNotice = input.loadedCount === input.totalCount
+    ? "الملف يشمل النتائج المطابقة من السجلات المحمّلة؛ لا يعني ذلك اكتمال أدلة كل قرار."
+    : "نطاق جزئي: " + input.loadedCount + " من " + input.totalCount +
+      " قراراً محمّلاً؛ قد توجد نتائج مطابقة خارج النطاق.";
+  const headers = [
+    "decision_id", "candidate_ref", "rule_id", "rule_version", "state", "version",
+    "priority", "priority_score", "proposed_result", "decision_reason", "problem",
+    "owner", "review_disposition", "review_at", "action_taken", "expected_outcome",
+    "risk", "next_action", "created_at", "updated_at",
+    "comparison_status", "expected_metric_context", "expected_metric_value",
+    "expected_evidence_ids", "actual_metric_context", "actual_metric_value",
+    "actual_evidence_ids", "difference", "difference_percent",
+    "facts", "fact_evidence_ids", "hypotheses", "hypothesis_evidence_ids",
+    "lessons", "corrections_count", "event_count", "event_history",
+    "candidate_evidence_ids", "metric_keys", "formula_versions",
+    "memory_status", "warnings", "coverage_notice",
+  ];
+  const rows = input.records.map(record => {
+    const candidate = record.candidateSnapshot;
+    const expected = record.metricComparison.expected;
+    const actual = record.metricComparison.actual;
+    return [
+      record.decisionId,
+      record.candidateRef,
+      record.ruleId,
+      record.ruleVersion,
+      record.state,
+      record.version,
+      candidate?.priority ?? null,
+      candidate?.priorityScore ?? null,
+      record.proposedResult,
+      record.decisionReason,
+      record.problem,
+      record.owner,
+      record.reviewDisposition,
+      record.reviewAt,
+      record.actionTaken,
+      candidate?.expectedOutcome ?? null,
+      candidate?.risk ?? null,
+      candidate?.whatNext ?? null,
+      record.createdAt,
+      record.updatedAt,
+      record.metricComparison.status,
+      dailyDecisionMetricContext(expected),
+      expected?.value ?? null,
+      expected?.evidenceIds.join(";") ?? null,
+      dailyDecisionMetricContext(actual),
+      actual?.value ?? null,
+      actual?.evidenceIds.join(";") ?? null,
+      record.metricComparison.difference,
+      record.metricComparison.differencePercent,
+      record.facts.map(item => item.text).join("; "),
+      record.facts.flatMap(item => item.evidenceIds).join(";"),
+      record.hypotheses.map(item => item.text).join("; "),
+      record.hypotheses.flatMap(item => item.evidenceIds).join(";"),
+      record.lessons.join("; "),
+      record.corrections.length,
+      record.eventCount,
+      record.events.map(event => [
+        event.version, event.type, event.at, event.actorRole, event.reason ?? "",
+      ].join(" | ")).join("; "),
+      candidate?.proof.evidenceIds.join(";") ?? null,
+      candidate?.proof.metricKeys.join(";") ?? null,
+      candidate?.proof.formulaVersions.join(";") ?? null,
+      record.memoryStatus,
+      record.warnings.join(";"),
+      coverageNotice,
+    ].map(dailyDecisionCsvCell).join(",");
+  });
+  return "\uFEFF" + [headers.map(dailyDecisionCsvCell).join(","), ...rows].join("\r\n");
 }
 
 function decisionDue(record: DecisionMemoryRecord, now: number): string {
@@ -400,6 +504,20 @@ export function DailyDecisionBoard({
   const records = selection.records;
   const omittedCount = selection.omittedCount;
   const hasFilters = Boolean(searchText) || stateFilter !== "ALL" || priorityFilter !== "ALL" || dueFilter !== "ALL";
+  function exportFilteredDecisions() {
+    if (!selection.matchingRecords.length) return;
+    const csv = buildDailyDecisionBoardCsv({
+      records: selection.matchingRecords,
+      loadedCount: result.loadedCount,
+      totalCount: result.totalCount,
+    });
+    const url = window.URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "nasr1-daily-decisions-" + new Date().toISOString().slice(0, 10) + ".csv";
+    anchor.click();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+  }
   return (
     <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -489,6 +607,11 @@ export function DailyDecisionBoard({
               disabled={!hasFilters}
               onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); }}>
               مسح البحث والتصفية
+            </button>
+            <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
+              disabled={selection.matchedCount === 0}
+              onClick={exportFilteredDecisions}>
+              تصدير جميع النتائج المطابقة CSV ({selection.matchedCount})
             </button>
           </div>
         </section>
