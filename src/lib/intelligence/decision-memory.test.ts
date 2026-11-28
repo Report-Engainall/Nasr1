@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDecisionMemoryBook,
+  buildDecisionMemoryPrecedentCsv,
   buildDecisionPolicyReviewSuggestions,
   filterDecisionMemoryPrecedents,
   searchSimilarDecisionMemory,
@@ -600,6 +601,38 @@ describe("decision memory evidence engine", () => {
     expect(filterDecisionMemoryPrecedents(mixed, "SAME_RULE")).toHaveLength(4);
     expect(filterDecisionMemoryPrecedents(mixed, "ALL")).toHaveLength(4);
     expect(mixed).toHaveLength(4);
+  });
+
+  it("exports filtered decision precedents with evidence, safe text, numeric values and coverage limits", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    const target = records.find(record => record.decisionId === "target-decision");
+    if (!older || !target) throw new Error("precedent export fixtures missing");
+    older.ruleId = '=HYPERLINK("https://example.invalid")';
+    older.proposedResult = target.proposedResult;
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+    const csv = buildDecisionMemoryPrecedentCsv({
+      matches,
+      reference: target,
+      loadedCount: 2,
+      totalCount: 7,
+    });
+
+    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain(",80,");
+    expect(csv).toContain("older-expected");
+    expect(csv).toContain("نطاق جزئي: 2 من 7 قراراً محمّلاً");
+    expect(() => buildDecisionMemoryPrecedentCsv({
+      matches,
+      reference: target,
+      loadedCount: 8,
+      totalCount: 7,
+    })).toThrow("decision_memory_precedent_export_invalid");
   });
 
   it("searches only earlier decisions and rejects unbounded search inputs", () => {
