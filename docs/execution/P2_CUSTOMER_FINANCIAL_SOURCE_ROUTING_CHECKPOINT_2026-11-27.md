@@ -390,3 +390,15 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - Recorded timestamps and opaque page fingerprints are not a reliable accepted-page ordering contract; the monotonic committed version now decides which correction supersedes an earlier outcome.
 - PostgreSQL 17 regression gives stale v2 and corrected v3 outcomes the same receipt/outcome timestamp, then deliberately makes the old page fingerprint lexicographically larger. The authenticated statement must return the v3 correction and never surface the stale rejected row.
 - The installed reader definition is inspected for `receipt.committed_version DESC`. Exact-head PG17 acceptance remains required; no PASS or production migration is claimed.
+
+## 2026-11-28 — ERP customer statement payload bounds and calendar validation
+
+- PR #697 exact code head: `f4664096688acdd45eee1fc027bcfeb20af6fb54`; base remains `12b0db37a97128a19073f907ba12fb700251802b`.
+- The staged statement reader now rejects a customer-visible `description` longer than 500 characters and a `source_document_number` longer than 160 characters. Optional values remain constrained to string or JSON null; the bounds apply only to actual strings.
+- `entry_date` and non-null `due_date` retain the ISO calendar-date shape check and additionally use PostgreSQL `pg_catalog.pg_input_is_valid(..., 'date')`. Impossible values such as `2026-02-31` are counted as invalid input and follow the existing controlled SQLSTATE `55000` fail-closed path rather than being cast later in the DTO query.
+- The isolated PostgreSQL 17 acceptance script now stages an oversized description, an oversized source document number, and an impossible calendar date in committed page versions. Each rejected row is then corrected under the same external ID in a later committed version. The reader must resume with the corrected version and preserve YER closing balance `81`; no invoice/payment ledger fallback is permitted.
+- The staging fixtures use only the existing isolated acceptance database and its server-created identities; no production/hosted database, remote migration, provider credentials, live ERP, or external write was used.
+- Changed files: `supabase/migrations/20261128043000_customer_erp_statement_staging_reader.sql` and `scripts/test-customer-financial-source-routing.mjs`.
+- Code/test commit: `97c6179f348627d863dabf51e014c01aab88773c`; SQL layout repair commit: `f4664096688acdd45eee1fc027bcfeb20af6fb54`.
+- A validation edit initially produced a malformed combined `due_date` line. It was detected during exact-file review and repaired in `f4664096688acdd45eee1fc027bcfeb20af6fb54`; the final migration block was re-read after repair. The PostgreSQL execution result is still unproven.
+- Exact-head PG17/P2/P1 workflow runs must finish terminal SUCCESS against the resulting code SHA. At checkpoint refresh time the workflow listing had no terminal result for this head; queued, cancelled, empty or earlier-SHA results are not PASS.
