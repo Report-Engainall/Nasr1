@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
+import { ArrowRight, Copy, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
@@ -515,6 +515,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const cancellationRequestKey = useRef<BoundIdempotencyKey | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<'success' | 'error' | null>(null);
   const templateSaveInFlightRef = useRef(false);
   const { data, loading, error, refreshError, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
@@ -549,6 +550,29 @@ function OrderInvoiceInner({ id }: { id: string }) {
       cancellation,
     };
   }, [id]);
+
+  const previousOrderStatusRef = useRef<{ orderId: string; status: string } | null>(null);
+  const [statusChangeNotice, setStatusChangeNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!data?.order) return;
+    const orderId = data.order.id;
+    const nextStatus = data.order.status;
+    const previous = previousOrderStatusRef.current;
+    previousOrderStatusRef.current = { orderId, status: nextStatus };
+
+    if (previous?.orderId !== orderId) {
+      setStatusChangeNotice(null);
+      return;
+    }
+    if (previous.status !== nextStatus) {
+      const previousLabel = ORDER_STATUS_LABELS[previous.status] ?? previous.status;
+      const nextLabel = ORDER_STATUS_LABELS[nextStatus] ?? nextStatus;
+      setStatusChangeNotice(
+        `تغيّرت حالة الطلب ${data.order.order_number} من ${previousLabel} إلى ${nextLabel}.`,
+      );
+    }
+  }, [data?.order?.id, data?.order?.status, data?.order?.order_number]);
 
   const hasUnsavedAmendmentDraft = useMemo(() => {
     if (amendmentBusy || amendmentNote.trim()) return true;
@@ -643,6 +667,43 @@ function OrderInvoiceInner({ id }: { id: string }) {
     } catch (cause) {
       setExportFeedback({ kind: 'error', message: cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel للطلب.' });
     }
+  }
+
+  async function copyOrderReference() {
+    setCopyFeedback(null);
+    const orderReference = printDocument.orderNumber.trim();
+    if (!orderReference) {
+      setCopyFeedback('error');
+      return;
+    }
+
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(orderReference);
+        copied = true;
+      }
+    } catch {
+      // Clipboard permission may be unavailable; use the selection fallback.
+    }
+
+    if (!copied && typeof document.execCommand === 'function') {
+      const input = document.createElement('textarea');
+      input.value = orderReference;
+      input.setAttribute('readonly', '');
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      try {
+        input.select();
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      } finally {
+        input.remove();
+      }
+    }
+    setCopyFeedback(copied ? 'success' : 'error');
   }
 
 
@@ -822,9 +883,25 @@ function OrderInvoiceInner({ id }: { id: string }) {
           </button>
         </div>
       ) : null}
+      {statusChangeNotice ? (
+        <div
+          className="no-print"
+          role="status"
+          aria-live="polite"
+          aria-label="إشعار تحديث حالة الطلب"
+          style={{ ...card, marginBottom: 12, borderColor: '#9bcfc1', background: '#f0faf6', color: '#185b49' }}
+        >
+          <strong>{statusChangeNotice}</strong>
+          <Link to="/notifications" className="sf-link" style={{ display: 'inline-flex', marginInlineStart: 10 }}>
+            فتح مركز التنبيهات
+          </Link>
+        </div>
+      ) : null}
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
+        <Link to="/notifications" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>مركز التنبيهات</Link>
         <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>
+        <button type="button" className="sf-btn-secondary" aria-label="نسخ الرقم المرجعي للطلب" onClick={() => void copyOrderReference()}><Copy size={16} /> نسخ الرقم المرجعي</button>
         <button
           type="button"
           className="sf-btn-secondary"
@@ -837,6 +914,13 @@ function OrderInvoiceInner({ id }: { id: string }) {
         <button type="button" className="sf-btn-secondary" aria-label="تنزيل كشف الطلب بصيغة Excel" onClick={exportOrderWorkbook}><Download size={16} /> تنزيل Excel</button>
         <button className="sf-btn-primary" onClick={() => window.print()}><Printer size={16} /> طباعة / حفظ PDF</button>
       </div>
+      {copyFeedback ? (
+        <p className="no-print" role="status" aria-live="polite" style={{ ...card, marginBottom: 16 }}>
+          {copyFeedback === 'success'
+            ? 'تم نسخ الرقم المرجعي للطلب.'
+            : 'تعذر النسخ التلقائي؛ حدّد الرقم المرجعي الظاهر في المستند وانسخه يدويًا.'}
+        </p>
+      ) : null}
       {exportFeedback && (
         <div className="no-print" role={exportFeedback.kind === 'error' ? 'alert' : 'status'} style={{ ...card, marginBottom: 16, borderColor: exportFeedback.kind === 'error' ? '#dfb5ad' : '#b7d9ce' }}>
           <p style={{ margin: 0 }}>{exportFeedback.message}</p>

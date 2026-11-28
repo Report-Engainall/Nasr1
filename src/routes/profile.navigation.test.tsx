@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     roles: string[];
     isStaff: boolean;
   },
+  sessionRevision: 1,
   signOutCurrent: vi.fn(),
   signOutOtherSessions: vi.fn(),
   signOutEverywhere: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     user: mocks.user,
     ready: true,
-    sessionRevision: 1,
+    sessionRevision: mocks.sessionRevision,
     signOut: mocks.signOutCurrent,
     signOutOtherSessions: mocks.signOutOtherSessions,
     signOutEverywhere: mocks.signOutEverywhere,
@@ -77,6 +78,25 @@ const STAFF = {
   isStaff: true,
 };
 
+const PROFILE_FIXTURE = {
+  business_name: "شركة الاختبار",
+  contact_name: "مسؤول الاختبار",
+  phone: "777123456",
+  email: "account@example.test",
+  customer_code: "C-TEST",
+  status: "approved" as const,
+  updated_at: "2026-11-01T10:00:00.000Z",
+};
+
+const CUSTOMER_B = {
+  id: "33333333-3333-4333-8333-333333333333",
+  profileId: "f3333333-3333-4333-8333-333333333333",
+  email: "customer-b@example.test",
+  name: "العميل الثاني",
+  roles: ["customer"],
+  isStaff: false,
+};
+
 const CUSTOMER_ONLY_ROUTES = [
   { path: "/invoices", label: /فواتيري/ },
   { path: "/quotes", label: /عروض الأسعار/ },
@@ -88,18 +108,11 @@ const CUSTOMER_ONLY_ROUTES = [
 describe("My Aghbari customer account navigation", () => {
   beforeEach(() => {
     mocks.user = CUSTOMER;
+    mocks.sessionRevision = 1;
     mocks.signOutCurrent.mockReset().mockResolvedValue(undefined);
     mocks.signOutOtherSessions.mockReset().mockResolvedValue(undefined);
     mocks.signOutEverywhere.mockReset().mockResolvedValue(undefined);
-    mocks.fetchAccountProfile.mockReset().mockResolvedValue({
-      business_name: "شركة الاختبار",
-      contact_name: "مسؤول الاختبار",
-      phone: "777123456",
-      email: "account@example.test",
-      customer_code: "C-TEST",
-      status: "approved",
-      updated_at: "2026-11-01T10:00:00.000Z",
-    });
+    mocks.fetchAccountProfile.mockReset().mockResolvedValue(PROFILE_FIXTURE);
     mocks.saveAccountProfile.mockReset();
   });
 
@@ -174,6 +187,67 @@ describe("My Aghbari customer account navigation", () => {
       expect(document.querySelector(`a[href="${route.path}"]`)).toBeNull();
     }
     expect(document.querySelector('a[href="/admin"]')).not.toBeNull();
+    expect(screen.queryByLabelText("اسم الشركة")).not.toBeInTheDocument();
+  });
+
+  it("keeps staff precedence when a staff identity also carries a customer role", () => {
+    mocks.user = { ...STAFF, roles: ["admin", "customer"] };
+    render(<CustomerAccountProfilePage />);
+
+    expect(document.querySelector('a[href="/admin"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/orders"]')).toBeNull();
+    expect(screen.queryByLabelText("اسم الشركة")).not.toBeInTheDocument();
+  });
+
+  it("resets customer profile drafts when the Auth identity or session revision changes", async () => {
+    mocks.fetchAccountProfile
+      .mockResolvedValueOnce({
+        business_name: "شركة العميل الأول",
+        contact_name: "مسؤول العميل الأول",
+        phone: "777123456",
+        email: "first@example.test",
+        customer_code: "C-FIRST",
+        status: "approved",
+        updated_at: "2026-11-27T01:00:00.000Z",
+      })
+      .mockResolvedValueOnce({
+        business_name: "شركة العميل الثاني",
+        contact_name: "مسؤول العميل الثاني",
+        phone: "777654321",
+        email: "second@example.test",
+        customer_code: "C-SECOND",
+        status: "approved",
+        updated_at: "2026-11-27T02:00:00.000Z",
+      })
+      .mockResolvedValueOnce({
+        business_name: "شركة العميل الثاني بعد تجديد الجلسة",
+        contact_name: "مسؤول العميل الثاني",
+        phone: "777654321",
+        email: "second@example.test",
+        customer_code: "C-SECOND",
+        status: "approved",
+        updated_at: "2026-11-27T03:00:00.000Z",
+      });
+
+    const { rerender } = render(<CustomerAccountProfilePage />);
+    const businessName = await screen.findByLabelText("اسم الشركة");
+    expect(businessName).toHaveValue("شركة العميل الأول");
+    fireEvent.change(businessName, { target: { value: "مسودة خاصة بالعميل الأول" } });
+    expect(businessName).toHaveValue("مسودة خاصة بالعميل الأول");
+
+    mocks.user = CUSTOMER_B;
+    mocks.sessionRevision = 2;
+    rerender(<CustomerAccountProfilePage />);
+
+    expect(await screen.findByLabelText("اسم الشركة")).toHaveValue("شركة العميل الثاني");
+    expect(screen.queryByDisplayValue("مسودة خاصة بالعميل الأول")).not.toBeInTheDocument();
+
+    mocks.sessionRevision = 3;
+    rerender(<CustomerAccountProfilePage />);
+
+    expect(await screen.findByLabelText("اسم الشركة")).toHaveValue("شركة العميل الثاني بعد تجديد الجلسة");
+    expect(screen.queryByDisplayValue("مسودة خاصة بالعميل الأول")).not.toBeInTheDocument();
+    expect(mocks.fetchAccountProfile).toHaveBeenCalledTimes(3);
   });
 
   it("shows recent public product views inside the matching customer account", async () => {
@@ -244,4 +318,50 @@ describe("My Aghbari customer account navigation", () => {
       expect(document.querySelector(`a[href="${route.path}"]`)).toBeNull();
     }
   });
+  it("keeps the company editor hidden while loading and reveals it after a valid profile arrives", async () => {
+    let resolveProfile!: (value: typeof PROFILE_FIXTURE) => void;
+    const pendingProfile = new Promise<typeof PROFILE_FIXTURE>((resolve) => {
+      resolveProfile = resolve;
+    });
+    mocks.fetchAccountProfile.mockReturnValueOnce(pendingProfile);
+
+    render(<CustomerAccountProfilePage />);
+
+    expect(screen.getByText("جار تحميل بيانات الشركة...")).toHaveAttribute("role", "status");
+    expect(screen.queryByLabelText("اسم الشركة")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "حفظ بيانات الشركة" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveProfile(PROFILE_FIXTURE);
+    });
+
+    expect(await screen.findByLabelText("اسم الشركة")).toHaveValue("شركة الاختبار");
+    expect(screen.getByRole("button", { name: "حفظ بيانات الشركة" })).toBeEnabled();
+    expect(screen.queryByText("جار تحميل بيانات الشركة...")).not.toBeInTheDocument();
+  });
+
+  it("saves the company draft against the loaded version and refreshes the visible profile", async () => {
+    const savedProfile = {
+      ...PROFILE_FIXTURE,
+      business_name: "شركة الأغبري المحدّثة",
+      updated_at: "2026-11-27T04:00:00.000Z",
+    };
+    mocks.saveAccountProfile.mockResolvedValueOnce(savedProfile);
+
+    render(<CustomerAccountProfilePage />);
+    const businessName = await screen.findByLabelText("اسم الشركة");
+    fireEvent.change(businessName, { target: { value: savedProfile.business_name } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات الشركة" }));
+
+    expect(await screen.findByText("تم حفظ بيانات الشركة في الحساب.")).toBeInTheDocument();
+    expect(mocks.saveAccountProfile).toHaveBeenCalledWith({
+      businessName: savedProfile.business_name,
+      contactName: PROFILE_FIXTURE.contact_name,
+      phone: PROFILE_FIXTURE.phone,
+      email: PROFILE_FIXTURE.email,
+    }, PROFILE_FIXTURE.updated_at);
+    expect(screen.getByLabelText("اسم الشركة")).toHaveValue(savedProfile.business_name);
+    expect(screen.getByText(/آخر تحديث:/)).toBeInTheDocument();
+  });
+
 });

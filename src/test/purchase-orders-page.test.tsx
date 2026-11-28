@@ -60,10 +60,32 @@ describe('purchase orders page',()=>{
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     expect(mocks.fetchSuppliers).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button',{name:/PO-20261019-000001/}));
-    expect(await screen.findByText('مورد موثوق')).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'مورد موثوق' })).toBeInTheDocument();
+    expect(screen.getByText(/مورد موثوق · SUP-01/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/اعتماد أمر الشراء للتوريد/}));
     expect(await screen.findByText(/تم اعتماد أمر الشراء داخل النظام/)).toBeInTheDocument();
     expect(mocks.submitPurchaseOrder).toHaveBeenCalledWith('po-1');
+  });
+
+  it('opens the purchase order linked to a shift receipt reference', async () => {
+    const receiptId = '11111111-1111-4111-8111-111111111111';
+    receiptPrintMocks.print.mockResolvedValue({
+      receipt_number: 'PR-20261019-000001',
+      purchase_order_number: draft.purchase_order_number,
+      supplier_name: draft.supplier_name,
+      warehouse_name: draft.warehouse_name,
+      received_at: '2026-10-19T10:00:00Z',
+      currency: 'YER',
+      costs_complete: false,
+      received_cost: null,
+      items: [],
+    });
+
+    render(<PurchaseOrdersPage initialReceiptId={receiptId} />);
+    const order = await screen.findByRole('button', { name: /PO-20261019-000001/ });
+    await waitFor(() => expect(order).toHaveAttribute('aria-current', 'true'));
+    expect(receiptPrintMocks.print).toHaveBeenCalledWith(receiptId);
+    expect(await screen.findByText(/تم فتح أمر الشراء المرتبط بإيصال الاستلام/)).toBeInTheDocument();
   });
 
   it('exports only the visible filtered purchase orders and reports the active filter',async()=>{
@@ -74,7 +96,65 @@ describe('purchase orders page',()=>{
     fireEvent.change(screen.getByLabelText('الحالة'),{target:{value:'submitted'}});
     fireEvent.click(screen.getByRole('button',{name:/تصدير نتائج Excel/}));
     expect(exportMocks.download).toHaveBeenCalledWith([submittedOrder],'معتمد للتوريد');
-    expect(await screen.findByText(/تم تجهيز ملف Excel للنتائج الظاهرة/)).toBeInTheDocument();
+    expect(await screen.findByText(/تم تجهيز ملف Excel لكل النتائج المطابقة للفلاتر الحالية/)).toBeInTheDocument();
+  });
+
+  it('searches order lines with Arabic digits and exports every matching record', async () => {
+    const secondOrder = {
+      ...submitted,
+      id: 'po-2',
+      purchase_order_number: 'PO-20261020-000002',
+      supplier_name: 'مؤسسة النور',
+      supplier_code: 'SUP-02',
+      warehouse_id: 'warehouse-2',
+      warehouse_name: 'فرع عدن',
+      created_at: '2026-10-20T09:00:00Z',
+      updated_at: '2026-10-20T09:00:00Z',
+      items: [{
+        ...draft.items[0],
+        id: 'line-2',
+        item_code: 'ABC-007',
+        product_name: 'أرز بسمتي',
+      }],
+    };
+    mocks.fetchPurchaseOrders.mockResolvedValueOnce([draft, secondOrder]);
+    render(<PurchaseOrdersPage />);
+    expect(await screen.findByRole('button', { name: /PO-20261019-000001/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('بحث في أوامر الشراء'), { target: { value: 'سكر ١٢٥' } });
+    expect(screen.getByRole('button', { name: /PO-20261019-000001/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /PO-20261020-000002/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /تصدير نتائج Excel/ }));
+    expect(exportMocks.download).toHaveBeenCalledWith([draft], expect.stringContaining('بحث: سكر ١٢٥'));
+    expect(await screen.findByText(/كل النتائج المطابقة للفلاتر الحالية/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('بحث في أوامر الشراء'), { target: { value: 'لا توجد مطابقة' } });
+    expect(await screen.findByText(/لا توجد أوامر شراء تطابق معايير البحث والتصفية/)).toBeInTheDocument();
+  });
+
+  it('paginates newest-first and keeps export scoped to all filtered rows, not the current page', async () => {
+    const records = Array.from({ length: 12 }, (_, index) => ({
+      ...draft,
+      id: 'po-' + index,
+      purchase_order_number: 'PO-202611' + String(index + 1).padStart(2, '0'),
+      created_at: '2026-11-' + String(index + 1).padStart(2, '0') + 'T09:00:00Z',
+      updated_at: '2026-11-' + String(index + 1).padStart(2, '0') + 'T09:00:00Z',
+    }));
+    mocks.fetchPurchaseOrders.mockResolvedValueOnce(records);
+    render(<PurchaseOrdersPage />);
+    expect(await screen.findByRole('button', { name: /PO-20261112/ })).toBeInTheDocument();
+    expect(screen.getByText(/عرض .* من .* أمر مطابق/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /PO-20261101/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'الصفحة التالية' }));
+    expect(await screen.findByRole('button', { name: /PO-20261101/ })).toBeInTheDocument();
+    expect(screen.getByText(/صفحة .* من .*/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /تصدير نتائج Excel/ }));
+    expect(exportMocks.download).toHaveBeenCalledWith(
+      [...records].sort((left, right) => right.created_at.localeCompare(left.created_at)),
+      expect.stringContaining('كل الحالات'),
+    );
   });
 
   it('prints only the requested result list or selected purchase order',async()=>{

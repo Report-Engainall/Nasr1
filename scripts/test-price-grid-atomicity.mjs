@@ -313,6 +313,17 @@ async function main() {
       "where n.nspname='public' and c.relname in ('products','product_prices') and not t.tgisinternal " +
       "order by c.relname,t.tgname",
     );
+    const priceGridWriterRows = await db.unsafe(
+      "select pg_catalog.pg_get_functiondef('public.save_product_price_grid(jsonb)'::regprocedure) as definition",
+    );
+    const priceGridWriterDefinition = String(priceGridWriterRows[0]?.definition ?? "");
+    assert.ok(priceGridWriterDefinition.includes("public.product_prices"),
+      "price-grid writer must use the actual product_prices tier table");
+    assert.doesNotMatch(priceGridWriterDefinition,
+      /\\bp\\.price_wholesale_of_wholesale\\b|\\bp\\.price_wholesale\\b|\\bp\\.price_retail\\b/,
+      "price-grid writer must not read retired tier columns from products");
+    assert.ok(priceGridWriterDefinition.includes("pricing.edit_draft"),
+      "price-grid writer must retain the active pricing.edit_draft capability guard");
     process.stdout.write("P2_PRICE_GRID_RUNTIME_CATALOG=" + JSON.stringify({
       functions: priceGridCatalog,
       columns: priceGridColumns,

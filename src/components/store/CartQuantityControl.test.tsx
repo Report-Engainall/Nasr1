@@ -85,4 +85,16 @@ describe("CartQuantityControl", () => {
     fireEvent.click(screen.getByRole("button", { name: "زيادة كمية أرز بسمتي" }));
     expect(onCommit).toHaveBeenCalledWith(6);
   });
+
+  it("lets an overstocked cart line step down to the largest valid current-stock quantity", () => {
+    const { onCommit } = renderControl({ quantity: 8, available: 5, minimum: 2, multiple: 2 });
+    fireEvent.click(screen.getByRole("button", { name: "تقليل كمية أرز بسمتي" }));
+    expect(onCommit).toHaveBeenCalledWith(4);
+  });
+
+  it("requires removal when current stock is below the order minimum", () => {
+    renderControl({ quantity: 4, available: 1, minimum: 2, multiple: 2 });
+    expect(screen.getByRole("button", { name: "تقليل كمية أرز بسمتي" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "زيادة كمية أرز بسمتي" })).toBeDisabled();
+  });
 });

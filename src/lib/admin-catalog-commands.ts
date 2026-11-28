@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { isStorefrontArtworkKey, type StorefrontArtworkKey } from './storefront-artwork';
+import { buildAdminStorefrontProductDetailsPayload, type AdminStorefrontProductDetails } from './storefront-product-details';
 
 export type AdminCatalogPayload = {
   name: string;
@@ -26,6 +27,15 @@ export type AdminCatalogPayload = {
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type AdminRpcInvoker = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+function invokeAdminRpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> {
+  // Resolve the lazy client only for an actual command; pure validators remain offline-safe.
+  return (supabase as unknown as { rpc: AdminRpcInvoker }).rpc(name, args);
+}
 
 function validAmount(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0
@@ -121,6 +131,50 @@ export async function saveAdminCatalogProduct(id: string | null, payload: AdminC
     throw new Error('لم يؤكد الخادم حفظ المنتج ضمن المؤسسة الحالية.');
   }
   return { id: saved.id, status: saved.status as 'active' | 'inactive', created: saved.created };
+}
+
+export async function saveAdminCatalogProductWithStorefrontDetails(
+  id: string | null,
+  payload: AdminCatalogPayload,
+  storefrontDetails: AdminStorefrontProductDetails,
+) {
+  if (id !== null && !UUID.test(id)) throw new Error('معرّف المنتج غير صالح.');
+  const { data, error } = await invokeAdminRpc('save_admin_catalog_product_with_storefront_details', {
+    p_product_id: id,
+    p_catalog_payload: normalize(payload),
+    p_storefront_details: buildAdminStorefrontProductDetailsPayload(storefrontDetails),
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يُرجع الخادم نتيجة صالحة لحفظ المنتج وتفاصيل المتجر.');
+  }
+  const result = data as Record<string, unknown>;
+  const product = result.product;
+  const details = result.storefront_details;
+  if (!product || typeof product !== 'object' || Array.isArray(product)
+      || !details || typeof details !== 'object' || Array.isArray(details)) {
+    throw new Error('استجابة حفظ المنتج وتفاصيل المتجر غير مكتملة.');
+  }
+  const savedProduct = product as Record<string, unknown>;
+  const savedDetails = details as Record<string, unknown>;
+  if (typeof savedProduct.id !== 'string' || !UUID.test(savedProduct.id)
+      || (savedProduct.status !== 'active' && savedProduct.status !== 'inactive')
+      || typeof savedProduct.created !== 'boolean'
+      || (id !== null && savedProduct.id.toLowerCase() !== id.toLowerCase())
+      || (id === null && savedProduct.created !== true)
+      || savedDetails.product_id !== savedProduct.id
+      || savedDetails.changed !== true
+      || !Number.isSafeInteger(savedDetails.relations_saved)
+      || Number(savedDetails.relations_saved) < 0
+      || Number(savedDetails.relations_saved) > 40) {
+    throw new Error('لم يؤكد الخادم حفظ الصنف وتفاصيله في معاملة واحدة.');
+  }
+  return {
+    id: savedProduct.id,
+    status: savedProduct.status as 'active' | 'inactive',
+    created: savedProduct.created,
+    relationsSaved: Number(savedDetails.relations_saved),
+  };
 }
 
 export async function archiveAdminCatalogProduct(id: string) {

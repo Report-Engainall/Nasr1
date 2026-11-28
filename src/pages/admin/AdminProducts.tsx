@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { Plus, CreditCard as Edit2, Trash2, Search, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Product, Category } from '../../lib/types'
-import { archiveAdminCatalogProduct, createAdminCatalogCategory, saveAdminCatalogProduct } from '../../lib/admin-catalog-commands'
+import { archiveAdminCatalogProduct, createAdminCatalogCategory, saveAdminCatalogProductWithStorefrontDetails } from '../../lib/admin-catalog-commands'
 import { getAvailableStock, isLowStock, isOutOfStock } from '../../lib/pricing'
+import { fetchProductUnitOptions, type ProductAlternateUnit } from '../../lib/product-unit-conversions'
+import { EMPTY_ADMIN_STOREFRONT_PRODUCT_DETAILS, fetchAdminStorefrontProductDetails, type AdminStorefrontProductDetails } from '../../lib/storefront-product-details'
 
 
 type InventoryBalanceRow = { product_id: string; quantity_on_hand: number | string | null; quantity_reserved: number | string | null; reorder_point: number | string | null };
@@ -128,11 +130,25 @@ export default function AdminProducts() {
     if(!window.confirm('ستتم أرشفة المنتج مع الحفاظ على مراجع الطلبات التاريخية. متابعة؟'))return
     try{await archiveAdminCatalogProduct(id);await loadProducts()}catch(e){alert('تعذر أرشفة المنتج: '+String(e instanceof Error?e.message:e))}
   }
-  const handleSave = async (data:Partial<Product>) => {
+  const handleSave = async (data: Partial<Product> & { storefrontDetails: AdminStorefrontProductDetails }) => {
     try {
-      await saveAdminCatalogProduct(editing?.id||null,{name:data.name||'',item_code:data.item_code||'',barcode:data.barcode||null,unit:data.unit||'',description:data.description||null,category_id:data.category_id||null,base_price:Number(data.base_price),price_wholesale_of_wholesale:Number(data.price_wholesale_of_wholesale),price_wholesale:Number(data.price_wholesale),price_retail:Number(data.price_retail),status:data.is_active===false?'inactive':'active',...(editing?{expected_base_price:Number(editing.base_price),expected_price_wholesale_of_wholesale:Number(editing.price_wholesale_of_wholesale),expected_price_wholesale:Number(editing.price_wholesale),expected_price_retail:Number(editing.price_retail)}:{})})
-      setShowForm(false);setEditing(null);await loadProducts()
-    }catch(e){alert('تعذر حفظ المنتج؛ لم تُعتبر العملية ناجحة: '+String(e instanceof Error?e.message:e))}
+      await saveAdminCatalogProductWithStorefrontDetails(editing?.id || null, {
+        name: data.name || '', item_code: data.item_code || '', barcode: data.barcode || null,
+        unit: data.unit || '', description: data.description || null, category_id: data.category_id || null,
+        base_price: Number(data.base_price), price_wholesale_of_wholesale: Number(data.price_wholesale_of_wholesale),
+        price_wholesale: Number(data.price_wholesale), price_retail: Number(data.price_retail),
+        status: data.is_active === false ? 'inactive' : 'active',
+        ...(editing ? {
+          expected_base_price: Number(editing.base_price),
+          expected_price_wholesale_of_wholesale: Number(editing.price_wholesale_of_wholesale),
+          expected_price_wholesale: Number(editing.price_wholesale),
+          expected_price_retail: Number(editing.price_retail),
+        } : {}),
+      }, data.storefrontDetails);
+      setShowForm(false); setEditing(null); await loadProducts();
+    } catch (error) {
+      alert('تعذر حفظ المنتج وتفاصيل صفحة المتجر في معاملة واحدة؛ لم تُعتبر العملية ناجحة. ' + String(error instanceof Error ? error.message : error));
+    }
   }
 
   return (
@@ -148,12 +164,12 @@ export default function AdminProducts() {
       {loading ? <div className="text-muted text-center">جارٍ التحميل...</div> : (
         <AdminProductsTable products={filtered} onEdit={(product) => { setEditing(product); setShowForm(true); }} onArchive={(productId) => void handleDelete(productId)} />
       )}
-      {showForm && <ProductForm product={editing} categories={categories} onSave={handleSave} onCreateCategory={handleCreateCategory} onClose={() => { setShowForm(false); setEditing(null) }} />}
+      {showForm && <ProductForm product={editing} categories={categories} allProducts={products} onSave={handleSave} onCreateCategory={handleCreateCategory} onClose={() => { setShowForm(false); setEditing(null) }} />}
     </div>
   )
 }
 
-function ProductForm({ product, categories, onSave, onCreateCategory, onClose }: { product: Product | null; categories: Category[]; onSave: (data: Partial<Product>) => void; onCreateCategory: () => Promise<string|null>; onClose: () => void }) {
+function ProductForm({ product, categories, allProducts, onSave, onCreateCategory, onClose }: { product: Product | null; categories: Category[]; allProducts: Product[]; onSave: (data: Partial<Product> & { storefrontDetails: AdminStorefrontProductDetails }) => void; onCreateCategory: () => Promise<string|null>; onClose: () => void }) {
   const [form, setForm] = useState({
     name: product?.name || '', item_code: product?.item_code || '', barcode: product?.barcode || '',
     unit: product?.unit || 'قطعة', category_id: product?.category_id || '',
@@ -162,11 +178,54 @@ function ProductForm({ product, categories, onSave, onCreateCategory, onClose }:
     price_retail: product?.price_retail || 0,
     is_featured: product?.is_featured || false, is_active: product?.is_active ?? true,
   })
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave({ ...form, category_id: form.category_id || null }) }
+  const [storefrontDetails, setStorefrontDetails] = useState<AdminStorefrontProductDetails>(EMPTY_ADMIN_STOREFRONT_PRODUCT_DETAILS);
+  const [detailsLoading, setDetailsLoading] = useState(Boolean(product));
+  const [detailsRetryVersion, setDetailsRetryVersion] = useState(0);
+  const [detailsError, setDetailsError] = useState('');
+  const [alternateUnits, setAlternateUnits] = useState<ProductAlternateUnit[]>([]);
+  const [alternateUnitsError, setAlternateUnitsError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    if (!product) {
+      setStorefrontDetails(EMPTY_ADMIN_STOREFRONT_PRODUCT_DETAILS);
+      setAlternateUnits([]);
+      setDetailsLoading(false);
+      setDetailsError('');
+      setAlternateUnitsError('');
+      return () => { active = false; };
+    }
+    setDetailsLoading(true);
+    setDetailsError('');
+    setAlternateUnitsError('');
+    void fetchAdminStorefrontProductDetails(product.id).then((details) => {
+      if (active) setStorefrontDetails(details);
+    }).catch((error) => {
+      if (active) setDetailsError(error instanceof Error ? error.message : 'تعذر تحميل تفاصيل المنتج المحفوظة.');
+    }).finally(() => {
+      if (active) setDetailsLoading(false);
+    });
+    void fetchProductUnitOptions(product.id).then((units) => {
+      if (active) setAlternateUnits(units.units);
+    }).catch((error) => {
+      if (active) setAlternateUnitsError(error instanceof Error ? error.message : 'تعذر تحميل تحويلات الوحدات.');
+    });
+    return () => { active = false; };
+  }, [product?.id, detailsRetryVersion]);
+
+  const updateStorefrontDetails = (patch: Partial<AdminStorefrontProductDetails>) => {
+    setStorefrontDetails((current) => ({ ...current, ...patch }));
+  };
+  const activeRelationOptions = allProducts.filter((candidate) => candidate.id !== product?.id && candidate.status === 'active');
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (detailsLoading || detailsError) return;
+    onSave({ ...form, category_id: form.category_id || null, storefrontDetails });
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={onClose}>
-      <div className="card" style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflow: 'auto', padding: '24px' }} onClick={e => e.stopPropagation()}>
+      <div className="card" style={{ width: '100%', maxWidth: '880px', maxHeight: '92vh', overflow: 'auto', padding: '24px' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ fontSize: '18px' }}>{product ? 'تعديل منتج' : 'منتج جديد'}</h2>
           <button onClick={onClose} className="btn btn-ghost"><X size={20} /></button>
@@ -184,11 +243,55 @@ function ProductForm({ product, categories, onSave, onCreateCategory, onClose }:
             <div><label className="label">سعر الجملة</label><input className="input" type="number" value={form.price_wholesale} onChange={e => setForm({ ...form, price_wholesale: parseFloat(e.target.value) || 0 })} /></div>
             <div><label className="label">سعر التجزئة</label><input className="input" type="number" value={form.price_retail} onChange={e => setForm({ ...form, price_retail: parseFloat(e.target.value) || 0 })} /></div>
             <div style={{ gridColumn: 'span 2', display: 'flex', gap: '16px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}><input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} /> نشط</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}><input type="checkbox" checked={form.is_active} onChange={e => { const isActive = e.target.checked; setForm({ ...form, is_active: isActive }); if (!isActive) updateStorefrontDetails({ alternatives: [], complements: [] }); }} /> نشط</label>
             </div>
           </div>
+          <section aria-labelledby="admin-product-storefront-details-title" style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--color-border)' }}>
+            <h3 id="admin-product-storefront-details-title" style={{ fontSize: 16, marginBottom: 12 }}>بيانات صفحة المتجر</h3>
+            {detailsLoading ? <p role="status" className="text-muted">جار تحميل التفاصيل المحفوظة والوحدات المعتمدة...</p> : null}
+            {detailsError ? <div role="alert" className="text-error"><p>تعذر تحميل التفاصيل المحفوظة؛ لن نسمح بالكتابة فوق بيانات غير مقروءة. {detailsError}</p><button type="button" className="btn btn-secondary btn-sm" onClick={() => setDetailsRetryVersion(version => version + 1)}>إعادة تحميل التفاصيل</button></div> : null}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div><label className="label">العلامة التجارية</label><input className="input" maxLength={120} value={storefrontDetails.brandName} onChange={e => updateStorefrontDetails({ brandName: e.target.value })} /></div>
+              <div><label className="label">اسم العلامة بالإنجليزية</label><input className="input" maxLength={120} dir="ltr" value={storefrontDetails.brandNameEn} onChange={e => updateStorefrontDetails({ brandNameEn: e.target.value })} /></div>
+              <div><label className="label">بلد المنشأ (رمز ISO من حرفين)</label><input className="input" maxLength={2} dir="ltr" placeholder="YE" value={storefrontDetails.countryOfOriginCode} onChange={e => updateStorefrontDetails({ countryOfOriginCode: e.target.value.toUpperCase() })} /></div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={storefrontDetails.originVerified} onChange={e => updateStorefrontDetails({ originVerified: e.target.checked })} /> اعتماد بلد المنشأ بعد التحقق</label>
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <strong>المواصفات المنظمة</strong>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={storefrontDetails.specifications.length >= 50} onClick={() => updateStorefrontDetails({ specifications: [...storefrontDetails.specifications, { name: '', value: '', unit: null }] })}>إضافة مواصفة</button>
+              </div>
+              {storefrontDetails.specifications.map((specification, index) => (
+                <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 0.8fr auto', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                  <input className="input" maxLength={60} aria-label="اسم المواصفة" placeholder="الخاصية" value={specification.name} onChange={e => updateStorefrontDetails({ specifications: storefrontDetails.specifications.map((item, i) => i === index ? { ...item, name: e.target.value } : item) })} />
+                  <input className="input" maxLength={200} aria-label="قيمة المواصفة" placeholder="القيمة" value={specification.value} onChange={e => updateStorefrontDetails({ specifications: storefrontDetails.specifications.map((item, i) => i === index ? { ...item, value: e.target.value } : item) })} />
+                  <input className="input" maxLength={40} aria-label="وحدة المواصفة" placeholder="الوحدة" value={specification.unit ?? ''} onChange={e => updateStorefrontDetails({ specifications: storefrontDetails.specifications.map((item, i) => i === index ? { ...item, unit: e.target.value || null } : item) })} />
+                  <button type="button" className="btn btn-ghost btn-sm" aria-label="حذف المواصفة" onClick={() => updateStorefrontDetails({ specifications: storefrontDetails.specifications.filter((_, i) => i !== index) })}><X size={16} /></button>
+                </div>
+              ))}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}><input type="checkbox" checked={storefrontDetails.specificationsVerified} onChange={e => updateStorefrontDetails({ specificationsVerified: e.target.checked })} /> اعتماد المواصفات بعد التحقق منها</label>
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <strong>التغليف والعبوة</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 8 }}>
+                <div><label className="label">حجم العبوة</label><input className="input" type="number" min="0.001" max="1000000" step="0.001" value={storefrontDetails.packageSizeValue ?? ''} onChange={e => updateStorefrontDetails({ packageSizeValue: e.target.value === '' ? null : Number(e.target.value) })} /></div>
+                <div><label className="label">وحدة حجم العبوة</label><input className="input" maxLength={40} value={storefrontDetails.packageSizeUnit} onChange={e => updateStorefrontDetails({ packageSizeUnit: e.target.value })} /></div>
+                <div><label className="label">وحدة الكرتون المحفوظة</label><select className="input" value={storefrontDetails.cartonUnitName} onChange={e => updateStorefrontDetails({ cartonUnitName: e.target.value })}><option value="">بدون تعريف كرتون</option>{alternateUnits.map(unit => <option key={unit.unit_name} value={unit.unit_name}>{unit.unit_name} = {unit.base_units_per_unit} {product?.unit ?? form.unit}</option>)}</select>{alternateUnitsError ? <small role="status">تعذر تحميل تحويلات الكرتون.</small> : null}</div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}><input type="checkbox" checked={storefrontDetails.packagingVerified} onChange={e => updateStorefrontDetails({ packagingVerified: e.target.checked })} /> اعتماد بيانات التغليف بعد التحقق</label>
+              {product ? null : <small className="text-muted">يمكن ربط وحدة الكرتون بعد إنشاء المنتج وحفظ تحويلها من محرر الوحدات.</small>}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 18 }}>
+              <div><label className="label">المنتجات البديلة المنشورة</label><select className="input" multiple size={6} disabled={!form.is_active} value={storefrontDetails.alternatives} onChange={e => { const selected = Array.from(e.currentTarget.selectedOptions, option => option.value); updateStorefrontDetails({ alternatives: selected, complements: storefrontDetails.complements.filter(id => !selected.includes(id)) }); }}>{activeRelationOptions.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.item_code}</option>)}</select><small className="text-muted">اختر منتجات بديلة حقيقية فقط؛ حد أقصى إجمالي 40 علاقة.</small></div>
+              <div><label className="label">المنتجات المكملة المنشورة</label><select className="input" multiple size={6} disabled={!form.is_active} value={storefrontDetails.complements} onChange={e => { const selected = Array.from(e.currentTarget.selectedOptions, option => option.value); updateStorefrontDetails({ complements: selected, alternatives: storefrontDetails.alternatives.filter(id => !selected.includes(id)) }); }}>{activeRelationOptions.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.item_code}</option>)}</select><small className="text-muted">هذه روابط صريحة محفوظة وليست اقتراحات حسب التصنيف.</small></div>
+            </div>
+          </section>
+
           <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-            <button type="submit" className="btn btn-primary">{product ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
+            <button type="submit" className="btn btn-primary" disabled={detailsLoading || Boolean(detailsError)}>{product ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
             <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
           </div>
         </form>

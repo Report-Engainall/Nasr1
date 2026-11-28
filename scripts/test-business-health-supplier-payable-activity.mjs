@@ -82,7 +82,12 @@ async function sideEffectCounts() {
 }
 
 async function validatePayload(payload, expected) {
-  assert.equal(payload.asOf, expected.asOf, "the SQL result must preserve the exact captured as-of instant");
+  const actualAsOfInstant = Date.parse(payload.asOf);
+  const expectedAsOfInstant = Date.parse(expected.asOf);
+  assert.ok(Number.isFinite(actualAsOfInstant) && Number.isFinite(expectedAsOfInstant),
+    "the captured as-of instant must remain a valid timestamp");
+  assert.equal(actualAsOfInstant, expectedAsOfInstant,
+    "the SQL result must preserve the exact captured as-of instant regardless of UTC offset notation");
   assert.deepEqual(payload.period, { from: expected.from, to: expected.to });
   assert.equal(payload.completeSourceAggregation, true);
   assert.equal(payload.settlementIncluded, false);

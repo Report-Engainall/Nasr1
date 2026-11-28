@@ -45,7 +45,15 @@ function utcDay(value: string): number | null {
   return Number.isFinite(millis) && new Date(millis).toISOString().slice(0, 10) === value ? millis : null;
 }
 function validTime(value: string): boolean {
-  return typeof value === "string" && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
+    return false;
+  }
+  const day = value.slice(0, 10);
+  const dayMillis = Date.parse(day + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dayMillis) &&
+    new Date(dayMillis).toISOString().slice(0, 10) === day;
 }
 function sameWindow(a: { from: string; to: string }, b: { from: string; to: string }): boolean {
   const af = utcDay(a.from), at = utcDay(a.to), bf = utcDay(b.from), bt = utcDay(b.to);

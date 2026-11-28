@@ -89,14 +89,38 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
   }
   await page.locator('input[placeholder="7XX XXX XXX"]').fill(phone);
   const runLabel = "Playwright E2E " + (process.env.GITHUB_RUN_ID ?? new Date().toISOString());
-  await page.locator('textarea[placeholder="أي ملاحظات على الطلب..."]').fill(runLabel);
+  const notes = page.locator("textarea.sf-checkout-notes");
+  await expect(notes, "The current checkout details stage must expose the customer's optional delivery notes.").toBeVisible();
+  await notes.fill(runLabel);
 
-  const submit = page.getByRole("button", { name: "تأكيد الطلب", exact: true });
-  await expect(submit, "Server-side cart and pricing validation must finish before submission.").toBeEnabled({ timeout: 45_000 });
+  const purchaseOrderReference = "PO-E2E-" + (process.env.GITHUB_RUN_ID ?? "LOCAL");
+  await page.locator('input[placeholder="مثال: PO-2026-001"]').fill(purchaseOrderReference);
+
+  // Stage one is data entry only: no order may be submitted until the customer
+  // reviews the server-backed document and explicitly confirms the final send.
+  const reviewButton = page.getByRole("button", { name: "مراجعة الطلب والفاتورة", exact: true });
+  await expect(reviewButton, "The server-validated cart must be ready before entering the review stage.").toBeEnabled({ timeout: 45_000 });
+  await reviewButton.click();
+
+  const reviewDocument = page.getByTestId("checkout-review-document");
+  await expect(reviewDocument, "Checkout must render a distinct review document before any order submission.").toBeVisible();
+  await expect(page.getByRole("heading", { name: "مراجعة الطلب قبل الإرسال", exact: true })).toBeVisible();
+  await expect(reviewDocument).toContainText(customerName);
+  await expect(reviewDocument).toContainText(phone);
+  await expect(reviewDocument).toContainText(purchaseOrderReference);
+  await expect(reviewDocument).toContainText(runLabel);
+  await expect(page.getByText("مسودة غير مرسلة", { exact: true })).toBeVisible();
+
+  const finalConsent = page.getByRole("checkbox", {
+    name: /أؤكد أن بيانات العميل والعنوان والأصناف والكميات وشروط السداد صحيحة/,
+  });
+  const submit = page.getByRole("button", { name: "تأكيد نهائي وإرسال الطلب", exact: true });
+  await expect(finalConsent).not.toBeChecked();
+  await expect(submit, "The final order RPC must remain blocked until explicit customer consent.").toBeDisabled();
+  await finalConsent.check();
+  await expect(submit, "Server-side cart, availability and pricing validation must finish before final submission.").toBeEnabled({ timeout: 45_000 });
   await submit.click();
-  // Checkout intentionally replaces the form with the persisted order-detail route.
-  // Read the order number back from that server-backed page; the legacy transient
-  // confirmation panel is not part of the current production checkout flow.
+  // Only the explicit final confirmation creates the order through the existing RPC.
   await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/i, { timeout: 45_000 });
   const detailPath = new URL(page.url()).pathname;
   const orderId = detailPath.split("/").filter(Boolean).at(-1);
@@ -148,9 +172,9 @@ async function approveCustomerOrderAsManager(
   await signIn(page, email, password);
   await page.goto("/admin/orders");
   await expect(page.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
-  const orderRow = page.getByRole("row").filter({ hasText: orderNumber });
-  await expect(orderRow, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
-  await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+  const orderCard = page.locator("article").filter({ hasText: orderNumber });
+  await expect(orderCard, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
+  await orderCard.getByRole("button", { name: "تفاصيل الطلب ومراجعته", exact: true }).click();
   await expect(page.getByRole("heading", { name: "الطلب #" + orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
 
   const approve = page.getByRole("button", { name: "اعتماد الكميات وتأكيد الطلب", exact: true });

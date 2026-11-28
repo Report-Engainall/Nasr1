@@ -11,16 +11,31 @@ export interface ReplenishmentRecommendation {
  reorderPoint:number|null;dailyDemand:number|null;leadTimeDemand:number|null;targetStock:number|null;recommendedQuantity:number|null;
  formulaId:string;formulaVersion:string;evidenceIds:string[];warnings:string[];automaticPurchase:false;
 }
-const FORMULA_ID="inventory.replenishment-target";
-const FORMULA_VERSION="1.1.1";
+export const REPLENISHMENT_FORMULA_ID="inventory.replenishment-target";
+export const REPLENISHMENT_FORMULA_VERSION="1.1.1";
+const FORMULA_ID=REPLENISHMENT_FORMULA_ID;
+const FORMULA_VERSION=REPLENISHMENT_FORMULA_VERSION;
 function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
  if(numerator<=0n)return 0n;
  return (numerator+denominator-1n)/denominator;
 }
+function isoDay(value:string):number|null {
+ if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+ const time=Date.parse(value+"T00:00:00Z");
+ return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
+}
 function dayCount(period:EvidencePeriod):number {
- const from=Date.parse(period.from+"T00:00:00Z"),to=Date.parse(period.to+"T00:00:00Z");
- if(!Number.isFinite(from)||!Number.isFinite(to)||to<from)return 0;
- return Math.floor((to-from)/86400000)+1;
+ const from=isoDay(period.from),to=isoDay(period.to);
+ if(from===null||to===null||to<from)return 0;
+ const days=Math.floor((to-from)/86400000)+1;
+ return Number.isSafeInteger(days)&&days>0?days:0;
+}
+function isoInstant(value:unknown):number|null {
+ if(typeof value!=="string"||
+  !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)||
+  isoDay(value.slice(0,10))===null)return null;
+ const parsed=Date.parse(value);
+ return Number.isFinite(parsed)?parsed:null;
 }
 
 type ReplenishmentMetricRead = { value: number | null; minorUnits: bigint | null; status: EvidenceStatus; metric: MetricSnapshot | null };
@@ -46,12 +61,25 @@ function readReplenishmentMetric(args: {
     source.unit !== unit ||
     !source.lineage.evidenceIds.length
   ) {
+    warnings.push(...(source.warnings ?? []).filter(
+      warning => warning === "METRIC_CALCULATION_TIMESTAMP_INVALID",
+    ));
     return {
       value: null,
       minorUnits: null,
       status: source.status === "VERIFIED" ? "NEEDS_REVIEW" : source.status,
       metric: source,
     };
+  }
+  const snapshotTime = isoInstant(asOf);
+  const calculatedAtTime = isoInstant(source.lineage.calculatedAt);
+  if (snapshotTime === null || calculatedAtTime === null) {
+    warnings.push("METRIC_CALCULATION_TIMESTAMP_INVALID");
+    return { value: null, minorUnits: null, status: "NEEDS_REVIEW", metric: source };
+  }
+  if (calculatedAtTime > snapshotTime) {
+    warnings.push("METRIC_CALCULATED_AFTER_SNAPSHOT");
+    return { value: null, minorUnits: null, status: "NEEDS_REVIEW", metric: source };
   }
   if (unit === "QUANTITY") {
     if (!expectedQuantityUnit || !source.unitOfMeasure?.trim()) {
@@ -85,14 +113,29 @@ function readReplenishmentMetric(args: {
 export function buildReplenishmentRecommendations(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:ReplenishmentProductInput[];
 }):{id:string;asOf:string;period:EvidencePeriod;recommendations:ReplenishmentRecommendation[]} {
- if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be valid");
- const periodDays=dayCount(input.period);if(periodDays<1)throw new Error("invalid period");
+ const asOfMs=isoInstant(input.asOf);
+ if(asOfMs===null)throw new Error("asOf must be valid");
+ const periodDays=dayCount(input.period),periodEnd=isoDay(input.period.to);
+ if(periodDays<1||periodEnd===null||periodEnd>asOfMs)
+  throw new Error("invalid or incomplete period");
  const metrics=input.products.flatMap(p=>[p.availableToPromise,p.reorderPoint,p.soldQuantityWindow,p.supplierLeadTimeDays,p.incomingPurchaseQuantity,...(p.minimumOrderQuantity?[p.minimumOrderQuantity]:[]),...(p.orderMultiple?[p.orderMultiple]:[])]);
  const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const counts=new Map<string,number>();for(const m of passport.metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(counts.get(m.id)===1)index.set(m.id,m);
+ const productRefCounts=new Map<string,number>();
+ for(const product of input.products){
+  const ref=typeof product.productRef==="string"?product.productRef.trim():"";
+  if(ref)productRefCounts.set(ref,(productRefCounts.get(ref)??0)+1);
+ }
  const recommendations:ReplenishmentRecommendation[]=input.products.map((product):ReplenishmentRecommendation=>{
-  const warnings:string[]=[],expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.incomingPurchaseQuantity.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
+  const productRef=typeof product.productRef==="string"?product.productRef.trim():"";
+  const invalidRef=!productRef,duplicateRef=!invalidRef&&(productRefCounts.get(productRef)??0)>1;
+  const warnings:string[]=invalidRef?["PRODUCT_REFERENCE_MISSING"]:duplicateRef?["DUPLICATE_PRODUCT_REFERENCE"]:[];
+  if(invalidRef||duplicateRef)return {
+   productRef,status:"UNVERIFIED",action:"WITHHELD",quantityUnit:null,availableToPromise:null,incomingPurchaseQuantity:null,coveredAfterIncoming:null,reorderPoint:null,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds:[],warnings,automaticPurchase:false,
+  };
+  const expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.incomingPurchaseQuantity.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
   const read = (metric: MetricSnapshot, unit: string) => readReplenishmentMetric({
     metric,
     unit,
@@ -112,6 +155,14 @@ export function buildReplenishmentRecommendations(input:{
     product.minimumOrderQuantity ? read(product.minimumOrderQuantity, "QUANTITY") : null,
     product.orderMultiple ? read(product.orderMultiple, "QUANTITY") : null,
   ];
+  const invalidConfiguredConstraint = [
+    { metric: optional[0], warning: "MINIMUM_ORDER_QUANTITY_MUST_BE_POSITIVE" },
+    { metric: optional[1], warning: "ORDER_MULTIPLE_MUST_BE_POSITIVE" },
+  ].find(item => item.metric !== null && item.metric.minorUnits === 0n);
+  if (invalidConfiguredConstraint) {
+    warnings.push(invalidConfiguredConstraint.warning);
+    (invalidConfiguredConstraint.metric as ReplenishmentMetricRead).status = "NEEDS_REVIEW";
+  }
   const required=[atp,rop,sold,lead,incoming],bad=required.find(r=>r.status!=="VERIFIED")??optional.find(r=>r&&r.status!=="VERIFIED");
   if(bad){warnings.push("REQUIRED_OR_CONFIGURED_INPUT_NOT_VERIFIED");return {
    productRef:product.productRef,status:bad.status,action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,

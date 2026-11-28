@@ -8,12 +8,12 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
-import { RefreshCw, X } from "lucide-react";
 import appCss from "../styles.css?url";
 import { reportRuntimeError } from "../lib/runtime-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { PwaUpdatePrompt } from "@/components/PwaUpdatePrompt";
 import { BUSINESS_BRAND_NAME, BUSINESS_BRAND_NAME_AR, BUSINESS_META_DESCRIPTION, BUSINESS_PWA_THEME_COLOR, PRODUCT_BRAND_NAME } from "@/lib/brand";
 import { clearLegacyOfflineCatalogCache, clearOfflineCatalogCache } from "@/lib/offline-catalog-cache";
 import { useAdminOrganizationTheme } from "@/lib/useAdminOrganizationTheme";
@@ -258,174 +258,6 @@ function RootNavigation() {
         </a>
       ) : null}
     </nav>
-  );
-}
-
-type DeferredPwaInstallPrompt = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-};
-
-function PwaUpdatePrompt() {
-  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
-  const [available, setAvailable] = useState(false);
-  const [applying, setApplying] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<DeferredPwaInstallPrompt | null>(null);
-  const reloadAfterControllerChange = useRef(false);
-
-  useEffect(() => {
-    const onBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as DeferredPwaInstallPrompt);
-    };
-    const onInstalled = () => setInstallPrompt(null);
-    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
-    let mounted = true;
-    let activeRegistration: ServiceWorkerRegistration | null = null;
-
-    const announceWaitingWorker = () => {
-      if (!mounted || !activeRegistration?.waiting || !navigator.serviceWorker.controller) return;
-      setRegistration(activeRegistration);
-      setAvailable(true);
-    };
-
-    const onUpdateFound = () => {
-      const installing = activeRegistration?.installing;
-      if (!installing) return;
-      const onStateChange = () => {
-        if (installing.state === "installed") announceWaitingWorker();
-      };
-      installing.addEventListener("statechange", onStateChange);
-    };
-
-    const onControllerChange = () => {
-      if (reloadAfterControllerChange.current && typeof window !== "undefined") {
-        window.location.reload();
-      }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible" && activeRegistration) {
-        void activeRegistration.update().catch(() => undefined);
-      }
-    };
-
-    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    void navigator.serviceWorker.register("/sw.js")
-      .then((nextRegistration) => {
-        if (!mounted) return;
-        activeRegistration = nextRegistration;
-        setRegistration(nextRegistration);
-        nextRegistration.addEventListener("updatefound", onUpdateFound);
-        announceWaitingWorker();
-        if (document.visibilityState === "visible") {
-          void nextRegistration.update().catch(() => undefined);
-        }
-      })
-      .catch(() => {
-        // PWA registration failure must not block the storefront.
-      });
-
-    return () => {
-      mounted = false;
-      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      activeRegistration?.removeEventListener("updatefound", onUpdateFound);
-    };
-  }, []);
-
-  function applyUpdate() {
-    if (!registration?.waiting || applying) return;
-    setApplying(true);
-    reloadAfterControllerChange.current = true;
-    registration.waiting.postMessage({ type: "AGHBARI_ACTIVATE_UPDATE" });
-  }
-
-  async function installApp() {
-    const deferred = installPrompt;
-    if (!deferred) return;
-    setInstallPrompt(null);
-    try {
-      await deferred.prompt();
-      await deferred.userChoice;
-    } catch {
-      // The browser may dismiss or reject its native installation prompt.
-    }
-  }
-
-  const hasWaitingUpdate = available && Boolean(registration?.waiting);
-  if (!hasWaitingUpdate && !installPrompt) return null;
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      dir="rtl"
-      className="no-print"
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 1200,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 12,
-        flexWrap: "wrap",
-        padding: "10px 16px",
-        background: "#e8f3ed",
-        color: "#164734",
-        borderBottom: "1px solid #b8d6c6",
-        fontFamily: "Cairo, system-ui, sans-serif",
-        fontSize: 13,
-      }}
-    >
-      {installPrompt ? (
-        <>
-          <span>ثبّت متجر الأغبري على جهازك للوصول إليه كتطبيق.</span>
-          <button
-            type="button"
-            onClick={() => void installApp()}
-            className="inline-flex items-center gap-2 rounded-lg border border-emerald-800 bg-emerald-800 px-3 py-2 font-semibold text-white"
-          >
-            تثبيت التطبيق
-          </button>
-        </>
-      ) : null}
-      {hasWaitingUpdate ? (
-        <>
-          <span>تحديث جديد لمتجر الأغبري جاهز. احفظ العمل الجاري قبل التحديث؛ سيُعاد تحميل الصفحة بعد تفعيل النسخة الجديدة.</span>
-          <button
-            type="button"
-            onClick={applyUpdate}
-            disabled={applying}
-            className="inline-flex items-center gap-2 rounded-lg border border-emerald-800 bg-emerald-800 px-3 py-2 font-semibold text-white disabled:opacity-60"
-          >
-            <RefreshCw size={15}/>
-            {applying ? "جارٍ تطبيق التحديث..." : "تحديث التطبيق"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAvailable(false)}
-            disabled={applying}
-            aria-label="تأجيل تحديث التطبيق"
-            className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/30 px-2 py-2 disabled:opacity-60"
-          >
-            <X size={14}/>
-            لاحقاً
-          </button>
-        </>
-      ) : null}
-    </div>
   );
 }
 

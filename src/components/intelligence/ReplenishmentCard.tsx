@@ -1,4 +1,5 @@
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
+import type { ProductDemandForecast } from "@/lib/intelligence/demand-forecast";
 import { useEffect, useRef, useState } from "react";
 import { fetchProducts } from "@/lib/api";
 import { ReplenishmentPurchaseDraft } from "./ReplenishmentPurchaseDraft";
@@ -9,9 +10,10 @@ export interface ReplenishmentCardProps {
   state?: IntelligenceViewState;
   onRetry?: () => void;
   canManagePurchases?: boolean;
+  demandForecasts?: ProductDemandForecast[] | null;
 }
 
-export function ReplenishmentCard({ recommendations, state = "ready", onRetry, canManagePurchases = false }: ReplenishmentCardProps) {
+export function ReplenishmentCard({ recommendations, state = "ready", onRetry, canManagePurchases = false, demandForecasts = null }: ReplenishmentCardProps) {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
   const [productNames, setProductNames] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -45,6 +47,7 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry, c
     typeof item.quantityUnit === "string" && item.quantityUnit.trim().length > 0
   );
   const selectedRecommendations = selectableRecommendations.filter((item) => selectedRefs.includes(item.productRef));
+  const demandForecastByProduct = new Map((demandForecasts ?? []).map((item) => [item.productRef, item]));
   const effectiveState = state === "ready" && !recommendations ? "unavailable" : state;
   if (effectiveState !== "ready") {
     return <IntelligenceStatePanel state={effectiveState} onRetry={onRetry} emptyMessage="لا توجد توصيات إعادة توريد للفترة المحددة." />;
@@ -97,6 +100,18 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry, c
               <div><dt className="text-xs text-muted-foreground">المخزون المستهدف</dt><dd>{formatEvidenceNumber(item.targetStock)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">الكمية الموصى بها</dt><dd className="font-semibold">{item.status === "VERIFIED" && item.quantityUnit ? formatEvidenceNumber(item.recommendedQuantity) + " " + item.quantityUnit : "غير متاح"}</dd></div>
             </dl>
+            {demandForecastByProduct.get(item.productRef) ? (() => {
+              const forecast = demandForecastByProduct.get(item.productRef)!;
+              const thirty = forecast.horizons.find((horizon) => horizon.days === 30);
+              const ninety = forecast.horizons.find((horizon) => horizon.days === 90);
+              return (
+                <aside className="mt-3 rounded-lg border border-dashed p-3 text-xs" aria-label="سياق توقع الطلب">
+                  <p className="font-semibold">سياق مستقل من محرك توقع الطلب · {forecast.trend === "INCREASING" ? "متزايد" : forecast.trend === "DECLINING" ? "متراجع" : forecast.trend === "NEW_ACTIVITY" ? "نشاط جديد" : forecast.trend === "NO_DEMAND" ? "لا طلب مرصود" : "مستقر نسبياً"}</p>
+                  <p className="mt-1">30 يوماً: {thirty ? formatEvidenceNumber(thirty.expectedQuantity) + " " + forecast.unitOfMeasure : "غير متاح"} · 90 يوماً: {ninety ? formatEvidenceNumber(ninety.expectedQuantity) + " " + forecast.unitOfMeasure : "غير متاح"}</p>
+                  <p className="mt-1 text-muted-foreground">توقع مشتق من فترتي الطلب {forecast.period.from} — {forecast.period.to} و{forecast.baselinePeriod.from} — {forecast.baselinePeriod.to}، ولا يغيّر كمية إعادة التوريد تلقائياً؛ راجع الوارد والتغطية ومهلة المورد أولاً.</p>
+                </aside>
+              );
+            })() : null}
             <footer className="mt-3 border-t pt-3 text-xs text-muted-foreground">
               <p>المعادلة: {item.formulaId}@{item.formulaVersion} · المتبقي = الهدف − (المتاح + الوارد المؤكد) · الشراء التلقائي: ممنوع</p>
               <p>مراجع الإثبات: <EvidenceReferences ids={item.evidenceIds} /></p>

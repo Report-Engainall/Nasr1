@@ -1,7 +1,33 @@
-import type {SupplierPerformanceResult} from "@/lib/intelligence/supplier-performance";
+import type {SupplierPerformanceResult, SupplierPerformanceSupplier} from "@/lib/intelligence/supplier-performance";
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:3});
 const days=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:2});
 const date=(v:string|null)=>v?new Date(v).toLocaleDateString("ar-YE",{dateStyle:"medium"}):"غير متاح";
+
+type SupplierFollowUp = { key: string; title: string; count: number; action: string };
+
+function supplierFollowUps(supplier: SupplierPerformanceSupplier): SupplierFollowUp[] {
+ const items: SupplierFollowUp[] = [];
+ if (supplier.inconsistentReceivedCount > 0) items.push({
+  key: "inconsistent-receipt", title: "استلام غير متسق", count: supplier.inconsistentReceivedCount,
+  action: "راجع سطور أمر الشراء وسندات الاستلام؛ حالة الأمر مستلم لكن شروط اكتمال الكميات أو الاستلام لم تتحقق.",
+ });
+ if (supplier.openOrderCount > 0 && supplier.backlogLineCount > 0) items.push({
+  key: "pending-receipt", title: "سطور استلام معلقة", count: supplier.backlogLineCount,
+  action: "طابق الكميات المتبقية مع المورد وجدول الاستلام الفعلي؛ لا يعني العدد وحده أن الموعد متأخر.",
+ });
+ if (supplier.completedWithoutPromiseCount > 0) items.push({
+  key: "missing-promise", title: "مدة توريد غير مسجلة", count: supplier.completedWithoutPromiseCount,
+  action: "استكمل مدة التسليم في عروض الأسعار القادمة حتى يمكن قياس الالتزام بالموعد على أساس موثق.",
+ });
+ if (supplier.promisedDeliverySampleCount >= 3) {
+  const lateCount = supplier.promisedDeliverySampleCount - supplier.onTimeCount;
+  if (lateCount > 0) items.push({
+   key: "late-delivery", title: "تسليم بعد الموعد الموعود", count: lateCount,
+   action: "راجع أوامر العينة التي تجاوزت مدة العرض الممنوح قبل اعتماد طلب شراء جديد.",
+  });
+ }
+ return items;
+}
 export interface SupplierPerformancePanelProps {result:SupplierPerformanceResult|null;state?:"loading"|"error"|"unavailable"|"ready";onRetry?:()=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 export function SupplierPerformancePanel({result,state="ready",onRetry,onOpenPurchaseOrder}:SupplierPerformancePanelProps) {
  if(state==="loading")return <section dir="rtl" role="status" className="rounded-xl border p-4">جارٍ تحميل أداء الموردين من سجلات التوريد…</section>;
@@ -38,6 +64,38 @@ export function SupplierPerformancePanel({result,state="ready",onRetry,onOpenPur
    <td className="p-2">{s.promisedDeliverySampleCount<3||s.onTimePercent===null?"عينة غير كافية":days.format(s.onTimePercent)+"٪"}<p className="text-xs text-muted-foreground">{qty.format(s.onTimeCount)} من {qty.format(s.promisedDeliverySampleCount)} عينة</p></td>
    <td className="p-2 tabular-nums">{qty.format(s.backlogLineCount)}</td>
   </tr>)}</tbody></table></div>
+
+  {(() => {
+   const entries = result.suppliers.flatMap(supplier =>
+    supplierFollowUps(supplier).map(item => ({ ...item, supplierId: supplier.supplierId, supplierName: supplier.supplierName }))
+   );
+   return (
+    <section className="space-y-2" aria-label="ملاحظات متابعة الموردين">
+     <div>
+      <h3 className="font-semibold">ملاحظات متابعة الموردين</h3>
+      <p className="text-xs text-muted-foreground">إشارات تشغيلية مشتقة من أوامر الشراء والاستلام وعروض الأسعار الممنوحة؛ لا تمثل درجة تقييم أو حكم جودة.</p>
+     </div>
+     {entries.length === 0 ? (
+      <p role="status" className="rounded-lg border p-3 text-sm">لا توجد ملاحظات متابعة من الحقول المتاحة في هذه اللقطة.</p>
+     ) : (
+      <div className="grid gap-2 lg:grid-cols-2">
+       {entries.map(item => (
+        <article key={item.supplierId + ":" + item.key} className="rounded-lg border p-3">
+         <div className="flex flex-wrap items-center justify-between gap-2">
+          <strong className="text-sm">{item.supplierName}</strong>
+          <span className="rounded-full border px-2 py-1 text-xs">{item.title} · {qty.format(item.count)}</span>
+         </div>
+         <p className="mt-2 text-sm">{item.action}</p>
+        </article>
+       ))}
+      </div>
+     )}
+     {result.state === "PARTIAL" ? (
+      <p className="text-xs text-muted-foreground">هذه الملاحظات تخص الموردين المعروضين فقط؛ لم تكتمل تغطية جميع الموردين في الفترة.</p>
+     ) : null}
+    </section>
+   );
+  })()}
   <section className="space-y-2"><h3 className="font-semibold">أحدث أوامر الشراء ومصدر القياس</h3>
    {result.suppliers.map(s=><details key={s.supplierId} className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">{s.supplierName} · {qty.format(s.recentOrders.length)} سجلات</summary>
     <div className="mt-3 space-y-2">{s.recentOrders.map(o=><article key={o.purchaseOrderId} className="rounded-md bg-muted/40 p-2 text-xs">

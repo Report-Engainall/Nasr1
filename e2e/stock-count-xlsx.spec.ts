@@ -210,19 +210,27 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       await manager.getByRole("button", { name: "بدء جلسة جرد فعلية", exact: true }).click();
       await expect(manager.getByRole("heading", { name: "جلسة الجرد المفتوحة" })).toBeVisible({ timeout: 30_000 });
 
-      const rows = manager.locator("table tbody tr");
+      // The page intentionally renders both the editable count table and a read-only print table.
+      // Scope the fixture to the table with the actual-count column to avoid matching the same
+      // product again in the print document.
+      const countTable = manager.getByRole("table").filter({
+        has: manager.getByRole("columnheader", { name: "العد الفعلي", exact: true }),
+      });
+      const rows = countTable.locator("tbody tr");
       await expect(rows).not.toHaveCount(0);
-      const firstRow = rows.first();
-      const itemCode = (await firstRow.locator("td").nth(0).innerText()).trim();
-      const itemName = (await firstRow.locator("td").nth(1).innerText()).trim();
-      const expectedQuantityText = (await firstRow.locator("td").nth(3).innerText()).trim();
+      const targetRows = rows.filter({ hasText: "P2-LOCAL-E2E-001" });
+      await expect(targetRows, "The stock-count fixture must be selected by its stable product code, not by inventory sort order.").toHaveCount(1);
+      const targetRow = targetRows.first();
+      const itemCode = (await targetRow.locator("td").nth(0).innerText()).trim();
+      const itemName = (await targetRow.locator("td").nth(1).innerText()).trim();
+      const expectedQuantityText = (await targetRow.locator("td").nth(3).innerText()).trim();
       expect(itemCode).toBe("P2-LOCAL-E2E-001");
       expect(itemName).toBe("P2 Local E2E Product");
       authoritativeQuantity = await readLocalSourceQuantity();
       authoritativeMovementCount = await readLocalSourceMovementCount();
       expect(normalizeLocalizedQuantity(expectedQuantityText)).toBe(authoritativeQuantity);
-      await firstRow.locator('input').fill("٩٩");
-      await firstRow.getByRole("button", { name: "حفظ العد", exact: true }).click();
+      await targetRow.locator('input').fill("٩٩");
+      await targetRow.getByRole("button", { name: "حفظ العد", exact: true }).click();
       await expect(manager.locator(".data-status.success[role='status']"))
         .toContainText("تم حفظ عدّ " + itemName, { timeout: 20_000 });
     });
@@ -253,7 +261,10 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       expect(summaryXml).toContain("العدود المحفوظة");
       expect(summaryXml).toContain("مصدر الكميات");
       expect(summaryXml).toContain("لا يتضمن الملف معرفات المؤسسة");
-      const firstRow = manager.locator("table tbody tr").first();
+      const countTable = manager.getByRole("table").filter({
+        has: manager.getByRole("columnheader", { name: "العد الفعلي", exact: true }),
+      });
+      const firstRow = countTable.locator("tbody tr").first();
       const itemCode = (await firstRow.locator("td").nth(0).innerText()).trim();
       const itemName = (await firstRow.locator("td").nth(1).innerText()).trim();
       expect(detailsXml).toContain(itemCode);

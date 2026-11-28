@@ -22,11 +22,11 @@ import {
   type SupplierInvoiceRecord,
   type SupplierInvoiceReceivableLine,
   type SupplierInvoiceWorkspace,
+  type SupplierInvoiceWorkspaceStatusFilter,
 } from "@/lib/supplier-invoices";
 import { projectSupplierInvoiceAccountingPrintDocument, type SupplierInvoiceAccountingPrintDocument } from "@/lib/supplier-invoice-accounting-print";
 import { SupplierInvoiceAccountingPrintSheet } from "@/components/SupplierInvoiceAccountingPrintSheet";
 import { downloadSupplierInvoiceAccountingWorkbookXlsx } from "@/lib/supplier-invoice-accounting-xlsx";
-import { filterSupplierInvoicePage, type SupplierInvoiceWorkspaceStatusFilter } from "@/lib/supplier-invoice-workspace-filters";
 
 type WorkspaceMode = "capture" | "review";
 type InvoiceLineDraft = { quantity: string; unitCost: string; lineTotal: string };
@@ -90,8 +90,9 @@ function eventLabel(action: string): string {
 }
 
 
-export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false }: {
+export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false, initialInvoiceId }: {
   mode: WorkspaceMode;
+  initialInvoiceId?: string;
   accounts?: AccountingLedgerAccount[];
   onRefresh?: () => Promise<void>;
   purchaseOrders?: readonly { items: readonly { id: string; quantity_ordered: number }[] }[];
@@ -113,6 +114,8 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   const [invoiceQuery, setInvoiceQuery] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<SupplierInvoiceWorkspaceStatusFilter>("all");
   const [offset, setOffset] = useState(0);
+  const invoiceFiltersRef = useRef({ query: invoiceQuery, status: invoiceStatusFilter });
+  const skipNextInvoiceFilterDebounceRef = useRef(false);
   const [lineDrafts, setLineDrafts] = useState<Record<string, InvoiceLineDraft>>({});
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(localToday());
@@ -372,7 +375,12 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
   }
 }
 
-  const load = useCallback(async (requestedOffset: number, requestedOrderId?: string | null) => {
+  const load = useCallback(async (
+    requestedOffset: number,
+    requestedOrderId?: string | null,
+    requestedQuery = invoiceQuery,
+    requestedStatus = invoiceStatusFilter,
+  ) => {
     const requestId = ++workspaceRequestRef.current;
     if (!canUseFinance) {
       setWorkspace(null);
@@ -391,6 +399,8 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         purchaseOrderId: filterOrderId,
         limit: 25,
         offset: requestedOffset,
+        search: requestedQuery,
+        matchStatus: requestedStatus,
       });
       if (requestId !== workspaceRequestRef.current) return null;
       setWorkspace(result);
@@ -409,7 +419,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     } finally {
       if (requestId === workspaceRequestRef.current) setLoading(false);
     }
-  }, [canUseFinance, isCapture, purchaseOrderId, user?.id, user?.profileId, sessionRevision]);
+  }, [canUseFinance, isCapture, purchaseOrderId, invoiceQuery, invoiceStatusFilter, user?.id, user?.profileId, sessionRevision]);
 
   useEffect(() => {
     // Invalidate and clear user-scoped invoice rows before loading the next identity.
@@ -417,8 +427,14 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     evidenceLinkRequestRef.current += 1;
     setEvidenceLinkBusy(null);
     setWorkspace(null);
-    setInvoiceQuery("");
+    const linkedInvoiceId = typeof initialInvoiceId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(initialInvoiceId.trim())
+      ? initialInvoiceId.trim()
+      : "";
+    setInvoiceQuery(linkedInvoiceId);
     setInvoiceStatusFilter("all");
+    invoiceFiltersRef.current = { query: linkedInvoiceId, status: "all" };
+    skipNextInvoiceFilterDebounceRef.current = true;
     setOffset(0);
     setOrderOptions([]);
     setSelectedInvoiceId(null);
@@ -430,8 +446,23 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     setLineDrafts({});
     submissionKey.current = null;
     accountingKey.current = null;
-    void load(0, isCapture ? purchaseOrderId || null : null);
-  }, [canUseFinance, isCapture, purchaseOrderId, user?.id, user?.profileId, sessionRevision]);
+    void load(0, isCapture ? purchaseOrderId || null : null, linkedInvoiceId, "all");
+  }, [canUseFinance, isCapture, purchaseOrderId, initialInvoiceId, user?.id, user?.profileId, sessionRevision]);
+
+  useEffect(() => {
+    if (skipNextInvoiceFilterDebounceRef.current) {
+      skipNextInvoiceFilterDebounceRef.current = false;
+      return;
+    }
+    const previous = invoiceFiltersRef.current;
+    if (previous.query === invoiceQuery && previous.status === invoiceStatusFilter) return;
+    invoiceFiltersRef.current = { query: invoiceQuery, status: invoiceStatusFilter };
+    const timeout = window.setTimeout(() => {
+      setOffset(0);
+      void load(0);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [invoiceQuery, invoiceStatusFilter, load]);
 
   useEffect(() => {
     let active = true;
@@ -471,10 +502,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     [workspace?.receivableLines, isCapture, purchaseOrderId],
   );
   const invoiceRows = workspace?.invoices ?? [];
-  const filteredInvoiceRows = useMemo(
-    () => filterSupplierInvoicePage(invoiceRows, invoiceQuery, invoiceStatusFilter),
-    [invoiceRows, invoiceQuery, invoiceStatusFilter],
-  );
+  const filteredInvoiceRows = invoiceRows;
   const selectedInvoice = useMemo(
     () => filteredInvoiceRows.find((invoice) => invoice.id === selectedInvoiceId) ?? null,
     [filteredInvoiceRows, selectedInvoiceId],
@@ -502,6 +530,13 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     }
     return { total, valid };
   }, [receivableLines, lineDrafts]);
+
+  function beginInvoiceFilterChange() {
+    workspaceRequestRef.current += 1;
+    setOffset(0);
+    setLoading(true);
+    setError("");
+  }
 
   function updateLine(receiptItemId: string, patch: Partial<InvoiceLineDraft>) {
     setLineDrafts((current) => ({
@@ -853,17 +888,17 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", alignItems: "end", gap: 10 }}>
           <label style={{ display: "grid", gap: 5 }}>
-            البحث في فواتير الصفحة الحالية
+            البحث في جميع فواتير الموردين
             <input type="search" aria-label="بحث فواتير المورد" maxLength={120}
               placeholder="رقم الفاتورة أو المورد أو أمر الشراء"
-              value={invoiceQuery} onChange={(event) => setInvoiceQuery(event.target.value)}
-              disabled={loading} style={fieldStyle} />
+              value={invoiceQuery} onChange={(event) => { beginInvoiceFilterChange(); setInvoiceQuery(event.target.value); }}
+              style={fieldStyle} />
           </label>
           <label style={{ display: "grid", gap: 5 }}>
             حالة المطابقة
             <select aria-label="تصفية حالة مطابقة فواتير المورد" value={invoiceStatusFilter}
-              onChange={(event) => setInvoiceStatusFilter(event.target.value as SupplierInvoiceWorkspaceStatusFilter)}
-              disabled={loading} style={fieldStyle}>
+              onChange={(event) => { beginInvoiceFilterChange(); setInvoiceStatusFilter(event.target.value as SupplierInvoiceWorkspaceStatusFilter); }}
+              style={fieldStyle}>
               <option value="all">جميع الحالات</option>
               <option value="matched">مطابقة سعرية</option>
               <option value="variance_pending">فرق سعر بانتظار مراجعة</option>
@@ -872,20 +907,20 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
             </select>
           </label>
           <button type="button" className="btn secondary"
-            onClick={() => { setInvoiceQuery(""); setInvoiceStatusFilter("all"); }}
-            disabled={loading || (!invoiceQuery.trim() && invoiceStatusFilter === "all")}>
+            onClick={() => { beginInvoiceFilterChange(); setInvoiceQuery(""); setInvoiceStatusFilter("all"); }}
+            disabled={!invoiceQuery.trim() && invoiceStatusFilter === "all"}>
             مسح البحث والتصفية
           </button>
         </div>
         <p role="status" aria-live="polite" style={mutedStyle}>
-          نتائج الصفحة: {filteredInvoiceRows.length} من {invoiceRows.length} · إجمالي السجل: {workspace?.invoiceCount ?? 0}
+          النتائج المعروضة: {filteredInvoiceRows.length} · إجمالي النتائج المطابقة في السجل: {workspace?.invoiceCount ?? 0}
         </p>
-        <p style={mutedStyle}>البحث والتصفية يطبقان على الصفحة الحالية فقط؛ استخدم السابق والتالي للوصول إلى بقية صفحات السجل.</p>
-        {loading ? <p role="status" style={mutedStyle}>جار تحميل سجل الفواتير...</p> : invoiceRows.length === 0 ? (
+        <p style={mutedStyle}>يُنفّذ البحث والتصفية على كامل سجل فواتير المؤسسة في الخادم قبل ترقيم الصفحات؛ السابق والتالي يتنقلان بين النتائج المطابقة فقط.</p>
+        {loading ? <p role="status" style={mutedStyle}>جار تحميل سجل الفواتير...</p> : invoiceRows.length === 0 && !invoiceQuery.trim() && invoiceStatusFilter === "all" ? (
           <p style={mutedStyle}>لا توجد فواتير موردين مسجلة ضمن نطاق العرض الحالي.</p>
         ) : filteredInvoiceRows.length === 0 ? (
           <p role="status" style={{ ...mutedStyle, padding: 12, borderRadius: 8, background: "var(--muted, #f3f6f8)" }}>
-            لا توجد فواتير مطابقة لعبارة البحث وحالة المطابقة في هذه الصفحة.
+            لا توجد فواتير مطابقة لعبارة البحث وحالة المطابقة في كامل السجل.
           </p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
@@ -903,7 +938,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button type="button" className="btn secondary" disabled={loading || offset <= 0} onClick={() => { const next = Math.max(0, offset - 25); setOffset(next); void load(next); }}>السابق</button>
-          <span style={mutedStyle}>عرض {workspace ? workspace.offset + 1 : 0}–{workspace ? workspace.offset + invoiceRows.length : 0}</span>
+          <span style={mutedStyle}>عرض {workspace && workspace.invoiceCount > 0 ? workspace.offset + 1 : 0}–{workspace ? workspace.offset + invoiceRows.length : 0} من {workspace?.invoiceCount ?? 0}</span>
           <button type="button" className="btn secondary" disabled={loading || !workspace?.hasMore} onClick={() => { const next = offset + 25; setOffset(next); void load(next); }}>التالي</button>
         </div>
       </section>

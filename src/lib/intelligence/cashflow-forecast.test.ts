@@ -107,6 +107,7 @@ describe("scheduled cash-flow forecast",()=>{
   const withAsOf=(m:MetricSnapshot):MetricSnapshot=>({...m,asOf:offsetAsOf,lineage:{...m.lineage,calculatedAt:offsetAsOf}});
   const result=buildCashflowForecast({
    ...source,
+   generatedAt:offsetAsOf,
    asOf:offsetAsOf,
    openingBalances:source.openingBalances.map(withAsOf),
    entries:source.entries.map(item=>({...item,amount:withAsOf(item.amount)})),
@@ -126,4 +127,114 @@ describe("scheduled cash-flow forecast",()=>{
   expect(point).toMatchObject({openingBalance:-25.5,knownInflows:30,knownOutflows:5,projectedBalance:-0.5,status:"VERIFIED"});
  });
 
+});
+
+
+describe("cashflow metric generation clock", () => {
+ it("withholds a projected balance when the opening metric was calculated after report generation", () => {
+  const source=base();
+  const generatedAt="2026-10-30T07:05:00Z";
+  source.generatedAt=generatedAt;
+  source.openingBalances=[{
+   ...source.openingBalances[0],
+   lineage:{...source.openingBalances[0].lineage,calculatedAt:"2026-10-30T07:05:01Z"},
+  }];
+  const result=buildCashflowForecast(source);
+  expect(result.points[0]).toMatchObject({openingBalance:null,projectedBalance:null,status:"NEEDS_REVIEW"});
+  expect(result.points[0].warnings).toContain("OPENING_BALANCE_CALCULATION_CLOCK_INVALID");
+ });
+
+ it("withholds a scheduled movement calculated after report generation", () => {
+  const movement=entry("future-calc","INFLOW","2026-11-01",20);
+  movement.amount={...movement.amount,lineage:{...movement.amount.lineage,calculatedAt:"2026-10-30T07:00:01Z"}};
+  const result=buildCashflowForecast(base([movement]));
+  expect(result.points[0]).toMatchObject({knownInflows:null,projectedBalance:null,status:"NEEDS_REVIEW"});
+  expect(result.points[0].warnings).toContain("SCHEDULE_METRIC_CALCULATION_CLOCK_INVALID");
+ });
+
+ it("accepts a metric calculated exactly at the report-generation boundary", () => {
+  const source=base();
+  source.generatedAt="2026-10-30T07:05:00Z";
+  source.openingBalances=[{
+   ...source.openingBalances[0],
+   lineage:{...source.openingBalances[0].lineage,calculatedAt:source.generatedAt},
+  }];
+  const result=buildCashflowForecast(source);
+  expect(result.points[0]).toMatchObject({openingBalance:100,projectedBalance:100,status:"VERIFIED"});
+ });
+});
+
+describe("cashflow report clock integrity", () => {
+  it.each([
+    ["timezone-less generatedAt", "2026-10-30T07:05:00", "2026-10-30T07:00:00Z"],
+    ["impossible generatedAt date", "2026-02-31T07:05:00.000Z", "2026-02-28T07:00:00.000Z"],
+    ["timezone-less asOf", "2026-10-30T07:05:00Z", "2026-10-30T07:00:00"],
+    ["impossible asOf date", "2026-10-30T07:05:00Z", "2026-02-31T07:00:00.000Z"],
+  ])("rejects %s before evaluating any forecast", (_label, generatedAt, asOf) => {
+    const source = base();
+    source.generatedAt = generatedAt;
+    source.asOf = asOf;
+    expect(() => buildCashflowForecast(source)).toThrow(
+      "generatedAt and asOf must be valid timezone-qualified timestamps",
+    );
+  });
+
+  it("rejects an as-of instant later than report generation", () => {
+    const source = base();
+    source.generatedAt = "2026-10-30T07:05:00.000Z";
+    source.asOf = "2026-10-30T07:06:00.000Z";
+    expect(() => buildCashflowForecast(source)).toThrow(
+      "generatedAt and asOf must be valid timezone-qualified timestamps",
+    );
+  });
+});
+
+describe("cashflow forecast currency visibility under incomplete evidence", () => {
+  it("keeps an unverified currency visible without inventing a balance or movements", () => {
+    const scheduled = entry("needs-review-entry", "INFLOW", "2026-11-01", 20);
+    const incompleteEvidence = {
+      ...evidence("needs-review-entry", "YER"),
+      status: "NEEDS_REVIEW" as const,
+      completeness: "PARTIAL" as const,
+    };
+    const result = buildCashflowForecast({
+      ...base([scheduled]),
+      openingBalances: [],
+      evidenceRecords: [incompleteEvidence],
+    });
+    const points = result.points.filter(point => point.currency === "YER");
+    expect(points.map(point => point.horizonDays)).toEqual([7, 30, 90]);
+    for (const point of points) {
+      expect(point).toMatchObject({
+        currency: "YER",
+        openingBalance: null,
+        knownInflows: null,
+        knownOutflows: null,
+        projectedBalance: null,
+        status: "NEEDS_REVIEW",
+        scheduleComplete: false,
+      });
+      expect(point.warnings).toContain("SCHEDULE_ENTRY_NOT_VERIFIED");
+      expect(point.evidenceIds).toContain("needs-review-entry");
+    }
+  });
+});
+
+describe("cashflow forecast UTC offset ceiling", () => {
+  it.each([
+    ["+14:00", "2026-10-30T21:00:00.000+14:00"],
+    ["-14:00", "2026-10-29T17:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, timestamp) => {
+    const result = buildCashflowForecast({ ...base(), generatedAt: timestamp, asOf: timestamp });
+    expect(result.asOf).toBe(timestamp);
+  });
+
+  it.each([
+    "2026-10-30T21:00:00.000+14:01",
+    "2026-10-29T17:00:00.000-14:01",
+    "2026-10-30T23:59:00.000+23:59",
+  ])("rejects an unsupported cash-flow clock offset: %s", timestamp => {
+    expect(() => buildCashflowForecast({ ...base(), generatedAt: timestamp, asOf: timestamp }))
+      .toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
+  });
 });

@@ -25,7 +25,7 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_ENTRY_BYTES = 1024 * 1024;
 const MAX_TOTAL_UNPACKED_BYTES = 4 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 24;
-const MAX_DATA_ROWS = 500;
+const MAX_DATA_ROWS = 100;
 type ZipEntry = { method: number; compressedSize: number; uncompressedSize: number; localOffset: number };
 
 function normalizeDigits(value: string): string {
@@ -305,7 +305,7 @@ export async function parseCustomerShoppingListXlsx(
     if (!rawCode && !rawQuantity && !rawUnit) { skipped += 1; continue; }
     const sourceRow = index + 1;
     if (!rawCode || !rawQuantity) throw new Error("الصف " + sourceRow + " يفتقد رمز الصنف أو الكمية.");
-    if (imported.length >= MAX_DATA_ROWS) throw new Error("لا يمكن استيراد أكثر من 500 صف بيانات في ملف واحد.");
+    if (imported.length >= MAX_DATA_ROWS) throw new Error("لا يمكن استيراد أكثر من 100 صنف في ملف واحد؛ هذا هو الحد المعتمد للقائمة والسلة.");
     const product = resolveShoppingListImportProduct(rawCode, products);
     const id = product.id.toLowerCase();
     if (seen.has(id)) throw new Error("الصنف «" + product.name + "» مكرر في ملف Excel؛ اجمع كمياته في صف واحد أولًا.");

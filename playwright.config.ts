@@ -5,9 +5,10 @@ export default defineConfig({
   // This acceptance requires a synthetic role/user provisioned by the local Supabase fixture.
   // Exclude it from the external-backend job and read-only public smoke unless the local fixture
   // has exported its manager credentials; the local job does not silently skip the test.
-  testIgnore: process.env.E2E_CUSTOMER_MANAGER_EMAIL
-    ? []
-    : ["**/customer-manager-authorization.spec.ts"],
+  testIgnore: [
+    ...(process.env.E2E_CUSTOMER_MANAGER_EMAIL ? [] : ["**/customer-manager-authorization.spec.ts"]),
+    ...(process.env.E2E_PROFILE_SESSION_ISOLATION === "1" ? [] : ["**/profile-session-isolation.spec.ts"]),
+  ],
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

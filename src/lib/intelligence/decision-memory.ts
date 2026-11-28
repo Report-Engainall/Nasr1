@@ -1,5 +1,8 @@
 import type { DecisionOutcomeView } from "./decision-outcome-client";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
+const NUMERIC_METRIC_UNITS = new Set<MetricSnapshot["unit"]>([
+  "COUNT", "RATIO", "CURRENCY", "CURRENCY_PER_UNIT", "QUANTITY", "DAYS",
+]);
 
 export const DECISION_MEMORY_POLICY_VERSION = "1.0.0";
 
@@ -175,7 +178,7 @@ export function searchSimilarDecisionMemory(input: {
     throw new Error("decision_memory_search_input_invalid");
   }
   const target = records.find(record => record.decisionId === decisionId);
-  if (!target || !Number.isFinite(Date.parse(target.createdAt))) return [];
+  if (!target || !validTime(target.createdAt)) return [];
 
   const queryTokens = decisionSearchTokens(query);
   const targetTokens = decisionSearchTokens(decisionRecordSearchText(target) + " " + query);
@@ -185,7 +188,7 @@ export function searchSimilarDecisionMemory(input: {
   return records
     .filter(candidate =>
       candidate.decisionId !== target.decisionId &&
-      Number.isFinite(Date.parse(candidate.createdAt)) &&
+      validTime(candidate.createdAt) &&
       Date.parse(candidate.createdAt) < Date.parse(target.createdAt))
     .map(candidate => {
       const candidateTokens = new Set(decisionSearchTokens(decisionRecordSearchText(candidate)));
@@ -350,7 +353,7 @@ export function buildDecisionPolicyReviewSuggestions(
         !expected || !actual ||
         !record.ruleId.trim() || !record.ruleVersion.trim() ||
         !validPeriod(expected.period) || !validPeriod(actual.period) ||
-        !record.createdAt || !Number.isFinite(Date.parse(record.createdAt)) ||
+        !validTime(record.createdAt) ||
         !validReviewComparisonArithmetic(comparison, expected, actual) ||
         !expected.evidenceIds.length || !actual.evidenceIds.length) {
       continue;
@@ -422,7 +425,15 @@ export function buildDecisionPolicyReviewSuggestions(
 }
 
 function validTime(value: string): boolean {
-  return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value)) {
+    return false;
+  }
+  const day = value.slice(0, 10);
+  const dayMillis = Date.parse(day + "T00:00:00.000Z");
+  return Number.isFinite(Date.parse(value)) &&
+    Number.isFinite(dayMillis) &&
+    new Date(dayMillis).toISOString().slice(0, 10) === day;
 }
 function validPeriod(period: EvidencePeriod | null | undefined): period is EvidencePeriod {
   if (!period || !/^\d{4}-\d{2}-\d{2}$/.test(period.from) || !/^\d{4}-\d{2}-\d{2}$/.test(period.to)) return false;
@@ -436,8 +447,11 @@ function samePeriod(a: EvidencePeriod | null, b: EvidencePeriod | null): boolean
   return Boolean(a && b && validPeriod(a) && validPeriod(b) && a.from === b.from && a.to === b.to);
 }
 function finiteNumber(value: number | string | null): number | null {
-  const parsed = typeof value === "number" ? value :
-    typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+  const normalized = typeof value === "string"
+    ? value.trim()
+    : typeof value === "number" && Number.isFinite(value) ? value.toString() : null;
+  if (normalized === null || !/^-?\d+(?:\.\d{1,6})?$/.test(normalized)) return null;
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) && Math.abs(parsed) <= Number.MAX_SAFE_INTEGER ? parsed : null;
 }
 function unique<T extends string>(values: T[]): T[] {
@@ -463,6 +477,9 @@ function verifiedMetric(metric: MetricSnapshot | null, evidence: Map<string, Evi
   if (!metric) return { metric: null as DecisionMemoryMetricResult | null, reason: "METRIC_MISSING" as string | null };
   if (metric.status !== "VERIFIED" || metric.completeness !== "COMPLETE" || metric.quality !== "ACCEPTABLE") {
     return { metric: null, reason: "METRIC_NOT_VERIFIED" };
+  }
+  if (!NUMERIC_METRIC_UNITS.has(metric.unit)) {
+    return { metric: null, reason: "METRIC_UNIT_NOT_NUMERIC" };
   }
   if (!validTime(metric.asOf) || Date.parse(metric.asOf) > Date.parse(noLaterThan) ||
       !validPeriod(metric.period) || !metric.lineage?.formulaId?.trim() ||
@@ -600,7 +617,14 @@ export function buildDecisionMemoryBook(input: {
     outcomeIds.add(outcome.id);
   }
   const records: DecisionMemoryRecord[] = input.outcomes.slice()
-    .sort((a,b)=>b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id))
+    .sort((a,b)=>{
+      const aTime=validTime(a.createdAt)?Date.parse(a.createdAt):null;
+      const bTime=validTime(b.createdAt)?Date.parse(b.createdAt):null;
+      if(aTime===null&&bTime!==null)return 1;
+      if(bTime===null&&aTime!==null)return -1;
+      if(aTime===null||bTime===null)return a.id.localeCompare(b.id);
+      return bTime-aTime||a.id.localeCompare(b.id);
+    })
     .map(outcome => {
       const candidates = snapshotsByDecision.get(outcome.id) ?? [];
       const snapshot = candidates.length === 1 ? candidates[0] : null;
@@ -623,7 +647,8 @@ export function buildDecisionMemoryBook(input: {
         const evidence=evidenceIndex(snapshot.evidenceRecords??[]);
         const snapshotValid=snapshot.id.trim()!=="" && snapshot.decisionId===outcome.id &&
           Number.isInteger(snapshot.version) && snapshot.version>=1 && validTime(snapshot.capturedAt) &&
-          validTime(snapshot.asOf) && Date.parse(snapshot.capturedAt)<=Date.parse(input.generatedAt) &&
+          validTime(snapshot.asOf) && validTime(outcome.createdAt) &&
+           Date.parse(snapshot.capturedAt)<=Date.parse(input.generatedAt) &&
           Date.parse(snapshot.asOf)<=Date.parse(outcome.createdAt) && Date.parse(snapshot.asOf)<=Date.parse(snapshot.capturedAt) &&
           validPeriod(snapshot.period);
         if(!snapshotValid){
@@ -687,7 +712,7 @@ export function buildDecisionMemoryBook(input: {
         }
       }
       const precedents=input.outcomes.filter(previous=>previous.id!==outcome.id&&previous.ruleId===outcome.ruleId&&
-        validTime(previous.createdAt)&&Date.parse(previous.createdAt)<Date.parse(outcome.createdAt))
+        validTime(previous.createdAt)&&validTime(outcome.createdAt)&&Date.parse(previous.createdAt)<Date.parse(outcome.createdAt))
         .sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
         .map(previous=>({decisionId:previous.id,ruleVersion:previous.ruleVersion,state:previous.state,createdAt:previous.createdAt,
           measured:previous.state==="MEASURED"&&previous.measuredOutcome!==null}));

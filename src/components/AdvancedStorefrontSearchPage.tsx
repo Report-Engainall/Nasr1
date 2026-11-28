@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import { fetchCategories } from "@/lib/api";
+import { fetchStorefrontCatalogPage, type StorefrontCatalogFilters } from "@/lib/storefront-catalog";
 import { MAX_CATALOG_SEARCH_LENGTH, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
 import { useFetch } from "@/lib/useFetch";
 
@@ -101,6 +102,73 @@ function CategoryQueryNotice({
   );
 }
 
+function SearchBrandSelect({
+  brands,
+  value,
+  disabled,
+  onChange,
+}: {
+  brands: StorefrontCatalogFilters["brands"];
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      العلامة التجارية
+      <select
+        id="advanced-storefront-brand"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        style={{ width: "100%", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }}
+      >
+        <option value="">كل العلامات التجارية</option>
+        {brands.map((brand) => (
+          <option key={brand.id} value={brand.id}>{brand.name}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SearchUnitSelect({
+  units,
+  value,
+  disabled,
+  onChange,
+}: {
+  units: string[];
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      وحدة البيع
+      <select
+        id="advanced-storefront-unit"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        style={{ width: "100%", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }}
+      >
+        <option value="">كل وحدات البيع</option>
+        {units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function SearchPriceDisplayableField({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      إظهار المنتجات التي تسمح سياسة المتجر بعرض أسعارها فقط
+    </label>
+  );
+}
+
 function SearchAvailabilityField({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   return (
     <label style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -119,6 +187,12 @@ function AdvancedSearchForm({
   query,
   categoryId,
   availableOnly,
+  brandId,
+  unit,
+  priceDisplayableOnly,
+  filters,
+  filtersLoading,
+  filtersError,
   formError,
   categoryLoading,
   categoryError,
@@ -126,12 +200,22 @@ function AdvancedSearchForm({
   onQueryChange,
   onCategoryChange,
   onAvailabilityChange,
+  onBrandChange,
+  onUnitChange,
+  onPriceDisplayableChange,
+  onFiltersRetry,
   onCategoryRetry,
   onSubmit,
 }: {
   query: string;
   categoryId: string;
   availableOnly: boolean;
+  brandId: string;
+  unit: string;
+  priceDisplayableOnly: boolean;
+  filters: StorefrontCatalogFilters;
+  filtersLoading: boolean;
+  filtersError: string | null;
   formError: string;
   categoryLoading: boolean;
   categoryError: string | null;
@@ -139,6 +223,10 @@ function AdvancedSearchForm({
   onQueryChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onAvailabilityChange: (checked: boolean) => void;
+  onBrandChange: (value: string) => void;
+  onUnitChange: (value: string) => void;
+  onPriceDisplayableChange: (checked: boolean) => void;
+  onFiltersRetry: () => void;
   onCategoryRetry: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -152,7 +240,17 @@ function AdvancedSearchForm({
         onChange={onCategoryChange}
       />
       <CategoryQueryNotice loading={categoryLoading} error={categoryError} onRetry={onCategoryRetry} />
+      {filtersLoading ? <p role="status">جار تحميل خيارات العلامات ووحدات البيع...</p> : null}
+      {filtersError ? (
+        <div role="alert" style={{ display: "grid", gap: 8 }}>
+          <p style={{ margin: 0 }}>تعذر تحميل خيارات العلامات ووحدات البيع: {filtersError}</p>
+          <button type="button" className="sf-btn-secondary" onClick={onFiltersRetry}>إعادة تحميل خيارات الفلاتر</button>
+        </div>
+      ) : null}
+      <SearchBrandSelect brands={filters.brands} value={brandId} disabled={filtersLoading || Boolean(filtersError)} onChange={onBrandChange} />
+      <SearchUnitSelect units={filters.units} value={unit} disabled={filtersLoading || Boolean(filtersError)} onChange={onUnitChange} />
       <SearchAvailabilityField checked={availableOnly} onChange={onAvailabilityChange} />
+      <SearchPriceDisplayableField checked={priceDisplayableOnly} onChange={onPriceDisplayableChange} />
       <SearchFormError message={formError} />
       <button type="submit" className="sf-btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
         <Search size={17} /> عرض النتائج
@@ -164,16 +262,29 @@ function AdvancedSearchForm({
 export function AdvancedStorefrontSearchPage() {
   const navigate = useNavigate();
   const categoryQuery = useFetch(fetchCategories);
+  const catalogFiltersQuery = useFetch(async () => {
+    const page = await fetchStorefrontCatalogPage({
+      search: "",
+      categoryId: null,
+      page: 1,
+      pageSize: 1,
+      availableOnly: false,
+    });
+    return page.filters;
+  });
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [availableOnly, setAvailableOnly] = useState(false);
+  const [brandId, setBrandId] = useState("");
+  const [unit, setUnit] = useState("");
+  const [priceDisplayableOnly, setPriceDisplayableOnly] = useState(false);
   const [formError, setFormError] = useState("");
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedQuery = normalizeCatalogSearchQuery(query).trim();
-    if (!normalizedQuery && !categoryId && !availableOnly) {
-      setFormError("أدخل اسمًا أو رمز صنف أو اختر تصنيفًا أو فعّل فلتر المتوفر فقط.");
+    if (!normalizedQuery && !categoryId && !availableOnly && !brandId && !unit && !priceDisplayableOnly) {
+      setFormError("أدخل اسمًا أو رمز صنف أو اختر تصنيفًا أو علامة أو وحدة أو فعّل أحد فلاتر التوفر والسعر.");
       return;
     }
 
@@ -184,6 +295,9 @@ export function AdvancedStorefrontSearchPage() {
         ...(normalizedQuery ? { q: normalizedQuery } : {}),
         ...(categoryId ? { category: categoryId } : {}),
         ...(availableOnly ? { available: "1" as const } : {}),
+        ...(brandId ? { brand: brandId } : {}),
+        ...(unit ? { unit } : {}),
+        ...(priceDisplayableOnly ? { priced: "1" as const } : {}),
       },
     });
   }
@@ -197,6 +311,12 @@ export function AdvancedStorefrontSearchPage() {
         query={query}
         categoryId={categoryId}
         availableOnly={availableOnly}
+        brandId={brandId}
+        unit={unit}
+        priceDisplayableOnly={priceDisplayableOnly}
+        filters={catalogFiltersQuery.data ?? { brands: [], units: [] }}
+        filtersLoading={catalogFiltersQuery.loading}
+        filtersError={catalogFiltersQuery.error}
         formError={formError}
         categoryLoading={categoryQuery.loading}
         categoryError={categoryQuery.error}
@@ -204,6 +324,10 @@ export function AdvancedStorefrontSearchPage() {
         onQueryChange={setQuery}
         onCategoryChange={setCategoryId}
         onAvailabilityChange={setAvailableOnly}
+        onBrandChange={setBrandId}
+        onUnitChange={setUnit}
+        onPriceDisplayableChange={setPriceDisplayableOnly}
+        onFiltersRetry={() => void catalogFiltersQuery.refetch()}
         onCategoryRetry={() => void categoryQuery.refetch()}
         onSubmit={submit}
       />

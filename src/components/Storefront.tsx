@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
-  Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
+  Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList, Printer,
   Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
@@ -9,24 +9,41 @@ import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/st
 import { recordStorefrontUnavailableProductSearch } from '@/lib/intelligence/unavailable-product-search-demand-client';
 import { useFetch } from '@/lib/useFetch';
 import { formatNumber } from '@/lib/format';
+import { isSafeStorefrontImageUrl } from '@/lib/storefront-image-url';
 import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
 import { ProductComparison } from '@/components/store/ProductComparison';
 import { CartQuantityControl } from '@/components/store/CartQuantityControl';
+import { StorefrontCartRestoreFailure } from '@/components/StorefrontCartRestoreFailure';
 import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-products';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { ProductDataQualityPanel } from '@/components/store/ProductDataQualityPanel';
 import { StorefrontProductOffers } from '@/components/store/StorefrontProductOffers';
+import { StorefrontProductFacts } from '@/components/store/StorefrontProductFacts';
 import { formatProductUpdatedAt } from '@/lib/storefront-product-data-quality';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
-import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
+import { resolveStorefrontPricePresentation, type CustomerOrderPricingPresentation } from '@/lib/storefront-price-visibility';
+import {
+  buildCartAvailabilitySnapshot,
+  compareCartAvailabilitySnapshots,
+  compareCartPricingSnapshots,
+  clearCartPricingSnapshot,
+  getCartAvailabilitySnapshot,
+  getCartPricingSnapshot,
+  rememberCartAvailabilitySnapshot,
+  rememberCartPricingSnapshot,
+  planCartAvailabilityAdjustments,
+  type CartAvailabilityAdjustment,
+  type CartAvailabilityChange,
+} from '@/lib/cart-review-snapshot';
 import { CustomerOrderPricingPreview, type CustomerOrderPricingPreviewStatus } from '@/components/CustomerOrderPricingPreview';
 import { isCheckoutAuthorizationDenied } from '@/lib/checkout-errors';
+import { persistCheckoutAttempt as verifyPersistedCheckoutAttempt } from '@/lib/checkout-attempt-storage';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
 import { loadOfflineCartDraft, offlineCartStorageKey, saveOfflineCartDraft } from '@/lib/offline-cart';
-import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
+import { CUSTOMER_CART_SYNCED_EVENT, fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
 import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
 import { StorefrontPredictiveSearch } from '@/components/StorefrontPredictiveSearch';
@@ -48,8 +65,16 @@ const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 type CartItem = { product: ProductWithInventory; quantity: number };
 type ProductUnitSelection = { unit_name: string; base_units_per_unit: number; selected_quantity: number };
 type StorefrontProductsSnapshot =
-  | ({ mode: 'paged'; identityKey: string; search: string; categoryId: string | null; availableOnly: boolean } & StorefrontCatalogPage)
+  | ({ mode: 'paged'; identityKey: string; search: string; categoryId: string | null; availableOnly: boolean; brandId: string | null; unit: string | null; priceDisplayableOnly: boolean } & StorefrontCatalogPage)
   | { mode: 'full'; items: ProductWithInventory[]; identityKey: string; publicCacheable: boolean };
+
+function formatCartReviewAmount(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('ar-YE', { style: 'currency', currency, maximumFractionDigits: 3 }).format(amount);
+  } catch {
+    return `${formatNumber(amount)} ${currency}`;
+  }
+}
 
 function pendingCartProduct(productId: string): ProductWithInventory {
   return {
@@ -57,10 +82,6 @@ function pendingCartProduct(productId: string): ProductWithInventory {
     category_id: null, brand_id: null, unit: 'وحدة', description: null, image_url: null, is_active: false, is_featured: false,
     sort_order: 0, stock_quantity: 0, reserved_quantity: 0, min_stock_level: 0, status: 'pending',
   };
-}
-
-function isSafeStorefrontImageUrl(value: unknown): value is string {
-  return typeof value === "string" && value.trim() === value && /^https:\/\//i.test(value);
 }
 
 function nextOrderQuantity(currentQuantity: number, minimum: number, multiple: number): number {
@@ -106,6 +127,9 @@ type StorefrontProps = {
   initialQuery?: string;
   initialCategoryId?: string;
   initialAvailableOnly?: boolean;
+  initialBrandId?: string;
+  initialUnit?: string;
+  initialPriceDisplayableOnly?: boolean;
 };
 
 /**
@@ -137,7 +161,7 @@ function describeCustomerCartSyncState(state: string, isOnline: boolean): string
   return 'سلة الحساب تُزامن تلقائيًا عند فتحها أو تعديلها.';
 }
 
-function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: StorefrontProps) {
+function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly, initialBrandId, initialUnit, initialPriceDisplayableOnly }: StorefrontProps) {
   const { user, ready: authReady } = useAuth();
   const effectiveRoles = Array.isArray(user?.roles) ? [...user.roles].sort() : [];
   const storefrontIdentityKey = JSON.stringify({
@@ -152,6 +176,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
   const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
+  const [brandId, setBrandId] = useState<string>(initialBrandId ?? '');
+  const [unit, setUnit] = useState<string>(initialUnit ?? '');
+  const [priceDisplayableOnly, setPriceDisplayableOnly] = useState<boolean>(initialPriceDisplayableOnly ?? false);
   const [catalogPage, setCatalogPage] = useState(1);
   const [debouncedQuery, setDebouncedQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const isPagedView = initialView === 'shop' && view === 'shop';
@@ -160,7 +187,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       // The Supabase session is authoritative. useAuth can briefly lag a sign-in,
       // sign-out, account switch, or token refresh; all catalog modes fail closed on mismatch.
       const emptySnapshot = (): StorefrontProductsSnapshot => isPagedView
-        ? { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [] }
+        ? { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, brandId: brandId || null, unit: unit || null, priceDisplayableOnly, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [], filters: { brands: [], units: [] } }
         : { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
       if (view === 'cart' || view === 'checkout') return emptySnapshot();
       if (!authReady) return emptySnapshot();
@@ -203,6 +230,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           page: catalogPage,
           pageSize: 24,
           availableOnly,
+          brandId: brandId || null,
+          unit: unit || null,
+          priceDisplayableOnly,
         });
         let sessionUserAfter: string | null;
         try {
@@ -211,7 +241,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
         }
         assertLiveIdentity(sessionUserAfter, 'after');
-        return { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, ...page };
+        return { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, brandId: brandId || null, unit: unit || null, priceDisplayableOnly, ...page };
       }
 
       const items = await fetchProducts();
@@ -223,7 +253,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       }
       assertLiveIdentity(sessionUserAfter, 'after');
       return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable: anonymousContext };
-    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, storefrontIdentityKey]);
+    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, brandId, unit, priceDisplayableOnly, initialView, storefrontIdentityKey]);
   // useFetch retains its previous result while a new request is pending or fails.
   // Only use data produced under the current session/role identity.
   const snapshotMatchesIdentity = productSnapshot?.identityKey === storefrontIdentityKey;
@@ -256,7 +286,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     refetch: refetchCategories,
   } = useFetch(fetchCategories);
   const { data: promotions, loading: promotionsLoading, error: promotionsError, refreshError: promotionsRefreshError, refetch: refetchPromotions } = useFetch(fetchStorefrontPromotions);
-  const { data: settings } = useFetch(fetchSettingsMap);
+  const { data: settings, loading: settingsLoading } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId, user?.id);
   const wishlistStorageKey = storefrontWishlistStorageKey(user?.profileId, user?.id);
@@ -265,6 +295,54 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
   const cart = cartRestored ? cartState.items : [];
+  const { data: emptyCartRecommendationSnapshot, loading: emptyCartRecommendationsLoading, error: emptyCartRecommendationsError, refetch: refetchEmptyCartRecommendations } =
+    useFetch<{ identityKey: string; items: ProductWithInventory[] } | null>(async () => {
+      if (view !== 'cart' || !cartRestored || cart.length > 0 || !authReady) return null;
+
+      const expectedAuthUserId = user?.id ?? null;
+      const anonymousContext = !expectedAuthUserId && !user?.profileId;
+      if (!anonymousContext && !expectedAuthUserId) {
+        throw new Error('هوية الحساب غير مكتملة؛ لم يتم تحميل ترشيحات الكتالوج.');
+      }
+
+      const readSessionUserId = async () => {
+        const response = await supabase.auth.getSession();
+        if (!response || response.error) throw new Error('تعذر التحقق من جلسة الحساب.');
+        return response.data?.session?.user?.id ?? null;
+      };
+      const sessionBefore = await readSessionUserId();
+      if ((anonymousContext && sessionBefore !== null) || (!anonymousContext && sessionBefore !== expectedAuthUserId)) {
+        throw new Error('تغيرت جلسة الحساب؛ أُهملت ترشيحات المنتجات لمنع خلط بيانات المؤسسات.');
+      }
+
+      const page = await fetchStorefrontCatalogPage({
+        search: '',
+        categoryId: null,
+        page: 1,
+        pageSize: 4,
+        availableOnly: true,
+      });
+      const sessionAfter = await readSessionUserId();
+      if ((anonymousContext && sessionAfter !== null) ||
+          (!anonymousContext && sessionAfter !== expectedAuthUserId) ||
+          !authReady ||
+          (user?.id ?? null) !== expectedAuthUserId) {
+        throw new Error('تغيرت جلسة الحساب أثناء تحميل الترشيحات؛ أُهملت النتائج.');
+      }
+
+      return {
+        identityKey: storefrontIdentityKey,
+        items: page.items.filter((product) =>
+          product.is_active === true &&
+          product.status === 'active' &&
+          typeof product.inventory?.quantity_available === 'number' &&
+          product.inventory.quantity_available > 0,
+        ).slice(0, 4),
+      };
+    }, [view, cartRestored, cart.length, authReady, storefrontIdentityKey]);
+  const emptyCartRecommendations = emptyCartRecommendationSnapshot?.identityKey === storefrontIdentityKey
+    ? emptyCartRecommendationSnapshot.items
+    : [];
   const cartProductIdsKey = cart.map((item) => item.product.id).sort().join('|');
   const cartProductIds = useMemo(
     () => cartProductIdsKey ? cartProductIdsKey.split('|') : [],
@@ -289,6 +367,10 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, string>>({});
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [cartActionNotice, setCartActionNotice] = useState<string | null>(null);
+  const [pendingCartRemoval, setPendingCartRemoval] = useState<{ item: CartItem; index: number } | null>(null);
+  const [recentlyRemovedCartItems, setRecentlyRemovedCartItems] = useState<Array<{ item: CartItem; index: number }>>([]);
+  const [cartPricingPreviewStatus, setCartPricingPreviewStatus] = useState<CustomerOrderPricingPreviewStatus>('loading');
+  const [cartAvailabilityChanges, setCartAvailabilityChanges] = useState<CartAvailabilityChange[]>([]);
   const [mobileMenu, setMobileMenu] = useState(false);
   // Store only the selected ID. Resolve product details from the current identity-bound
   // catalog so stale tenant objects cannot survive while auth or network requests change.
@@ -342,6 +424,36 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [customerCartSyncState, setCustomerCartSyncState] = useState<'idle' | 'loading' | 'synced' | 'pending' | 'error'>('idle');
   const [customerCartRetryCount, setCustomerCartRetryCount] = useState(0);
   const persistentCartProfileId = user && !user.isStaff && Array.isArray(user.roles) && user.roles.includes('customer') ? user.profileId : '';
+  const cartReviewIdentity = useMemo(() => ({ userId: user?.id ?? null, profileId: user?.profileId ?? null }), [user?.id, user?.profileId]);
+  const cartReviewLines = useMemo(
+    () => cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id)),
+    [cart],
+  );
+  const rememberCurrentCartPricing = useCallback((presentation: CustomerOrderPricingPresentation | null) => {
+    if (presentation?.visible && settings?.show_price_in_cart === true) {
+      rememberCartPricingSnapshot(cartReviewIdentity, cartReviewLines, presentation);
+    }
+  }, [cartReviewIdentity, cartReviewLines, settings?.show_price_in_cart]);
+  const handleCartPricingPreviewStatus = useCallback((status: CustomerOrderPricingPreviewStatus) => {
+    setCartPricingPreviewStatus(status);
+    if (status === 'hidden' && !settingsLoading) {
+      clearCartPricingSnapshot(cartReviewIdentity, cartReviewLines);
+    }
+  }, [cartReviewIdentity, cartReviewLines, settingsLoading]);
+
+  const previousStorefrontIdentityKeyRef = useRef(storefrontIdentityKey);
+  useEffect(() => {
+    if (previousStorefrontIdentityKeyRef.current === storefrontIdentityKey) return;
+    previousStorefrontIdentityKeyRef.current = storefrontIdentityKey;
+
+    // A browser may switch accounts without unmounting StorefrontSession.
+    // Never carry cart-removal or stock-review data from the previous identity.
+    setCartActionNotice(null);
+    setPendingCartRemoval(null);
+    setRecentlyRemovedCartItems([]);
+    setCartAvailabilityChanges([]);
+    setCartPricingPreviewStatus('loading');
+  }, [storefrontIdentityKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
@@ -363,9 +475,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     setCatalogPage(1);
   }, [initialAvailableOnly]);
 
+  useEffect(() => { setBrandId(initialBrandId ?? ''); setCatalogPage(1); }, [initialBrandId]);
+  useEffect(() => { setUnit(initialUnit ?? ''); setCatalogPage(1); }, [initialUnit]);
+  useEffect(() => { setPriceDisplayableOnly(initialPriceDisplayableOnly ?? false); setCatalogPage(1); }, [initialPriceDisplayableOnly]);
+
   useEffect(() => {
     setCatalogPage(1);
-  }, [debouncedQuery, activeCat, availableOnly]);
+  }, [debouncedQuery, activeCat, availableOnly, brandId, unit, priceDisplayableOnly]);
 
   useEffect(() => {
     cachedProductsRef.current = cachedProducts;
@@ -607,6 +723,16 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       if (cancelled) return;
       const byId = new Map(resolvedProducts.map((product) => [product.id, product]));
       const unresolvedIds = productIds.filter((productId) => !byId.has(productId));
+      const availabilitySnapshot = buildCartAvailabilitySnapshot(productIds, resolvedProducts);
+      if (initialView === 'cart') {
+        setCartAvailabilityChanges([]);
+        rememberCartAvailabilitySnapshot(cartReviewIdentity, productIds, availabilitySnapshot);
+      } else if (initialView === 'checkout') {
+        setCartAvailabilityChanges(compareCartAvailabilitySnapshots(
+          getCartAvailabilitySnapshot(cartReviewIdentity, productIds),
+          availabilitySnapshot,
+        ));
+      }
       // Product hydration is metadata-only, not a customer mutation. Do not bump
       // cartMutationRevisionRef or the parallel remote-cart read could mistake this
       // response for a user edit and skip merging the saved server cart.
@@ -632,7 +758,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     });
 
     return () => { cancelled = true; };
-  }, [authReady, cartRestored, cartProductDetailsKey, cartProductIds, cartStorageKey, cartProductRetryCount]);
+  }, [authReady, cartRestored, cartProductDetailsKey, cartProductIds, cartStorageKey, cartProductRetryCount, initialView, cartReviewIdentity]);
 
   useEffect(() => {
     if (isPagedView) return;
@@ -700,7 +826,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       setCustomerCartSyncState('loading');
       void saveCustomerCart(snapshot).then(() => {
         if (cancelled) return;
-        setCustomerCartSyncState(revisionAtStart === cartMutationRevisionRef.current ? 'synced' : 'pending');
+        const isCurrentSnapshot = revisionAtStart === cartMutationRevisionRef.current;
+        setCustomerCartSyncState(isCurrentSnapshot ? 'synced' : 'pending');
+        if (isCurrentSnapshot) {
+          window.dispatchEvent(new Event(CUSTOMER_CART_SYNCED_EVENT));
+        }
       }).catch(() => {
         if (!cancelled) setCustomerCartSyncState('pending');
       });
@@ -775,7 +905,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       ? Number(product.order_quantity_multiple) : 1;
     const availableRaw = product.inventory?.quantity_available;
     const available = typeof availableRaw === 'number' && Number.isFinite(availableRaw)
-      ? Math.max(existingItem.quantity, Math.floor(availableRaw))
+      ? Math.max(0, Math.floor(availableRaw))
       : null;
     if (!Number.isSafeInteger(requestedQuantity) || requestedQuantity < minimum ||
         (requestedQuantity - minimum) % multiple !== 0 ||
@@ -788,7 +918,97 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       item.product.id === productId ? { ...item, quantity: requestedQuantity } : item
     ));
   }
-  function removeFromCart(productId: string) { setCart((prev) => prev.filter((i) => i.product.id !== productId)); }
+  function requestCartRemoval(productId: string) {
+    const index = cart.findIndex((item) => item.product.id === productId);
+    if (index < 0) return;
+    setPendingCartRemoval({ item: cart[index], index });
+  }
+  function confirmCartRemoval() {
+    if (!pendingCartRemoval) return;
+    const removed = pendingCartRemoval;
+    setCart((previous) => previous.filter((item) => item.product.id !== removed.item.product.id));
+    setRecentlyRemovedCartItems((current) => [...current.filter((entry) => entry.item.product.id !== removed.item.product.id), removed]);
+    setPendingCartRemoval(null);
+    setCartActionNotice(null);
+  }
+  function undoCartRemoval() {
+    if (!recentlyRemovedCartItems.length) return;
+    const present = new Set(cart.map((item) => item.product.id));
+    const toRestore = recentlyRemovedCartItems
+      .filter((entry) => !present.has(entry.item.product.id))
+      .sort((left, right) => left.index - right.index);
+    if (!toRestore.length) {
+      setCartActionNotice('الأصناف المحذوفة موجودة بالفعل في السلة؛ لم تتم إضافة نسخ مكررة.');
+      setRecentlyRemovedCartItems([]);
+      return;
+    }
+    const restored = [...cart];
+    for (const entry of toRestore) {
+      restored.splice(Math.min(entry.index, restored.length), 0, entry.item);
+    }
+    setCart(restored);
+    setRecentlyRemovedCartItems([]);
+    setCartActionNotice('تمت استعادة الأصناف المحذوفة إلى السلة ومزامنة التغييرات.');
+  }
+
+  function applyCartAvailabilityChanges(adjustments: readonly CartAvailabilityAdjustment[]): { applied: boolean; message: string } {
+    const blocked = adjustments.filter((adjustment) => adjustment.action === 'blocked');
+    if (blocked.length) {
+      return {
+        applied: false,
+        message: 'لم يؤكد الخادم كمية متاحة لبعض الأصناف. ارجع إلى السلة وأعد تحميل بيانات المخزون؛ لم نغيّر أي كمية.',
+      };
+    }
+
+    const byProductId = new Map(adjustments.map((adjustment) => [adjustment.product_id.toLowerCase(), adjustment]));
+    const removed: Array<{ item: CartItem; index: number }> = [];
+    const updatedCart: CartItem[] = [];
+    cart.forEach((item, index) => {
+      const adjustment = byProductId.get(item.product.id.toLowerCase());
+      if (!adjustment || adjustment.action === 'keep') {
+        updatedCart.push(item);
+      } else if (adjustment.action === 'reduce' && adjustment.next_quantity !== null) {
+        updatedCart.push({ ...item, quantity: adjustment.next_quantity });
+      } else if (adjustment.action === 'remove') {
+        removed.push({ item, index });
+      }
+    });
+
+    const previousAvailabilitySnapshot = getCartAvailabilitySnapshot(
+      cartReviewIdentity,
+      cart.map((item) => item.product.id),
+    ) ?? [];
+    const availabilityByProduct = new Map(
+      previousAvailabilitySnapshot.map((entry) => [entry.product_id.toLowerCase(), entry]),
+    );
+    for (const change of cartAvailabilityChanges) {
+      availabilityByProduct.set(change.product_id.toLowerCase(), {
+        product_id: change.product_id,
+        status: change.current_status,
+        quantity_available: change.current_available,
+      });
+    }
+    const remainingProductIds = updatedCart.map((item) => item.product.id);
+    const acceptedAvailabilitySnapshot = remainingProductIds.flatMap((productId) => {
+      const snapshot = availabilityByProduct.get(productId.toLowerCase());
+      return snapshot ? [snapshot] : [];
+    });
+    rememberCartAvailabilitySnapshot(cartReviewIdentity, remainingProductIds, acceptedAvailabilitySnapshot);
+
+    setCart(updatedCart);
+    if (removed.length) {
+      setRecentlyRemovedCartItems((current) => [
+        ...current.filter((entry) => !removed.some((removedEntry) => removedEntry.item.product.id === entry.item.product.id)),
+        ...removed,
+      ]);
+    }
+    setCartAvailabilityChanges([]);
+    setCartActionNotice('تم تطبيق كميات الخادم الحالية على السلة. راجع الأصناف والفاتورة المحدثة قبل اعتماد الطلب.');
+    return {
+      applied: true,
+      message: 'طُبقت تعديلات التوفر على السلة وفق استجابة الخادم. راجع الكميات والفاتورة المحدثة ثم أكد الطلب من جديد.',
+    };
+  }
   function addMatrixSelection() {
     const selected = filtered.flatMap((product) => {
       const raw = matrixQuantities[product.id] ?? '';
@@ -866,29 +1086,48 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         ...(normalizedSearch ? { q: normalizedSearch } : {}),
         ...(categoryId ? { category: categoryId } : {}),
         ...(availableOnly ? { available: '1' as const } : {}),
+        ...(brandId ? { brand: brandId } : {}),
+        ...(unit ? { unit } : {}),
+        ...(priceDisplayableOnly ? { priced: '1' as const } : {}),
       },
     });
   }
 
-  const serverPageActive = Boolean(
-    isPagedView && pageInfo && !productsLoading && !productsError && isOnline && query === debouncedQuery
-  );
+  function updateCatalogFilters(next: Partial<{ availableOnly: boolean; brandId: string; unit: string; priceDisplayableOnly: boolean }>) {
+    const filters = { availableOnly: next.availableOnly ?? availableOnly, brandId: next.brandId ?? brandId, unit: next.unit ?? unit, priceDisplayableOnly: next.priceDisplayableOnly ?? priceDisplayableOnly };
+    setAvailableOnly(filters.availableOnly); setBrandId(filters.brandId); setUnit(filters.unit); setPriceDisplayableOnly(filters.priceDisplayableOnly); setCatalogPage(1);
+    const normalizedSearch = normalizeCatalogSearchQuery(query).trim();
+    void navigate({ to: '/catalog', search: {
+      ...(normalizedSearch ? { q: normalizedSearch } : {}),
+      ...(activeCat ? { category: activeCat } : {}),
+      ...(filters.availableOnly ? { available: '1' as const } : {}),
+      ...(filters.brandId ? { brand: filters.brandId } : {}),
+      ...(filters.unit ? { unit: filters.unit } : {}),
+      ...(filters.priceDisplayableOnly ? { priced: '1' as const } : {}),
+    } });
+  }
+
+  const pageSnapshotMatchesCurrentFilters = Boolean(isPagedView && pageInfo &&
+    pageInfo.search === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
+    pageInfo.categoryId === (activeCat || null) && pageInfo.availableOnly === availableOnly &&
+    pageInfo.brandId === (brandId || null) && pageInfo.unit === (unit || null) &&
+    pageInfo.priceDisplayableOnly === priceDisplayableOnly && pageInfo.page === catalogPage &&
+    brandId === (initialBrandId ?? '') && unit === (initialUnit ?? '') &&
+    priceDisplayableOnly === (initialPriceDisplayableOnly ?? false));
+  const pageSnapshotReady = Boolean(pageSnapshotMatchesCurrentFilters && !productsLoading && !productsError && query === debouncedQuery);
+  const serverPageActive = Boolean(pageSnapshotReady && isOnline);
   const filtered = useMemo(() => {
+    if (isPagedView) return pageSnapshotReady ? (products ?? []) : [];
     let list = products ?? [];
-    if (!serverPageActive) {
-      if (activeCat) list = list.filter((p) => p.category_id === activeCat);
-      if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
-      if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
-    }
+    if (activeCat) list = list.filter((p) => p.category_id === activeCat);
+    if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
+    if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
     return list;
-  }, [products, activeCat, query, availableOnly, serverPageActive]);
-  const catalogCount = serverPageActive && pageInfo ? pageInfo.totalCount : products.length;
+  }, [isPagedView, pageSnapshotReady, products, activeCat, query, availableOnly]);
+  const catalogCount = isPagedView ? (pageSnapshotReady && pageInfo ? pageInfo.totalCount : 0) : products.length;
   const predictiveSearchQuery = normalizeCatalogSearchQuery(query).trim();
   const predictiveSearchHasQuery = predictiveSearchQuery.length >= 2;
-  const predictiveSearchSnapshotIsCurrent = Boolean(authReady && isPagedView && pageInfo &&
-    pageInfo.search === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
-    pageInfo.categoryId === (activeCat || null) &&
-    pageInfo.availableOnly === availableOnly);
+  const predictiveSearchSnapshotIsCurrent = Boolean(authReady && pageSnapshotMatchesCurrentFilters);
   const predictiveSearchProducts = isPagedView && predictiveSearchHasQuery &&
     predictiveSearchQuery === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
     predictiveSearchSnapshotIsCurrent && !productsLoading && !productsError && isOnline
@@ -1035,6 +1274,23 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             )}
 
             <section className="sf-products">
+              {isPagedView ? (
+                <section aria-label="فلاتر الكتالوج" data-testid="storefront-catalog-filters" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 12, padding: '14px 16px', marginBottom: 14, border: '1px solid #dce9e8', borderRadius: 14, background: '#fbfdfc' }}>
+                  <label style={{ display: 'grid', gap: 5, minWidth: 170, flex: '1 1 190px', fontSize: 12, fontWeight: 800 }}>العلامة التجارية
+                    <select aria-label="العلامة التجارية" value={brandId} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ brandId: event.currentTarget.value })}>
+                      <option value="">كل العلامات التجارية</option>{(pageInfo?.filters.brands ?? []).map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: 'grid', gap: 5, minWidth: 150, flex: '1 1 170px', fontSize: 12, fontWeight: 800 }}>وحدة البيع
+                    <select aria-label="وحدة البيع" value={unit} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ unit: event.currentTarget.value })}>
+                      <option value="">كل الوحدات</option>{(pageInfo?.filters.units ?? []).map((unitOption) => <option key={unitOption} value={unitOption}>{unitOption}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40 }}><input type="checkbox" checked={availableOnly} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ availableOnly: event.currentTarget.checked })} /> الأصناف المتاحة فقط</label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40 }}><input type="checkbox" checked={priceDisplayableOnly} disabled={!pageInfo || productsLoading} onChange={(event) => updateCatalogFilters({ priceDisplayableOnly: event.currentTarget.checked })} /> ذات السعر المصرح بعرضه فقط</label>
+                  {(brandId || unit || availableOnly || priceDisplayableOnly) ? <button type="button" className="sf-btn-secondary" disabled={!pageInfo || productsLoading} onClick={() => updateCatalogFilters({ availableOnly: false, brandId: '', unit: '', priceDisplayableOnly: false })}>مسح الفلاتر</button> : null}
+                </section>
+              ) : null}
               <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
@@ -1099,6 +1355,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               onWishlist={() => toggleWishlist(selectedProduct.id)}
               onCompare={() => toggleCompare(selectedProduct.id)}
               onOpenRelated={openProduct}
+              onOpenRecommendation={(productId) => void navigate({ to: '/product/$id', params: { id: productId } })}
             />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
@@ -1126,6 +1383,25 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         ) : (
           <section className="sf-cart-page">
             <h2>سلة المشتريات</h2>
+            {pendingCartRemoval && (
+              <div role="alertdialog" aria-modal="true" aria-labelledby="cart-remove-title" style={{ margin: '12px 0', padding: 14, border: '1px solid #e2b8a9', borderRadius: 12, background: '#fff8f5', color: '#6f382c' }}>
+                <strong id="cart-remove-title">تأكيد حذف الصنف</strong>
+                <p style={{ margin: '6px 0 12px' }}>هل تريد إزالة «{pendingCartRemoval.item.product.name}» بكمية {formatNumber(pendingCartRemoval.item.quantity)} {pendingCartRemoval.item.product.unit} من السلة؟ يمكنك استعادته بعد الحذف.</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="sf-btn-primary" onClick={confirmCartRemoval}>تأكيد الحذف</button>
+                  <button type="button" className="sf-btn-secondary" onClick={() => setPendingCartRemoval(null)}>إلغاء</button>
+                </div>
+              </div>
+            )}
+            {recentlyRemovedCartItems.length > 0 && (
+              <div role="status" aria-live="polite" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d6e7dc', background: '#f4faf6', color: '#24583e' }}>
+                <span>يمكن استعادة: {recentlyRemovedCartItems.map((entry) => entry.item.product.name).join('، ')}.</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="sf-btn-secondary" onClick={undoCartRemoval}>تراجع واستعادة الأصناف</button>
+                  <button type="button" className="sf-link" onClick={() => setRecentlyRemovedCartItems([])}>إغلاق</button>
+                </div>
+              </div>
+            )}
             {persistentCartProfileId && (
               <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d8e6e8', background: '#f7fafb', color: '#344b52', fontSize: 12 }}>
                 <span>{describeCustomerCartSyncState(customerCartSyncState, isOnline)}</span>
@@ -1138,14 +1414,56 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                 )}
               </div>
             )}
-            {!cart.length ? <div className="sf-empty"><ShoppingCart size={30} /><span>سلتك فارغة</span><button className="sf-link" onClick={() => void navigate({ to: '/' })}>تصفح المنتجات</button></div> :
-            !cartProductDetailsLoaded ? (
-              <div className="sf-empty" role={cartProductDetailsState.error ? 'alert' : 'status'}>
-                <span>{cartProductDetailsState.error ?? 'جار استعادة تفاصيل أصناف سلتك...'}</span>
-                {cartProductDetailsState.error && (
-                  <button type="button" className="sf-btn-secondary" onClick={() => setCartProductRetryCount((current) => current + 1)}>إعادة المحاولة</button>
-                )}
+            {!cart.length ? <>
+              <div className="sf-empty">
+                <ShoppingCart size={30} />
+                <span>سلتك فارغة</span>
+                <p>ابدأ بإضافة الأصناف المناسبة لاحتياجك، أو استعد قائمة مشتريات محفوظة من طلب سابق.</p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>تصفح الكتالوج الكامل</button>
+                  <Link className="sf-btn-secondary" to="/reorder">استعادة قائمة مشتريات محفوظة</Link>
+                </div>
               </div>
+              <section className="sf-products" aria-label="منتجات متاحة للعودة إلى التسوق">
+                <div className="sf-products-head">
+                  <div><h2>منتجات متاحة لتبدأ من جديد</h2><span>أصناف نشطة ومتاحة حاليًا من كتالوج المتجر</span></div>
+                </div>
+                {emptyCartRecommendationsLoading ? (
+                  <div className="sf-empty" role="status">جار تحميل المنتجات المتاحة...</div>
+                ) : emptyCartRecommendationsError ? (
+                  <div className="sf-empty" role="alert">
+                    <strong>تعذر تحميل ترشيحات المنتجات</strong>
+                    <small>{emptyCartRecommendationsError}</small>
+                    <button type="button" className="sf-btn-secondary" onClick={() => void refetchEmptyCartRecommendations()}>إعادة المحاولة</button>
+                  </div>
+                ) : (
+                  <ProductGrid
+                    products={emptyCartRecommendations}
+                    priceVisibilityPolicy={settings?.show_price_on_cards}
+                    wishlist={wishlist}
+                    compare={compare}
+                    emptyTitle="لا توجد منتجات متاحة حاليًا"
+                    emptyDescription="يمكنك تصفح الكتالوج الكامل أو استعادة قائمة مشتريات محفوظة."
+                    onOpen={openProduct}
+                    onAdd={(product, quantity) => addToCart(product, quantity)}
+                    cartQuantities={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))}
+                    onWishlist={toggleWishlist}
+                    onCompare={toggleCompare}
+                  />
+                )}
+              </section>
+            </> :
+            !cartProductDetailsLoaded ? (
+              cartProductDetailsState.error ? (
+                <StorefrontCartRestoreFailure
+                  error={cartProductDetailsState.error}
+                  items={cart.map(({ product, quantity }) => ({ productId: product.id, quantity }))}
+                  onRetry={() => setCartProductRetryCount((current) => current + 1)}
+                  onRemove={requestCartRemoval}
+                />
+              ) : (
+                <div className="sf-empty" role="status">جار استعادة تفاصيل أصناف سلتك...</div>
+              )
             ) : (
             <>
               {cartProductDetailsState.unresolvedIds.length > 0 && (
@@ -1163,6 +1481,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                         <div>
                           <strong>{unavailable ? 'صنف غير متاح حاليًا' : item.product.name}</strong>
                           <span>{unavailable ? <>معرّف الصنف المحفوظ: <bdi>{item.product.id.slice(0, 8)}</bdi></> : `الوحدة: ${item.product.unit}`}</span>
+                          {!unavailable && <small style={{ display: 'block', marginTop: 4, color: typeof item.product.inventory?.quantity_available === 'number' && item.quantity > item.product.inventory.quantity_available ? '#a52b2b' : '#647b78' }}>
+                            {typeof item.product.inventory?.quantity_available === 'number'
+                              ? `المتاح الآن: ${formatNumber(Math.max(0, item.product.inventory.quantity_available))} ${item.product.unit}${item.quantity > item.product.inventory.quantity_available ? ' — الكمية المطلوبة تتجاوز المتاح' : ''}`
+                              : 'المخزون الحالي غير مؤكد؛ سيُعاد التحقق منه على الخادم قبل الإرسال.'}
+                          </small>}
                         </div>
                       </div>
                       {unavailable ? (
@@ -1177,7 +1500,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                           onCommit={(quantity) => setCartQuantity(item.product.id, quantity)}
                         />
                       )}
-                      <button className="sf-cart-remove" aria-label={`حذف ${unavailable ? 'الصنف غير المتاح' : item.product.name} من السلة`} onClick={() => removeFromCart(item.product.id)}><Trash2 size={16} /></button>
+                      <button className="sf-cart-remove" aria-label={`حذف ${unavailable ? 'الصنف غير المتاح' : item.product.name} من السلة`} onClick={() => requestCartRemoval(item.product.id)}><Trash2 size={16} /></button>
                     </div>
                   );
                 })}
@@ -1188,12 +1511,15 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                   policyValue={settings?.show_price_in_cart}
                   surface="cart"
                   title="ملخص أسعار السلة"
+                  onStatusChange={handleCartPricingPreviewStatus}
+                  onPresentationChange={rememberCurrentCartPricing}
                 />
               ) : null}
               {settings?.show_price_in_cart !== true && <div role="note" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>سيُراجع الطلب ويُعتمد من جهة الإدارة. إظهار الأسعار والإجماليات معطّل في إعدادات المتجر لهذه الشاشة.</div>}
+              {settingsLoading && <p role="status" className="sf-checkout-hint">جار تحميل سياسات عرض الأسعار قبل الانتقال إلى الدفع...</p>}
               <div className="sf-cart-actions">
                 <button className="sf-btn-secondary" onClick={() => void navigate({ to: '/' })}>متابعة التسوق</button>
-                <button className="sf-btn-primary" disabled={!cartProductDetailsReady} onClick={() => void navigate({ to: '/checkout' })}>إتمام الطلب <ChevronLeft size={16} /></button>
+                <button className="sf-btn-primary" disabled={!cartProductDetailsReady || settingsLoading || (settings?.show_price_in_cart === true && cartPricingPreviewStatus !== 'ready' && cartPricingPreviewStatus !== 'hidden')} onClick={() => void navigate({ to: '/checkout' })}>إتمام الطلب <ChevronLeft size={16} /></button>
               </div>
             </>
             )}
@@ -1208,7 +1534,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           </div></section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
-        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
+        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} availabilityChanges={cartAvailabilityChanges} recentlyRemovedCartItems={recentlyRemovedCartItems} onUndoCartRemoval={undoCartRemoval} onApplyAvailabilityChanges={applyCartAvailabilityChanges} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
           // A committed order must become a durable route, not transient checkout component state.
           // Replace checkout so browser Back cannot reopen a completed submission form.
           setCart([]);
@@ -1436,6 +1762,7 @@ export function ProductDetail({
   onWishlist,
   onCompare,
   onOpenRelated,
+  onOpenRecommendation,
 }: {
   product: ProductWithInventory;
   isStaff: boolean;
@@ -1456,6 +1783,7 @@ export function ProductDetail({
   onWishlist: () => void;
   onCompare: () => void;
   onOpenRelated: (product: ProductWithInventory) => void;
+  onOpenRecommendation: (productId: string) => void;
 }) {
   const rawAvailableQuantity = product.inventory?.quantity_available;
   const quantityKnown = typeof rawAvailableQuantity === 'number' &&
@@ -1785,6 +2113,7 @@ export function ProductDetail({
         error={promotionsError}
         onRetry={onRetryPromotions}
       />
+      <StorefrontProductFacts key={product.id} productId={product.id} onOpenProduct={onOpenRecommendation} />
       {relatedProducts.length > 0 && (
         <section className="sf-related-products" aria-labelledby="sf-related-products-title">
           <div className="sf-related-header">
@@ -1959,13 +2288,16 @@ function readStoredCheckoutAttempt(profileId: string | undefined): StoredCheckou
   }
 }
 
-function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
+function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, recentlyRemovedCartItems, onUndoCartRemoval, onApplyAvailabilityChanges, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; availabilityChanges: readonly CartAvailabilityChange[]; recentlyRemovedCartItems: readonly { item: CartItem; index: number }[]; onUndoCartRemoval: () => void; onApplyAvailabilityChanges: (adjustments: readonly CartAvailabilityAdjustment[]) => { applied: boolean; message: string }; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
   const { user } = useAuth();
   const isStaffOnly = Boolean(user?.isStaff && !user.roles?.includes('customer'));
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState('');
   const [business, setBusiness] = useState('');
   const [notes, setNotes] = useState('');
+  const [purchaseOrderReference, setPurchaseOrderReference] = useState('');
+  const [checkoutStage, setCheckoutStage] = useState<'details' | 'review'>('details');
+  const [finalConfirmationAccepted, setFinalConfirmationAccepted] = useState(false);
   const [paymentTerms, setPaymentTerms] = useState<'cash_on_delivery' | 'credit'>('cash_on_delivery');
   const [deliveryAddresses, setDeliveryAddresses] = useState<CustomerAddress[]>([]);
   const [deliveryAddressId, setDeliveryAddressId] = useState('');
@@ -1985,6 +2317,35 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     () => cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id)),
     [cart],
   );
+  const cartPricingBaseline = useMemo(
+    () => getCartPricingSnapshot({ userId: user?.id ?? null, profileId: user?.profileId ?? null }, checkoutItems),
+    [user?.id, user?.profileId, checkoutItems],
+  );
+  const [checkoutPricingPresentation, setCheckoutPricingPresentation] = useState<CustomerOrderPricingPresentation | null>(null);
+  const priceChanges = useMemo(
+    () => compareCartPricingSnapshots(cartPricingBaseline, checkoutPricingPresentation),
+    [cartPricingBaseline, checkoutPricingPresentation],
+  );
+  const availabilityAdjustments = useMemo(() => planCartAvailabilityAdjustments(
+    checkoutItems,
+    availabilityChanges,
+    cart.map((item) => ({
+      product_id: item.product.id,
+      min_order_quantity: item.product.min_order_quantity,
+      order_quantity_multiple: item.product.order_quantity_multiple,
+    })),
+  ), [checkoutItems, availabilityChanges, cart]);
+  const hasBlockedAvailabilityAdjustment = availabilityAdjustments.some((adjustment) => adjustment.action === 'blocked');
+  const priceChangesSignature = JSON.stringify(priceChanges);
+  const availabilityChangesSignature = JSON.stringify(availabilityChanges);
+  const [priceChangesAccepted, setPriceChangesAccepted] = useState(false);
+  const [availabilityChangesAccepted, setAvailabilityChangesAccepted] = useState(false);
+  const [stockUpdateNotice, setStockUpdateNotice] = useState('');
+  const handleCheckoutPricingPresentation = useCallback((presentation: CustomerOrderPricingPresentation | null) => {
+    setCheckoutPricingPresentation(presentation);
+  }, []);
+  useEffect(() => { setPriceChangesAccepted(false); }, [priceChangesSignature]);
+  useEffect(() => { setAvailabilityChangesAccepted(false); }, [availabilityChangesSignature]);
   const idempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const submitInFlightRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2069,9 +2430,16 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     return () => { active = false; };
   }, [checkoutItems, user?.profileId, isStaffOnly, previewRetry]);
 
+  function submissionNotes(): string {
+    const referenceNote = purchaseOrderReference.trim()
+      ? 'مرجع أمر الشراء: ' + purchaseOrderReference.trim()
+      : '';
+    return [notes.trim(), referenceNote].filter(Boolean).join('\n');
+  }
+
   function checkoutSignature(): string {
     const items = cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id));
-    return JSON.stringify({ profile_id: user?.profileId, payment_terms: paymentTerms, items, contact_name: name.trim(), business_name: business.trim(), phone: phone.trim(), notes: notes.trim(), delivery_address_id: deliveryAddressId || null });
+    return JSON.stringify({ profile_id: user?.profileId, payment_terms: paymentTerms, items, contact_name: name.trim(), business_name: business.trim(), phone: phone.trim(), notes: submissionNotes(), delivery_address_id: deliveryAddressId || null });
   }
 
   function hasConflictingPendingAttempt(): boolean {
@@ -2083,15 +2451,32 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     return true;
   }
 
+  function persistAttemptBeforeSend(attempt: StoredCheckoutAttempt): boolean {
+    const storageKey = checkoutAttemptStorageKey(user?.profileId);
+    if (!storageKey || typeof window === 'undefined') return false;
+    try {
+      return verifyPersistedCheckoutAttempt(window.sessionStorage, storageKey, attempt);
+    } catch {
+      return false;
+    }
+  }
+
   function getIdempotencyKey(): string | null {
     const signature = checkoutSignature();
     const activeAttempt = idempotencyRef.current;
     if (activeAttempt) {
-      if (activeAttempt.signature === signature) return activeAttempt.key;
-      setRecoveringAttempt(true);
-      setError('هناك طلب سابق لم تصل نتيجة تأكيده. لا يمكن إرسال بيانات مختلفة قبل حسم المحاولة السابقة؛ أعد إدخال بياناتها نفسها ثم أعد المحاولة.');
-      return null;
+      if (activeAttempt.signature !== signature) {
+        setRecoveringAttempt(true);
+        setError('هناك طلب سابق لم تصل نتيجة تأكيده. لا يمكن إرسال بيانات مختلفة قبل حسم المحاولة السابقة؛ أعد إدخال بياناتها نفسها ثم أعد المحاولة.');
+        return null;
+      }
+      if (!persistAttemptBeforeSend(activeAttempt)) {
+        setError('تعذر حفظ مفتاح محاولة الطلب والتحقق منه في تخزين الجلسة؛ لم يُرسل الطلب. فعّل تخزين الجلسة ثم أعد المحاولة، أو افتح طلباتي للتحقق من أي طلب سابق.');
+        return null;
+      }
+      return activeAttempt.key;
     }
+
     const saved = readStoredCheckoutAttempt(user?.profileId);
     if (saved) {
       if (saved.signature !== signature) {
@@ -2099,21 +2484,40 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
         setError('توجد محاولة طلب محفوظة لم تصل نتيجة تأكيدها. أدخل بيانات الطلب السابق نفسها لإعادة المحاولة الآمنة؛ لن ننشئ طلبًا جديدًا ببيانات مختلفة.');
         return null;
       }
+      if (!persistAttemptBeforeSend(saved)) {
+        setError('تعذر التحقق من مفتاح المحاولة المحفوظ؛ لم يُعد إرسال الطلب. افتح طلباتي للتحقق من الطلب السابق قبل أي محاولة جديدة.');
+        return null;
+      }
       idempotencyRef.current = saved;
       setRecoveringAttempt(false);
       setAmbiguousSubmit(true);
       return saved.key;
     }
+
     const key = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : 'checkout_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
-    idempotencyRef.current = { signature, key };
-    const storageKey = checkoutAttemptStorageKey(user?.profileId);
-    try { if (storageKey) window.sessionStorage.setItem(storageKey, JSON.stringify({ signature, key })); } catch { /* in-page ref still protects retries when session storage is unavailable */ }
+    const attempt = { signature, key };
+    if (!persistAttemptBeforeSend(attempt)) {
+      setError('تعذر حفظ مفتاح محاولة الطلب والتحقق منه في تخزين الجلسة؛ لم يُرسل الطلب. اسمح بتخزين الجلسة في المتصفح ثم أعد المحاولة.');
+      return null;
+    }
+    idempotencyRef.current = attempt;
     return key;
   }
 
   async function submit() {
+    // A request may only be sent from the explicit review stage after the final confirmation.
+    if (checkoutStage !== 'review' || !finalConfirmationAccepted ||
+        (priceChanges.length > 0 && !priceChangesAccepted) ||
+        availabilityChanges.length > 0) {
+      setError(priceChanges.length > 0 && !priceChangesAccepted
+        ? 'راجع فروق الأسعار الحالية ووافق عليها صراحةً قبل الإرسال.'
+        : availabilityChanges.length > 0
+          ? 'طبّق تعديلات التوفر التي أعادها الخادم على السلة، ثم راجع الطلب من جديد قبل الإرسال.'
+          : 'راجع مستند الطلب ثم فعّل التأكيد النهائي قبل الإرسال.');
+      return;
+    }
     // Button disabled state updates after React commits; guard the same-tick duplicate event too.
     if (submitInFlightRef.current) return;
     if (!user) { setError('سجّل الدخول أو أنشئ حساباً لإتمام الطلب'); return; }
@@ -2149,7 +2553,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
       requestWasSent = true;
       const { data, error: rpcError } = await supabase.rpc('submit_customer_order', {
         _items: cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
-        _notes: notes.trim(), _business_name: business.trim(), _contact_name: name.trim(), _phone: phone.trim(),
+        _notes: submissionNotes(), _business_name: business.trim(), _contact_name: name.trim(), _phone: phone.trim(),
         _payment_terms: paymentTerms, _idempotency_key: requestKey,
         _delivery_address_id: deliveryAddressId || null,
       });
@@ -2216,181 +2620,475 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     && pricingPreviewStatus !== 'ready'
     && pricingPreviewStatus !== 'hidden';
 
+  function continueToReview() {
+    setError('');
+    if (!user) { setError('سجّل الدخول أولًا لإتمام الطلب.'); return; }
+    if (name.trim().length < 2 || phone.trim().length < 6) {
+      setError('أدخل الاسم الكامل ورقم هاتف صالحًا قبل مراجعة الطلب.');
+      return;
+    }
+    if (deliveryAddressesLoading) {
+      setError('انتظر اكتمال تحميل عناوين التوصيل قبل مراجعة الطلب.');
+      return;
+    }
+    if (previewLoading || !cartValidation || !cartValidation.valid || !cartValidation.pricing_verified) {
+      setError('لا يمكن فتح المراجعة قبل نجاح التحقق من الأصناف والكميات في الخادم.');
+      return;
+    }
+    if (submissionNotes().length > 1000) {
+      setError('اختصر الملاحظات أو مرجع أمر الشراء؛ الحد الإجمالي المحفوظ 1,000 حرف.');
+      return;
+    }
+    if (hasConflictingPendingAttempt()) return;
+    setFinalConfirmationAccepted(false);
+    setCheckoutStage('review');
+  }
+
   return (
     <section className="sf-checkout">
+      <style>{'@media print { body * { visibility: hidden !important; } .sf-checkout-review-print-document, .sf-checkout-review-print-document * { visibility: visible !important; } .sf-checkout-review-print-document { position: absolute !important; inset: 0 !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 10mm !important; background: #fff !important; box-shadow: none !important; grid-template-columns: 1fr 1fr !important; } .sf-checkout-review-print-document .no-print { display: none !important; } }'}</style>
       <header className="sf-checkout-hero">
         <div className="sf-checkout-hero-copy">
           <span className="sf-checkout-eyebrow"><Check size={14} /> مراجعة آمنة قبل الإرسال</span>
-          <h2>إتمام الطلب</h2>
-          <p>تأكد من بيانات التواصل والتوصيل، وراجع فاتورة الأصناف قبل اعتماد طلبك.</p>
+          <h2>{checkoutStage === 'review' ? 'مراجعة الطلب قبل الإرسال' : 'إتمام الطلب'}</h2>
+          <p>{checkoutStage === 'review'
+            ? 'راجع المستند والبيانات والأسعار المسموح بعرضها. لن يُرسل الطلب قبل التأكيد النهائي.'
+            : 'أكمل بيانات العميل والتوصيل والسداد. لن يُنشأ الطلب في هذه المرحلة.'}</p>
         </div>
         <ol className="sf-checkout-steps" aria-label="خطوات إتمام الطلب">
           <li className="is-complete"><span>01</span><b>السلة</b></li>
-          <li className="is-current" aria-current="step"><span>02</span><b>بيانات الطلب</b></li>
-          <li><span>03</span><b>التأكيد</b></li>
+          <li className={checkoutStage === 'details' ? 'is-current' : 'is-complete'} aria-current={checkoutStage === 'details' ? 'step' : undefined}><span>02</span><b>البيانات</b></li>
+          <li className={checkoutStage === 'review' ? 'is-current' : ''} aria-current={checkoutStage === 'review' ? 'step' : undefined}><span>03</span><b>مراجعة المستند</b></li>
+          <li><span>04</span><b>الإرسال</b></li>
         </ol>
       </header>
 
-      <div className="sf-checkout-layout">
+      <div
+        className={'sf-checkout-layout' + (checkoutStage === 'review' ? ' sf-checkout-review-print-document' : '')}
+        data-testid={checkoutStage === 'review' ? 'checkout-review-document' : 'checkout-details-draft'}
+        style={checkoutStage === 'details' ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}
+      >
         <div className="sf-checkout-form">
-          <section className="sf-checkout-card">
-            <div className="sf-checkout-section-head">
-              <span className="sf-checkout-section-number">01</span>
-              <div><h3>بيانات التواصل</h3><p>هذه البيانات ستظهر في مستند الطلب لمتابعته والتواصل بشأنه.</p></div>
-            </div>
-            <div className="sf-checkout-fields-grid">
-              <label className="sf-form-field">
-                <span>الاسم الكامل <b>*</b></span>
-                <input autoComplete="name" value={name} disabled={submitting || ambiguousSubmit} onChange={(e) => setName(e.target.value)} placeholder="اسمك الكامل" />
-              </label>
-              <label className="sf-form-field">
-                <span>رقم الهاتف <b>*</b></span>
-                <input autoComplete="tel" inputMode="tel" value={phone} disabled={submitting || ambiguousSubmit} onChange={(e) => setPhone(e.target.value)} placeholder="7XX XXX XXX" />
-              </label>
-              <label className="sf-form-field sf-checkout-field-full">
-                <span>اسم المنشأة</span>
-                <input autoComplete="organization" value={business} disabled={submitting || ambiguousSubmit} onChange={(e) => setBusiness(e.target.value)} placeholder="اسم المتجر أو الشركة" />
-              </label>
-            </div>
-          </section>
-
-          <section className="sf-checkout-card">
-            <div className="sf-checkout-section-head">
-              <span className="sf-checkout-section-number">02</span>
-              <div><h3>عنوان التوصيل</h3><p>حدد وجهة التسليم أو اتركها للتأكيد مع فريق المبيعات.</p></div>
-            </div>
-            <div className="sf-checkout-address-field">
-              <label htmlFor="checkout-delivery-address">العنوان المحفوظ</label>
-              <select
-                id="checkout-delivery-address"
-                className="sf-checkout-select"
-                value={deliveryAddressId}
-                onChange={(event) => setDeliveryAddressId(event.target.value)}
-                disabled={deliveryAddressesLoading || submitting || ambiguousSubmit}
-              >
-                <option value="">بدون عنوان محفوظ — سأؤكد تفاصيل التوصيل لاحقًا</option>
-                {deliveryAddresses.map((address) => (
-                  <option key={address.id} value={address.id}>
-                    {address.label} — {address.city} — {address.address_line1}
-                  </option>
-                ))}
-              </select>
-              {deliveryAddressesLoading && <small role="status" className="sf-checkout-hint">جارٍ تحميل عناوينك المحفوظة...</small>}
-              {deliveryAddressesError && (
-                <div className="sf-form-error" role="alert">
-                  {deliveryAddressesError}
-                  <button className="sf-link" type="button" onClick={() => setDeliveryAddressRetry((n) => n + 1)}>إعادة تحميل العناوين</button>
+          {checkoutStage === 'details' ? (
+            <>
+              <section className="sf-checkout-card">
+                <div className="sf-checkout-section-head">
+                  <span className="sf-checkout-section-number">01</span>
+                  <div><h3>بيانات العميل والمنشأة</h3><p>ستُحفظ هذه البيانات مع الطلب لتأكيده والتواصل بشأنه.</p></div>
                 </div>
-              )}
-              {!deliveryAddressesLoading && deliveryAddresses.length === 0 && (
-                <p className="sf-checkout-hint">لا يوجد عنوان محفوظ. يمكنك المتابعة دون عنوان، أو <Link to="/addresses" className="sf-link">إضافة عنوان توصيل</Link>.</p>
-              )}
-              {selectedDeliveryAddress && (
-                <div className="sf-checkout-inline-note" role="note">
-                  سيحفظ الطلب نسخة ثابتة من العنوان المحدد؛ ولن تؤثر تعديلات دفتر العناوين اللاحقة على هذا الطلب.
+                <div className="sf-checkout-fields-grid">
+                  <label className="sf-form-field">
+                    <span>اسم العميل / مسؤول الطلب <b>*</b></span>
+                    <input autoComplete="name" value={name} disabled={submitting || ambiguousSubmit} onChange={(e) => setName(e.target.value)} placeholder="اسمك الكامل" />
+                  </label>
+                  <label className="sf-form-field">
+                    <span>رقم الهاتف <b>*</b></span>
+                    <input autoComplete="tel" inputMode="tel" value={phone} disabled={submitting || ambiguousSubmit} onChange={(e) => setPhone(e.target.value)} placeholder="7XX XXX XXX" />
+                  </label>
+                  <label className="sf-form-field sf-checkout-field-full">
+                    <span>اسم المنشأة / الشركة</span>
+                    <input autoComplete="organization" value={business} disabled={submitting || ambiguousSubmit} onChange={(e) => setBusiness(e.target.value)} placeholder="اسم المتجر أو الشركة" />
+                  </label>
                 </div>
+              </section>
+
+              <section className="sf-checkout-card">
+                <div className="sf-checkout-section-head">
+                  <span className="sf-checkout-section-number">02</span>
+                  <div><h3>عنوان التسليم</h3><p>حدد وجهة التسليم المعتمدة لهذا الطلب.</p></div>
+                </div>
+                <div className="sf-checkout-address-field">
+                  <label htmlFor="checkout-delivery-address">العنوان المحفوظ</label>
+                  <select
+                    id="checkout-delivery-address"
+                    className="sf-checkout-select"
+                    value={deliveryAddressId}
+                    onChange={(event) => setDeliveryAddressId(event.target.value)}
+                    disabled={deliveryAddressesLoading || submitting || ambiguousSubmit}
+                  >
+                    <option value="">بدون عنوان محفوظ — سأؤكد تفاصيل التوصيل لاحقًا</option>
+                    {deliveryAddresses.map((address) => (
+                      <option key={address.id} value={address.id}>
+                        {address.label} — {address.city} — {address.address_line1}
+                      </option>
+                    ))}
+                  </select>
+                  {deliveryAddressesLoading && <small role="status" className="sf-checkout-hint">جارٍ تحميل عناوينك المحفوظة...</small>}
+                  {deliveryAddressesError && (
+                    <div className="sf-form-error" role="alert">
+                      {deliveryAddressesError}
+                      <button className="sf-link" type="button" onClick={() => setDeliveryAddressRetry((n) => n + 1)}>إعادة تحميل العناوين</button>
+                    </div>
+                  )}
+                  {!deliveryAddressesLoading && deliveryAddresses.length === 0 && (
+                    <p className="sf-checkout-hint">لا يوجد عنوان محفوظ. يمكنك المتابعة دون عنوان، أو <Link to="/addresses" className="sf-link">إضافة عنوان توصيل</Link>.</p>
+                  )}
+                  {selectedDeliveryAddress && (
+                    <div className="sf-checkout-inline-note" role="note">
+                      سيُثبت الطلب نسخة مستقلة من العنوان المحدد حتى لا تتغير بياناته عند تعديل دفتر العناوين لاحقًا.
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="sf-checkout-card">
+                <div className="sf-checkout-section-head">
+                  <span className="sf-checkout-section-number">03</span>
+                  <div><h3>شروط السداد</h3><p>يعاد التحقق من اعتماد الحساب والحد الائتماني من الخادم عند الإرسال.</p></div>
+                </div>
+                <fieldset className="sf-checkout-payment">
+                  <legend className="sf-checkout-field-label">اختر طريقة السداد</legend>
+                  <label className={"sf-checkout-payment-option" + (paymentTerms === 'cash_on_delivery' ? ' is-selected' : '')}>
+                    <input type="radio" name="paymentTerms" value="cash_on_delivery" checked={paymentTerms === 'cash_on_delivery'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('cash_on_delivery')} />
+                    <span><strong>الدفع عند الاستلام</strong><small>تسوية قيمة الطلب عند تسلّم البضاعة.</small></span>
+                    <b className="sf-checkout-radio-mark" aria-hidden="true" />
+                  </label>
+                  <label className={"sf-checkout-payment-option" + (paymentTerms === 'credit' ? ' is-selected' : '')}>
+                    <input type="radio" name="paymentTerms" value="credit" checked={paymentTerms === 'credit'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('credit')} />
+                    <span><strong>الدفع الآجل</strong><small>للحسابات التجارية المعتمدة وضمن حد الائتمان المتاح.</small></span>
+                    <b className="sf-checkout-radio-mark" aria-hidden="true" />
+                  </label>
+                </fieldset>
+              </section>
+
+              <section className="sf-checkout-card">
+                <div className="sf-checkout-section-head">
+                  <span className="sf-checkout-section-number">04</span>
+                  <div><h3>مرجع الشراء وملاحظات العميل</h3><p>أدخل مرجع أمر الشراء وتعليمات التجهيز أو التسليم.</p></div>
+                </div>
+                <label className="sf-form-field">
+                  <span>الرقم المرجعي لأمر الشراء (اختياري)</span>
+                  <input
+                    value={purchaseOrderReference}
+                    maxLength={70}
+                    autoComplete="off"
+                    disabled={submitting || ambiguousSubmit}
+                    onChange={(event) => setPurchaseOrderReference(event.target.value)}
+                    placeholder="مثال: PO-2026-001"
+                  />
+                  <small className="sf-checkout-hint">يُحفظ المرجع مع ملاحظات الطلب باستخدام عقد الإرسال الحالي حتى يظل مرتبطًا بالطلب بعد تحديث الصفحة.</small>
+                </label>
+                <label className="sf-form-field" style={{ marginTop: 12 }}>
+                  <span>ملاحظات إضافية (اختياري)</span>
+                  <textarea
+                    className="sf-checkout-notes"
+                    value={notes}
+                    maxLength={900}
+                    disabled={submitting || ambiguousSubmit}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="اكتب تعليمات خاصة بالتجهيز أو التسليم..."
+                    rows={3}
+                  />
+                </label>
+              </section>
+            </>
+          ) : (
+            <>
+              <section className="sf-checkout-card">
+                <div className="sf-checkout-section-head">
+                  <span className="sf-checkout-section-number">01</span>
+                  <div><h3>مراجعة العميل والمنشأة</h3><p>بيانات الاتصال التي سترتبط بمستند الطلب.</p></div>
+                </div>
+                <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, margin: 0 }}>
+                  <div><dt className="sf-checkout-hint">اسم العميل</dt><dd style={{ margin: 0, fontWeight: 800 }}>{name.trim()}</dd></div>
+                  <div><dt className="sf-checkout-hint">رقم الهاتف</dt><dd style={{ margin: 0, fontWeight: 800, direction: 'ltr', textAlign: 'right' }}>{phone.trim()}</dd></div>
+                  <div><dt className="sf-checkout-hint">المنشأة / الشركة</dt><dd style={{ margin: 0, fontWeight: 800 }}>{business.trim() || 'غير محدد'}</dd></div>
+                </dl>
+              </section>
+
+              <section className="sf-checkout-card">
+                <div className="sf-checkout-section-head">
+                  <span className="sf-checkout-section-number">02</span>
+                  <div><h3>مراجعة عنوان التسليم</h3><p>العنوان المثبت في الطلب لا يتغير عند تعديل دفتر العناوين.</p></div>
+                </div>
+                {selectedDeliveryAddress ? (
+                  <div style={{ display: 'grid', gap: 5, lineHeight: 1.8 }}>
+                    <strong>{selectedDeliveryAddress.label}</strong>
+                    <span>{selectedDeliveryAddress.recipient_name} — {selectedDeliveryAddress.phone}</span>
+                    <span>{selectedDeliveryAddress.address_line1}{selectedDeliveryAddress.address_line2 ? '، ' + selectedDeliveryAddress.address_line2 : ''}</span>
+                    <span>{[selectedDeliveryAddress.city, selectedDeliveryAddress.region, selectedDeliveryAddress.postal_code, selectedDeliveryAddress.country].filter(Boolean).join('، ')}</span>
+                    {selectedDeliveryAddress.delivery_instructions ? <small>تعليمات التسليم: {selectedDeliveryAddress.delivery_instructions}</small> : null}
+                  </div>
+                ) : (
+                  <p className="sf-checkout-hint">لم يتم اختيار عنوان محفوظ. ستُنسّق تفاصيل الوجهة معك قبل التجهيز.</p>
+                )}
+                <div className="sf-checkout-inline-note" role="note" style={{ marginTop: 12 }}>
+                  موعد التسليم المتوقع: يُحدد بعد مراجعة الطلب وتأكيد التوفر مع فريق المبيعات؛ لا يوجد موعد خادمي موثوق لعرضه الآن.
+                </div>
+              </section>
+
+              <section className="sf-checkout-card">
+                <div className="sf-checkout-section-head">
+                  <span className="sf-checkout-section-number">03</span>
+                  <div><h3>شروط السداد ومرجع الشراء</h3><p>راجع الشروط والمرجع قبل اعتماد الإرسال.</p></div>
+                </div>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <p style={{ margin: 0 }}>طريقة السداد: <strong>{paymentTerms === 'credit' ? 'الدفع الآجل — مشروط باعتماد الحساب والحد الائتماني' : 'الدفع عند الاستلام'}</strong></p>
+                  <p style={{ margin: 0 }}>مرجع أمر الشراء: <strong>{purchaseOrderReference.trim() || 'غير مضاف'}</strong></p>
+                  <div>
+                    <strong>ملاحظات العميل</strong>
+                    <p style={{ margin: '5px 0 0', whiteSpace: 'pre-wrap' }}>{notes.trim() || 'لا توجد ملاحظات إضافية.'}</p>
+                  </div>
+                </div>
+              </section>
+
+              {recoveringAttempt && !ambiguousSubmit ? (
+                <p className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
+                  توجد محاولة سابقة لم يصل تأكيدها بعد. أعد بياناتها نفسها؛ لن نرسل طلبًا مختلفًا قبل حسمها.
+                </p>
+              ) : null}
+              {previewError ? (
+                <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert">
+                  {previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق من السلة</button>
+                </div>
+              ) : null}
+              {error ? <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert" aria-live="assertive">{error}</div> : null}
+              {ambiguousSubmit ? (
+                <div className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
+                  <strong>نتيجة المحاولة لم تُحسم بعد.</strong>
+                  <p>أعد إرسال البيانات نفسها بالمفتاح المحفوظ، أو <Link to="/orders" className="sf-link">افتح طلباتي للتحقق من ظهور الطلب</Link>.</p>
+                </div>
+              ) : null}
+
+              {availabilityChanges.length > 0 && (
+                <section className="sf-checkout-card no-print" aria-label="تغيرات توفر الأصناف">
+                  <div className="sf-checkout-section-head"><span className="sf-checkout-section-number">!</span><div><h3>تغير التوفر منذ عرض السلة</h3><p>أُعيد جلب المخزون الحالي من الخادم عند فتح الدفع.</p></div></div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {availabilityChanges.map((change) => {
+                      const current = change.current_available === null ? 'غير مؤكد' : formatNumber(change.current_available);
+                      const previous = change.previous_available === null ? 'غير مؤكد' : formatNumber(change.previous_available);
+                      const label = change.kind === 'unavailable' ? 'أصبح الصنف غير متاح'
+                        : change.kind === 'restored' ? 'أصبح الصنف متاحًا مجددًا'
+                          : change.kind === 'reduced' ? 'انخفضت الكمية المتاحة'
+                            : change.kind === 'increased' ? 'ارتفعت الكمية المتاحة' : 'تغيرت حالة بيانات المخزون';
+                      const adjustment = availabilityAdjustments.find((item) => item.product_id.toLowerCase() === change.product_id);
+                      const suggested = adjustment?.action === 'reduce'
+                        ? `الكمية المقترحة بعد موافقتك: ${formatNumber(adjustment.next_quantity ?? 0)}`
+                        : adjustment?.action === 'remove'
+                          ? 'لا يفي المتاح بالحد الأدنى؛ سيُحذف الصنف بعد موافقتك ويمكن استعادته.'
+                          : adjustment?.action === 'blocked'
+                            ? 'لا توجد كمية مؤكدة؛ يلزم إعادة تحميل المخزون يدويًا.'
+                            : 'الكمية الحالية ضمن المتاح.';
+                      return <div key={change.product_id} style={{ display: 'grid', gap: 4, borderBottom: '1px solid #e7eeee', paddingBottom: 7 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                          <strong>{cart.find((item) => item.product.id.toLowerCase() === change.product_id)?.product.name ?? 'صنف من السلة'} — {label}</strong>
+                          <span>المتاح السابق: {previous} · الحالي: {current}</span>
+                        </div>
+                        <small>{suggested}</small>
+                      </div>;
+                    })}
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, lineHeight: 1.8, fontWeight: 750 }}>
+                    <input type="checkbox" checked={availabilityChangesAccepted} disabled={submitting || ambiguousSubmit} onChange={(event) => setAvailabilityChangesAccepted(event.target.checked)} style={{ marginTop: 6 }} />
+                    أوافق على تحديث السلة وفق الكميات المتاحة التي أعادها الخادم، بما في ذلك خفض الكميات أو إزالة الأصناف غير المتاحة.
+                  </label>
+                  <div className="sf-checkout-actions" style={{ marginTop: 12 }}>
+                    {hasBlockedAvailabilityAdjustment ? (
+                      <button type="button" className="sf-btn-secondary" onClick={onBack}>العودة إلى السلة لإعادة تحميل المخزون</button>
+                    ) : (
+                      <button type="button" className="sf-btn-primary" disabled={!availabilityChangesAccepted || submitting || ambiguousSubmit} onClick={() => {
+                        const result = onApplyAvailabilityChanges(availabilityAdjustments);
+                        if (!result.applied) {
+                          setError(result.message);
+                          return;
+                        }
+                        setError('');
+                        setStockUpdateNotice(result.message);
+                        setAvailabilityChangesAccepted(false);
+                        setFinalConfirmationAccepted(false);
+                      }}>تطبيق تعديلات الخادم على السلة</button>
+                    )}
+                  </div>
+                </section>
               )}
-            </div>
-          </section>
-
-          <section className="sf-checkout-card">
-            <div className="sf-checkout-section-head">
-              <span className="sf-checkout-section-number">03</span>
-              <div><h3>طريقة السداد</h3><p>سيُعاد التحقق من اعتماد الحساب والحد الائتماني من الخادم عند الإرسال.</p></div>
-            </div>
-            <fieldset className="sf-checkout-payment">
-              <legend className="sf-checkout-field-label">اختر طريقة السداد</legend>
-              <label className={"sf-checkout-payment-option" + (paymentTerms === 'cash_on_delivery' ? ' is-selected' : '')}>
-                <input type="radio" name="paymentTerms" value="cash_on_delivery" checked={paymentTerms === 'cash_on_delivery'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('cash_on_delivery')} />
-                <span><strong>الدفع عند الاستلام</strong><small>تسوية قيمة الطلب عند تسلّم البضاعة.</small></span>
-                <b className="sf-checkout-radio-mark" aria-hidden="true" />
-              </label>
-              <label className={"sf-checkout-payment-option" + (paymentTerms === 'credit' ? ' is-selected' : '')}>
-                <input type="radio" name="paymentTerms" value="credit" checked={paymentTerms === 'credit'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('credit')} />
-                <span><strong>الدفع الآجل</strong><small>للحسابات التجارية المعتمدة وضمن حد الائتمان المتاح.</small></span>
-                <b className="sf-checkout-radio-mark" aria-hidden="true" />
-              </label>
-            </fieldset>
-          </section>
-
-          <section className="sf-checkout-card">
-            <div className="sf-checkout-section-head">
-              <span className="sf-checkout-section-number">04</span>
-              <div><h3>ملاحظات الطلب</h3><p>أضف تعليمات خاصة بالتجهيز أو التسليم.</p></div>
-            </div>
-            <label className="sf-form-field">
-              <span>ملاحظات (اختياري)</span>
-              <textarea className="sf-checkout-notes" value={notes} disabled={submitting || ambiguousSubmit} onChange={(e) => setNotes(e.target.value)} placeholder="مثال: وقت مناسب للتسليم أو تعليمات إضافية..." rows={3} />
-            </label>
-          </section>
-
-          {recoveringAttempt && !ambiguousSubmit && (
-            <p className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
-              توجد محاولة سابقة لم يصل تأكيدها بعد. أعد بياناتها نفسها أولًا حتى نتحقق منها بأمان؛ لن نرسل طلبًا مختلفًا قبل حسمها.
-            </p>
+              {recentlyRemovedCartItems.length > 0 && (
+                <section className="sf-checkout-card no-print" aria-label="الأصناف التي أزيلت من السلة">
+                  <div className="sf-checkout-section-head">
+                    <span className="sf-checkout-section-number">↶</span>
+                    <div><h3>أصناف أُزيلت من السلة</h3><p>أزيلت بسبب عدم التوفر أو عدم بلوغ الحد الأدنى للطلب. يمكنك استعادتها، وسيعاد التحقق من مخزونها قبل الإرسال.</p></div>
+                  </div>
+                  <ul style={{ margin: 0, paddingInlineStart: 22, lineHeight: 1.9 }}>
+                    {recentlyRemovedCartItems.map((entry) => (
+                      <li key={entry.item.product.id}>{entry.item.product.name} — {formatNumber(entry.item.quantity)} {entry.item.product.unit}</li>
+                    ))}
+                  </ul>
+                  <button type="button" className="sf-btn-secondary" style={{ marginTop: 12 }} onClick={onUndoCartRemoval}>
+                    استعادة الأصناف المحذوفة وإعادة فحص التوفر
+                  </button>
+                </section>
+              )}
+              {priceChanges.length > 0 && (
+                <section className="sf-checkout-card no-print" aria-label="تغيرات الأسعار">
+                  <div className="sf-checkout-section-head"><span className="sf-checkout-section-number">!</span><div><h3>تغيرت الأسعار أو شروط العروض</h3><p>مقارنة بين معاينة السلة ومعاينة الدفع من الخادم. لا يُستخدم أي سعر مخزن محليًا.</p></div></div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {priceChanges.map((change) => (
+                      <div key={change.product_id} style={{ display: 'grid', gap: 3, borderBottom: '1px solid #e7eeee', paddingBottom: 8 }}>
+                        <strong>{change.name} × {formatNumber(change.quantity)}</strong>
+                        {change.previous_quantity !== change.quantity && <small>الكمية السابقة: {formatNumber(change.previous_quantity)} · الحالية: {formatNumber(change.quantity)}</small>}
+                        <span>السعر السابق للوحدة: {formatCartReviewAmount(change.previous_unit_price, change.previous_currency)}</span>
+                        <span>السعر الحالي للوحدة: {formatCartReviewAmount(change.current_unit_price, change.current_currency)} · {change.kind === 'currency' ? 'تغيير العملة' : change.kind === 'increase' ? 'زيادة' : change.kind === 'decrease' ? 'انخفاض' : 'تغير شروط العرض'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, lineHeight: 1.8, fontWeight: 750 }}>
+                    <input type="checkbox" checked={priceChangesAccepted} disabled={submitting || ambiguousSubmit} onChange={(event) => setPriceChangesAccepted(event.target.checked)} style={{ marginTop: 6 }} />
+                    راجعت فروق الأسعار وشروط العروض الحالية التي أعادها الخادم، وأوافق عليها قبل إرسال الطلب.
+                  </label>
+                </section>
+              )}
+              <section className="sf-checkout-card no-print">
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, lineHeight: 1.8, fontWeight: 800 }}>
+                  <input
+                    type="checkbox"
+                    checked={finalConfirmationAccepted}
+                    disabled={submitting || ambiguousSubmit}
+                    onChange={(event) => setFinalConfirmationAccepted(event.target.checked)}
+                    style={{ marginTop: 6 }}
+                  />
+                  أؤكد أن بيانات العميل والعنوان والأصناف والكميات وشروط السداد صحيحة، وأوافق على إرسال الطلب إلى الشركة لمراجعته.
+                </label>
+                <div className="sf-checkout-actions" style={{ marginTop: 16 }}>
+                  <button
+                    className="sf-btn-secondary"
+                    type="button"
+                    onClick={() => { setCheckoutStage('details'); setFinalConfirmationAccepted(false); setError(''); }}
+                    disabled={submitting || ambiguousSubmit}
+                  >
+                    العودة لتعديل البيانات
+                  </button>
+                  <button
+                    className="sf-btn-primary"
+                    type="button"
+                    onClick={() => void submit()}
+                    disabled={submitting || previewLoading || !cartValidation || pricePreviewPending || !finalConfirmationAccepted || (priceChanges.length > 0 && !priceChangesAccepted) || availabilityChanges.length > 0}
+                  >
+                    {submitting
+                      ? 'جارٍ إرسال الطلب...'
+                      : ambiguousSubmit || recoveringAttempt
+                        ? 'إعادة محاولة تأكيد الطلب نفسه'
+                        : pricePreviewPending
+                          ? 'جارٍ تجهيز مراجعة الفاتورة من الخادم...'
+                          : 'تأكيد نهائي وإرسال الطلب'}
+                  </button>
+                </div>
+              </section>
+            </>
           )}
-          {previewError && <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert">{previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق من السلة</button></div>}
-          {error && <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert" aria-live="assertive">{error}</div>}
-          {ambiguousSubmit && (
-            <div className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
-              <strong>نتيجة المحاولة لم تُحسم بعد.</strong>
-              <p>بيانات الطلب مقفلة لمنع التكرار. أعد إرسال البيانات نفسها بالمفتاح المحفوظ، أو <Link to="/orders" className="sf-link">افتح طلباتي للتحقق من ظهور الطلب</Link>.</p>
-            </div>
-          )}
 
-          <div className="sf-checkout-actions">
-            <button className="sf-btn-secondary" onClick={onBack} disabled={submitting || ambiguousSubmit}>العودة إلى السلة</button>
-            <button className="sf-btn-primary" onClick={submit} disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation || pricePreviewPending}>
-              {submitting ? 'جارٍ إرسال الطلب...' : previewLoading ? 'جارٍ التحقق من السلة...' : deliveryAddressesLoading ? 'جارٍ تحميل العناوين...' : ambiguousSubmit || recoveringAttempt ? 'إعادة تأكيد المحاولة نفسها' : pricePreviewPending ? 'جارٍ تجهيز مراجعة الفاتورة...' : 'اعتماد الطلب وإرساله'}
-            </button>
-          </div>
+          {checkoutStage === 'details' ? (
+            <>
+              {recoveringAttempt && !ambiguousSubmit ? (
+                <p className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
+                  توجد محاولة طلب سابقة لم يصل تأكيدها بعد. أعد بياناتها نفسها أولًا؛ لن نرسل طلبًا مختلفًا قبل حسم المحاولة.
+                </p>
+              ) : null}
+              {previewError ? (
+                <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert">
+                  {previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق من السلة</button>
+                </div>
+              ) : null}
+              {stockUpdateNotice ? <div className="sf-checkout-trust-note" role="status" aria-live="polite">{stockUpdateNotice}</div> : null}
+              {error ? <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert" aria-live="assertive">{error}</div> : null}
+              {ambiguousSubmit ? (
+                <div className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
+                  <strong>نتيجة المحاولة السابقة لم تُحسم بعد.</strong>
+                  <p>استعد بياناتها نفسها أولًا أو <Link to="/orders" className="sf-link">افتح طلباتي للتحقق من ظهورها</Link>.</p>
+                </div>
+              ) : null}
+              <div className="sf-checkout-actions">
+                <button className="sf-btn-secondary" type="button" onClick={onBack} disabled={submitting || ambiguousSubmit}>العودة إلى السلة</button>
+                <button
+                  className="sf-btn-primary"
+                  type="button"
+                  onClick={continueToReview}
+                  disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation || ambiguousSubmit}
+                >
+                  مراجعة الطلب والفاتورة
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
 
-        <aside className="sf-checkout-summary">
-          <div className="sf-checkout-summary-head">
-            <div><span className="sf-checkout-summary-kicker">مستند المراجعة</span><h3>فاتورة الطلب</h3></div>
-            <span className="sf-checkout-count">{cartValidation?.item_count ?? cart.length} أصناف</span>
-          </div>
-          <div className="sf-checkout-summary-items" aria-live="polite">
-            {previewLoading && <p className="sf-checkout-hint" role="status">جارٍ التحقق من الأصناف والكميات من الخادم...</p>}
-            {cartValidation ? cartValidation.items.map((line) => (
-              <div className="sf-summary-row" key={line.product_id}>
-                <span><b>{line.name}</b><small>رمز الصنف: {line.item_code || '—'}</small></span>
-                <strong>{formatNumber(Number(line.quantity))} {line.unit}</strong>
+        {checkoutStage === 'review' ? (
+          <aside className="sf-checkout-summary" data-testid="checkout-invoice-preview">
+            <div className="sf-checkout-summary-head">
+              <div><span className="sf-checkout-summary-kicker">مسودة غير مرسلة</span><h3>معاينة مستند الطلب</h3></div>
+              <span className="sf-checkout-count">{cartValidation?.item_count ?? cart.length} أصناف</span>
+            </div>
+            <div className="sf-checkout-summary-items" aria-live="polite">
+              {previewLoading ? <p className="sf-checkout-hint" role="status">جارٍ التحقق من الأصناف والكميات من الخادم...</p> : null}
+              {cartValidation ? cartValidation.items.map((line) => (
+                <div className="sf-summary-row" key={line.product_id}>
+                  <span><b>{line.name}</b><small>رمز الصنف: {line.item_code || '—'}</small></span>
+                  <strong>{formatNumber(Number(line.quantity))} {line.unit}</strong>
+                </div>
+              )) : null}
+            </div>
+            <CustomerOrderPricingPreview
+              items={checkoutItems}
+              policyValue={priceVisibilityPolicy}
+              surface="orders"
+              title="معاينة الأسعار المعتمدة قبل الإرسال"
+              onStatusChange={setPricingPreviewStatus}
+              onPresentationChange={handleCheckoutPricingPresentation}
+            />
+            {priceVisibilityPolicy !== true ? (
+              <div className="sf-checkout-privacy-note" role="note">
+                <strong>الأسعار والإجماليات مخفية حسب سياسة المتجر</strong>
+                <p>لن تُعرض أي مبالغ في المستند للعميل، ويظل اعتماد السعر النهائي داخل الخادم.</p>
               </div>
-            )) : !previewLoading && cart.map((item) => (
-              <div className="sf-summary-row" key={item.product.id}>
-                <span><b>{item.product.name}</b><small>بانتظار التحقق من الخادم</small></span>
-                <strong>{formatNumber(item.quantity)} {item.product.unit}</strong>
+            ) : null}
+            {cartValidation ? (
+              <div className="sf-checkout-trust-note">
+                <Check size={15} />
+                <span>الأصناف والكميات متحققة من الخادم. أي أسعار أو خصومات ظاهرة مصدرها معاينة الخادم، ويُعاد احتساب الطلب داخل معاملة الإرسال.</span>
               </div>
-            ))}
-          </div>
-          <CustomerOrderPricingPreview
-            items={checkoutItems}
-            policyValue={priceVisibilityPolicy}
-            surface="orders"
-            title="مراجعة أسعار الطلب"
-            onStatusChange={setPricingPreviewStatus}
-          />
-          {priceVisibilityPolicy !== true && (
+            ) : null}
             <div className="sf-checkout-privacy-note" role="note">
-              <strong>عرض المبالغ غير مفعّل</strong>
-              <p>تخضع الأسعار والإجماليات لإعدادات المتجر، ولن تُعرض أي مبالغ في هذه المراجعة.</p>
+              <strong>الضرائب والرسوم</strong>
+              <p>لا تُعرض مبالغ ضريبية أو رسوم إضافية ما لم تُرجعها خدمة التسعير المعتمدة صراحةً؛ لا يُنشئ المتصفح مبالغ تقديرية.</p>
             </div>
-          )}
-          {cartValidation && (
-            <div className="sf-checkout-trust-note">
+            <div className="sf-checkout-privacy-note" role="note">
+              <strong>طبيعة المستند</strong>
+              <p>هذه معاينة لطلب غير مرسل وليست فاتورة ضريبية أو إثبات دفع. يصدر رقم الطلب النهائي بعد تأكيد الخادم استلامه.</p>
+            </div>
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+              <button type="button" className="sf-btn-secondary" onClick={() => window.print()}>
+                <Printer size={16} /> طباعة / حفظ المعاينة PDF
+              </button>
+            </div>
+          </aside>
+        ) : (
+          <aside className="sf-checkout-summary">
+            <div className="sf-checkout-summary-head">
+              <div><span className="sf-checkout-summary-kicker">مسودة السلة</span><h3>ملخص قبل المراجعة</h3></div>
+              <span className="sf-checkout-count">{cartValidation?.item_count ?? cart.length} أصناف</span>
+            </div>
+            <div className="sf-checkout-summary-items">
+              {cartValidation ? cartValidation.items.map((line) => (
+                <div className="sf-summary-row" key={line.product_id}>
+                  <span><b>{line.name}</b><small>رمز الصنف: {line.item_code || '—'}</small></span>
+                  <strong>{formatNumber(Number(line.quantity))} {line.unit}</strong>
+                </div>
+              )) : cart.map((item) => (
+                <div className="sf-summary-row" key={item.product.id}>
+                  <span><b>{item.product.name}</b><small>بانتظار التحقق من الخادم</small></span>
+                  <strong>{formatNumber(item.quantity)} {item.product.unit}</strong>
+                </div>
+              ))}
+            </div>
+            {!user ? (
+              <div className="sf-checkout-privacy-note" role="note">
+                سجّل الدخول أولًا؛ لن تُعرض الأسعار دون معاينة خادمية مرتبطة بحسابك.
+              </div>
+            ) : null}
+            <div className="sf-checkout-trust-note" role="note">
               <Check size={15} />
-              <span>تم التحقق من الأصناف والكميات. أي مبالغ ظاهرة مصدرها معاينة الأسعار المطابقة من الخادم، ويُعاد احتساب الإجمالي داخل معاملة إنشاء الطلب.</span>
+              <span>لم يُرسل أي طلب بعد. تُجرى مراجعة الأسعار والخصومات المسموح بها في الخطوة التالية فقط.</span>
             </div>
-          )}
-          {!cartValidation && !previewLoading && (
-            <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert">
-              لا يمكن متابعة الإرسال قبل نجاح تحقق الخادم من السلة.
-              <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق</button>
-            </div>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
     </section>
   );

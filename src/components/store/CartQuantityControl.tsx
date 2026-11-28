@@ -59,7 +59,10 @@ export function CartQuantityControl({
   const minimum = positiveInteger(minimumValue, 1);
   const multiple = positiveInteger(multipleValue, 1);
   const maximum = typeof available === "number" && Number.isFinite(available)
-    ? Math.max(quantity, Math.floor(available))
+    ? Math.max(0, Math.floor(available))
+    : null;
+  const maximumAllowed = maximum !== null && maximum >= minimum
+    ? minimum + Math.floor((maximum - minimum) / multiple) * multiple
     : null;
   const [draft, setDraft] = useState(String(quantity));
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +73,10 @@ export function CartQuantityControl({
   }, [quantity]);
 
   const commitDraft = () => {
+    if (draft === String(quantity)) {
+      setError(maximum !== null && quantity > maximum ? `المتاح حاليًا ${maximum} فقط؛ خفّض الكمية قبل المتابعة.` : null);
+      return;
+    }
     const result = validateCartQuantity(draft, minimum, multiple, maximum);
     if (!result.valid) {
       setDraft(String(quantity));
@@ -82,7 +89,11 @@ export function CartQuantityControl({
   };
 
   const next = nextCartQuantity(quantity, minimum, multiple);
-  const previous = previousCartQuantity(quantity, minimum, multiple);
+  const previous = maximum !== null && maximum < minimum
+    ? null
+    : maximumAllowed !== null && quantity > maximumAllowed
+      ? maximumAllowed
+      : previousCartQuantity(quantity, minimum, multiple);
   const nextDisabled = maximum !== null && next > maximum;
 
   const commitStep = (value: number) => {
