@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildDecisionMemoryBook, buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "./decision-memory";
+import {
+  buildDecisionMemoryBook,
+  buildDecisionPolicyReviewSuggestions,
+  filterDecisionMemoryPrecedents,
+  searchSimilarDecisionMemory,
+  summarizeDecisionMemoryPrecedents,
+} from "./decision-memory";
 import type { DecisionMemoryMetricResult, DecisionMemorySnapshot } from "./decision-memory";
 import type { DecisionOutcomeView } from "./decision-outcome-client";
 import type { EvidenceRecord, MetricSnapshot } from "./types";
@@ -517,6 +523,31 @@ describe("decision memory evidence engine", () => {
 
     expect(matches[0].comparisonStatus).toBe("OUTCOME_UNVERIFIED");
     expect(matches[0].contextDifferences).toContain("خط الأساس المتوقع غير متاح في أحد القرارين");
+  });
+
+  it("summarizes and filters precedent comparison statuses without changing the matches", () => {
+    const matches = searchSimilarDecisionMemory({
+      records: precedentSearchRecords(),
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+    const mixed = [
+      matches[0],
+      { ...matches[0], comparisonStatus: "NOT_COMPARABLE" as const },
+      { ...matches[0], comparisonStatus: "OUTCOME_UNVERIFIED" as const },
+      { ...matches[0], comparisonStatus: "COMPARABLE" as const },
+    ];
+
+    expect(summarizeDecisionMemoryPrecedents(mixed)).toEqual({
+      total: 4,
+      comparable: 2,
+      notComparable: 1,
+      outcomeUnverified: 1,
+    });
+    expect(filterDecisionMemoryPrecedents(mixed, "NOT_COMPARABLE")).toHaveLength(1);
+    expect(filterDecisionMemoryPrecedents(mixed, "OUTCOME_UNVERIFIED")).toHaveLength(1);
+    expect(filterDecisionMemoryPrecedents(mixed, "ALL")).toHaveLength(4);
+    expect(mixed).toHaveLength(4);
   });
 
   it("searches only earlier decisions and rejects unbounded search inputs", () => {
