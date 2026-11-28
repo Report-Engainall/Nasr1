@@ -117,8 +117,9 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 
 - Added `isSameCustomerExternalStatementSourceAsOf`, which compares valid source watermarks as exact PostgreSQL-microsecond instants, accepts equivalent valid timezone representations, and fails closed on malformed values.
 - External statement XLSX and browser print now require the displayed statement watermark and provider mode to match the currently selected server binding exactly. They also cancel if a new statement read supersedes an in-flight print/export.
-- Added a route regression for a real UI state transition: the first print revalidation observes a one-microsecond source cutover and updates the binding notice while the old external statement remains in the view; the second attempt must be rejected before invoking `window.print()`. Added direct comparator tests for equivalent offsets, one-microsecond difference and malformed input.
+- Added a route regression for a real UI state transition: the first print revalidation observes a one-microsecond source cutover, updates the server binding in the UI, clears the old external statement rows and disables print/export controls; `window.print()` is never invoked. Added direct comparator tests for equivalent offsets, one-microsecond difference and malformed input.
 - No source/ledger/inventory/ERP writes; no new migration. The change protects only customer statement presentation, printing and XLSX output.
+- On source mismatch or resolver failure during print/export, the statement page now clears invoices, payments, credits, external statement rows, summary and watermark before showing the unavailable state; it does not leave an old balance visible behind a warning.
 - Tests are authored and require exact-head P1 Vitest/strict TypeScript plus P2 browser acceptance; no PASS is claimed until the current SHA jobs finish.
 
 ## P1 route-level external statement acceptance — 2026-11-28

@@ -1587,14 +1587,7 @@ describe("customer quote workspace tenant boundary", () => {
       expect(sourceReads).toBe(3);
       expect(host?.textContent).toContain("تغير مصدر الحساب؛ أوقفنا طباعة كشف الدفتر السابق.");
       expect(host?.textContent).not.toContain("ONYX-JV-MICRO-001");
-      expect(printSpy).not.toHaveBeenCalled();
-
-      await act(async () => {
-        printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
-      expect(sourceReads).toBe(3);
-      expect(host?.textContent).toContain("توقيت لقطة كشف ERP لا يطابق ربط الحساب الحالي بدقة");
+      expect(printButton).toBeDisabled();
       expect(printSpy).not.toHaveBeenCalled();
     } finally {
       if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
