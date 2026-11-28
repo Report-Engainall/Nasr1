@@ -109,6 +109,9 @@ describe("ReplenishmentPurchaseDraft", () => {
     await waitFor(() => expect(createButton).toBeEnabled());
     const firstRequest = mocks.createPurchaseOrder.mock.calls[0][0];
     expect(firstRequest.idempotencyKey).toBe("replenishment-aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa");
+    expect(firstRequest.notes).toContain("inventory.replenishment-target@1.2.0");
+    expect(firstRequest.notes).toContain("SKU=" + PRODUCT_ID);
+    expect(firstRequest.notes).toContain("evidence=evidence-1");
 
     // Closing the modal unmounts this form. The parent workspace retains the
     // shared key map, so reopening the exact same draft must replay the same request.
@@ -155,6 +158,44 @@ describe("ReplenishmentPurchaseDraft", () => {
     expect(nextIntent.idempotencyKey).toBe("replenishment-cccccccccccc4ccc8ccccccccccccccc");
     expect(nextIntent.idempotencyKey).not.toBe(editedRequest.idempotencyKey);
     expect(randomUUID).toHaveBeenCalledTimes(3);
+  });
+
+  it("persists forecast calculation and evidence provenance in the purchase-order draft", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal("crypto", { randomUUID: () => "dddddddd-dddd-4ddd-8ddd-dddddddddddd" });
+    const forecastRecommendation = {
+      ...recommendation,
+      demandSource: "FORECAST" as const,
+      demandTrend: "INCREASING" as const,
+      dailyDemand: 4,
+      leadTimeDemand: 24,
+      recommendedQuantity: 24,
+      forecastLeadTimeDemand: { horizonDays: 30 as const, lowQuantity: 18, expectedQuantity: 24, highQuantity: 36 },
+      forecastEvidenceIds: ["forecast-current", "forecast-baseline"],
+      forecastMetricKeys: ["product.order_items.quantity", "product.orders.sample_count"],
+      forecastFormulaVersions: ["demand.quantity@1.0.0", "demand.sample@1.0.0"],
+      evidenceIds: ["inventory-evidence", "forecast-current", "forecast-baseline"],
+    };
+    render(
+      <ReplenishmentPurchaseDraft
+        recommendations={[forecastRecommendation]}
+        idempotencyKeys={new Map()}
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("سكر");
+    fireEvent.change(screen.getByLabelText("المورد"), { target: { value: SUPPLIER_ID } });
+    fireEvent.change(screen.getByLabelText("المخزن المستلم"), { target: { value: WAREHOUSE_ID } });
+    fireEvent.click(screen.getByRole("button", { name: "تأكيد وإنشاء مسودة أمر الشراء" }));
+    await waitFor(() => expect(mocks.createPurchaseOrder).toHaveBeenCalledTimes(1));
+    const request = mocks.createPurchaseOrder.mock.calls[0][0];
+    expect(request.notes).toContain("inventory.replenishment-target@1.2.0");
+    expect(request.notes).toContain("توقعات مستخدمة فعلياً: 1 من 1 بنداً");
+    expect(request.notes).toContain("lead=24 كرتون");
+    expect(request.notes).toContain("range=18-36");
+    expect(request.notes).toContain("forecastEvidence=forecast-current|forecast-baseline");
+    expect(request.notes).toContain("demand.quantity@1.0.0");
+    expect(request.lines).toEqual([{ product_id: PRODUCT_ID, quantity: 24, unit_cost: null }]);
   });
 
   it("fails closed when a secure idempotency key cannot be generated", async () => {
