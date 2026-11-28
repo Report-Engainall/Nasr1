@@ -1,11 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DECISION_POLICY_LEARNING_MAX_OFFSET,
+  DECISION_POLICY_LEARNING_PAGE_SIZE,
+  clampDecisionPolicyLearningPage,
+  decisionPolicyLearningPageCount,
   decisionPolicyLearningTransitionKey,
   resolveDecisionPolicyLearningCreation,
   resolveDecisionPolicyLearningTransition,
 } from "./decision-policy-learning-commands";
 
 describe("decision policy learning command retries", () => {
+  it("clamps saved learning candidate pages to the supported server offset", () => {
+    expect(decisionPolicyLearningPageCount(0)).toBe(1);
+    expect(decisionPolicyLearningPageCount(51)).toBe(2);
+    expect(decisionPolicyLearningPageCount(5050)).toBe(101);
+    expect(decisionPolicyLearningPageCount(9000)).toBe(101);
+    expect(clampDecisionPolicyLearningPage(4, 51)).toBe(1);
+    expect(clampDecisionPolicyLearningPage(200, 9000)).toBe(100);
+    expect(clampDecisionPolicyLearningPage(-1, 51)).toBe(0);
+    expect(clampDecisionPolicyLearningPage(Number.NaN, 51)).toBe(0);
+    expect(DECISION_POLICY_LEARNING_MAX_OFFSET + DECISION_POLICY_LEARNING_PAGE_SIZE).toBe(5050);
+  });
+
   it("reuses the complete transition payload after the source version and typed reason change", () => {
     const createId = vi.fn()
       .mockReturnValueOnce("event-id-1")
