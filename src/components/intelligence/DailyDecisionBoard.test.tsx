@@ -14,6 +14,7 @@ const now = Date.parse("2026-11-28T00:00:00.000Z");
 const allFilters: DailyDecisionFilters = {
   searchText: "",
   state: "ALL",
+  owner: "ALL",
   priority: "ALL",
   due: "ALL",
 };
@@ -144,6 +145,21 @@ describe("daily decision queue search and filters", () => {
     ]) {
       expect(filterDailyDecisionRecords([record], { ...allFilters, searchText }, now)).toEqual([record]);
     }
+  });
+
+  it("filters loaded decision records by their recorded owner", () => {
+    const sales = decision({ decisionId: "sales", owner: "فريق المبيعات" });
+    const procurement = decision({ decisionId: "procurement", owner: "فريق المشتريات" });
+    const unassigned = decision({ decisionId: "unassigned", owner: "   " });
+
+    expect(filterDailyDecisionRecords([sales, procurement, unassigned], {
+      ...allFilters,
+      owner: "فريق المبيعات",
+    }, now).map(item => item.decisionId)).toEqual(["sales"]);
+    expect(filterDailyDecisionRecords([sales, procurement, unassigned], {
+      ...allFilters,
+      owner: "غير معيّن",
+    }, now).map(item => item.decisionId)).toEqual(["unassigned"]);
   });
 
   it("filters by exact state and only saved priorities, preserving unranked legacy decisions", () => {
