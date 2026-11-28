@@ -241,6 +241,8 @@ export function searchSimilarDecisionMemory(input: {
         ? metricContextDifferences(expectedLeft, expectedRight, "خط الأساس المتوقع")
         : ["خط الأساس المتوقع غير متاح في أحد القرارين"];
       const comparisonStatus: DecisionMemoryPrecedentMatch["comparisonStatus"] =
+        target.metricComparison.status !== "VERIFIED" ||
+        candidate.metricComparison.status !== "VERIFIED" ||
         !expectedLeft || !expectedRight || !actualLeft || !actualRight
           ? "OUTCOME_UNVERIFIED"
           : actualDifferences.length || expectedDifferences.length
