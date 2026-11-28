@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   DecisionMemoryBookResult,
   DecisionMemoryMetricResult,
@@ -36,6 +37,68 @@ function metricValue(metric: DecisionMemoryMetricResult | null): string {
   if (!metric) return "غير متاح من المصدر";
   const amount = new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 2 }).format(metric.value);
   return [amount, metric.currency ?? metric.unit, metric.unitOfMeasure].filter(Boolean).join(" ");
+}
+
+export type DailyDecisionStateFilter = "ALL" | DecisionMemoryRecord["state"];
+export type DailyDecisionPriorityFilter = "ALL" | "P0" | "P1" | "P2" | "P3" | "UNRANKED";
+export type DailyDecisionDueFilter = "ALL" | "OVERDUE" | "DUE_7_DAYS" | "UNSCHEDULED";
+
+export interface DailyDecisionFilters {
+  searchText: string;
+  state: DailyDecisionStateFilter;
+  priority: DailyDecisionPriorityFilter;
+  due: DailyDecisionDueFilter;
+}
+
+export function normalizeDailyDecisionSearch(value: string): string {
+  return value.normalize("NFKC")
+    .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .toLocaleLowerCase("ar")
+    .trim()
+    .replace(/\\s+/g, " ");
+}
+
+export function filterDailyDecisionRecords(
+  records: DecisionMemoryRecord[],
+  filters: DailyDecisionFilters,
+  now: number,
+): DecisionMemoryRecord[] {
+  const query = normalizeDailyDecisionSearch(filters.searchText);
+  const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+  return records.filter(record => {
+    if (filters.state !== "ALL" && record.state !== filters.state) return false;
+    const savedPriority = record.candidateSnapshot?.priority ?? null;
+    if (filters.priority === "UNRANKED" && savedPriority !== null) return false;
+    if (filters.priority !== "ALL" && filters.priority !== "UNRANKED" && savedPriority !== filters.priority) return false;
+
+    const terminal = record.state === "REJECTED" || record.state === "MEASURED";
+    const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
+    if (filters.due === "OVERDUE" &&
+        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due > now)) return false;
+    if (filters.due === "DUE_7_DAYS" &&
+        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= now || due > weekAhead)) return false;
+    if (filters.due === "UNSCHEDULED" &&
+        (terminal || record.reviewDisposition !== "NOT_SCHEDULED" &&
+          !(record.reviewDisposition === null && !record.reviewAt))) return false;
+
+    if (!query) return true;
+    const candidate = record.candidateSnapshot;
+    const searchable = normalizeDailyDecisionSearch([
+      record.decisionId, record.candidateRef, record.ruleId, record.ruleVersion,
+      record.state, record.owner, record.proposedResult, record.decisionReason ?? "",
+      record.problem ?? "", record.actionTaken ?? "", record.reviewAt ?? "",
+      candidate?.what ?? "", candidate?.why ?? "", candidate?.risk ?? "",
+      candidate?.whatNext ?? "", candidate?.expectedOutcome ?? "",
+      record.events.map(event => [event.type, event.actorRole, event.reason ?? ""].join(" ")).join(" "),
+      record.facts.map(item => item.text + " " + item.evidenceIds.join(" ")).join(" "),
+      record.hypotheses.map(item => item.text + " " + item.evidenceIds.join(" ")).join(" "),
+      record.lessons.join(" "),
+    ].join(" "));
+    return searchable.includes(query);
+  });
 }
 
 function priorityRank(record: DecisionMemoryRecord): number {
@@ -305,9 +368,17 @@ export function DailyDecisionBoard({
   onRetry?: () => void;
 }) {
   const now = Date.now();
-  const sortedRecords = [...result.records].sort((left, right) => compareOrder(left, right, now));
+  const [searchText, setSearchText] = useState("");
+  const [stateFilter, setStateFilter] = useState<DailyDecisionStateFilter>("ALL");
+  const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
+  const [dueFilter, setDueFilter] = useState<DailyDecisionDueFilter>("ALL");
+  const filteredRecords = filterDailyDecisionRecords(result.records, {
+    searchText, state: stateFilter, priority: priorityFilter, due: dueFilter,
+  }, now);
+  const sortedRecords = [...filteredRecords].sort((left, right) => compareOrder(left, right, now));
   const records = sortedRecords.slice(0, 10);
   const omittedCount = Math.max(0, sortedRecords.length - records.length);
+  const hasFilters = Boolean(searchText) || stateFilter !== "ALL" || priorityFilter !== "ALL" || dueFilter !== "ALL";
   return (
     <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -343,13 +414,74 @@ export function DailyDecisionBoard({
         </article>
       </div>
 
+      {result.records.length > 0 ? (
+        <section className="space-y-2 rounded-lg border p-3" aria-label="بحث وتصفية القرارات اليومية">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="space-y-1 text-sm">
+              <span className="block">البحث في جميع القرارات المحمّلة</span>
+              <input
+                type="search"
+                aria-label="ابحث في القرارات اليومية"
+                value={searchText}
+                onChange={event => setSearchText(event.target.value)}
+                placeholder="القرار أو المسؤول أو السبب أو الدليل..."
+                className="w-full rounded-lg border bg-background px-3 py-2"
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">حالة القرار</span>
+              <select aria-label="تصفية حالة القرار" value={stateFilter}
+                onChange={event => setStateFilter(event.target.value as DailyDecisionStateFilter)}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل الحالات</option>
+                {Object.entries(stateLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">الأولوية المحفوظة</span>
+              <select aria-label="تصفية أولوية القرار" value={priorityFilter}
+                onChange={event => setPriorityFilter(event.target.value as DailyDecisionPriorityFilter)}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل الأولويات</option>
+                <option value="P0">P0 — حرجة</option>
+                <option value="P1">P1 — مرتفعة</option>
+                <option value="P2">P2 — متوسطة</option>
+                <option value="P3">P3 — متابعة</option>
+                <option value="UNRANKED">قرارات تاريخية بلا أولوية محفوظة</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">موعد المراجعة</span>
+              <select aria-label="تصفية موعد المراجعة" value={dueFilter}
+                onChange={event => setDueFilter(event.target.value as DailyDecisionDueFilter)}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل المواعيد</option>
+                <option value="OVERDUE">متأخر أو مستحق الآن</option>
+                <option value="DUE_7_DAYS">مستحق خلال 7 أيام</option>
+                <option value="UNSCHEDULED">غير مجدول</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>يعرض {records.length} من {filteredRecords.length} نتيجة مطابقة ضمن {result.loadedCount} قراراً محمّلاً</span>
+            <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
+              disabled={!hasFilters}
+              onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); }}>
+              مسح البحث والتصفية
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {result.status === "UNAVAILABLE" ? (
         <div className="rounded-lg border p-3" role="alert">
           <p className="text-sm">تعذر تحميل سجل القرارات من الخادم؛ لا تُعرض بطاقات افتراضية.</p>
           {onRetry ? <button type="button" className="mt-2 rounded-lg border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" onClick={onRetry}>إعادة المحاولة</button> : null}
         </div>
-      ) : records.length === 0 ? (
+      ) : result.records.length === 0 ? (
         <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.</p>
+      ) : filteredRecords.length === 0 ? (
+        <p className="rounded-lg border p-3 text-sm text-muted-foreground" role="status">لا توجد قرارات تطابق البحث والتصفية الحالية.</p>
       ) : (
         <ol className="min-w-0 space-y-3" aria-label="قرارات محفوظة مرتبة للمتابعة">
           {records.map(record => (
@@ -360,7 +492,7 @@ export function DailyDecisionBoard({
         </ol>
       )}
       {omittedCount > 0 ? (
-        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {sortedRecords.length} قراراً في الصفحة الحالية؛ {omittedCount} قراراً آخر ضمن بقية السجل.</p>
+        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {sortedRecords.length} نتيجة مطابقة؛ {omittedCount} نتيجة مطابقة أخرى ضمن السجلات المحمّلة. وسّع التصفية لعرضها.</p>
       ) : null}
       {result.status === "PARTIAL" || result.loadedCount < result.totalCount ? (
         <p className="text-xs text-muted-foreground" role="status">
