@@ -93,7 +93,7 @@ function DemandScenarioLab({ result }: { result: DemandForecastResult }) {
       {scenario.status === "SIMULATED" ? (
         <>
           <div className="rounded-lg bg-muted/40 p-3 text-sm" role="status" aria-live="polite">
-            **{selectedProduct.productLabel}** · افتراض التغير: **{changePercent > 0 ? "+" : ""}{changePercent}%** ·
+            <strong>{selectedProduct.productLabel}</strong> · افتراض التغير: <strong>{changePercent > 0 ? "+" : ""}{changePercent}%</strong> ·
             الفترة المرجعية: {scenario.period?.from} — {scenario.period?.to} · لقطة المصدر: {scenario.asOf}
           </div>
           <div className="overflow-x-auto">

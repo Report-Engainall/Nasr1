@@ -84,7 +84,7 @@ describe("DemandForecastCard", () => {
     render(<DemandForecastCard result={forecast} state="ready" />);
     const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
     const slider = within(lab).getByRole("slider", { name: "نسبة تغير الطلب المفترضة" });
-    expect(within(lab).getByText("0%")).toBeInTheDocument();
+    expect(within(lab).getByRole("status")).toHaveTextContent("0%");
     fireEvent.change(slider, { target: { value: "20" } });
     expect(within(lab).getByText("+20%")).toBeInTheDocument();
     expect(within(lab).getByTestId("demand-scenario-expected-7")).toHaveAttribute("data-value", "33.6");
