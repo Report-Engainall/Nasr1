@@ -160,3 +160,11 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 - Added `operation='reconcile_missing'` to the shortage-reconciliation payload fingerprint. The two commands continue to share the organization-scoped key table and advisory-lock namespace, but payload equality now proves the action as well as the order and reason.
 - Added a PostgreSQL 17 assertion that reuses an already-consumed excess-release key and identical reason against the shortage-reconciliation RPC; the call must fail with SQLSTATE `22023` idempotency payload conflict instead of returning the release result.
 - This is a source change and regression fixture only. Exact-head CI must validate the SQL and runtime behavior; no local PostgreSQL or acceptance PASS is claimed.
+
+
+## 2026-11-28 — Acceptance fixture role-boundary correction
+
+- The negative-peer, aggregate-only and over-reporting regression sections now explicitly switch to the local database owner with `RESET ROLE` for private direct-table snapshots, and restore the manager JWT/role with `as(manager)` immediately before each protected RPC.
+- Shipment rejection still runs through the existing status-transition helper, which supplies manager claims while performing only the isolated fixture status update as the local owner. Its post-failure status/sale evidence is read after that helper resets the role.
+- Corrected the negative-peer follow-up so FEFO reallocation is invoked under the manager session after the shipment helper returns; previous code would otherwise have tested an owner-context call rather than the intended authenticated manager RPC.
+- This correction changes only the local PostgreSQL acceptance script; it does not grant browser table access or change production privileges.
