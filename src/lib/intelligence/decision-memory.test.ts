@@ -523,7 +523,7 @@ describe("decision review queue and memory filtering", () => {
     expect(csv).toContain("'=HYPERLINK(");
     expect(csv).toContain('"سطر أول, ""مقتبس""'+String.fromCharCode(10)+'سطر ثان"');
     expect(csv).toContain("invoice:00000000-0000-4000-8000-000000000001");
-    expect(csv).toContain("\"مكتملة\"");
+    expect(csv).toContain("\"جزئية\"");
     expect(buildDecisionMemoryCsv([])).toBe(String.fromCharCode(0xfeff));
   });
 
