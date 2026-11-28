@@ -1097,6 +1097,7 @@ function Invoices() {
         </button>
       </div>
       {error && <ErrorBox message={error} retry={() => void load()} />}
+      {printError && <p role="alert" style={{ ...quiet, color: "#a32929", marginBottom: 12 }}>{printError}</p>}
       {!busy && hasMoreInvoices && (
         <p role="status" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
           تعرض القائمة الأحدث أولًا. توجد فواتير أقدم يمكنك تحميلها دون فقد القائمة الحالية.
@@ -1205,7 +1206,6 @@ function Invoices() {
             </button>
           </div>
           {pdfError && <ErrorBox message={pdfError} retry={() => void downloadInvoicePdf(chosen.id)} />}
-          {printError && <ErrorBox message={printError} retry={() => void printInvoice()} />}
           {xlsxError && <ErrorBox message={xlsxError} retry={downloadInvoiceXlsx} />}
           <header
             style={{
