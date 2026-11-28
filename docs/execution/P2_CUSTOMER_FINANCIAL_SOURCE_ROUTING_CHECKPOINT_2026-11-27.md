@@ -251,3 +251,11 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - The existing payment-ledger guards continue to protect single/multi receipts, idempotent replay and direct DML. The exact updated migration and full local PostgreSQL 17 sequence must pass before this batch is accepted.
 
 - Added an additional external-source invoice-line mutation regression: an attempted `UPDATE` against the existing APP_ONLY invoice item must fail with `55000`, and a before/after projection of its description, quantity, price and line total must remain identical.
+
+## 2026-11-28 — Bounded finance source-change history reader
+
+- Added `get_customer_financial_source_change_history(uuid,integer)` as the only read path for source-change requests. It requires either `finance.customer_source.request` or `finance.customer_source.approve`, resolves the actor's active organization, verifies the requested customer is approved in that organization, and bounds the page size to 1–20.
+- The DTO returns request ID, current/target source modes, status, reason, reviewer reason, binding revision, request/review timestamps, reconciliation result/date/currency codes and record counts. It intentionally omits raw ERP account/company/branch references, evidence hashes and currency balances.
+- Direct table SELECT remains revoked. Cross-tenant customers and ordinary customers cannot read internal change-request history.
+- PostgreSQL 17 acceptance verifies maker visibility immediately after request creation, tenant/customer denial, bounded limits, and approver visibility of the final approved + matched audit state. No production operation or deployment was performed.
+- Exact-head migration/test execution remains pending in the isolated PostgreSQL 17 workflow; no runtime PASS is claimed.

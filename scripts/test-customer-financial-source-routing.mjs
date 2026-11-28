@@ -1278,6 +1278,40 @@ async function main() {
   assert.ok(concurrentRequests.some(item => item.replayed === true), "one concurrent duplicate must replay the request");
   const requestId = requestIds[0];
   assert.ok(concurrentRequests.every(item => item.status === "pending_reconciliation"));
+  const pendingRequestHistory = await rpc(managerDb,
+    "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
+    [customerId]);
+  assert.ok(Array.isArray(pendingRequestHistory.records));
+  const pendingRequestRecord = pendingRequestHistory.records.find(item => item.request_id === requestId);
+  assert.ok(pendingRequestRecord, "maker can retrieve the newly created source-change request after refresh");
+  assert.equal(pendingRequestRecord.status, "pending_reconciliation");
+  assert.equal(pendingRequestRecord.target_source_mode, "ONYX");
+  assert.equal(pendingRequestRecord.reason, "Verified migration to Onyx customer ledger");
+  assert.equal(pendingRequestRecord.reconciliation_result, null);
+  await expectFailure(
+    "finance source history cannot cross tenant boundaries",
+    rpc(managerDb,
+      "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
+      [foreignCustomerId]),
+    "42501",
+    "outside the active finance organization",
+  );
+  await expectFailure(
+    "customer cannot read internal source-change approval history",
+    rpc(customerDb,
+      "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
+      [customerId]),
+    "42501",
+    "finance capability required",
+  );
+  await expectFailure(
+    "source-change history limit must remain bounded",
+    rpc(managerDb,
+      "select public.get_customer_financial_source_change_history($1::uuid,100) as result",
+      [customerId]),
+    "22023",
+    "between 1 and 20",
+  );
 
   await expectFailure(
     "same idempotency key with a different request payload",
@@ -1389,6 +1423,17 @@ async function main() {
   const approved = await reviewSource(accountantDb, requestId, "approve", "verified opening ledger and currency totals match");
   assert.equal(approved.status, "approved");
   assert.equal(approved.source_mode, "ONYX");
+  const completedRequestHistory = await rpc(accountantDb,
+    "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
+    [customerId]);
+  const completedRequestRecord = completedRequestHistory.records.find(item => item.request_id === requestId);
+  assert.ok(completedRequestRecord, "approver can retrieve the completed source-change audit row");
+  assert.equal(completedRequestRecord.status, "approved");
+  assert.equal(completedRequestRecord.reconciliation_result, "matched");
+  assert.deepEqual(completedRequestRecord.reconciliation_currency_codes, ["YER", "USD"]);
+  assert.equal(completedRequestRecord.review_reason, "verified opening ledger and currency totals match");
+  assert.equal(Object.hasOwn(completedRequestRecord, "target_external_account_ref"), false,
+    "request history must not duplicate raw external identifiers in its staff-safe DTO");
 
   const paymentLedgerBeforeOnyxDenial = await db.unsafe(
     "select count(*)::integer as count,coalesce(sum(amount),0)::numeric(15,2)::text as total " +
