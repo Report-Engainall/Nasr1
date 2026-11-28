@@ -18,6 +18,10 @@ import {
   type DecisionPolicyLearningEventType,
 } from "@/lib/intelligence/decision-policy-learning-client";
 import {
+  DECISION_POLICY_LEARNING_MAX_OFFSET,
+  DECISION_POLICY_LEARNING_PAGE_SIZE,
+  clampDecisionPolicyLearningPage,
+  decisionPolicyLearningPageCount,
   decisionPolicyLearningTransitionKey,
   resolveDecisionPolicyLearningCreation,
   resolveDecisionPolicyLearningTransition,
@@ -371,14 +375,17 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   useEffect(()=>{
     let active=true;
     setLearningLoading(true);
-    void fetchDecisionPolicyLearningCandidates(50,learningPage*50).then(response=>{
+    void fetchDecisionPolicyLearningCandidates(
+      DECISION_POLICY_LEARNING_PAGE_SIZE,
+      learningPage*DECISION_POLICY_LEARNING_PAGE_SIZE,
+    ).then(response=>{
       if(!active)return;
       if(response.ok){
         setLearningTotal(response.total);
-        const lastPage=Math.max(0,Math.ceil(response.total/50)-1);
-        if(learningPage>lastPage){
+        const safePage=clampDecisionPolicyLearningPage(learningPage,response.total);
+        if(learningPage!==safePage){
           setLearningCandidates([]);
-          setLearningPage(lastPage);
+          setLearningPage(safePage);
           setLearningLoading(false);
           return;
         }
@@ -634,7 +641,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-sm font-semibold">دورة Candidate v2 — المراجعة والاعتماد</h4>
           <span className="text-xs text-muted-foreground">
-            {learningTotal===0?"لا توجد مرشحات محفوظة": "عرض "+(learningPage*50+1)+"–"+(learningPage*50+learningCandidates.length)+" من "+learningTotal+" مرشحاً"}
+            {learningTotal===0?"لا توجد مرشحات محفوظة": "عرض "+(learningPage*DECISION_POLICY_LEARNING_PAGE_SIZE+1)+"–"+(learningPage*DECISION_POLICY_LEARNING_PAGE_SIZE+learningCandidates.length)+" من "+learningTotal+" مرشحاً"}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -767,13 +774,15 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             {candidate.state==="APPROVED"?<p className="text-xs text-muted-foreground">معتمد للمراجعة فقط — Profile {candidate.baseProfileVersion} ما زال كما هو، والمرشح غير نشط.</p>:null}
           </article>;
         })}
-        {learningTotal>50?<nav className="flex flex-wrap items-center justify-center gap-3 rounded-lg border p-3" aria-label="صفحات مرشحات التعلم">
+        {decisionPolicyLearningPageCount(learningTotal)>1?<nav className="flex flex-wrap items-center justify-center gap-3 rounded-lg border p-3" aria-label="صفحات مرشحات التعلم">
           <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""||learningPage===0}
-            onClick={()=>setLearningPage(page=>Math.max(0,page-1))}>السابق</button>
-          <span className="text-xs text-muted-foreground">صفحة {learningPage+1} من {Math.ceil(learningTotal/50)}</span>
-          <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""||learningPage+1>=Math.ceil(learningTotal/50)}
-            onClick={()=>setLearningPage(page=>Math.min(Math.ceil(learningTotal/50)-1,page+1))}>التالي</button>
+            onClick={()=>setLearningPage(page=>clampDecisionPolicyLearningPage(page-1,learningTotal))}>السابق</button>
+          <span className="text-xs text-muted-foreground">صفحة {learningPage+1} من {decisionPolicyLearningPageCount(learningTotal)}</span>
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""||learningPage+1>=decisionPolicyLearningPageCount(learningTotal)}
+            onClick={()=>setLearningPage(page=>clampDecisionPolicyLearningPage(page+1,learningTotal))}>التالي</button>
         </nav>:null}
+        {learningTotal>DECISION_POLICY_LEARNING_MAX_OFFSET+DECISION_POLICY_LEARNING_PAGE_SIZE
+          ?<p className="text-xs text-amber-700" role="status">تعرض خدمة الجلب حالياً حتى {DECISION_POLICY_LEARNING_MAX_OFFSET+DECISION_POLICY_LEARNING_PAGE_SIZE} مرشحاً؛ يتبقى {learningTotal-DECISION_POLICY_LEARNING_MAX_OFFSET-DECISION_POLICY_LEARNING_PAGE_SIZE} مرشحاً خارج حد الإزاحة المتاح.</p>:null}
         {!learningLoading&&!learningLoadError&&!learningCandidates.length
           ?<p className="text-xs text-muted-foreground">لا توجد مرشحات محفوظة بعد.</p>:null}
         {learningActionMessage?<p role={learningActionError?"alert":"status"} className={learningActionError?"text-xs text-destructive":"text-xs text-emerald-700"}>{learningActionMessage}</p>:null}
