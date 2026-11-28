@@ -113,7 +113,7 @@ function evidence(value: unknown, asOf: string): EvidenceRecord | null {
       ...(source.recordId ? { recordId: source.recordId as string } : {}),
       ...(source.version ? { version: source.version as string } : {}),
     },
-    sourceTimestamp: raw.sourceTimestamp,
+    sourceTimestamp: raw.sourceTimestamp as string,
     asOf,
     period: evidencePeriod,
     status: raw.status as EvidenceRecord["status"],
