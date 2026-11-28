@@ -55,6 +55,7 @@ export type DailyDecisionDueFilter = "ALL" | "OVERDUE" | "DUE_24H" | "DUE_7_DAYS
 export interface DailyDecisionFilters {
   searchText: string;
   state: DailyDecisionStateFilter;
+  owner: string;
   priority: DailyDecisionPriorityFilter;
   due: DailyDecisionDueFilter;
 }
@@ -80,6 +81,7 @@ export function filterDailyDecisionRecords(
   const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
   return records.filter(record => {
     if (filters.state !== "ALL" && record.state !== filters.state) return false;
+    if (filters.owner !== "ALL" && (record.owner.trim() || "غير معيّن") !== filters.owner) return false;
     const savedPriority = record.candidateSnapshot?.priority ?? null;
     if (filters.priority === "UNRANKED" && savedPriority !== null) return false;
     if (filters.priority !== "ALL" && filters.priority !== "UNRANKED" && savedPriority !== filters.priority) return false;
@@ -588,16 +590,20 @@ export function DailyDecisionBoard({
   const now = Date.now();
   const [searchText, setSearchText] = useState("");
   const [stateFilter, setStateFilter] = useState<DailyDecisionStateFilter>("ALL");
+  const [ownerFilter, setOwnerFilter] = useState("ALL");
   const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
   const [dueFilter, setDueFilter] = useState<DailyDecisionDueFilter>("ALL");
   const [requestedPageIndex, setRequestedPageIndex] = useState(0);
   const queueSummary = summarizeDailyDecisionQueue(result.records, now);
+  const ownerOptions = Array.from(new Set(result.records.map(record => record.owner.trim() || "غير معيّن")))
+    .sort((left, right) => left.localeCompare(right, "ar"));
   const selection = selectDailyDecisionBoardRows(result.records, {
-    searchText, state: stateFilter, priority: priorityFilter, due: dueFilter,
+    searchText, state: stateFilter, owner: ownerFilter, priority: priorityFilter, due: dueFilter,
   }, now, 10, requestedPageIndex * 10);
   const records = selection.records;
   const omittedCount = selection.omittedCount;
-  const hasFilters = Boolean(searchText) || stateFilter !== "ALL" || priorityFilter !== "ALL" || dueFilter !== "ALL";
+  const hasFilters = Boolean(searchText) || stateFilter !== "ALL" || ownerFilter !== "ALL" ||
+    priorityFilter !== "ALL" || dueFilter !== "ALL";
   function exportFilteredDecisions() {
     if (!selection.matchingRecords.length) return;
     const csv = buildDailyDecisionBoardCsv({
@@ -650,17 +656,17 @@ export function DailyDecisionBoard({
       {result.records.length > 0 ? (
         <section className="space-y-2" aria-label="مؤشرات قائمة القرارات المحمّلة">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            <button type="button" aria-label="عرض القرارات المتأخرة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("OVERDUE"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات المتأخرة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("OVERDUE"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">متأخرة</p><strong className="text-lg tabular-nums">{queueSummary.overdue}</strong></button>
-            <button type="button" aria-label="عرض القرارات المستحقة خلال 24 ساعة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_24H"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات المستحقة خلال 24 ساعة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_24H"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">خلال 24 ساعة</p><strong className="text-lg tabular-nums">{queueSummary.dueWithin24Hours}</strong></button>
-            <button type="button" aria-label="عرض القرارات المستحقة خلال 7 أيام" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_7_DAYS"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات المستحقة خلال 7 أيام" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_7_DAYS"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">خلال 7 أيام</p><strong className="text-lg tabular-nums">{queueSummary.dueWithinSevenDays}</strong></button>
-            <button type="button" aria-label="عرض القرارات غير المجدولة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("UNSCHEDULED"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات غير المجدولة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("UNSCHEDULED"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">غير مجدولة</p><strong className="text-lg tabular-nums">{queueSummary.unscheduled}</strong></button>
-            <button type="button" aria-label="عرض القرارات قيد المراجعة" onClick={() => { setSearchText(""); setStateFilter("IN_REVIEW"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات قيد المراجعة" onClick={() => { setSearchText(""); setStateFilter("IN_REVIEW"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">قيد المراجعة</p><strong className="text-lg tabular-nums">{queueSummary.inReview}</strong></button>
-            <button type="button" aria-label="عرض القرارات بانتظار القياس" onClick={() => { setSearchText(""); setStateFilter("EXECUTED"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات بانتظار القياس" onClick={() => { setSearchText(""); setStateFilter("EXECUTED"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">بانتظار القياس</p><strong className="text-lg tabular-nums">{queueSummary.awaitingMeasurement}</strong></button>
           </div>
           <p className="text-xs text-muted-foreground">المؤشرات أعلاه محسوبة من {result.loadedCount} قراراً محمّلاً فقط.</p>
@@ -669,7 +675,7 @@ export function DailyDecisionBoard({
 
       {result.records.length > 0 ? (
         <section className="space-y-2 rounded-lg border p-3" aria-label="بحث وتصفية القرارات اليومية">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <label className="space-y-1 text-sm">
               <span className="block">البحث في جميع القرارات المحمّلة</span>
               <input
@@ -688,6 +694,15 @@ export function DailyDecisionBoard({
                 className="w-full rounded-lg border bg-background px-3 py-2">
                 <option value="ALL">كل الحالات</option>
                 {Object.entries(stateLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">المسؤول المسجل</span>
+              <select aria-label="تصفية مسؤول القرار" value={ownerFilter}
+                onChange={event => { setOwnerFilter(event.target.value); setRequestedPageIndex(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل المسؤولين</option>
+                {ownerOptions.map(owner => <option key={owner} value={owner}>{owner}</option>)}
               </select>
             </label>
             <label className="space-y-1 text-sm">
@@ -720,7 +735,7 @@ export function DailyDecisionBoard({
             <span>يعرض {records.length} من {selection.matchedCount} نتيجة مطابقة ضمن {result.loadedCount} قراراً محمّلاً</span>
             <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
               disabled={!hasFilters}
-              onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}>
+              onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}>
               مسح البحث والتصفية
             </button>
             <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
