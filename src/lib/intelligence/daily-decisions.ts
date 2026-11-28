@@ -265,14 +265,7 @@ function comparableCurrencyImpact(candidate: DecisionCandidate): { currency: str
  * Priority is always dominant; verified currency impact only orders candidates inside
  * the same currency bucket. Currency buckets retain their stable first-seen order.
  */
-export function selectTopDailyDecisions(
-  candidates: readonly DecisionCandidate[],
-  limit = 10,
-): DailyDecisionHighlightSelection {
-  if (!Number.isInteger(limit) || limit < 5 || limit > 10) {
-    throw new RangeError("Daily decision highlight limit must be an integer from 5 through 10.");
-  }
-
+export function rankDailyDecisionCandidates(candidates: readonly DecisionCandidate[]): DecisionCandidate[] {
   const stable = [...candidates].sort((a, b) =>
     b.priorityScore - a.priorityScore ||
     a.ruleId.localeCompare(b.ruleId) ||
@@ -309,6 +302,18 @@ export function selectTopDailyDecisions(
     }
   }
 
+
+  return ranked;
+}
+
+export function selectTopDailyDecisions(candidates: readonly DecisionCandidate[], limit = 10): DailyDecisionHighlightSelection {
+
+  if (!Number.isInteger(limit) || limit < 5 || limit > 10) {
+    throw new RangeError("Daily decision highlight limit must be an integer from 5 through 10.");
+  }
+
+
+  const ranked = rankDailyDecisionCandidates(candidates);
   const selected = ranked.slice(0, limit);
   return {
     candidates: selected,
@@ -317,7 +322,6 @@ export function selectTopDailyDecisions(
     limit,
   };
 }
-
 
 export interface DailyDecisionActionEnvelope<T> {
   decision: DecisionCandidate;
@@ -329,6 +333,22 @@ export interface DailyDecisionActionSelection<T> {
   omittedCount: number;
   limit: number;
 }
+/** Returns every deduplicated action in the same priority/currency-aware order as the executive shortlist. */
+export function rankDailyDecisionActions<T>(
+  actions: readonly DailyDecisionActionEnvelope<T>[],
+): DailyDecisionActionEnvelope<T>[] {
+  const unique = new Map<string, DailyDecisionActionEnvelope<T>>();
+  for (const action of actions) {
+    const id = typeof action?.decision?.id === "string" ? action.decision.id.trim() : "";
+    if (id && !unique.has(id)) unique.set(id, action);
+  }
+  const ranked = rankDailyDecisionCandidates([...unique.values()].map(action => action.decision));
+  return ranked.flatMap(decision => {
+    const action = unique.get(decision.id);
+    return action ? [action] : [];
+  });
+}
+
 /** Reuse evidence-aware ranking without losing the action payload or duplicating IDs. */
 export function selectTopDailyDecisionActions<T>(
   actions: readonly DailyDecisionActionEnvelope<T>[],

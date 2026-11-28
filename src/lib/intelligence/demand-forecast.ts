@@ -27,6 +27,7 @@ export interface ProductDemandForecast {
   baselinePeriod: EvidencePeriod;
   asOf: string;
   evidenceIds: string[];
+  metricKeys: string[];
   formulaVersions: string[];
   warnings: string[];
 }
@@ -337,6 +338,7 @@ export function buildProductDemandForecast(input: {
       baselinePeriod: input.baselinePeriod,
       asOf: input.asOf,
       evidenceIds,
+      metricKeys: [...new Set(sourceMetrics.map(metric => metric.key))].sort(),
       formulaVersions,
       warnings: [
         "ORDER_LINE_QUANTITY_IS_NOT_VERIFIED_SHIPPED_OR_RECOGNIZED_SALES",
@@ -369,5 +371,187 @@ export function buildProductDemandForecast(input: {
     ),
     withheld,
     warnings: [...new Set(warnings)],
+  };
+}
+
+
+export interface DemandScenarioHorizonResult {
+  days: DemandForecastHorizon["days"];
+  baselineLowQuantity: number;
+  baselineExpectedQuantity: number;
+  baselineHighQuantity: number;
+  scenarioLowQuantity: number;
+  scenarioExpectedQuantity: number;
+  scenarioHighQuantity: number;
+  expectedDeltaQuantity: number;
+}
+
+export interface DemandScenarioResult {
+  id: string;
+  status: "SIMULATED" | "WITHHELD";
+  reason: string | null;
+  productRef: string | null;
+  productLabel: string | null;
+  unitOfMeasure: string | null;
+  changePercent: number | null;
+  asOf: string | null;
+  period: EvidencePeriod | null;
+  baselinePeriod: EvidencePeriod | null;
+  horizons: DemandScenarioHorizonResult[];
+  evidenceIds: string[];
+  metricKeys: string[];
+  formulaVersions: string[];
+  formulaId: "product-demand.what-if";
+  formulaVersion: "1.0.0";
+  assumptionBoundary: "USER_SUPPLIED";
+  accountingFact: false;
+  limitations: string[];
+}
+
+function scaleDemandQuantity(value: number, changePercent: number): bigint | null {
+  const units = decimalToMinorUnits(value, 6);
+  if (units === null || units < 0n) return null;
+  const factor = BigInt(100 + changePercent);
+  // Round half up at the source's six-decimal quantity precision.
+  return (units * factor + 50n) / 100n;
+}
+
+/**
+ * Applies one explicit user-supplied percentage to a verified product demand
+ * forecast. The output is a local simulation only: it never writes orders,
+ * inventory, purchase orders, prices, sales or accounting entries.
+ */
+export function buildDemandScenario(input: {
+  forecast: DemandForecastResult;
+  productRef: string;
+  changePercent: number;
+}): DemandScenarioResult {
+  const { forecast, productRef, changePercent } = input;
+  const withheld = (reason: string, product: ProductDemandForecast | null = null): DemandScenarioResult => ({
+    id: "demand-scenario:" + (forecast?.id ?? "unknown") + ":" + (productRef || "unknown"),
+    status: "WITHHELD",
+    reason,
+    productRef: product?.productRef ?? null,
+    productLabel: product?.productLabel ?? null,
+    unitOfMeasure: product?.unitOfMeasure ?? null,
+    changePercent: Number.isInteger(changePercent) && changePercent >= -100 && changePercent <= 300 ? changePercent : null,
+    asOf: forecast?.asOf ?? null,
+    period: forecast?.period ?? null,
+    baselinePeriod: forecast?.baselinePeriod ?? null,
+    horizons: [],
+    evidenceIds: [],
+    metricKeys: [],
+    formulaVersions: [],
+    formulaId: "product-demand.what-if",
+    formulaVersion: "1.0.0",
+    assumptionBoundary: "USER_SUPPLIED",
+    accountingFact: false,
+    limitations: [reason, "SIMULATION_ONLY_NO_BUSINESS_RECORD_MUTATION"],
+  });
+
+  if (!Number.isInteger(changePercent) || changePercent < -100 || changePercent > 300) {
+    return withheld("ASSUMPTION_OUT_OF_BOUNDS");
+  }
+  if (!forecast || forecast.status !== "VERIFIED") {
+    return withheld("DEMAND_SOURCE_NOT_VERIFIED");
+  }
+  if (!forecast.completePopulation) {
+    return withheld("DEMAND_SOURCE_POPULATION_INCOMPLETE");
+  }
+  if (typeof productRef !== "string" || !productRef.trim() || !Array.isArray(forecast.forecasts)) {
+    return withheld("PRODUCT_SELECTION_INVALID");
+  }
+  const matches = forecast.forecasts.filter((item) => item.productRef === productRef);
+  if (matches.length !== 1) {
+    return withheld("PRODUCT_NOT_UNIQUELY_AVAILABLE");
+  }
+  const product = matches[0];
+  const uniqueStrings = (values: unknown): values is string[] =>
+    Array.isArray(values) && values.length > 0 &&
+    values.every((value) => typeof value === "string" && value.trim().length > 0);
+  const samePeriodValue = (a: EvidencePeriod | null, b: EvidencePeriod | null) =>
+    a !== null && b !== null && a.from === b.from && a.to === b.to;
+
+  if (!product.unitOfMeasure?.trim() || product.asOf !== forecast.asOf ||
+      !samePeriodValue(product.period, forecast.period) ||
+      !samePeriodValue(product.baselinePeriod, forecast.baselinePeriod) ||
+      !uniqueStrings(product.evidenceIds) || !uniqueStrings(product.metricKeys) ||
+      !uniqueStrings(product.formulaVersions) || !Array.isArray(product.horizons) ||
+      product.horizons.length !== 3) {
+    return withheld("PRODUCT_EVIDENCE_INCOMPLETE", product);
+  }
+
+  const expectedDays = [7, 30, 90];
+  const seenDays = new Set<number>();
+  const horizons: DemandScenarioHorizonResult[] = [];
+  for (const horizon of [...product.horizons].sort((a, b) => a.days - b.days)) {
+    if (!expectedDays.includes(horizon.days) || seenDays.has(horizon.days)) {
+      return withheld("HORIZON_SET_INVALID", product);
+    }
+    seenDays.add(horizon.days);
+    const low = decimalToMinorUnits(horizon.lowQuantity, 6);
+    const expected = decimalToMinorUnits(horizon.expectedQuantity, 6);
+    const high = decimalToMinorUnits(horizon.highQuantity, 6);
+    if (low === null || expected === null || high === null || low < 0n ||
+        expected < low || high < expected) {
+      return withheld("HORIZON_QUANTITY_INVALID", product);
+    }
+    const scenarioLow = scaleDemandQuantity(horizon.lowQuantity, changePercent);
+    const scenarioExpected = scaleDemandQuantity(horizon.expectedQuantity, changePercent);
+    const scenarioHigh = scaleDemandQuantity(horizon.highQuantity, changePercent);
+    if (scenarioLow === null || scenarioExpected === null || scenarioHigh === null ||
+        scenarioLow > scenarioExpected || scenarioExpected > scenarioHigh) {
+      return withheld("SCENARIO_QUANTITY_UNSAFE", product);
+    }
+    const lowNumber = minorUnitsToNumber(low, 6);
+    const expectedNumber = minorUnitsToNumber(expected, 6);
+    const highNumber = minorUnitsToNumber(high, 6);
+    const scenarioLowNumber = minorUnitsToNumber(scenarioLow, 6);
+    const scenarioExpectedNumber = minorUnitsToNumber(scenarioExpected, 6);
+    const scenarioHighNumber = minorUnitsToNumber(scenarioHigh, 6);
+    const deltaNumber = minorUnitsToNumber(scenarioExpected - expected, 6);
+    if ([lowNumber, expectedNumber, highNumber, scenarioLowNumber, scenarioExpectedNumber, scenarioHighNumber, deltaNumber]
+      .some((value) => value === null)) {
+      return withheld("SCENARIO_QUANTITY_UNSAFE", product);
+    }
+    horizons.push({
+      days: horizon.days,
+      baselineLowQuantity: lowNumber as number,
+      baselineExpectedQuantity: expectedNumber as number,
+      baselineHighQuantity: highNumber as number,
+      scenarioLowQuantity: scenarioLowNumber as number,
+      scenarioExpectedQuantity: scenarioExpectedNumber as number,
+      scenarioHighQuantity: scenarioHighNumber as number,
+      expectedDeltaQuantity: deltaNumber as number,
+    });
+  }
+  if (seenDays.size !== expectedDays.length) return withheld("HORIZON_SET_INVALID", product);
+
+  return {
+    id: "demand-scenario:" + forecast.id + ":" + product.productRef + ":" + changePercent,
+    status: "SIMULATED",
+    reason: null,
+    productRef: product.productRef,
+    productLabel: product.productLabel,
+    unitOfMeasure: product.unitOfMeasure,
+    changePercent,
+    asOf: forecast.asOf,
+    period: forecast.period,
+    baselinePeriod: forecast.baselinePeriod,
+    horizons,
+    evidenceIds: [...new Set(product.evidenceIds)],
+    metricKeys: [...new Set(product.metricKeys)],
+    formulaVersions: [...new Set(product.formulaVersions)],
+    formulaId: "product-demand.what-if",
+    formulaVersion: "1.0.0",
+    assumptionBoundary: "USER_SUPPLIED",
+    accountingFact: false,
+    limitations: [
+      "USER_SUPPLIED_DEMAND_CHANGE_ASSUMPTION",
+      "ORDER_LINE_QUANTITY_IS_NOT_VERIFIED_SHIPPED_OR_RECOGNIZED_SALES",
+      "OBSERVED_RATE_RANGE_IS_NOT_A_STATISTICAL_CONFIDENCE_INTERVAL",
+      "NO_SEASONALITY_PROMOTION_OR_STOCKOUT_ADJUSTMENT",
+      "SIMULATION_ONLY_NO_BUSINESS_RECORD_MUTATION",
+    ],
   };
 }

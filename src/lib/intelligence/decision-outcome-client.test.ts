@@ -206,6 +206,90 @@ describe("persisted decision outcome client", () => {
     expect(result).toMatchObject({ ok: true, outcome: { state: "MEASURED", version: 7 } });
   });
 
+  it("requires approval metadata to match the exact approval audit event", async () => {
+    const mismatchedTimestamp = {
+      ...measuredOutcome,
+      approvedAt: "2026-10-31T10:03:30.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedTimestamp], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const mismatchedActor = {
+      ...measuredOutcome,
+      approvedBy: "33333333-3333-4333-8333-333333333333",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedActor], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const approvalWithoutEvent = {
+      ...outcome,
+      approvedAt: "2026-10-31T10:02:00.000Z",
+      approvedBy: "22222222-2222-4222-8222-222222222222",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [approvalWithoutEvent], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("matches assignment and execution timestamps to their audit events", async () => {
+    const mismatchedAssignment = {
+      ...measuredOutcome,
+      assignedAt: "2026-10-31T10:03:30.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedAssignment], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const mismatchedExecution = {
+      ...measuredOutcome,
+      executedAt: "2026-10-31T10:05:30.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [mismatchedExecution], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const assignmentWithoutEvent = {
+      ...outcome,
+      assignedAt: "2026-10-31T10:03:00.000Z",
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [assignmentWithoutEvent], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("rejects an approved decision without its approval actor and timestamp", async () => {
+    const incompleteApproval = {
+      ...outcome,
+      state: "APPROVED",
+      version: 3,
+      updatedAt: "2026-10-31T10:02:00.000Z",
+      approvedAt: null,
+      approvedBy: null,
+      eventCount: 3,
+      history: [
+        outcome.history[0],
+        historyEvent("submit-event", "SUBMIT_FOR_REVIEW", 2, "2026-10-31T10:01:00.000Z"),
+        historyEvent("approve-event", "APPROVE", 3, "2026-10-31T10:02:00.000Z", "تمت مراجعة الدليل"),
+      ],
+    };
+    rpc.mockResolvedValue({ data: { items: [incompleteApproval], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("rejects an approval event that skips the required review transition", async () => {
+    const approvedWithoutReview = {
+      ...outcome,
+      state: "APPROVED",
+      version: 2,
+      updatedAt: "2026-10-31T10:01:00.000Z",
+      approvedAt: "2026-10-31T10:01:00.000Z",
+      approvedBy: "22222222-2222-4222-8222-222222222222",
+      eventCount: 2,
+      history: [
+        outcome.history[0],
+        historyEvent("approve-event", "APPROVE", 2, "2026-10-31T10:01:00.000Z", "تمت مراجعة الدليل"),
+      ],
+    };
+    rpc.mockResolvedValue({ data: { items: [approvedWithoutReview], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects an event count that does not reconcile to the full append-only history", async () => {
     rpc.mockResolvedValue({
       data: { items: [{ ...outcome, eventCount: 2 }], total: 1 },
@@ -241,6 +325,56 @@ describe("persisted decision outcome client", () => {
 
     const wrongTerminalState = { ...outcome, state: "IN_REVIEW" };
     rpc.mockResolvedValueOnce({ data: { items: [wrongTerminalState], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("retains verified non-currency measurements with a null period and full lineage", async () => {
+    const countMeasurement = {
+      ...fullMeasurement,
+      metricKey: "orders.completed",
+      value: 18,
+      unit: "COUNT",
+      currency: undefined,
+      period: null,
+      formulaId: "orders.completed",
+      formulaVersion: "1.0.0",
+    };
+    rpc.mockResolvedValue({
+      data: { items: [{ ...measuredOutcome, measuredOutcome: countMeasurement }], total: 1 },
+      error: null,
+    });
+
+    const result = await fetchDecisionOutcomes();
+    expect(result).toMatchObject({
+      ok: true,
+      items: [{
+        state: "MEASURED",
+        measuredOutcome: {
+          metricKey: "orders.completed",
+          value: 18,
+          unit: "COUNT",
+          currency: null,
+          period: null,
+          formulaId: "orders.completed",
+          formulaVersion: "1.0.0",
+          evidenceIds: ["invoice:one"],
+        },
+      }],
+    });
+  });
+
+  it("rejects a non-currency measurement carrying a misleading currency", async () => {
+    const malformedMeasurement = {
+      ...fullMeasurement,
+      metricKey: "orders.completed",
+      value: 18,
+      unit: "COUNT",
+      currency: "YER",
+    };
+    rpc.mockResolvedValue({
+      data: { items: [{ ...measuredOutcome, measuredOutcome: malformedMeasurement }], total: 1 },
+      error: null,
+    });
     expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
   });
 

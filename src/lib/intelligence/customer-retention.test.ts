@@ -364,6 +364,7 @@ describe("customer retention daily decision integration", () => {
     const queue = buildCustomerRetentionActionQueue(report);
     const decisions = buildCustomerRetentionDecisionCandidates({ asOf, queue });
     expect(queue.status).toBe("VERIFIED");
+    expect(queue.asOf).toBe(asOf);
     expect(decisions.map(item => [item.priority, item.ruleId])).toEqual([
       ["P1", "customers.retention.follow-up"], ["P1", "customers.retention.follow-up"],
     ]);
@@ -378,6 +379,45 @@ describe("customer retention daily decision integration", () => {
     });
     expect(queue.actions[0].metricIds).toEqual(["inactive-customer:current", "inactive-customer:previous"]);
   });
+  it("creates short deterministic customer decision IDs without exposing long customer references", () => {
+    const longA = "customer-" + "x".repeat(155) + "A";
+    const longB = "customer-" + "x".repeat(155) + "B";
+    const report = build([
+      customer(longA, 0, 1, "2026-07-01T12:00:00.000Z"),
+      customer(longB, 0, 2, "2026-09-05T12:00:00.000Z"),
+    ], []);
+    const queue = buildCustomerRetentionActionQueue(report);
+    const decisions = buildCustomerRetentionDecisionCandidates({ asOf, queue });
+    const repeated = buildCustomerRetentionDecisionCandidates({
+      asOf,
+      queue: buildCustomerRetentionActionQueue(build([
+        customer(longA, 0, 1, "2026-07-01T12:00:00.000Z"),
+        customer(longB, 0, 2, "2026-09-05T12:00:00.000Z"),
+      ], [])),
+    });
+
+    expect(queue.status).toBe("VERIFIED");
+    expect(decisions).toHaveLength(2);
+    expect(decisions.every(item => item.id.length <= 150)).toBe(true);
+    expect(decisions.every(item => /^customer\.retention:[0-9a-f]{16}:\d{4}-\d{2}-\d{2}$/.test(item.id))).toBe(true);
+    expect(new Set(decisions.map(item => item.id)).size).toBe(2);
+    expect(decisions.map(item => item.id)).toEqual(repeated.map(item => item.id));
+    expect(decisions.some(item => item.id.includes(longA) || item.id.includes(longB))).toBe(false);
+    expect(decisions.every(item => !item.what.includes(longA) && !item.what.includes(longB))).toBe(true);
+  });
+
+  it("keeps short customer references out of decision display text", () => {
+    const phoneLikeReference = "777123456";
+    const queue = buildCustomerRetentionActionQueue(build([
+      customer(phoneLikeReference, 0, 1, "2026-07-01T12:00:00.000Z"),
+    ], []));
+    const candidate = buildCustomerRetentionDecisionCandidates({ asOf, queue })[0];
+
+    expect(candidate).toBeDefined();
+    expect(candidate.what).toContain("ضمن قائمة متابعة العملاء");
+    expect(candidate.what).not.toContain(phoneLikeReference);
+  });
+
   it("does not promote actions from incomplete population coverage", () => {
     const partial = buildCustomerRetentionActionQueue(build([
       customer("partial-customer", 0, 2, "2026-07-01T12:00:00.000Z"),

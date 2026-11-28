@@ -1,4 +1,5 @@
 import type { DeadStockReport, DeadStockClass } from "@/lib/intelligence/dead-stock";
+import { buildDeadStockCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import { EvidenceReferences, EvidenceStatusLabel, EvidenceWarnings, formatEvidenceNumber, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 
 export interface DeadStockCardProps {
@@ -27,8 +28,17 @@ export function DeadStockCard({ report, state = "ready", onRetry }: DeadStockCar
   return (
     <section dir="rtl" className="space-y-3" aria-label="تحليل المخزون الراكد">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold">حركة المخزون والأصناف الراكدة</h3>
-        <span className="text-xs text-muted-foreground">حتى {report.asOf} · القاعدة {report.ruleId}@{report.ruleVersion}</span>
+        <div>
+          <h3 className="font-semibold">حركة المخزون والأصناف الراكدة</h3>
+          <span className="text-xs text-muted-foreground">حتى {report.asOf} · القاعدة {report.ruleId}@{report.ruleVersion}</span>
+        </div>
+        <button
+          type="button"
+          className="btn secondary btn-sm"
+          onClick={() => downloadIntelligenceCsv(buildDeadStockCsv(report), "aghbari-dead-stock.csv")}
+        >
+          تصدير تحليل المخزون CSV
+        </button>
       </header>
       <div className="grid gap-3 md:grid-cols-2">
         {report.items.map((item) => (

@@ -109,6 +109,136 @@ export interface DecisionMemoryPrecedentMatch {
   contextDifferences: string[];
 }
 
+export type DecisionMemoryPrecedentFilter =
+  | "ALL" | "SAME_RULE" | DecisionMemoryPrecedentMatch["comparisonStatus"];
+
+export interface DecisionMemoryPrecedentSummary {
+  total: number;
+  comparable: number;
+  notComparable: number;
+  outcomeUnverified: number;
+}
+
+export function filterDecisionMemoryPrecedents(
+  matches: DecisionMemoryPrecedentMatch[],
+  filter: DecisionMemoryPrecedentFilter,
+): DecisionMemoryPrecedentMatch[] {
+  if (!Array.isArray(matches)) throw new Error("decision_memory_precedent_filter_invalid");
+  if (filter === "ALL") return matches;
+  if (filter === "SAME_RULE") return matches.filter(match => match.matchReasons.includes("نفس قاعدة القرار"));
+  return matches.filter(match => match.comparisonStatus === filter);
+}
+
+export function summarizeDecisionMemoryPrecedents(
+  matches: DecisionMemoryPrecedentMatch[],
+): DecisionMemoryPrecedentSummary {
+  if (!Array.isArray(matches)) throw new Error("decision_memory_precedent_summary_invalid");
+  return {
+    total: matches.length,
+    comparable: matches.filter(match => match.comparisonStatus === "COMPARABLE").length,
+    notComparable: matches.filter(match => match.comparisonStatus === "NOT_COMPARABLE").length,
+    outcomeUnverified: matches.filter(match => match.comparisonStatus === "OUTCOME_UNVERIFIED").length,
+  };
+}
+
+function decisionMemoryCsvCell(value: string | number | null | undefined): string {
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+  const text = String(value ?? "").replace(/\r\n?/g, "\n");
+  const protectedText = /^[\s\u0000-\u001F]*[=+\-@]/.test(text) ? "'" + text : text;
+  return "\"" + protectedText.replace(/"/g, '""') + "\"";
+}
+
+function decisionMemoryMetricContext(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.metricKey,
+    metric.unit,
+    metric.currency ?? "عملة غير محددة",
+    metric.unitOfMeasure ?? "وحدة صنف غير محددة",
+    metric.period.from + " — " + metric.period.to,
+    metric.formulaId + "@" + metric.formulaVersion,
+  ].join(" | ");
+}
+
+/** Exports only the supplied, already-filtered precedents; it never queries or invents records. */
+export function buildDecisionMemoryPrecedentCsv(input: {
+  matches: DecisionMemoryPrecedentMatch[];
+  reference: DecisionMemoryRecord;
+  loadedCount: number;
+  totalCount: number;
+}): string {
+  if (!input || !Array.isArray(input.matches) ||
+      !input.reference?.decisionId?.trim() ||
+      !Number.isInteger(input.loadedCount) || input.loadedCount < 0 ||
+      !Number.isInteger(input.totalCount) || input.totalCount < input.loadedCount) {
+    throw new Error("decision_memory_precedent_export_invalid");
+  }
+  const coverageNotice = input.loadedCount === input.totalCount
+    ? "عدد السجلات المحمّلة يساوي الإجمالي المبلغ من المصدر؛ لا يعني ذلك اكتمال أدلة كل قرار."
+    : "نطاق جزئي: " + input.loadedCount + " من " + input.totalCount +
+      " قراراً محمّلاً؛ قد توجد سوابق خارج النطاق.";
+  const headers = [
+    "reference_decision_id", "reference_rule", "reference_expected_context",
+    "reference_expected_value", "reference_actual_context", "reference_actual_value",
+    "reference_evidence_ids", "precedent_decision_id", "precedent_created_at",
+    "precedent_state", "precedent_rule", "precedent_rule_version", "comparison_status",
+    "match_reasons", "matched_terms", "context_differences",
+    "expected_metric_key", "expected_value", "expected_unit", "expected_currency",
+    "expected_unit_of_measure", "expected_period_from", "expected_period_to",
+    "expected_formula", "expected_evidence_ids", "actual_metric_key", "actual_value",
+    "actual_unit", "actual_currency", "actual_unit_of_measure", "actual_period_from",
+    "actual_period_to", "actual_formula", "actual_evidence_ids", "coverage_notice",
+  ];
+  const referenceExpected = input.reference.metricComparison.expected;
+  const referenceActual = input.reference.metricComparison.actual;
+  const referenceEvidence = unique([
+    ...(referenceExpected?.evidenceIds ?? []),
+    ...(referenceActual?.evidenceIds ?? []),
+  ]);
+  const rows = input.matches.map(match => {
+    const expected = match.record.metricComparison.expected;
+    const actual = match.record.metricComparison.actual;
+    return [
+      input.reference.decisionId,
+      input.reference.ruleId + "@" + input.reference.ruleVersion,
+      decisionMemoryMetricContext(referenceExpected),
+      referenceExpected?.value ?? null,
+      decisionMemoryMetricContext(referenceActual),
+      referenceActual?.value ?? null,
+      referenceEvidence.join(";"),
+      match.record.decisionId,
+      match.record.createdAt,
+      match.record.state,
+      match.record.ruleId,
+      match.record.ruleVersion,
+      match.comparisonStatus,
+      match.matchReasons.join(";"),
+      match.matchedTerms.join(";"),
+      match.contextDifferences.join(";"),
+      expected?.metricKey ?? null,
+      expected?.value ?? null,
+      expected?.unit ?? null,
+      expected?.currency ?? null,
+      expected?.unitOfMeasure ?? null,
+      expected?.period.from ?? null,
+      expected?.period.to ?? null,
+      expected ? expected.formulaId + "@" + expected.formulaVersion : null,
+      expected?.evidenceIds.join(";") ?? null,
+      actual?.metricKey ?? null,
+      actual?.value ?? null,
+      actual?.unit ?? null,
+      actual?.currency ?? null,
+      actual?.unitOfMeasure ?? null,
+      actual?.period.from ?? null,
+      actual?.period.to ?? null,
+      actual ? actual.formulaId + "@" + actual.formulaVersion : null,
+      actual?.evidenceIds.join(";") ?? null,
+      coverageNotice,
+    ].map(decisionMemoryCsvCell).join(",");
+  });
+  return "\uFEFF" + [headers.map(decisionMemoryCsvCell).join(","), ...rows].join("\r\n");
+}
+
 const decisionSearchStopwords = new Set([
   "هذا","هذه","ذلك","تلك","على","الى","إلى","عن","من","في","مع","بعد","قبل",
   "عند","بين","ضمن","كان","كانت","تم","قد","هو","هي","ما","ماذا","كيف","هل",
@@ -194,6 +324,14 @@ export function searchSimilarDecisionMemory(input: {
       const candidateTokens = new Set(decisionSearchTokens(decisionRecordSearchText(candidate)));
       const matchedTerms = targetTokens.filter(token => candidateTokens.has(token));
       const sameRule = Boolean(targetRule) && candidate.ruleId.trim().toLowerCase() === targetRule;
+      const sameRuleVersion = sameRule &&
+        Boolean(target.ruleVersion.trim()) &&
+        target.ruleVersion.trim() === candidate.ruleVersion.trim();
+      const ruleDifferences = !sameRule
+        ? ["قاعدة القرار مختلفة أو غير محددة"]
+        : !sameRuleVersion
+          ? ["إصدار قاعدة القرار مختلف أو غير محدد"]
+          : [];
       const matchReasons = [
         ...(sameRule ? ["نفس قاعدة القرار"] : []),
         ...(matchedTerms.length ? ["مصطلحات وسياق مشترك"] : []),
@@ -210,9 +348,11 @@ export function searchSimilarDecisionMemory(input: {
         ? metricContextDifferences(expectedLeft, expectedRight, "خط الأساس المتوقع")
         : ["خط الأساس المتوقع غير متاح في أحد القرارين"];
       const comparisonStatus: DecisionMemoryPrecedentMatch["comparisonStatus"] =
-        !actualLeft || !actualRight
+        target.metricComparison.status !== "VERIFIED" ||
+        candidate.metricComparison.status !== "VERIFIED" ||
+        !expectedLeft || !expectedRight || !actualLeft || !actualRight
           ? "OUTCOME_UNVERIFIED"
-          : actualDifferences.length
+          : actualDifferences.length || expectedDifferences.length || ruleDifferences.length
             ? "NOT_COMPARABLE"
             : "COMPARABLE";
       return {
@@ -220,9 +360,9 @@ export function searchSimilarDecisionMemory(input: {
         matchedTerms,
         matchReasons,
         comparisonStatus,
-        contextDifferences: [...actualDifferences, ...expectedDifferences],
+        contextDifferences: [...actualDifferences, ...expectedDifferences, ...ruleDifferences],
         ranking: (sameRule ? 100 : 0) + matchedTerms.length * 4 +
-          (candidate.state === "MEASURED" && actualRight ? 2 : 0),
+          (candidate.state === "MEASURED" && candidate.metricComparison.status === "VERIFIED" && actualRight ? 2 : 0),
       };
     })
     .filter(match => match.matchReasons.length > 0)

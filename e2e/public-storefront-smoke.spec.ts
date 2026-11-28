@@ -1082,8 +1082,23 @@ test("daily decision board stays keyboard-operable and fits mobile and desktop C
 
     const reason = board.getByRole("textbox", { name: "سبب الإجراء وسجل القرار" }).first();
     const action = board.getByRole("button", { name: "إرسال للمراجعة" }).first();
-    await page.keyboard.press("Tab");
-    await expect(reason).toBeFocused();
+    const tabStops = board.locator(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    );
+    await expect(reason).toBeVisible();
+    const tabStopCount = await tabStops.count();
+    let reasonFocused = false;
+    // Filters and workload counters legitimately precede the lifecycle controls.
+    // Traverse them with real Tab presses and require the reason field to be reachable.
+    for (let attempt = 0; attempt < tabStopCount + 2; attempt += 1) {
+      await page.keyboard.press("Tab");
+      if (await reason.evaluate(element => document.activeElement === element)) {
+        reasonFocused = true;
+        break;
+      }
+    }
+    expect(reasonFocused, "Keyboard Tab must reach the decision-reason field in natural DOM order.")
+      .toBe(true);
     const reasonFocus = await reason.evaluate(element => {
       const style = getComputedStyle(element);
       return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };

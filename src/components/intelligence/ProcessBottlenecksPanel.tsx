@@ -1,4 +1,5 @@
 import type { ProcessBottleneckResult } from "@/lib/intelligence/process-bottlenecks";
+import { buildProcessBottlenecksCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 
 const labels:Record<string,string>={ORDERS:"الطلبات",QUOTES:"عروض الأسعار",PURCHASE:"المشتريات",INVOICES:"تحصيل الفواتير",TASKS:"المهام"};
 const waits:Record<string,string>={
@@ -25,7 +26,13 @@ export function ProcessBottlenecksPanel({result,state="ready",onRetry}:{
         <p className="text-xs text-muted-foreground">الفترة {result.period.from} إلى {result.period.to} · UTC · كما في {date(result.asOf)}</p>
         {result.baselinePeriod?<p className="text-xs text-muted-foreground">المقارنة {result.baselinePeriod.from} إلى {result.baselinePeriod.to}</p>:null}
       </div>
-      <span className="rounded-full border px-2 py-1 text-xs">{result.state==="READY"?"المصادر المتاحة موثقة":result.state==="PARTIAL"?"تغطية جزئية حسب الصلاحية":"المصادر غير متاحة"}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full border px-2 py-1 text-xs">{result.state==="READY"?"المصادر المتاحة موثقة":result.state==="PARTIAL"?"تغطية جزئية حسب الصلاحية":"المصادر غير متاحة"}</span>
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs"
+          onClick={()=>downloadIntelligenceCsv(buildProcessBottlenecksCsv(result),"aghbari-process-bottlenecks.csv")}>
+          تصدير تحليل العمليات CSV
+        </button>
+      </div>
     </header>
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
       {result.queues.map(x=><article key={x.processKey} className="rounded-lg border p-3">

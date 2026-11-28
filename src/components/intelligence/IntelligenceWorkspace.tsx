@@ -11,7 +11,7 @@ import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/repleni
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
-import { buildDailyDecisions, selectTopDailyDecisionActions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
+import { buildDailyDecisions, rankDailyDecisionActions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildClaimEvidencePassports } from "@/lib/intelligence/claim-evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
@@ -19,6 +19,7 @@ import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
+import { buildDemandScenarioDecisionCandidate } from "@/lib/intelligence/demand-scenario-decision";
 import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
@@ -50,7 +51,7 @@ import {
   type DecisionOutcomeListResult,
 } from "@/lib/intelligence/decision-outcome-client";
 import {
-  ActionCard,
+  DailyDecisionActionQueue,
   CommercePolicyGovernancePanel,
   BusinessHealthMap,
   DecisionMemoryBook,
@@ -1187,6 +1188,15 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     });
   }, [inventoryData, deadStockReport]);
 
+  const replenishmentDemandForecast = useMemo(() => {
+    if (!inventoryData || !demandForecastResult ||
+        demandForecastResult.status !== "VERIFIED" || !demandForecastResult.completePopulation ||
+        demandForecastResult.asOf !== inventoryData.asOf ||
+        demandForecastResult.period.from !== inventoryData.period.from ||
+        demandForecastResult.period.to !== inventoryData.period.to) return null;
+    return demandForecastResult;
+  }, [inventoryData, demandForecastResult]);
+
   const replenishmentReport = useMemo(() => {
     if (!inventoryData) return null;
     return buildReplenishmentRecommendations({
@@ -1195,14 +1205,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       period: inventoryData.period,
       evidenceRecords: inventoryData.evidenceRecords,
       products: inventoryData.replenishmentProducts,
+      demandForecast: replenishmentDemandForecast,
     });
-  }, [inventoryData]);
+  }, [inventoryData, replenishmentDemandForecast]);
   const replenishmentDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
     if (!inventoryData || !replenishmentReport) return [];
     const candidates = buildReplenishmentDecisionCandidates({
       asOf: inventoryData.asOf,
       products: inventoryData.replenishmentProducts,
       recommendations: replenishmentReport.recommendations,
+      demandForecast: replenishmentDemandForecast,
     });
     return candidates.flatMap((decision) => {
       const source = inventoryData.replenishmentProducts.find((product) =>
@@ -1224,7 +1236,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         ],
       }];
     });
-  }, [inventoryData, replenishmentReport]);
+  }, [inventoryData, replenishmentReport, replenishmentDemandForecast]);
 
   const customerRetentionDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
     if (!retentionResult?.ok || !evidencePassport ||
@@ -1280,26 +1292,20 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
   }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
 
-  const dailyDecisionActionSelection = useMemo(() => {
-    const selection = selectTopDailyDecisionActions(
-      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
-        .map(action => ({ decision: action.decision, payload: action })),
-      10,
-    );
-    const omittedRetentionActions = retentionResult?.ok && evidencePassport &&
-        retentionResult.data.asOf === evidencePassport.asOf &&
-        retentionResult.growthInputs.sourceSnapshotVerified &&
-        retentionResult.actionQueue.status === "VERIFIED" &&
-        retentionResult.actionQueue.withheldCustomerCount === 0
-      ? retentionResult.actionQueue.omittedCount : 0;
-    return {
-      ...selection,
-      totalCandidates: selection.totalCandidates + omittedRetentionActions,
-      omittedCount: selection.omittedCount + omittedRetentionActions,
-    };
-  }, [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
-    customerRetentionDecisionActions, retentionResult, evidencePassport]);
-  const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
+  const dailyDecisionActionRanking = useMemo(() => rankDailyDecisionActions(
+    [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
+      .map(action => ({ decision: action.decision, payload: action })),
+  ), [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
+
+  const omittedRetentionActionCount = useMemo(() => (
+    retentionResult?.ok && evidencePassport &&
+    retentionResult.data.asOf === evidencePassport.asOf &&
+    retentionResult.growthInputs.sourceSnapshotVerified &&
+    retentionResult.actionQueue.status === "VERIFIED" &&
+    retentionResult.actionQueue.withheldCustomerCount === 0
+      ? retentionResult.actionQueue.omittedCount
+      : 0
+  ), [retentionResult, evidencePassport]);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -1446,39 +1452,46 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     await loadDecisionMemoryCollection();
   };
 
-  const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string) => {
-    if (!user?.profileId || outcomeBusyId !== null) return;
+  const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string): Promise<boolean> => {
+    if (!user?.profileId || outcomeBusyId !== null) return false;
     setOutcomeBusyId("candidate:" + candidateId.slice(0,60));
     setOutcomeMessage(null);
-    const candidateSnapshot = {
-      schemaVersion:"1.0.0" as const,candidateId,ruleId:decision.ruleId,ruleVersion:decision.ruleVersion,
-      priority:decision.priority,priorityScore:decision.priorityScore,what:decision.what,why:decision.why,
-      risk:decision.soWhat,soWhat:decision.soWhat,whatNext:decision.whatNext,owner:decision.owner,
-      expectedOutcome:decision.expectedOutcome,
-      impact:decision.impact ? {...decision.impact,currency:decision.impact.currency??null} : null,
-      impactStatus:decision.impactStatus,
-      impactReason:decision.impactReason,proof:decision.proof,createdAt:decision.createdAt,expiresAt:decision.expiresAt,
-    };
-    const created = await createDecisionOutcomeProposal({
-      candidateId,
-      ruleId: decision.ruleId,
-      ruleVersion: decision.ruleVersion,
-      ownerProfileId: user.profileId,
-      expectedOutcome: decision.expectedOutcome,
-      reason: decision.why.slice(0, 2000),
-      candidateSnapshot,
-    });
-    setOutcomeBusyId(null);
-    if (!created.ok) {
-      setOutcomeMessage(created.message);
-      return;
+    try {
+      const candidateSnapshot = {
+        schemaVersion:"1.0.0" as const,candidateId,ruleId:decision.ruleId,ruleVersion:decision.ruleVersion,
+        priority:decision.priority,priorityScore:decision.priorityScore,what:decision.what,why:decision.why,
+        risk:decision.soWhat,soWhat:decision.soWhat,whatNext:decision.whatNext,owner:decision.owner,
+        expectedOutcome:decision.expectedOutcome,
+        impact:decision.impact ? {...decision.impact,currency:decision.impact.currency??null} : null,
+        impactStatus:decision.impactStatus,
+        impactReason:decision.impactReason,proof:decision.proof,createdAt:decision.createdAt,expiresAt:decision.expiresAt,
+      };
+      const created = await createDecisionOutcomeProposal({
+        candidateId,
+        ruleId: decision.ruleId,
+        ruleVersion: decision.ruleVersion,
+        ownerProfileId: user.profileId,
+        expectedOutcome: decision.expectedOutcome,
+        reason: decision.why.slice(0, 2000),
+        candidateSnapshot,
+      });
+      if (!created.ok) {
+        setOutcomeMessage(created.message);
+        return false;
+      }
+      setOutcomeMessage(created.duplicate
+        ? "هذا الإجراء محفوظ مسبقاً؛ تم استرجاع نسخته الحالية."
+        : "تم حفظ الإجراء المقترح وسجل حدثه على الخادم.");
+      if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
+      else await loadOutcomes();
+      await loadDecisionMemoryCollection();
+      return true;
+    } catch {
+      setOutcomeMessage("تعذر تأكيد العملية أو تحديث العرض؛ راجع دورة القرارات قبل إعادة المحاولة.");
+      return false;
+    } finally {
+      setOutcomeBusyId(null);
     }
-    setOutcomeMessage(created.duplicate
-      ? "هذا الإجراء محفوظ مسبقاً؛ تم استرجاع نسخته الحالية."
-      : "تم حفظ الإجراء المقترح وسجل حدثه على الخادم.");
-    if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
-    else await loadOutcomes();
-    await loadDecisionMemoryCollection();
   };
 
   const runTransition = async (
@@ -1825,6 +1838,21 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 <CustomerRetentionActionQueuePanel
                   queue={retentionResult?.ok ? retentionResult.actionQueue : null}
                   loading={retentionLoading}
+                  canCreateDecision={canManage && Boolean(user?.profileId) &&
+                    Boolean(retentionResult?.ok && retentionResult.growthInputs.sourceSnapshotVerified)}
+                  onCreateDecisionProposal={async action => {
+                    const candidate = customerRetentionDecisionActions.find(item =>
+                      item.decision.proof.evidenceIds.length === action.evidenceIds.length &&
+                      item.decision.proof.evidenceIds.every(id => action.evidenceIds.includes(id)) &&
+                      item.decision.proof.metricKeys.length === action.metricKeys.length &&
+                      item.decision.proof.metricKeys.every(key => action.metricKeys.includes(key)) &&
+                      item.metricIds.length === action.metricIds.length &&
+                      item.metricIds.every(id => action.metricIds.includes(id))
+                    );
+                    return candidate
+                      ? persistEvidenceBackedAction(candidate.decision, candidate.candidateId)
+                      : false;
+                  }}
                 />
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </>
@@ -1834,6 +1862,11 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
               state={retentionLoading ? "loading" : demandForecastResult ? "ready"
                 : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
               onRetry={() => setRefreshKey((value) => value + 1)}
+              replenishmentRecommendations={replenishmentDemandForecast ? replenishmentReport?.recommendations ?? null : null}
+              onSaveScenario={user?.profileId && canManage ? async (scenario, stockImpact) => {
+                const candidate = buildDemandScenarioDecisionCandidate(scenario, stockImpact);
+                return candidate ? persistEvidenceBackedAction(candidate, candidate.id) : false;
+              } : undefined}
             />
             <GrowthOpportunityRadar
               result={growthRadarResult}
@@ -2015,31 +2048,21 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 state={loading ? "loading" : cashflowForecast ? (cashflowForecast.points.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
-              <div className="space-y-3">
-                {dailyDecisionActionSelection.totalCandidates > 0 ? (
-                  <p role="status" aria-live="polite" className="report-note">
-                    يعرض المركز {dailyDecisionActions.length} من {dailyDecisionActionSelection.totalCandidates} إجراءً مرتباً حسب الأولوية.
-                    {dailyDecisionActionSelection.omittedCount > 0
-                      ? " تم إرجاء " + dailyDecisionActionSelection.omittedCount + " إجراءً خارج القائمة المختصرة."
-                      : " جميع الإجراءات المستحقة ظاهرة."}
-                  </p>
-                ) : null}
-                {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
-                  <ActionCard
-                    key={candidateId}
-                    decision={decision}
-                    state="ready"
-                    ctaLabel="حفظ الإجراء في دورة القرارات"
-                    onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
-                  />
-                )) : (
-                  <ActionCard
-                    state={loading ? "loading" : data ? "empty" : cashflowDenied ? "error" : "unavailable"}
-                    errorMessage={result && !result.ok ? result.message : undefined}
-                    onRetry={() => setRefreshKey((value) => value + 1)}
-                  />
-                )}
-              </div>
+              <DailyDecisionActionQueue
+                actions={dailyDecisionActionRanking}
+                sourceOmittedCount={omittedRetentionActionCount}
+                state={dailyDecisionActionRanking.length > 0 ? "ready"
+                  : loading || inventoryLoading || retentionLoading ? "loading"
+                    : inventoryResult?.ok || retentionResult?.ok || data ? "empty"
+                      : (inventoryResult && !inventoryResult.ok && inventoryResult.status === "DENIED") ||
+                        (retentionResult && !retentionResult.ok && retentionResult.status === "DENIED") || cashflowDenied
+                        ? "error" : "unavailable"}
+                errorMessage={inventoryResult && !inventoryResult.ok ? inventoryResult.message
+                  : retentionResult && !retentionResult.ok ? retentionResult.message
+                    : result && !result.ok ? result.message : undefined}
+                onRetry={() => setRefreshKey((value) => value + 1)}
+                onPersist={persistEvidenceBackedAction}
+              />
             </div>
           </section>
 

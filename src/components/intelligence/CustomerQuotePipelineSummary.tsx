@@ -1,4 +1,5 @@
 import type { CustomerQuotePipelineResult } from "@/lib/intelligence/customer-quote-pipeline";
+import { buildCustomerQuotePipelineCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 
 const count = new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 });
 const rate = new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 1 });
@@ -16,10 +17,16 @@ export function CustomerQuotePipelineSummary({ result }: { result: CustomerQuote
   return (
     <section dir="rtl" className="space-y-3 rounded-xl border p-3" aria-label="مسار عروض أسعار العملاء">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold">مسار عروض أسعار العملاء</h3>
-        <span className="rounded-full border px-2 py-1 text-xs">
-          {result.state === "EMPTY" ? "لا توجد عروض" : "مجتمع كامل حسب المصدر"}
-        </span>
+        <div>
+          <h3 className="font-semibold">مسار عروض أسعار العملاء</h3>
+          <span className="text-xs text-muted-foreground">
+            {result.state === "EMPTY" ? "لا توجد عروض" : "مجتمع كامل حسب المصدر"}
+          </span>
+        </div>
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs"
+          onClick={() => downloadIntelligenceCsv(buildCustomerQuotePipelineCsv(result), "aghbari-customer-quote-pipeline.csv")}>
+          تصدير مسار العروض CSV
+        </button>
       </header>
       <p className="text-sm">{result.answer}</p>
       <p className="text-xs text-muted-foreground">

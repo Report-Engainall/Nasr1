@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { DailyDecisionBoard } from "@/components/intelligence/DailyDecisionBoard";
 import type { DecisionMemoryBookResult, DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
 
@@ -79,7 +79,12 @@ describe("daily decision board accessibility and responsive structure", () => {
     const { container } = render(<DailyDecisionBoard result={result} />);
     const reason = screen.getByRole("textbox", { name: "سبب الإجراء وسجل القرار" });
     const action = screen.getByRole("button", { name: "إرسال للمراجعة" });
-    const focusable = Array.from(container.querySelectorAll<HTMLElement>("textarea, button"));
+    const lifecycle = container.querySelector<HTMLElement>('[aria-label="دورة اعتماد القرار وتنفيذه"]');
+
+    expect(lifecycle).not.toBeNull();
+    // The board also has searchable filters and workload shortcut buttons.
+    // Assert the action order inside its own lifecycle region, not across the whole board.
+    const focusable = Array.from(lifecycle!.querySelectorAll<HTMLElement>("textarea, button"));
 
     expect(focusable).toEqual([reason, action]);
     expect(reason.tabIndex).toBe(0);
@@ -91,6 +96,29 @@ describe("daily decision board accessibility and responsive structure", () => {
     expect(document.activeElement).toBe(reason);
     action.focus();
     expect(document.activeElement).toBe(action);
+  });
+
+  it("filters loaded decisions by their recorded owner without inventing owner values", () => {
+    const sales = {
+      ...record,
+      decisionId: "decision-sales",
+      proposedResult: "قرار المبيعات",
+      owner: "فريق المبيعات",
+    };
+    const procurement = {
+      ...record,
+      decisionId: "decision-procurement",
+      proposedResult: "قرار المشتريات",
+      owner: "فريق المشتريات",
+    };
+    render(<DailyDecisionBoard result={{ ...result, records: [sales, procurement], loadedCount: 2, totalCount: 2 }} />);
+
+    const ownerFilter = screen.getByRole("combobox", { name: "تصفية مسؤول القرار" });
+    fireEvent.change(ownerFilter, { target: { value: "فريق المبيعات" } });
+
+    expect(ownerFilter).toHaveValue("فريق المبيعات");
+    expect(screen.getAllByRole("heading", { level: 3 }).map(heading => heading.textContent))
+      .toEqual(["قرار المبيعات"]);
   });
 
   it("keeps a stable ID-based order when saved decisions tie on every displayed ranking field", () => {
@@ -115,6 +143,8 @@ describe("daily decision board accessibility and responsive structure", () => {
     expect(progress.className).toContain("lg:grid-cols-7");
     expect(screen.getAllByRole("status")[0]).toHaveTextContent("تغطية جزئية");
     expect(screen.getByText("غير محفوظة في السجل التاريخي")).toBeInTheDocument();
-    expect(screen.getByText(/لا تشمل هذه اللوحة كامل تاريخ القرارات/)).toBeInTheDocument();
+    expect(screen.getByText(
+      /لا تشمل هذه اللوحة كامل تاريخ القرارات|لا تعني النتيجة الخالية عدم وجود قرارات أخرى ضمن التاريخ الكامل/,
+    )).toBeInTheDocument();
   });
 });

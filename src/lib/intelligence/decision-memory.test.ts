@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildDecisionMemoryBook, buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "./decision-memory";
-import type { DecisionMemorySnapshot } from "./decision-memory";
+import {
+  buildDecisionMemoryBook,
+  buildDecisionMemoryPrecedentCsv,
+  buildDecisionPolicyReviewSuggestions,
+  filterDecisionMemoryPrecedents,
+  searchSimilarDecisionMemory,
+  summarizeDecisionMemoryPrecedents,
+} from "./decision-memory";
+import type { DecisionMemoryMetricResult, DecisionMemorySnapshot } from "./decision-memory";
 import type { DecisionOutcomeView } from "./decision-outcome-client";
 import type { EvidenceRecord, MetricSnapshot } from "./types";
 
@@ -112,6 +119,56 @@ function makeMetric(
     },
     warnings: [],
   };
+}
+
+function precedentMetric(
+  evidenceId: string,
+  overrides: Partial<DecisionMemoryMetricResult> = {},
+): DecisionMemoryMetricResult {
+  return {
+    metricKey: "cashflow.expected_collections",
+    value: 100,
+    unit: "CURRENCY",
+    currency: "YER",
+    unitOfMeasure: null,
+    period: measurementPeriod,
+    asOf: "2026-10-05T00:00:00.000Z",
+    formulaId: "cashflow.expected-collections",
+    formulaVersion: "1.0.0",
+    evidenceIds: [evidenceId],
+    ...overrides,
+  };
+}
+
+function precedentSearchRecords() {
+  const result = buildDecisionMemoryBook({
+    generatedAt,
+    outcomes: [
+      makeOutcome("older-decision", { createdAt: "2026-10-01T00:00:00.000Z" }),
+      makeOutcome("target-decision", { createdAt: "2026-10-03T00:00:00.000Z" }),
+    ],
+    snapshots: [],
+  });
+  const older = result.records.find(record => record.decisionId === "older-decision");
+  const target = result.records.find(record => record.decisionId === "target-decision");
+  if (!older || !target) throw new Error("precedent search fixtures missing");
+  older.metricComparison = {
+    status: "VERIFIED",
+    expected: precedentMetric("older-expected"),
+    actual: precedentMetric("older-actual", { value: 80 }),
+    difference: -20,
+    differencePercent: -20,
+    reason: null,
+  };
+  target.metricComparison = {
+    status: "VERIFIED",
+    expected: precedentMetric("target-expected"),
+    actual: precedentMetric("target-actual", { value: 80 }),
+    difference: -20,
+    differencePercent: -20,
+    reason: null,
+  };
+  return result.records;
 }
 
 function measuredBookWithExpectedMetric(expectedMetric: MetricSnapshot) {
@@ -418,6 +475,164 @@ describe("decision memory evidence engine", () => {
     expect(result.records[0].metricComparison.status).toBe("WITHHELD");
     expect(result.records[0].memoryStatus).toBe("PARTIAL");
     expect(buildDecisionPolicyReviewSuggestions(result.records)).toHaveLength(0);
+  });
+
+  it("calls precedents comparable only when both expected and actual metric contexts match", () => {
+    const records = precedentSearchRecords();
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].comparisonStatus).toBe("COMPARABLE");
+    expect(matches[0].contextDifferences).toEqual([]);
+  });
+
+  it.each([
+    ["currency", { currency: "USD" }, "العملة مختلفة أو غير محددة"],
+    ["period", { period: { from: "2026-10-02", to: "2026-10-05" } }, "الفترة مختلفة"],
+    ["formula version", { formulaVersion: "2.0.0" }, "المعادلة أو إصدارها مختلف"],
+  ] as const)("withholds comparison when the prior expected baseline has a %s mismatch", (_label, override, reason) => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    if (!older) throw new Error("older precedent fixture missing");
+    older.metricComparison.expected = precedentMetric("older-expected", override);
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("NOT_COMPARABLE");
+    expect(matches[0].contextDifferences).toContain("خط الأساس المتوقع: " + reason);
+  });
+
+  it("withholds comparison when the decision rule version differs", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    if (!older) throw new Error("older precedent fixture missing");
+    older.ruleVersion = "2.0.0";
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("NOT_COMPARABLE");
+    expect(matches[0].contextDifferences).toContain("إصدار قاعدة القرار مختلف أو غير محدد");
+    expect(filterDecisionMemoryPrecedents(matches, "SAME_RULE")).toHaveLength(1);
+  });
+
+  it("withholds comparison when a precedent uses a different decision rule", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    const target = records.find(record => record.decisionId === "target-decision");
+    if (!older || !target) throw new Error("precedent fixtures missing");
+    older.ruleId = "different-decision-rule";
+    older.proposedResult = target.proposedResult;
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("NOT_COMPARABLE");
+    expect(matches[0].contextDifferences).toContain("قاعدة القرار مختلفة أو غير محددة");
+    expect(filterDecisionMemoryPrecedents(matches, "SAME_RULE")).toHaveLength(0);
+  });
+
+  it("does not call a precedent comparable when either expected metric is missing", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    if (!older) throw new Error("older precedent fixture missing");
+    older.metricComparison.expected = null;
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("OUTCOME_UNVERIFIED");
+    expect(matches[0].contextDifferences).toContain("خط الأساس المتوقع غير متاح في أحد القرارين");
+  });
+
+  it("withholds comparable classification when either decision comparison is not verified", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    if (!older) throw new Error("older precedent fixture missing");
+    older.metricComparison.status = "WITHHELD";
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("OUTCOME_UNVERIFIED");
+  });
+
+  it("summarizes and filters precedent comparison statuses without changing the matches", () => {
+    const matches = searchSimilarDecisionMemory({
+      records: precedentSearchRecords(),
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+    const mixed = [
+      matches[0],
+      { ...matches[0], comparisonStatus: "NOT_COMPARABLE" as const },
+      { ...matches[0], comparisonStatus: "OUTCOME_UNVERIFIED" as const },
+      { ...matches[0], comparisonStatus: "COMPARABLE" as const },
+    ];
+
+    expect(summarizeDecisionMemoryPrecedents(mixed)).toEqual({
+      total: 4,
+      comparable: 2,
+      notComparable: 1,
+      outcomeUnverified: 1,
+    });
+    expect(filterDecisionMemoryPrecedents(mixed, "NOT_COMPARABLE")).toHaveLength(1);
+    expect(filterDecisionMemoryPrecedents(mixed, "OUTCOME_UNVERIFIED")).toHaveLength(1);
+    expect(filterDecisionMemoryPrecedents(mixed, "SAME_RULE")).toHaveLength(4);
+    expect(filterDecisionMemoryPrecedents(mixed, "ALL")).toHaveLength(4);
+    expect(mixed).toHaveLength(4);
+  });
+
+  it("exports filtered decision precedents with evidence, safe text, numeric values and coverage limits", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    const target = records.find(record => record.decisionId === "target-decision");
+    if (!older || !target) throw new Error("precedent export fixtures missing");
+    older.ruleId = '=HYPERLINK("https://example.invalid")';
+    older.proposedResult = target.proposedResult;
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+    const csv = buildDecisionMemoryPrecedentCsv({
+      matches,
+      reference: target,
+      loadedCount: 2,
+      totalCount: 7,
+    });
+
+    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain(",80,");
+    expect(csv).toContain("older-expected");
+    expect(csv).toContain("نطاق جزئي: 2 من 7 قراراً محمّلاً");
+    expect(() => buildDecisionMemoryPrecedentCsv({
+      matches,
+      reference: target,
+      loadedCount: 8,
+      totalCount: 7,
+    })).toThrow("decision_memory_precedent_export_invalid");
   });
 
   it("searches only earlier decisions and rejects unbounded search inputs", () => {

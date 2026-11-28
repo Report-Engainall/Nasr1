@@ -176,6 +176,49 @@ describe("decision outcome transition policy", () => {
     expect(conflict).toMatchObject({ ok: false, reason: "IDEMPOTENCY_CONFLICT" });
   });
 
+  it("treats a changed actor role as an idempotency conflict", () => {
+    const first = transitionDecisionOutcome(outcome(), event("SUBMIT_FOR_REVIEW"));
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const changedActor = transitionDecisionOutcome(first.outcome, event("SUBMIT_FOR_REVIEW", {
+      actor: { ...actor, role: "admin" },
+    }));
+    expect(changedActor).toMatchObject({ ok: false, reason: "IDEMPOTENCY_CONFLICT" });
+  });
+
+  it("snapshots proposed actors, event actors and nested measurement evidence", () => {
+    const proposedBy = { ...actor };
+    const created = createDecisionOutcome({
+      id: "outcome-snapshot",
+      candidateId: "decision-snapshot",
+      proposedBy,
+      owner: "operations",
+      expectedOutcome: "نتيجة متوقعة",
+      createdAt,
+    });
+    proposedBy.role = "admin";
+    expect(created.proposedBy.role).toBe("manager");
+
+    const measured = measurement();
+    const eventActor = { ...actor };
+    const measurementEvent = event("MEASURE", { actor: eventActor, measuredOutcome: measured });
+    const result = transitionDecisionOutcome(executedOutcome(), measurementEvent);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    eventActor.role = "admin";
+    measured.evidenceIds.push("evidence:mutated");
+    if (measured.period) measured.period.from = "2026-01-01";
+
+    const storedEvent = result.outcome.history[result.outcome.history.length - 1];
+    expect(storedEvent.actor.role).toBe("manager");
+    expect(storedEvent.measuredOutcome?.evidenceIds).toEqual(["evidence:sales-net"]);
+    expect(storedEvent.measuredOutcome?.period).toEqual({ from: "2026-11-01", to: "2026-11-25" });
+    expect(result.outcome.measuredOutcome?.evidenceIds).toEqual(["evidence:sales-net"]);
+    expect(result.outcome.measuredOutcome?.period).toEqual({ from: "2026-11-01", to: "2026-11-25" });
+  });
+
   it("requires a reason for approval and an owner for assignment", () => {
     const submitted = apply(outcome(), event("SUBMIT_FOR_REVIEW"));
     expect(transitionDecisionOutcome(submitted, event("APPROVE"))).toMatchObject({

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   DecisionMemoryBookResult,
   DecisionMemoryMetricResult,
@@ -32,10 +33,92 @@ const steps: Array<{ state: DecisionMemoryRecord["state"]; label: string }> = [
   { state: "MEASURED", label: "قياس" },
 ];
 
+function metricSearchText(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.metricKey, metric.value, metric.unit, metric.currency ?? "",
+    metric.unitOfMeasure ?? "", metric.period.from, metric.period.to, metric.asOf,
+    metric.formulaId, metric.formulaVersion, metric.evidenceIds.join(" "),
+  ].join(" ");
+}
+
 function metricValue(metric: DecisionMemoryMetricResult | null): string {
   if (!metric) return "غير متاح من المصدر";
   const amount = new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 2 }).format(metric.value);
   return [amount, metric.currency ?? metric.unit, metric.unitOfMeasure].filter(Boolean).join(" ");
+}
+
+export type DailyDecisionStateFilter = "ALL" | DecisionMemoryRecord["state"];
+export type DailyDecisionPriorityFilter = "ALL" | "P0" | "P1" | "P2" | "P3" | "UNRANKED";
+export type DailyDecisionDueFilter = "ALL" | "OVERDUE" | "DUE_24H" | "DUE_7_DAYS" | "UNSCHEDULED";
+
+export interface DailyDecisionFilters {
+  searchText: string;
+  state: DailyDecisionStateFilter;
+  owner?: string;
+  priority: DailyDecisionPriorityFilter;
+  due: DailyDecisionDueFilter;
+}
+
+export function normalizeDailyDecisionSearch(value: string): string {
+  return value.normalize("NFKC")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .toLocaleLowerCase("ar")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+export function filterDailyDecisionRecords(
+  records: DecisionMemoryRecord[],
+  filters: DailyDecisionFilters,
+  now: number,
+): DecisionMemoryRecord[] {
+  const query = normalizeDailyDecisionSearch(filters.searchText);
+  const dayAhead = now + 24 * 60 * 60 * 1000;
+  const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+  return records.filter(record => {
+    if (filters.state !== "ALL" && record.state !== filters.state) return false;
+    if ((filters.owner ?? "ALL") !== "ALL" &&
+        (record.owner.trim() || "غير معيّن") !== filters.owner) return false;
+    const savedPriority = record.candidateSnapshot?.priority ?? null;
+    if (filters.priority === "UNRANKED" && savedPriority !== null) return false;
+    if (filters.priority !== "ALL" && filters.priority !== "UNRANKED" && savedPriority !== filters.priority) return false;
+
+    const terminal = record.state === "REJECTED" || record.state === "MEASURED";
+    const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
+    if (filters.due === "OVERDUE" &&
+        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due > now)) return false;
+    if (filters.due === "DUE_24H" &&
+        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= now || due > dayAhead)) return false;
+    if (filters.due === "DUE_7_DAYS" &&
+        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= dayAhead || due > weekAhead)) return false;
+    const genuinelyUnscheduled = !record.reviewAt &&
+      (record.reviewDisposition === "NOT_SCHEDULED" || record.reviewDisposition === null);
+    if (filters.due === "UNSCHEDULED" &&
+        (terminal || record.state === "EXECUTED" || !genuinelyUnscheduled)) return false;
+
+    if (!query) return true;
+    const candidate = record.candidateSnapshot;
+    const searchable = normalizeDailyDecisionSearch([
+      record.decisionId, record.candidateRef, record.ruleId, record.ruleVersion,
+      record.state, record.owner, record.proposedResult, record.decisionReason ?? "",
+      record.problem ?? "", record.actionTaken ?? "", record.reviewAt ?? "",
+      candidate?.what ?? "", candidate?.why ?? "", candidate?.risk ?? "",
+      candidate?.whatNext ?? "", candidate?.expectedOutcome ?? "",
+      metricSearchText(record.expectedMetric),
+      metricSearchText(record.metricComparison.expected), metricSearchText(record.metricComparison.actual),
+      candidate?.proof.metricKeys.join(" ") ?? "", candidate?.proof.evidenceIds.join(" ") ?? "",
+      candidate?.proof.formulaVersions.join(" ") ?? "", candidate?.proof.asOf ?? "",
+      record.events.map(event => [event.type, event.actorRole, event.reason ?? ""].join(" ")).join(" "),
+      record.facts.map(item => item.text + " " + item.evidenceIds.join(" ")).join(" "),
+      record.hypotheses.map(item => item.text + " " + item.evidenceIds.join(" ")).join(" "),
+      record.lessons.join(" "),
+    ].join(" "));
+    return searchable.includes(query);
+  });
 }
 
 function priorityRank(record: DecisionMemoryRecord): number {
@@ -71,12 +154,200 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
   return left.decisionId < right.decisionId ? -1 : left.decisionId > right.decisionId ? 1 : 0;
 }
 
+export interface DailyDecisionQueueSummary {
+  overdue: number;
+  dueWithin24Hours: number;
+  dueWithinSevenDays: number;
+  unscheduled: number;
+  inReview: number;
+  awaitingMeasurement: number;
+}
+
+export function summarizeDailyDecisionQueue(
+  records: DecisionMemoryRecord[],
+  now: number,
+): DailyDecisionQueueSummary {
+  const summary: DailyDecisionQueueSummary = {
+    overdue: 0,
+    dueWithin24Hours: 0,
+    dueWithinSevenDays: 0,
+    unscheduled: 0,
+    inReview: 0,
+    awaitingMeasurement: 0,
+  };
+  const dayAhead = now + 24 * 60 * 60 * 1000;
+  const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+  for (const record of records) {
+    if (record.state === "IN_REVIEW") summary.inReview += 1;
+    if (record.state === "EXECUTED") summary.awaitingMeasurement += 1;
+    const terminal = record.state === "REJECTED" || record.state === "MEASURED";
+    if (terminal) continue;
+    const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
+    if (record.reviewDisposition === "SCHEDULED" && Number.isFinite(due)) {
+      if (due <= now) summary.overdue += 1;
+      else if (due <= dayAhead) summary.dueWithin24Hours += 1;
+      else if (due <= weekAhead) summary.dueWithinSevenDays += 1;
+    } else if (record.state !== "EXECUTED" && !record.reviewAt &&
+      (record.reviewDisposition === "NOT_SCHEDULED" || record.reviewDisposition === null)) {
+      summary.unscheduled += 1;
+    }
+  }
+  return summary;
+}
+
+export interface DailyDecisionBoardSelection {
+  records: DecisionMemoryRecord[];
+  matchingRecords: DecisionMemoryRecord[];
+  matchedCount: number;
+  omittedCount: number;
+  pageIndex: number;
+  pageCount: number;
+}
+
+export function selectDailyDecisionBoardRows(
+  records: DecisionMemoryRecord[],
+  filters: DailyDecisionFilters,
+  now: number,
+  limit = 10,
+  offset = 0,
+): DailyDecisionBoardSelection {
+  const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 50 ? limit : 10;
+  const requestedOffset = Number.isSafeInteger(offset) && offset > 0 ? offset : 0;
+  const matching = filterDailyDecisionRecords(records, filters, now)
+    .sort((left, right) => compareOrder(left, right, now));
+  const pageCount = Math.max(1, Math.ceil(matching.length / safeLimit));
+  const pageIndex = Math.min(Math.floor(requestedOffset / safeLimit), pageCount - 1);
+  const start = pageIndex * safeLimit;
+  const visible = matching.slice(start, start + safeLimit);
+  return {
+    records: visible,
+    matchingRecords: matching,
+    matchedCount: matching.length,
+    omittedCount: Math.max(0, matching.length - visible.length),
+    pageIndex,
+    pageCount,
+  };
+}
+
+function dailyDecisionCsvCell(value: string | number | null | undefined): string {
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+  const text = String(value ?? "").replace(/\r\n?/g, "\n");
+  const protectedText = /^[\s\u0000-\u001F]*[=+\-@]/.test(text) ? "'" + text : text;
+  return "\"" + protectedText.replace(/"/g, '""') + "\"";
+}
+
+function dailyDecisionMetricContext(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.metricKey,
+    metric.unit,
+    metric.currency ?? "عملة غير محددة",
+    metric.unitOfMeasure ?? "وحدة صنف غير محددة",
+    metric.period.from + " — " + metric.period.to,
+    metric.formulaId + "@" + metric.formulaVersion,
+  ].join(" | ");
+}
+
+/** Exports every filtered, loaded decision rather than only the ten visible cards. */
+export function buildDailyDecisionBoardCsv(input: {
+  records: DecisionMemoryRecord[];
+  loadedCount: number;
+  totalCount: number;
+}): string {
+  if (!input || !Array.isArray(input.records) ||
+      ![input.loadedCount, input.totalCount].every(value => Number.isSafeInteger(value) && value >= 0) ||
+      input.loadedCount > input.totalCount || input.records.length > input.loadedCount) {
+    throw new Error("daily_decision_export_invalid");
+  }
+  const coverageNotice = input.loadedCount === input.totalCount
+    ? "الملف يشمل النتائج المطابقة من السجلات المحمّلة؛ لا يعني ذلك اكتمال أدلة كل قرار."
+    : "نطاق جزئي: " + input.loadedCount + " من " + input.totalCount +
+      " قراراً محمّلاً؛ قد توجد نتائج مطابقة خارج النطاق.";
+  const headers = [
+    "decision_id", "candidate_ref", "rule_id", "rule_version", "state", "version",
+    "priority", "priority_score", "proposed_result", "decision_reason", "problem",
+    "owner", "review_disposition", "review_at", "action_taken", "expected_outcome",
+    "risk", "next_action", "created_at", "updated_at",
+    "comparison_status", "expected_metric_context", "expected_metric_value",
+    "expected_evidence_ids", "actual_metric_context", "actual_metric_value",
+    "actual_evidence_ids", "difference", "difference_percent",
+    "facts", "fact_evidence_ids", "hypotheses", "hypothesis_evidence_ids",
+    "lessons", "corrections_count", "event_count", "event_history",
+    "candidate_evidence_ids", "metric_keys", "formula_versions",
+    "memory_status", "warnings", "coverage_notice",
+  ];
+  const rows = input.records.map(record => {
+    const candidate = record.candidateSnapshot;
+    const expected = record.metricComparison.expected;
+    const actual = record.metricComparison.actual;
+    return [
+      record.decisionId,
+      record.candidateRef,
+      record.ruleId,
+      record.ruleVersion,
+      record.state,
+      record.version,
+      candidate?.priority ?? null,
+      candidate?.priorityScore ?? null,
+      record.proposedResult,
+      record.decisionReason,
+      record.problem,
+      record.owner,
+      record.reviewDisposition,
+      record.reviewAt,
+      record.actionTaken,
+      candidate?.expectedOutcome ?? null,
+      candidate?.risk ?? null,
+      candidate?.whatNext ?? null,
+      record.createdAt,
+      record.updatedAt,
+      record.metricComparison.status,
+      dailyDecisionMetricContext(expected),
+      expected?.value ?? null,
+      expected?.evidenceIds.join(";") ?? null,
+      dailyDecisionMetricContext(actual),
+      actual?.value ?? null,
+      actual?.evidenceIds.join(";") ?? null,
+      record.metricComparison.difference,
+      record.metricComparison.differencePercent,
+      record.facts.map(item => item.text).join("; "),
+      record.facts.flatMap(item => item.evidenceIds).join(";"),
+      record.hypotheses.map(item => item.text).join("; "),
+      record.hypotheses.flatMap(item => item.evidenceIds).join(";"),
+      record.lessons.join("; "),
+      record.corrections.length,
+      record.eventCount,
+      record.events.map(event => [
+        event.version, event.type, event.at, event.actorRole, event.reason ?? "",
+      ].join(" | ")).join("; "),
+      candidate?.proof.evidenceIds.join(";") ?? null,
+      candidate?.proof.metricKeys.join(";") ?? null,
+      candidate?.proof.formulaVersions.join(";") ?? null,
+      record.memoryStatus,
+      record.warnings.join(";"),
+      coverageNotice,
+    ].map(dailyDecisionCsvCell).join(",");
+  });
+  return "\uFEFF" + [headers.map(dailyDecisionCsvCell).join(","), ...rows].join("\r\n");
+}
+
 function decisionDue(record: DecisionMemoryRecord, now: number): string {
   if (record.reviewDisposition === "NOT_REQUIRED") return "لا تتطلب مراجعة مجدولة";
   if (record.reviewDisposition === "NOT_SCHEDULED") return "لم يُحدد موعد مراجعة";
   if (!record.reviewAt) return "المراجعة مجدولة لكن وقتها غير متاح";
   const time = new Date(record.reviewAt).toLocaleString("ar-YE");
   return Date.parse(record.reviewAt) < now ? "متأخر: " + time : time;
+}
+
+export function splitDailyDecisionTimelineEvents(
+  events: DecisionMemoryRecord["events"],
+  recentLimit = 8,
+): { earlier: DecisionMemoryRecord["events"]; recent: DecisionMemoryRecord["events"] } {
+  const safeLimit = Number.isSafeInteger(recentLimit) && recentLimit > 0 && recentLimit <= 50 ? recentLimit : 8;
+  return {
+    earlier: events.slice(0, Math.max(0, events.length - safeLimit)),
+    recent: events.slice(-safeLimit),
+  };
 }
 
 function DecisionProgress({ state }: { state: DecisionMemoryRecord["state"] }) {
@@ -129,6 +400,7 @@ function DecisionCard({
   const facts = record.facts.filter(item => item.text.trim());
   const hypotheses = record.hypotheses.filter(item => item.text.trim());
   const candidate = record.candidateSnapshot;
+  const timeline = splitDailyDecisionTimelineEvents(record.events);
 
   return (
     <article className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby={"daily-decision-" + record.decisionId}>
@@ -274,14 +546,29 @@ function DecisionCard({
       </section>
 
       {record.events.length ? (
-        <section className="space-y-1 rounded-lg border p-3">
-          <h4 className="text-sm font-semibold">سجل الانتقالات</h4>
-          {record.events.slice(-8).map(event => (
-            <p key={event.id} className="text-xs text-muted-foreground">
-              {event.type} · {event.actorRole} · {new Date(event.at).toLocaleString("ar-YE")}
-              {event.reason ? " · " + event.reason : ""}
-            </p>
-          ))}
+        <section className="space-y-2 rounded-lg border p-3">
+          <h4 className="text-sm font-semibold">سجل الانتقالات الكامل ({record.events.length} حدث)</h4>
+          {timeline.earlier.length ? (
+            <details className="rounded-md border p-2">
+              <summary className="cursor-pointer text-xs font-medium">عرض {timeline.earlier.length} حدث أقدم</summary>
+              <div className="mt-2 space-y-2">
+                {timeline.earlier.map(event => (
+                  <p key={event.id} className="text-xs text-muted-foreground">
+                    {event.type} · الإصدار {event.version} · {event.actorRole} · {new Date(event.at).toLocaleString("ar-YE")}
+                    {event.reason ? " · " + event.reason : ""}
+                  </p>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          <div className="space-y-2">
+            {timeline.recent.map(event => (
+              <p key={event.id} className="text-xs text-muted-foreground">
+                {event.type} · الإصدار {event.version} · {event.actorRole} · {new Date(event.at).toLocaleString("ar-YE")}
+                {event.reason ? " · " + event.reason : ""}
+              </p>
+            ))}
+          </div>
         </section>
       ) : null}
 
@@ -305,16 +592,43 @@ export function DailyDecisionBoard({
   onRetry?: () => void;
 }) {
   const now = Date.now();
-  const sortedRecords = [...result.records].sort((left, right) => compareOrder(left, right, now));
-  const records = sortedRecords.slice(0, 10);
-  const omittedCount = Math.max(0, sortedRecords.length - records.length);
+  const [searchText, setSearchText] = useState("");
+  const [stateFilter, setStateFilter] = useState<DailyDecisionStateFilter>("ALL");
+  const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
+  const [dueFilter, setDueFilter] = useState<DailyDecisionDueFilter>("ALL");
+  const [requestedPageIndex, setRequestedPageIndex] = useState(0);
+  const queueSummary = summarizeDailyDecisionQueue(result.records, now);
+  const ownerOptions = Array.from(new Set(result.records.map(record => record.owner.trim() || "غير معيّن")))
+    .sort((left, right) => left.localeCompare(right, "ar"));
+  const selection = selectDailyDecisionBoardRows(result.records, {
+    searchText, state: stateFilter, owner: ownerFilter, priority: priorityFilter, due: dueFilter,
+  }, now, 10, requestedPageIndex * 10);
+  const records = selection.records;
+  const omittedCount = selection.omittedCount;
+  const hasFilters = Boolean(searchText) || stateFilter !== "ALL" || ownerFilter !== "ALL" ||
+    priorityFilter !== "ALL" || dueFilter !== "ALL";
+  function exportFilteredDecisions() {
+    if (!selection.matchingRecords.length) return;
+    const csv = buildDailyDecisionBoardCsv({
+      records: selection.matchingRecords,
+      loadedCount: result.loadedCount,
+      totalCount: result.totalCount,
+    });
+    const url = window.URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "nasr1-daily-decisions-" + new Date().toISOString().slice(0, 10) + ".csv";
+    anchor.click();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+  }
   return (
     <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="daily-decision-board-title" className="text-lg font-semibold">لوحة متابعة القرارات اليومية</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            أعلى عشرة قرارات محفوظة؛ الأولوية المحفوظة أولاً ثم الأثر القابل للمقارنة داخل العملة والوحدة، ثم الاستحقاق وحالة التنفيذ.
+            ابحث وصفِّ كامل القرارات المحمّلة قبل عرض أعلى عشرة نتائج مطابقة؛ الترتيب يقدّم الأولوية المحفوظة ثم الأثر القابل للمقارنة داخل العملة والوحدة ثم الاستحقاق وحالة التنفيذ.
           </p>
         </div>
         <span role="status" aria-live="polite" className="w-fit max-w-full rounded-full border px-3 py-1 text-xs break-words">
@@ -343,13 +657,109 @@ export function DailyDecisionBoard({
         </article>
       </div>
 
+      {result.records.length > 0 ? (
+        <section className="space-y-2" aria-label="مؤشرات قائمة القرارات المحمّلة">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <button type="button" aria-label="عرض القرارات المتأخرة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("OVERDUE"); setRequestedPageIndex(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">متأخرة</p><strong className="text-lg tabular-nums">{queueSummary.overdue}</strong></button>
+            <button type="button" aria-label="عرض القرارات المستحقة خلال 24 ساعة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_24H"); setRequestedPageIndex(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">خلال 24 ساعة</p><strong className="text-lg tabular-nums">{queueSummary.dueWithin24Hours}</strong></button>
+            <button type="button" aria-label="عرض القرارات المستحقة خلال 7 أيام" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_7_DAYS"); setRequestedPageIndex(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">خلال 7 أيام</p><strong className="text-lg tabular-nums">{queueSummary.dueWithinSevenDays}</strong></button>
+            <button type="button" aria-label="عرض القرارات غير المجدولة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("UNSCHEDULED"); setRequestedPageIndex(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">غير مجدولة</p><strong className="text-lg tabular-nums">{queueSummary.unscheduled}</strong></button>
+            <button type="button" aria-label="عرض القرارات قيد المراجعة" onClick={() => { setSearchText(""); setStateFilter("IN_REVIEW"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">قيد المراجعة</p><strong className="text-lg tabular-nums">{queueSummary.inReview}</strong></button>
+            <button type="button" aria-label="عرض القرارات بانتظار القياس" onClick={() => { setSearchText(""); setStateFilter("EXECUTED"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">بانتظار القياس</p><strong className="text-lg tabular-nums">{queueSummary.awaitingMeasurement}</strong></button>
+          </div>
+          <p className="text-xs text-muted-foreground">المؤشرات أعلاه محسوبة من {result.loadedCount} قراراً محمّلاً فقط.</p>
+        </section>
+      ) : null}
+
+      {result.records.length > 0 ? (
+        <section className="space-y-2 rounded-lg border p-3" aria-label="بحث وتصفية القرارات اليومية">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="space-y-1 text-sm">
+              <span className="block">البحث في جميع القرارات المحمّلة</span>
+              <input
+                type="search"
+                aria-label="ابحث في القرارات اليومية"
+                value={searchText}
+                onChange={event => { setSearchText(event.target.value); setRequestedPageIndex(0); }}
+                placeholder="القرار أو المسؤول أو السبب أو الدليل..."
+                className="w-full rounded-lg border bg-background px-3 py-2"
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">حالة القرار</span>
+              <select aria-label="تصفية حالة القرار" value={stateFilter}
+                onChange={event => { setStateFilter(event.target.value as DailyDecisionStateFilter); setRequestedPageIndex(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل الحالات</option>
+                {Object.entries(stateLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">المسؤول المسجل</span>
+              <select aria-label="تصفية مسؤول القرار" value={ownerFilter}
+                onChange={event => { setOwnerFilter(event.target.value); setRequestedPageIndex(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل المسؤولين</option>
+                {ownerOptions.map(owner => <option key={owner} value={owner}>{owner}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">الأولوية المحفوظة</span>
+              <select aria-label="تصفية أولوية القرار" value={priorityFilter}
+                onChange={event => { setPriorityFilter(event.target.value as DailyDecisionPriorityFilter); setRequestedPageIndex(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل الأولويات</option>
+                <option value="P0">P0 — حرجة</option>
+                <option value="P1">P1 — مرتفعة</option>
+                <option value="P2">P2 — متوسطة</option>
+                <option value="P3">P3 — متابعة</option>
+                <option value="UNRANKED">قرارات تاريخية بلا أولوية محفوظة</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">موعد المراجعة</span>
+              <select aria-label="تصفية موعد المراجعة" value={dueFilter}
+                onChange={event => { setDueFilter(event.target.value as DailyDecisionDueFilter); setRequestedPageIndex(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2">
+                <option value="ALL">كل المواعيد</option>
+                <option value="OVERDUE">متأخر أو مستحق الآن</option>
+                <option value="DUE_24H">مستحق خلال 24 ساعة</option>
+                <option value="DUE_7_DAYS">بعد 24 ساعة وحتى 7 أيام</option>
+                <option value="UNSCHEDULED">غير مجدول</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>يعرض {records.length} من {selection.matchedCount} نتيجة مطابقة ضمن {result.loadedCount} قراراً محمّلاً</span>
+            <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
+              disabled={!hasFilters}
+              onClick={() => { setSearchText(""); setStateFilter("ALL"); setOwnerFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}>
+              مسح البحث والتصفية
+            </button>
+            <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
+              disabled={selection.matchedCount === 0}
+              onClick={exportFilteredDecisions}>
+              تصدير جميع النتائج المطابقة CSV ({selection.matchedCount})
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {result.status === "UNAVAILABLE" ? (
         <div className="rounded-lg border p-3" role="alert">
           <p className="text-sm">تعذر تحميل سجل القرارات من الخادم؛ لا تُعرض بطاقات افتراضية.</p>
           {onRetry ? <button type="button" className="mt-2 rounded-lg border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" onClick={onRetry}>إعادة المحاولة</button> : null}
         </div>
-      ) : records.length === 0 ? (
+      ) : result.records.length === 0 ? (
         <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.</p>
+      ) : selection.matchedCount === 0 ? (
+        <p className="rounded-lg border p-3 text-sm text-muted-foreground" role="status">لا توجد قرارات تطابق البحث والتصفية الحالية.</p>
       ) : (
         <ol className="min-w-0 space-y-3" aria-label="قرارات محفوظة مرتبة للمتابعة">
           {records.map(record => (
@@ -359,8 +769,23 @@ export function DailyDecisionBoard({
           ))}
         </ol>
       )}
+      {selection.pageCount > 1 ? (
+        <nav className="flex flex-wrap items-center justify-center gap-3 rounded-lg border p-3" aria-label="صفحات لوحة القرارات اليومية">
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+            disabled={selection.pageIndex === 0}
+            onClick={() => setRequestedPageIndex(selection.pageIndex - 1)}>
+            السابق
+          </button>
+          <span className="text-xs text-muted-foreground">صفحة {selection.pageIndex + 1} من {selection.pageCount} · {selection.matchedCount} نتيجة مطابقة</span>
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+            disabled={selection.pageIndex + 1 >= selection.pageCount}
+            onClick={() => setRequestedPageIndex(selection.pageIndex + 1)}>
+            التالي
+          </button>
+        </nav>
+      ) : null}
       {omittedCount > 0 ? (
-        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {sortedRecords.length} قراراً في الصفحة الحالية؛ {omittedCount} قراراً آخر ضمن بقية السجل.</p>
+        <p className="text-xs text-muted-foreground" role="status">توجد {omittedCount} نتائج أخرى عبر صفحات بقية النتائج المطابقة؛ استخدم التنقل لفتحها كلها.</p>
       ) : null}
       {result.status === "PARTIAL" || result.loadedCount < result.totalCount ? (
         <p className="text-xs text-muted-foreground" role="status">

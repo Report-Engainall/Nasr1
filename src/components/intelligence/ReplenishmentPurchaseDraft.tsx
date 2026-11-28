@@ -15,11 +15,21 @@ import type { PurchaseOrder } from "@/lib/purchase-orders";
 type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = {
   productId: string;
+  productRef: string;
   productName: string;
   itemCode: string;
   unit: string;
   recommendedQuantity: number;
   quantity: string;
+  formulaId: string;
+  formulaVersion: string;
+  demandSource: "HISTORICAL" | "FORECAST";
+  evidenceIds: string[];
+  forecastLeadTimeDemand: ReplenishmentRecommendation["forecastLeadTimeDemand"];
+  forecastTrend: ReplenishmentRecommendation["demandTrend"];
+  forecastEvidenceIds: string[];
+  forecastMetricKeys: string[];
+  forecastFormulaVersions: string[];
 };
 const formatQty = (value: number) => new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 3 }).format(value);
 
@@ -68,9 +78,26 @@ export function ReplenishmentPurchaseDraft({
       const nextBlocked: string[] = [];
       const seen = new Set<string>();
       for (const recommendation of recommendations) {
+        const forecastRange = recommendation.forecastLeadTimeDemand;
+        const forecastIsValid = recommendation.demandSource !== "FORECAST" || (
+          Boolean(forecastRange) &&
+          [forecastRange?.lowQuantity, forecastRange?.expectedQuantity, forecastRange?.highQuantity]
+            .every(value => typeof value === "number" && Number.isFinite(value) && value >= 0) &&
+          forecastRange!.lowQuantity <= forecastRange!.expectedQuantity &&
+          forecastRange!.expectedQuantity <= forecastRange!.highQuantity &&
+          [7, 30, 90].includes(forecastRange!.horizonDays) &&
+          Boolean(recommendation.demandTrend) &&
+          Boolean(recommendation.forecastEvidenceIds?.length) &&
+          Boolean(recommendation.forecastMetricKeys?.length) &&
+          Boolean(recommendation.forecastFormulaVersions?.length)
+        );
         if (recommendation.status !== "VERIFIED" || recommendation.action !== "RECOMMEND" ||
-            recommendation.recommendedQuantity === null || recommendation.recommendedQuantity <= 0 ||
-            !recommendation.quantityUnit?.trim()) {
+            recommendation.recommendedQuantity === null || !Number.isFinite(recommendation.recommendedQuantity) ||
+            recommendation.recommendedQuantity <= 0 || !recommendation.quantityUnit?.trim() ||
+            !recommendation.formulaId?.trim() || !recommendation.formulaVersion?.trim() ||
+            !Array.isArray(recommendation.evidenceIds) || recommendation.evidenceIds.length === 0 ||
+            (recommendation.demandSource !== "HISTORICAL" && recommendation.demandSource !== "FORECAST") ||
+            !forecastIsValid) {
           nextBlocked.push(recommendation.productRef + ": التوصية لم تعد مؤهلة للإنشاء.");
           continue;
         }
@@ -95,11 +122,21 @@ export function ReplenishmentPurchaseDraft({
         seen.add(product.id);
         nextLines.push({
           productId: product.id,
+          productRef: recommendation.productRef,
           productName: product.name,
           itemCode: product.item_code,
           unit: product.unit,
           recommendedQuantity: recommendation.recommendedQuantity,
           quantity: String(quantity),
+          formulaId: recommendation.formulaId,
+          formulaVersion: recommendation.formulaVersion,
+          demandSource: recommendation.demandSource,
+          evidenceIds: [...recommendation.evidenceIds],
+          forecastLeadTimeDemand: recommendation.forecastLeadTimeDemand,
+          forecastTrend: recommendation.demandTrend,
+          forecastEvidenceIds: [...recommendation.forecastEvidenceIds],
+          forecastMetricKeys: [...recommendation.forecastMetricKeys],
+          forecastFormulaVersions: [...recommendation.forecastFormulaVersions],
         });
       }
       setSuppliers(activeSuppliers);
@@ -135,11 +172,36 @@ export function ReplenishmentPurchaseDraft({
       purchaseLines.push({ product_id: line.productId, quantity, unit_cost: null });
     }
     const summary = lines.map((line) => line.productName + ": " + formatQty(Number(line.quantity)) + " " + line.unit).join("\n");
-    const purchaseNotes = [
-      "مسودة من توصيات إعادة التوريد المثبتة.",
-      "مصدر الكمية: المحرك الحتمي inventory.replenishment-target@1.0.0.",
-      notes.trim(),
-    ].filter(Boolean).join("\n").slice(0, 2000);
+    const formulaSources = [...new Set(lines.map(line => line.formulaId + "@" + line.formulaVersion))].sort();
+    const forecastLines = lines.filter(line => line.demandSource === "FORECAST");
+    const sourceDetails = lines.map(line => {
+      const proof = line.evidenceIds.slice(0, 3).join("|");
+      const forecast = line.demandSource === "FORECAST" && line.forecastLeadTimeDemand
+        ? "; forecast=" + line.forecastTrend +
+          "; lead=" + line.forecastLeadTimeDemand.expectedQuantity + " " + line.unit +
+          "; range=" + line.forecastLeadTimeDemand.lowQuantity + "-" + line.forecastLeadTimeDemand.highQuantity +
+          "; horizon=" + line.forecastLeadTimeDemand.horizonDays + "d" +
+          "; forecastEvidence=" + line.forecastEvidenceIds.slice(0, 2).join("|") +
+          "; metrics=" + line.forecastMetricKeys.slice(0, 2).join("|") +
+          "; forecastFormulas=" + line.forecastFormulaVersions.slice(0, 2).join("|")
+        : "; basis=HISTORICAL";
+      return "SKU=" + line.productRef.slice(0, 48) +
+        "; formula=" + line.formulaId + "@" + line.formulaVersion +
+        "; evidence=" + proof + forecast;
+    }).join("\n");
+    const provenanceHeader = [
+      "مسودة من توصيات إعادة التوريد المتحققة؛ لا تعني اعتماد الشراء أو ترحيل المخزون.",
+      "إصدارات محركات التوصية: " + formulaSources.join(", "),
+      "توقعات مستخدمة فعلياً: " + forecastLines.length + " من " + lines.length + " بنداً.",
+      notes.trim() ? "ملاحظة المراجع: " + notes.trim().slice(0, 400) : "",
+      "مصدر وإثبات كل بند:",
+    ].filter(Boolean).join("\n");
+    const omittedMarker = "\n... تم اختصار تفاصيل الإثبات بسبب حد ملاحظات أمر الشراء؛ احتفظ بمرجع التوصية في مركز الذكاء.";
+    const proofBudget = Math.max(0, 2000 - provenanceHeader.length - 1);
+    const fittedDetails = sourceDetails.length <= proofBudget
+      ? sourceDetails
+      : sourceDetails.slice(0, Math.max(0, proofBudget - omittedMarker.length)) + omittedMarker;
+    const purchaseNotes = (provenanceHeader + "\n" + fittedDetails).slice(0, 2000);
     if (!window.confirm(
       "سيُنشأ أمر شراء مسودة بهذه البنود:\n" + summary +
       "\n\nالمورد والمخزن المحددان سيحفظان في الأمر. التكلفة ستبقى غير مسجلة حتى ورود عرض/فاتورة موثقة. لن يُعتمد الأمر ولن يتغير المخزون. متابعة؟"

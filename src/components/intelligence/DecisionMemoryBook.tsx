@@ -3,7 +3,13 @@ import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
-import { buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
+import {
+  buildDecisionMemoryPrecedentCsv,
+  buildDecisionPolicyReviewSuggestions,
+  filterDecisionMemoryPrecedents,
+  searchSimilarDecisionMemory,
+  summarizeDecisionMemoryPrecedents,
+} from "@/lib/intelligence/decision-memory";
 import {
   commandDecisionPolicyLearningCandidate,
   createDecisionPolicyLearningCandidate,
@@ -11,12 +17,27 @@ import {
   type DecisionPolicyLearningCandidate,
   type DecisionPolicyLearningEventType,
 } from "@/lib/intelligence/decision-policy-learning-client";
+import {
+  DECISION_POLICY_LEARNING_MAX_OFFSET,
+  DECISION_POLICY_LEARNING_PAGE_SIZE,
+  clampDecisionPolicyLearningPage,
+  decisionPolicyLearningPageCount,
+  decisionPolicyLearningTransitionKey,
+  resolveDecisionPolicyLearningCreation,
+  resolveDecisionPolicyLearningTransition,
+} from "@/lib/intelligence/decision-policy-learning-commands";
+import type {
+  PendingDecisionPolicyLearningCreation,
+  PendingDecisionPolicyLearningTransition,
+} from "@/lib/intelligence/decision-policy-learning-commands";
 import type {
   DecisionMemoryBookResult,
+  DecisionMemoryPrecedentFilter,
   DecisionMemoryRecord,
   DecisionMemoryMissingField,
   DecisionMemorySnapshot,
   DecisionMemoryReviewDisposition,
+  DecisionPolicyReviewSuggestion,
 } from "@/lib/intelligence/decision-memory";
 import { EvidenceReferences, EvidenceStatusLabel, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 import { DecisionOutcomeLifecycleControls } from "./DecisionOutcomeLifecycleControls";
@@ -45,6 +66,18 @@ function metricLine(title:string,metric:NonNullable<DecisionMemoryRecord["metric
     <p className="text-xs text-muted-foreground">{metric.period.from} — {metric.period.to} · حتى {metric.asOf}</p>
     <p className="text-xs">المعادلة: {metric.formulaId}@{metric.formulaVersion}</p>
     <p className="text-xs">الإثبات: <EvidenceReferences ids={metric.evidenceIds}/></p></div>;
+}
+
+function decisionPolicyObservationLine(observation:DecisionPolicyReviewSuggestion["observations"][number]){
+  return <div key={observation.decisionId} className="rounded-md bg-muted/40 p-2">
+    <p className="text-xs">القرار {observation.decisionId.slice(0,8)} · {observation.createdAt}</p>
+    <div className="grid gap-2 sm:grid-cols-2">
+      {metricLine("المتوقع",observation.expected)}
+      {metricLine("الفعلي",observation.actual)}
+    </div>
+    <p className="text-xs">الفارق المرصود: {number(observation.difference)} · التغير: {observation.differencePercent===null?"النسبة غير معرفة لخط أساس صفري":number(observation.differencePercent)+"%"}</p>
+    <p className="text-xs">الدروس: {observation.lessons.join("؛ ")}</p>
+  </div>;
 }
 const lines=(value:string)=>value.split(/\r?\n/).map(item=>item.trim()).filter(Boolean);
 function addDays(day:string,count:number){
@@ -324,14 +357,17 @@ const learningStateLabels = {
 export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionMemoryBookProps){
   const [precedentTargetId,setPrecedentTargetId]=useState("");
   const [precedentQuery,setPrecedentQuery]=useState("");
+  const [precedentComparisonFilter,setPrecedentComparisonFilter]=useState<DecisionMemoryPrecedentFilter>("ALL");
   const [recordPage,setRecordPage]=useState(0);
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
+  const [learningTotal,setLearningTotal]=useState(0);
+  const [learningPage,setLearningPage]=useState(0);
   const [learningLoading,setLearningLoading]=useState(true);
   const [learningLoadError,setLearningLoadError]=useState("");
   const [learningBusy,setLearningBusy]=useState("");
   const [learningReason,setLearningReason]=useState<Record<string,string>>({});
-  const [learningCreateKeys,setLearningCreateKeys]=useState<Record<string,string>>({});
-  const [learningCommandKeys,setLearningCommandKeys]=useState<Record<string,string>>({});
+  const [pendingLearningCreations,setPendingLearningCreations]=useState<Record<string,PendingDecisionPolicyLearningCreation>>({});
+  const [pendingLearningCommands,setPendingLearningCommands]=useState<Record<string,PendingDecisionPolicyLearningTransition>>({});
   const [learningActionMessage,setLearningActionMessage]=useState("");
   const [learningActionError,setLearningActionError]=useState(false);
   const [learningRefreshKey,setLearningRefreshKey]=useState(0);
@@ -339,56 +375,85 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   useEffect(()=>{
     let active=true;
     setLearningLoading(true);
-    void fetchDecisionPolicyLearningCandidates(50,0).then(response=>{
+    void fetchDecisionPolicyLearningCandidates(
+      DECISION_POLICY_LEARNING_PAGE_SIZE,
+      learningPage*DECISION_POLICY_LEARNING_PAGE_SIZE,
+    ).then(response=>{
       if(!active)return;
       if(response.ok){
+        setLearningTotal(response.total);
+        const safePage=clampDecisionPolicyLearningPage(learningPage,response.total);
+        if(learningPage!==safePage){
+          setLearningCandidates([]);
+          setLearningPage(safePage);
+          setLearningLoading(false);
+          return;
+        }
         setLearningCandidates(response.items);
         setLearningLoadError("");
       }else{
         setLearningCandidates([]);
+        setLearningTotal(0);
         setLearningLoadError(response.message);
       }
       setLearningLoading(false);
     }).catch(()=>{
       if(!active)return;
       setLearningCandidates([]);
+      setLearningTotal(0);
       setLearningLoadError("تعذر تحميل المرشحات المحفوظة.");
       setLearningLoading(false);
     });
     return ()=>{active=false;};
-  },[learningRefreshKey]);
+  },[learningRefreshKey,learningPage]);
 
   async function createLearningCandidate(suggestion:ReturnType<typeof buildDecisionPolicyReviewSuggestions>[number]){
     const eligible=result?.status==="VERIFIED"&&result.loadedCount===result.totalCount&&
       suggestion.observations.length>0&&suggestion.observations.length<=100;
-    if(!eligible){
+    if(!eligible&&!pendingLearningCreations[suggestion.id]){
       setLearningActionMessage("لا يمكن إنشاء المرشح من سجل جزئي أو من أكثر من 100 قرار؛ أكمل تغطية المصدر أولاً.");
       setLearningActionError(true);
       return;
     }
-    const idempotencyKey=learningCreateKeys[suggestion.id]??crypto.randomUUID();
-    if(!learningCreateKeys[suggestion.id])setLearningCreateKeys(current=>({...current,[suggestion.id]:idempotencyKey}));
+    const resolved=resolveDecisionPolicyLearningCreation(
+      suggestion.id,
+      suggestion.observations.map(observation=>observation.decisionId),
+      pendingLearningCreations[suggestion.id],
+    );
+    const command=resolved.command;
+    if(!resolved.reused){
+      setPendingLearningCreations(current=>({...current,[suggestion.id]:command}));
+    }
     setLearningBusy("create:"+suggestion.id);
     setLearningActionMessage("");
     try{
       const response=await createDecisionPolicyLearningCandidate({
-        decisionIds:suggestion.observations.map(observation=>observation.decisionId),
-        idempotencyKey,
+        decisionIds:command.decisionIds,
+        idempotencyKey:command.idempotencyKey,
       });
       if(!response.ok){
         setLearningActionMessage(response.message);
         setLearningActionError(true);
+        if(response.status!=="UNAVAILABLE"){
+          setPendingLearningCreations(current=>{const next={...current};delete next[suggestion.id];return next;});
+          if(response.status==="STALE"||response.status==="CONFLICT")setLearningRefreshKey(value=>value+1);
+        }
         return;
       }
-      setLearningCreateKeys(current=>{const next={...current};delete next[suggestion.id];return next;});
+      setPendingLearningCreations(current=>{const next={...current};delete next[suggestion.id];return next;});
       setLearningCandidates(current=>[
         response.candidate,
         ...current.filter(candidate=>candidate.id!==response.candidate.id),
       ]);
+      setLearningPage(0);
+      setLearningRefreshKey(value=>value+1);
       setLearningActionMessage(response.duplicate
         ?"هذا المصدر مرتبط مسبقاً بالمرشح المحفوظ؛ لم يُنشأ إصدار مكرر."
         :"حُفظ مرشح جديد من الأدلة المصدرية، وأصبح في انتظار الإرسال للمراجعة.");
       setLearningActionError(false);
+    }catch{
+      setLearningActionMessage("تعذر تأكيد نتيجة الإنشاء؛ ستُعاد المحاولة بنفس القرارات المصدرية ومفتاح التكرار المحفوظ.");
+      setLearningActionError(true);
     }finally{
       setLearningBusy("");
     }
@@ -398,31 +463,44 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
     candidate:DecisionPolicyLearningCandidate,
     eventType:Exclude<DecisionPolicyLearningEventType,"CREATE">,
   ){
+    const commandKey=decisionPolicyLearningTransitionKey(candidate.id,eventType);
+    const pendingForCandidate=Object.entries(pendingLearningCommands).find(([key])=>key.startsWith(candidate.id+":"));
+    const existing=pendingLearningCommands[commandKey];
+    if(pendingForCandidate&&pendingForCandidate[0]!==commandKey){
+      setLearningActionMessage("لدى هذا المرشح أمر غير محسوم من نوع آخر؛ أعد المحاولة بنفس الإجراء قبل إصدار أمر جديد.");
+      setLearningActionError(true);
+      return;
+    }
     const reason=(learningReason[candidate.id]??"").trim();
-    if(reason.length<3){
+    if(!existing&&reason.length<3){
       setLearningActionMessage("اكتب سبباً واضحاً من 3 أحرف على الأقل قبل تغيير حالة المرشح.");
       setLearningActionError(true);
       return;
     }
-    const commandKey=candidate.id+":"+eventType;
-    const idempotencyKey=learningCommandKeys[commandKey]??crypto.randomUUID();
-    if(!learningCommandKeys[commandKey])setLearningCommandKeys(current=>({...current,[commandKey]:idempotencyKey}));
+    const resolved=resolveDecisionPolicyLearningTransition({
+      candidateId:candidate.id,
+      expectedVersion:candidate.version,
+      eventType,
+      reason:existing?.reason??reason,
+    },existing);
+    const command=resolved.command;
+    if(!resolved.reused){
+      setPendingLearningCommands(current=>({...current,[commandKey]:command}));
+    }
     setLearningBusy(commandKey);
     setLearningActionMessage("");
     try{
-      const response=await commandDecisionPolicyLearningCandidate({
-        candidateId:candidate.id,
-        expectedVersion:candidate.version,
-        eventType,
-        reason,
-        idempotencyKey,
-      });
+      const response=await commandDecisionPolicyLearningCandidate(command);
       if(!response.ok){
         setLearningActionMessage(response.message);
         setLearningActionError(true);
+        if(response.status!=="UNAVAILABLE"){
+          setPendingLearningCommands(current=>{const next={...current};delete next[commandKey];return next;});
+          if(response.status==="STALE"||response.status==="CONFLICT")setLearningRefreshKey(value=>value+1);
+        }
         return;
       }
-      setLearningCommandKeys(current=>{const next={...current};delete next[commandKey];return next;});
+      setPendingLearningCommands(current=>{const next={...current};delete next[commandKey];return next;});
       setLearningCandidates(current=>current.map(item=>item.id===response.candidate.id?response.candidate:item));
       setLearningReason(current=>({...current,[candidate.id]:""}));
       setLearningActionMessage(eventType==="SUBMIT_FOR_REVIEW"
@@ -431,9 +509,27 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           ?"اعتمد المرشح للمراجعة فقط؛ لم يتغير Profile v1 ولم تُفعّل أي قاعدة."
           :"رُفض المرشح وحُفظ سبب الرفض في سجل الأحداث.");
       setLearningActionError(false);
+    }catch{
+      setLearningActionMessage("تعذر تأكيد نتيجة الأمر؛ احتُفظ بالسبب والإصدار ومعرّفات الأمر لإعادة المحاولة دون تغيير.");
+      setLearningActionError(true);
     }finally{
       setLearningBusy("");
     }
+  }
+  function exportPrecedents(){
+    if(!searchTarget||!result||!visiblePrecedentMatches.length)return;
+    const csv=buildDecisionMemoryPrecedentCsv({
+      matches:visiblePrecedentMatches,
+      reference:searchTarget,
+      loadedCount:result.loadedCount,
+      totalCount:result.totalCount,
+    });
+    const url=window.URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
+    const anchor=document.createElement("a");
+    anchor.href=url;
+    anchor.download="decision-precedents-"+searchTarget.decisionId.slice(0,8)+".csv";
+    anchor.click();
+    window.setTimeout(()=>window.URL.revokeObjectURL(url),0);
   }
   const pageCount=Math.max(1,Math.ceil((result?.records.length??0)/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
   const currentPage=Math.min(recordPage,pageCount-1);
@@ -442,13 +538,14 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
     (currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
   )??[];
   const selectedTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??null;
-  const referenceOptions=selectedTarget&&!pageRecords.some(record=>record.decisionId===selectedTarget.decisionId)
-    ?[selectedTarget,...pageRecords]:pageRecords;
-  const searchTarget=selectedTarget??pageRecords[0]??null;
+  const referenceOptions=result?.records??[];
+  const searchTarget=selectedTarget??result?.records[0]??null;
   const policyReviewSuggestions=result?buildDecisionPolicyReviewSuggestions(result.records):[];
   const precedentMatches=searchTarget&&result
-    ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:8})
+    ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:20})
     :[];
+  const precedentSummary=summarizeDecisionMemoryPrecedents(precedentMatches);
+  const visiblePrecedentMatches=filterDecisionMemoryPrecedents(precedentMatches,precedentComparisonFilter);
   const effective=state==="ready"&&!result?"unavailable":state;
   if(effective!=="ready")return <IntelligenceStatePanel state={effective} onRetry={onRetry} errorMessage="تعذر تحميل دفتر ذاكرة القرارات." />;
   if(!result)return <IntelligenceStatePanel state="unavailable" unavailableMessage="مصدر ذاكرة القرارات غير متاح؛ لم تُنشأ سجلات افتراضية." />;
@@ -459,32 +556,63 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
     <p className="text-sm text-muted-foreground">يوثق المشكلة والبدائل والافتراضات والإجراء والمراجعة على إصدارات غير قابلة للاستبدال. لا تتحول الوقائع إلى أدلة إلا بعد تحقق الخادم من مصدرها داخل المؤسسة؛ ولا تتغير القواعد أو الأسعار أو الصلاحيات تلقائياً.</p>
     {result.records.length?<section className="space-y-3 rounded-xl border p-3" aria-label="البحث في القرارات السابقة المشابهة">
       <div><h3 className="font-semibold">البحث في القرارات السابقة المشابهة</h3>
-        <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف الفترة والعملة والمعادلة. لا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
+        <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف قاعدة القرار وإصدارها وفترة القياس والعملة والمعادلة. يتيح البحث حتى 20 سابقة من كامل السجلات المحمّلة؛ ولا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-3">
         <label className="block space-y-1 text-sm">القرار المرجعي
-          <select className="w-full rounded-lg border bg-background p-2" value={searchTarget?.decisionId??""} onChange={event=>setPrecedentTargetId(event.target.value)}>
+          <select className="w-full rounded-lg border bg-background p-2" value={searchTarget?.decisionId??""} onChange={event=>{setPrecedentTargetId(event.target.value);setPrecedentComparisonFilter("ALL");}}>
             {referenceOptions.map(record=><option key={record.decisionId} value={record.decisionId}>{record.proposedResult.slice(0,100)} · {record.createdAt.slice(0,10)}</option>)}
           </select>
         </label>
         <label className="block space-y-1 text-sm">مصطلحات إضافية (اختياري)
           <input className="w-full rounded-lg border bg-background p-2" maxLength={500} value={precedentQuery} onChange={event=>setPrecedentQuery(event.target.value)} placeholder="مثال: نفاد مخزون، تأخر توريد، تحصيل"/>
         </label>
+        <label className="block space-y-1 text-sm">حالة قابلية المقارنة
+          <select
+            className="w-full rounded-lg border bg-background p-2"
+            aria-label="تصفية السوابق حسب قابلية مقارنة النتائج"
+            value={precedentComparisonFilter}
+            onChange={event=>setPrecedentComparisonFilter(event.target.value as DecisionMemoryPrecedentFilter)}
+          >
+            <option value="ALL">كل السوابق المطابقة</option>
+            <option value="SAME_RULE">قاعدة القرار نفسها فقط</option>
+            <option value="COMPARABLE">سياق متوافق بالكامل</option>
+            <option value="NOT_COMPARABLE">اختلاف في سياق القياس</option>
+            <option value="OUTCOME_UNVERIFIED">قياس أو خط أساس غير مثبت</option>
+          </select>
+        </label>
       </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="ملخص قابلية مقارنة السوابق">
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">السوابق المطابقة (حتى 20)</p><strong className="text-lg tabular-nums">{precedentSummary.total}</strong></article>
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">سياق متوافق</p><strong className="text-lg tabular-nums">{precedentSummary.comparable}</strong></article>
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">سياق مختلف</p><strong className="text-lg tabular-nums">{precedentSummary.notComparable}</strong></article>
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">غير مثبت</p><strong className="text-lg tabular-nums">{precedentSummary.outcomeUnverified}</strong></article>
+      </div>
+      {visiblePrecedentMatches.length?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" onClick={exportPrecedents}>تصدير السوابق المفلترة CSV ({visiblePrecedentMatches.length})</button>:null}
+      <p className="text-xs text-muted-foreground">التصنيف يعتمد على تطابق قاعدة القرار وإصدارها، ثم توافق خط الأساس والنتيجة الفعلية: المؤشر، الوحدة، العملة، الفترة، والمعادلة. العدّادات تخص أفضل 20 سابقة محملة فقط، ولا تعني اكتمال تاريخ المؤسسة.</p>
       {searchTarget?<div className="rounded-lg bg-muted/40 p-2 text-xs">
         <p><strong>السياق المرجعي:</strong> {searchTarget.proposedResult} · {searchTarget.ruleId}@{searchTarget.ruleVersion}</p>
         {searchTarget.problem?<p className="mt-1">المشكلة: {searchTarget.problem}</p>:null}
         <p className="mt-1">تاريخ القرار: {searchTarget.createdAt} · فترة لقطة القرار: {searchTarget.snapshot?.period.from??"غير متاحة"} — {searchTarget.snapshot?.period.to??"غير متاحة"} · كما في {searchTarget.snapshot?.asOf??"غير متاح"}</p>
+        {searchTarget.metricComparison.expected||searchTarget.metricComparison.actual
+          ?<div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {searchTarget.metricComparison.expected?metricLine("خط الأساس المتوقع للقرار المرجعي",searchTarget.metricComparison.expected):null}
+            {searchTarget.metricComparison.actual?metricLine("النتيجة الفعلية للقرار المرجعي",searchTarget.metricComparison.actual):null}
+          </div>
+          :<p className="mt-2 text-xs text-muted-foreground">لا يوجد خط أساس ونتيجة فعلية موثقان لهذا القرار؛ لن يُستنتج سياق بديل للمقارنة.</p>}
+        {searchTarget.metricComparison.status!=="VERIFIED"&&searchTarget.metricComparison.reason
+          ?<p className="mt-1 text-xs text-amber-700">مقارنة القرار المرجعي محجوبة: {searchTarget.metricComparison.reason}</p>
+          :null}
       </div>:null}
       {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">تنبيه: البحث مقصور على {result.loadedCount} قراراً محملاً من أصل {result.totalCount}. قد توجد سوابق أقدم خارج هذه الصفحة؛ عدم ظهور نتيجة لا يثبت عدم وجودها.</p>:null}
-      {precedentMatches.length?<ol className="space-y-2">
-        {precedentMatches.map(match=><li key={match.record.decisionId} className="rounded-lg border p-3 space-y-2">
+      {visiblePrecedentMatches.length?<ol className="space-y-2">
+        {visiblePrecedentMatches.map(match=><li key={match.record.decisionId} className="rounded-lg border p-3 space-y-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div><h4 className="font-semibold text-sm">{match.record.proposedResult}</h4>
               <p className="text-xs text-muted-foreground" dir="ltr">{match.record.ruleId}@{match.record.ruleVersion} · {match.record.decisionId.slice(0,8)}</p>
               <p className="text-xs">الحالة: {states[match.record.state]} · تاريخ القرار: {match.record.createdAt}</p>
             </div>
-            <span className="text-xs">{match.comparisonStatus==="COMPARABLE"?"المقياس الفعلي قابل للمقارنة":match.comparisonStatus==="NOT_COMPARABLE"?"سياق القياس مختلف":"النتيجة غير مثبتة للمقارنة"}</span>
+            <span className="text-xs">{match.comparisonStatus==="COMPARABLE"?"الخط الأساس والنتيجة متوافقان":match.comparisonStatus==="NOT_COMPARABLE"?"سياق القياس أو قاعدة القرار مختلف":"خط الأساس أو النتيجة غير مثبتة"}</span>
           </div>
           <p className="text-xs"><strong>أساس التشابه:</strong> {match.matchReasons.join("، ")}{match.matchedTerms.length?" · المصطلحات: "+match.matchedTerms.join("، "):""}</p>
           {match.record.problem?<p className="text-sm"><strong>المشكلة المسجلة:</strong> {match.record.problem}</p>:null}
@@ -500,7 +628,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           </div>:null}
           <p className="text-xs text-muted-foreground">هذه سابقة تاريخية للمراجعة وليست قاعدة ملزمة أو دليلاً على أن الظروف الحالية مماثلة بالكامل.</p>
         </li>)}
-      </ol>:<p className="text-sm text-muted-foreground">لا توجد سابقة أقدم مطابقة ضمن السجلات المحملة حالياً. جرّب مصطلحات أوسع أو تحقق من نطاق الصفحة.</p>}
+      </ol>:precedentMatches.length
+        ?<p className="text-sm text-muted-foreground">لا توجد سوابق ضمن أفضل النتائج تطابق تصنيف المقارنة المحدد. غيّر مرشح قابلية المقارنة لعرض التصنيفات الأخرى.</p>
+        :<p className="text-sm text-muted-foreground">لا توجد سابقة أقدم مطابقة ضمن السجلات المحملة حالياً. جرّب مصطلحات أوسع أو تحقق من نطاق الصفحة.</p>}
     </section>:null}
     <section className="space-y-2 rounded-xl border p-3" aria-label="مقترحات مراجعة القواعد من نتائج القرارات">
       <div><h3 className="font-semibold">مقترحات مراجعة القواعد من نتائج القرارات</h3>
@@ -510,7 +640,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <div className="space-y-2" aria-label="مرشحو التعلم المحفوظون">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-sm font-semibold">دورة Candidate v2 — المراجعة والاعتماد</h4>
-          <span className="text-xs text-muted-foreground">{learningCandidates.length} مرشحاً محمّلاً</span>
+          <span className="text-xs text-muted-foreground">
+            {learningTotal===0?"لا توجد مرشحات محفوظة": "عرض "+(learningPage*DECISION_POLICY_LEARNING_PAGE_SIZE+1)+"–"+(learningPage*DECISION_POLICY_LEARNING_PAGE_SIZE+learningCandidates.length)+" من "+learningTotal+" مرشحاً"}
+          </span>
         </div>
         <p className="text-xs text-muted-foreground">
           تحفظ هذه الدورة إصداراً مرشحاً منفصلاً من Profile الحالي (قاعدة {learningCandidates[0]?.baseProfileVersion??policyReviewSuggestions[0]?.ruleVersion??"غير محددة"}) دون تعديل الإصدار الأساسي. الاعتماد يسجل قرار المراجع فقط؛ لا يبدّل القاعدة النشطة ولا يشغّل أثراً مالياً أو مخزونياً.
@@ -538,6 +670,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           }>;
           const sampleCount=observations.length;
           const busy=learningBusy.startsWith(candidate.id+":");
+          const pendingCommandEntry=Object.entries(pendingLearningCommands).find(([key])=>key.startsWith(candidate.id+":"));
+          const pendingCommand=pendingCommandEntry?.[1];
           return <article key={candidate.id} className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <strong className="text-sm">Candidate v{candidate.candidateVersion} · {candidate.ruleId}</strong>
@@ -594,6 +728,14 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
               </div>
             </details>
             {candidate.reviewReason?<p className="text-xs">سبب المراجعة: {candidate.reviewReason}</p>:null}
+            {pendingCommand && !(
+              (candidate.state==="DRAFT"&&pendingCommand.eventType==="SUBMIT_FOR_REVIEW")||
+              (candidate.state==="IN_REVIEW"&&(pendingCommand.eventType==="APPROVE"||pendingCommand.eventType==="REJECT"))
+            )?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+              disabled={learningBusy!==""}
+              onClick={()=>void transitionLearningCandidate(candidate,pendingCommand.eventType)}>
+              إعادة المحاولة بنفس الأمر ({eventLabels[pendingCommand.eventType]})
+            </button>:null}
             {candidate.state==="DRAFT"||candidate.state==="IN_REVIEW"?<>
               <label className="block space-y-1 text-xs">
                 سبب الإجراء (إلزامي)
@@ -601,23 +743,46 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
                   className="w-full rounded-lg border bg-background p-2"
                   rows={2}
                   maxLength={2000}
-                  value={learningReason[candidate.id]??""}
+                  value={pendingCommand?.reason??learningReason[candidate.id]??""}
+                  disabled={Boolean(pendingCommand)||learningBusy!==""}
                   onChange={event=>setLearningReason(current=>({...current,[candidate.id]:event.target.value}))}
                   placeholder={candidate.state==="DRAFT"?"سبب الإرسال للمراجعة":"مبرر الاعتماد أو الرفض"}
                 />
+                {pendingCommand?<p role="status" className="text-xs text-amber-700">هناك أمر سابق لم تصل نتيجته النهائية؛ السبب والإصدار ثابتان. أعد إرسال الأمر نفسه قبل تغيير الإجراء.</p>:null}
               </label>
               <div className="flex flex-wrap gap-2">
                 {candidate.state==="DRAFT"
-                  ?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button>
+                  ?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+                    disabled={learningBusy!==""||(Boolean(pendingCommand)&&pendingCommand.eventType!=="SUBMIT_FOR_REVIEW")}
+                    onClick={()=>void transitionLearningCandidate(candidate,"SUBMIT_FOR_REVIEW")}>
+                    {pendingCommand?.eventType==="SUBMIT_FOR_REVIEW"?"إعادة المحاولة بنفس الأمر":busy?"جارٍ الإرسال…":"إرسال للمراجعة"}
+                  </button>
                   :<>
-                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"APPROVE")}>اعتماد Candidate</button>
-                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"REJECT")}>رفض Candidate</button>
+                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+                      disabled={learningBusy!==""||(Boolean(pendingCommand)&&pendingCommand.eventType!=="APPROVE")}
+                      onClick={()=>void transitionLearningCandidate(candidate,"APPROVE")}>
+                      {pendingCommand?.eventType==="APPROVE"?"إعادة المحاولة بنفس الأمر":busy?"جارٍ الإرسال…":"اعتماد Candidate"}
+                    </button>
+                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+                      disabled={learningBusy!==""||(Boolean(pendingCommand)&&pendingCommand.eventType!=="REJECT")}
+                      onClick={()=>void transitionLearningCandidate(candidate,"REJECT")}>
+                      {pendingCommand?.eventType==="REJECT"?"إعادة المحاولة بنفس الأمر":busy?"جارٍ الإرسال…":"رفض Candidate"}
+                    </button>
                   </>}
               </div>
             </>:null}
             {candidate.state==="APPROVED"?<p className="text-xs text-muted-foreground">معتمد للمراجعة فقط — Profile {candidate.baseProfileVersion} ما زال كما هو، والمرشح غير نشط.</p>:null}
           </article>;
         })}
+        {decisionPolicyLearningPageCount(learningTotal)>1?<nav className="flex flex-wrap items-center justify-center gap-3 rounded-lg border p-3" aria-label="صفحات مرشحات التعلم">
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""||learningPage===0}
+            onClick={()=>setLearningPage(page=>clampDecisionPolicyLearningPage(page-1,learningTotal))}>السابق</button>
+          <span className="text-xs text-muted-foreground">صفحة {learningPage+1} من {decisionPolicyLearningPageCount(learningTotal)}</span>
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""||learningPage+1>=decisionPolicyLearningPageCount(learningTotal)}
+            onClick={()=>setLearningPage(page=>clampDecisionPolicyLearningPage(page+1,learningTotal))}>التالي</button>
+        </nav>:null}
+        {learningTotal>DECISION_POLICY_LEARNING_MAX_OFFSET+DECISION_POLICY_LEARNING_PAGE_SIZE
+          ?<p className="text-xs text-amber-700" role="status">تعرض خدمة الجلب حالياً حتى {DECISION_POLICY_LEARNING_MAX_OFFSET+DECISION_POLICY_LEARNING_PAGE_SIZE} مرشحاً؛ يتبقى {learningTotal-DECISION_POLICY_LEARNING_MAX_OFFSET-DECISION_POLICY_LEARNING_PAGE_SIZE} مرشحاً خارج حد الإزاحة المتاح.</p>:null}
         {!learningLoading&&!learningLoadError&&!learningCandidates.length
           ?<p className="text-xs text-muted-foreground">لا توجد مرشحات محفوظة بعد.</p>:null}
         {learningActionMessage?<p role={learningActionError?"alert":"status"} className={learningActionError?"text-xs text-destructive":"text-xs text-emerald-700"}>{learningActionMessage}</p>:null}
@@ -642,26 +807,23 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             هذه أوصاف للفروق فقط؛ لا تعني أن الارتفاع أفضل أو أن القرار تسبب في النتيجة.
           </p>
           <div className="space-y-2">
-            {suggestion.observations.slice(0,5).map(observation=><div key={observation.decisionId} className="rounded-md bg-muted/40 p-2">
-              <p className="text-xs">القرار {observation.decisionId.slice(0,8)} · {observation.createdAt}</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {metricLine("المتوقع",observation.expected)}
-                {metricLine("الفعلي",observation.actual)}
-              </div>
-              <p className="text-xs">الفارق المرصود: {number(observation.difference)} · التغير: {observation.differencePercent===null?"النسبة غير معرفة لخط أساس صفري":number(observation.differencePercent)+"%"}</p>
-              <p className="text-xs">الدروس: {observation.lessons.join("؛ ")}</p>
-            </div>)}
+            {suggestion.observations.slice(0,5).map(decisionPolicyObservationLine)}
+            {suggestion.observations.length>5?<details className="rounded-md border p-2">
+              <summary className="cursor-pointer text-xs font-medium">فتح بقية القياسات الموثقة ({suggestion.observations.length-5})</summary>
+              <div className="mt-2 space-y-2">{suggestion.observations.slice(5).map(decisionPolicyObservationLine)}</div>
+            </details>:null}
           </div>
           <p className="text-xs"><strong>الإجراء المقترح للمراجعة:</strong> {suggestion.reviewInstruction}</p>
           <p className="text-xs text-muted-foreground">الأدلة المحفوظة: <EvidenceReferences ids={suggestion.evidenceIds}/></p>
           <button
             type="button"
             className="rounded-lg border px-3 py-2 text-xs font-medium"
-            disabled={learningBusy!==""||learningLoading||result.status!=="VERIFIED"||result.loadedCount!==result.totalCount||suggestion.observations.length<1||suggestion.observations.length>100}
+            disabled={learningBusy!==""||learningLoading||(!pendingLearningCreations[suggestion.id]&&(result.status!=="VERIFIED"||result.loadedCount!==result.totalCount||suggestion.observations.length<1||suggestion.observations.length>100))}
             onClick={()=>void createLearningCandidate(suggestion)}
           >
-            {learningBusy==="create:"+suggestion.id?"جارٍ الحفظ…":"إنشاء مرشح تعلم من الأدلة"}
+            {learningBusy==="create:"+suggestion.id?"جارٍ الحفظ…":pendingLearningCreations[suggestion.id]?"إعادة المحاولة بنفس القرارات":"إنشاء مرشح تعلم من الأدلة"}
           </button>
+          {pendingLearningCreations[suggestion.id]?<p role="status" className="text-xs text-amber-700">لم تصل نتيجة الإنشاء السابقة؛ ستُعاد المحاولة بنفس {pendingLearningCreations[suggestion.id].decisionIds.length} قراراً ومفتاح التكرار المحفوظ، حتى لو تغيرت اللقطة الحالية.</p>:null}
           {(result.status!=="VERIFIED"||result.loadedCount!==result.totalCount)
             ?<p className="text-xs text-amber-700">يُحجب الإنشاء حتى اكتمال قراءة كامل سجل القرارات وذاكرته.</p>:null}
           {suggestion.observations.length>100?<p className="text-xs text-amber-700">تتجاوز العينة حد 100 قرار لعملية واحدة؛ لن يُرسل طلب مبتور.</p>:null}

@@ -1,23 +1,79 @@
 import {buildEvidencePassport} from "./evidence-passport";
 import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
+import type {DemandForecastResult,ProductDemandForecast} from "./demand-forecast";
 import type {EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
 export interface ReplenishmentProductInput {
  productRef:string;availableToPromise:MetricSnapshot;reorderPoint:MetricSnapshot;soldQuantityWindow:MetricSnapshot;
  supplierLeadTimeDays:MetricSnapshot;incomingPurchaseQuantity:MetricSnapshot;minimumOrderQuantity?:MetricSnapshot|null;orderMultiple?:MetricSnapshot|null;quantityUnit:string;
 }
+export interface ReplenishmentForecastLeadTime {
+ horizonDays:7|30|90;
+ lowQuantity:number;
+ expectedQuantity:number;
+ highQuantity:number;
+}
+export interface ResolvedReplenishmentForecast {
+ forecast:ProductDemandForecast;
+ leadTimeDemand:ReplenishmentForecastLeadTime;
+}
 export interface ReplenishmentRecommendation {
  productRef:string;status:EvidenceStatus;action:"RECOMMEND"|"NO_ACTION"|"WITHHELD";quantityUnit:string|null;availableToPromise:number|null;incomingPurchaseQuantity:number|null;coveredAfterIncoming:number|null;
  reorderPoint:number|null;dailyDemand:number|null;leadTimeDemand:number|null;targetStock:number|null;recommendedQuantity:number|null;
  formulaId:string;formulaVersion:string;evidenceIds:string[];warnings:string[];automaticPurchase:false;
+ demandSource:"HISTORICAL"|"FORECAST";demandTrend:ProductDemandForecast["trend"]|null;
+ forecastLeadTimeDemand:ReplenishmentForecastLeadTime|null;
+ forecastEvidenceIds:string[];forecastMetricKeys:string[];forecastFormulaVersions:string[];
 }
 export const REPLENISHMENT_FORMULA_ID="inventory.replenishment-target";
-export const REPLENISHMENT_FORMULA_VERSION="1.1.1";
+export const REPLENISHMENT_FORMULA_VERSION="1.2.0";
 const FORMULA_ID=REPLENISHMENT_FORMULA_ID;
 const FORMULA_VERSION=REPLENISHMENT_FORMULA_VERSION;
+const FORECAST_FALLBACK_WARNING="DEMAND_FORECAST_UNVERIFIED_OR_SCOPE_MISMATCH_HISTORICAL_RATE_USED";
 function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
  if(numerator<=0n)return 0n;
  return (numerator+denominator-1n)/denominator;
+}
+function validForecastStrings(values:unknown):values is string[] {
+ return Array.isArray(values)&&values.length>0&&values.length<=500&&values.every(value=>typeof value==="string"&&value.trim().length>0)&&new Set(values).size===values.length;
+}
+/** Admit only complete forecast evidence for the exact product, unit and inventory snapshot. */
+export function resolveReplenishmentForecastForLeadTime(input:{
+ demandForecast:DemandForecastResult|null|undefined;productRef:string;asOf:string;period:EvidencePeriod;quantityUnit:string;leadTimeDays:number|string;
+}):ResolvedReplenishmentForecast|null {
+ const source=input.demandForecast;
+ if(!source||source.status!=="VERIFIED"||source.completePopulation!==true||source.asOf!==input.asOf||
+  source.period.from!==input.period.from||source.period.to!==input.period.to||
+  !Array.isArray(source.forecasts)||!input.productRef.trim()||!input.quantityUnit.trim())return null;
+ const rows=source.forecasts.filter(item=>item.productRef===input.productRef);
+ if(rows.length!==1)return null;
+ const forecast=rows[0];
+ if(forecast.asOf!==input.asOf||forecast.period.from!==input.period.from||forecast.period.to!==input.period.to||
+  typeof forecast.unitOfMeasure!=="string"||forecast.unitOfMeasure.trim()!==input.quantityUnit.trim()||
+  !["INCREASING","DECLINING","STABLE","NEW_ACTIVITY","NO_DEMAND"].includes(forecast.trend)||
+  !Number.isFinite(forecast.currentDailyDemand)||forecast.currentDailyDemand<0||
+  decimalToMinorUnits(forecast.currentDailyDemand,6)===null||
+  !validForecastStrings(forecast.evidenceIds)||!validForecastStrings(forecast.metricKeys)||!validForecastStrings(forecast.formulaVersions)||
+  !Array.isArray(forecast.horizons)||forecast.horizons.length!==3)return null;
+ const leadDaysMinor=decimalToMinorUnits(input.leadTimeDays,6);
+ if(leadDaysMinor===null||leadDaysMinor<0n||leadDaysMinor>90n*1_000_000n)return null;
+ const byDay=new Map<number,{low:bigint;expected:bigint;high:bigint}>();
+ for(const horizon of forecast.horizons){
+  if(![7,30,90].includes(horizon.days)||byDay.has(horizon.days))return null;
+  const low=decimalToMinorUnits(horizon.lowQuantity,6),expected=decimalToMinorUnits(horizon.expectedQuantity,6),high=decimalToMinorUnits(horizon.highQuantity,6);
+  if(low===null||expected===null||high===null||low<0n||low>expected||expected>high)return null;
+  byDay.set(horizon.days,{low,expected,high});
+ }
+ if(![7,30,90].every(day=>byDay.has(day)))return null;
+ const horizonDays=([7,30,90] as const).find(day=>leadDaysMinor<=BigInt(day)*1_000_000n);
+ if(!horizonDays)return null;
+ const horizon=byDay.get(horizonDays);
+ if(!horizon)return null;
+ const project=(quantity:bigint)=>minorUnitsToNumber(ceilDivNonNegative(quantity*leadDaysMinor,BigInt(horizonDays)*1_000_000n),6);
+ const lowQuantity=project(horizon.low),expectedQuantity=project(horizon.expected),highQuantity=project(horizon.high);
+ if(lowQuantity===null||expectedQuantity===null||highQuantity===null||
+  ![lowQuantity,expectedQuantity,highQuantity].every(value=>Number.isFinite(value)&&value>=0&&value<=Number.MAX_SAFE_INTEGER))return null;
+ return {forecast,leadTimeDemand:{horizonDays,lowQuantity,expectedQuantity,highQuantity}};
 }
 function isoDay(value:string):number|null {
  if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
@@ -111,7 +167,7 @@ function readReplenishmentMetric(args: {
 }
 
 export function buildReplenishmentRecommendations(input:{
- id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:ReplenishmentProductInput[];
+ id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:ReplenishmentProductInput[];demandForecast?:DemandForecastResult|null;
 }):{id:string;asOf:string;period:EvidencePeriod;recommendations:ReplenishmentRecommendation[]} {
  const asOfMs=isoInstant(input.asOf);
  if(asOfMs===null)throw new Error("asOf must be valid");
@@ -133,7 +189,7 @@ export function buildReplenishmentRecommendations(input:{
   const warnings:string[]=invalidRef?["PRODUCT_REFERENCE_MISSING"]:duplicateRef?["DUPLICATE_PRODUCT_REFERENCE"]:[];
   if(invalidRef||duplicateRef)return {
    productRef,status:"UNVERIFIED",action:"WITHHELD",quantityUnit:null,availableToPromise:null,incomingPurchaseQuantity:null,coveredAfterIncoming:null,reorderPoint:null,dailyDemand:null,leadTimeDemand:null,targetStock:null,
-   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds:[],warnings,automaticPurchase:false,
+   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds:[],warnings,automaticPurchase:false,demandSource:"HISTORICAL" as const,demandTrend:null,forecastLeadTimeDemand:null,forecastEvidenceIds:[],forecastMetricKeys:[],forecastFormulaVersions:[],
   };
   const expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.incomingPurchaseQuantity.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
   const read = (metric: MetricSnapshot, unit: string) => readReplenishmentMetric({
@@ -166,18 +222,31 @@ export function buildReplenishmentRecommendations(input:{
   const required=[atp,rop,sold,lead,incoming],bad=required.find(r=>r.status!=="VERIFIED")??optional.find(r=>r&&r.status!=="VERIFIED");
   if(bad){warnings.push("REQUIRED_OR_CONFIGURED_INPUT_NOT_VERIFIED");return {
    productRef:product.productRef,status:bad.status,action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
-   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
+   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,demandSource:"HISTORICAL" as const,demandTrend:null,forecastLeadTimeDemand:null,forecastEvidenceIds:[],forecastMetricKeys:[],forecastFormulaVersions:[],
   }}
   if(required.some(r=>r.value===null)||optional.some(r=>r&&r.value===null)){warnings.push("UNKNOWN_INPUT");return {
    productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
-   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
+   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,demandSource:"HISTORICAL" as const,demandTrend:null,forecastLeadTimeDemand:null,forecastEvidenceIds:[],forecastMetricKeys:[],forecastFormulaVersions:[],
   }}
   const atpMinor=atp.minorUnits as bigint,ropMinor=rop.minorUnits as bigint,soldMinor=sold.minorUnits as bigint,
    leadDaysMinor=lead.minorUnits as bigint,incomingMinor=incoming.minorUnits as bigint;
   const soldValue=minorUnitsToNumber(soldMinor,6);
-  const dailyDemand=soldValue===null?null:soldValue/periodDays;
-  // Round demand upward to the source precision before subtracting stock, so the recommendation cannot understate lead-time need.
-  const leadDemandMinor=ceilDivNonNegative(soldMinor*leadDaysMinor,BigInt(periodDays)*1_000_000n);
+  const historicalDailyDemand=soldValue===null?null:soldValue/periodDays;
+  const resolvedForecast=resolveReplenishmentForecastForLeadTime({
+   demandForecast:input.demandForecast,productRef,asOf:input.asOf,period:input.period,quantityUnit:expectedQuantityUnit,leadTimeDays:lead.value as number,
+  });
+  if(input.demandForecast&&!resolvedForecast)warnings.push(FORECAST_FALLBACK_WARNING);
+  const demandSource=resolvedForecast?"FORECAST" as const:"HISTORICAL" as const;
+  const dailyDemand=resolvedForecast?resolvedForecast.forecast.currentDailyDemand:historicalDailyDemand;
+  const forecastLeadTimeDemand=resolvedForecast?.leadTimeDemand??null;
+  const forecastEvidenceIds=resolvedForecast?[...resolvedForecast.forecast.evidenceIds]:[];
+  const forecastMetricKeys=resolvedForecast?[...resolvedForecast.forecast.metricKeys]:[];
+  const forecastFormulaVersions=resolvedForecast?[...resolvedForecast.forecast.formulaVersions]:[];
+  const recommendationEvidenceIds=[...new Set([...evidenceIds,...forecastEvidenceIds])];
+  // The expected projection drives the suggested quantity; low/high remain a scenario envelope.
+  const leadDemandMinor=resolvedForecast
+   ? decimalToMinorUnits(resolvedForecast.leadTimeDemand.expectedQuantity,6) as bigint
+   : ceilDivNonNegative(soldMinor*leadDaysMinor,BigInt(periodDays)*1_000_000n);
   const targetMinor=ropMinor>leadDemandMinor?ropMinor:leadDemandMinor;
   const coveredMinor=atpMinor+incomingMinor;
   let recommendedMinor=targetMinor>coveredMinor?targetMinor-coveredMinor:0n;
@@ -192,12 +261,16 @@ export function buildReplenishmentRecommendations(input:{
   const safe=[dailyDemand,leadDemand,target,coveredAfterIncoming,recommended].every(n=>n!==null&&Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER);
   if(!safe){warnings.push("RECOMMENDED_QUANTITY_OVERFLOW");return {
    productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
-   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
+   recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds:recommendationEvidenceIds,warnings,automaticPurchase:false,
+   demandSource,demandTrend:resolvedForecast?.forecast.trend??null,forecastLeadTimeDemand,
+   forecastEvidenceIds,forecastMetricKeys,forecastFormulaVersions,
   }}
   return {
    productRef:product.productRef,status:"VERIFIED",action:(recommended as number)>0?"RECOMMEND":"NO_ACTION",
    quantityUnit:expectedQuantityUnit,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:coveredAfterIncoming as number,reorderPoint:rop.value,dailyDemand:dailyDemand as number,leadTimeDemand:leadDemand as number,targetStock:target as number,recommendedQuantity:recommended as number,
-   formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
+   formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds:recommendationEvidenceIds,warnings,automaticPurchase:false,
+   demandSource,demandTrend:resolvedForecast?.forecast.trend??null,forecastLeadTimeDemand,
+   forecastEvidenceIds,forecastMetricKeys,forecastFormulaVersions,
   };
  });
  return {id:input.id,asOf:input.asOf,period:input.period,recommendations};

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildProductDemandForecast } from "./demand-forecast";
+import { buildDemandScenario, buildProductDemandForecast } from "./demand-forecast";
 import type { GrowthOpportunitySignal } from "./growth-opportunities";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot, MetricUnit } from "./types";
 
@@ -287,4 +287,76 @@ describe("demand forecast ISO timestamp offset contract", () => {
       expect(() => resultAt(timestamp)).toThrow("demand_forecast_id_or_timestamp_invalid");
     });
   }
+});
+
+
+describe("verified demand what-if scenario", () => {
+  it("simulates a bounded user assumption across all three demand horizons and preserves evidence lineage", () => {
+    const source = fixture();
+    const result = buildDemandScenario({ forecast: source, productRef, changePercent: 20 });
+    expect(result).toMatchObject({
+      status: "SIMULATED",
+      productRef,
+      changePercent: 20,
+      unitOfMeasure: "EA",
+      assumptionBoundary: "USER_SUPPLIED",
+      accountingFact: false,
+      formulaId: "product-demand.what-if",
+      evidenceIds: ["baseline-evidence", "current-evidence"],
+      metricKeys: ["product.order_items.quantity", "product.orders.sample_count"],
+      horizons: [
+        { days: 7, baselineExpectedQuantity: 28, scenarioExpectedQuantity: 33.6, expectedDeltaQuantity: 5.6 },
+        { days: 30, baselineExpectedQuantity: 120, scenarioExpectedQuantity: 144, expectedDeltaQuantity: 24 },
+        { days: 90, baselineExpectedQuantity: 360, scenarioExpectedQuantity: 432, expectedDeltaQuantity: 72 },
+      ],
+    });
+    expect(source.forecasts[0].horizons[0].expectedQuantity).toBe(28);
+    expect(result.limitations).toContain("SIMULATION_ONLY_NO_BUSINESS_RECORD_MUTATION");
+  });
+
+  it("supports the lower bound of -100 percent without producing negative quantities", () => {
+    const result = buildDemandScenario({ forecast: fixture(), productRef, changePercent: -100 });
+    expect(result.status).toBe("SIMULATED");
+    expect(result.horizons.every((item) =>
+      item.scenarioLowQuantity === 0 && item.scenarioExpectedQuantity === 0 && item.scenarioHighQuantity === 0
+    )).toBe(true);
+  });
+
+  it("supports the upper bound of +300 percent and rejects assumptions outside the declared range", () => {
+    const maximum = buildDemandScenario({ forecast: fixture(), productRef, changePercent: 300 });
+    expect(maximum.status).toBe("SIMULATED");
+    expect(maximum.horizons[0].scenarioExpectedQuantity).toBe(112);
+    expect(buildDemandScenario({ forecast: fixture(), productRef, changePercent: 301 }).reason).toBe("ASSUMPTION_OUT_OF_BOUNDS");
+    expect(buildDemandScenario({ forecast: fixture(), productRef, changePercent: -100.5 }).reason).toBe("ASSUMPTION_OUT_OF_BOUNDS");
+  });
+
+  it("withholds when the population or forecast evidence is not verified", () => {
+    expect(buildDemandScenario({ forecast: fixture({ completePopulation: false }), productRef, changePercent: 15 }).reason)
+      .toBe("DEMAND_SOURCE_NOT_VERIFIED");
+    const nonVerified = { ...fixture(), status: "NEEDS_REVIEW" as const };
+    expect(buildDemandScenario({ forecast: nonVerified, productRef, changePercent: 15 }).status).toBe("WITHHELD");
+  });
+
+  it("withholds duplicated product rows and missing evidence lineage", () => {
+    const source = fixture();
+    expect(buildDemandScenario({
+      forecast: { ...source, forecasts: [...source.forecasts, source.forecasts[0]] },
+      productRef,
+      changePercent: 15,
+    }).reason).toBe("PRODUCT_NOT_UNIQUELY_AVAILABLE");
+    const noEvidence = { ...source, forecasts: [{ ...source.forecasts[0], evidenceIds: [] }] };
+    expect(buildDemandScenario({ forecast: noEvidence, productRef, changePercent: 15 }).reason)
+      .toBe("PRODUCT_EVIDENCE_INCOMPLETE");
+  });
+
+  it("scales fractional quantities at six-decimal precision without floating-point percentage arithmetic", () => {
+    const source = fixture({ currentQuantity: "1.000000", baselineQuantity: "0.500000" });
+    const result = buildDemandScenario({ forecast: source, productRef, changePercent: 50 });
+    expect(result.status).toBe("SIMULATED");
+    expect(result.horizons[0]).toMatchObject({
+      baselineExpectedQuantity: 0.233334,
+      scenarioExpectedQuantity: 0.350001,
+      expectedDeltaQuantity: 0.116667,
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildReplenishmentRecommendations, type ReplenishmentProductInput } from "./replenishment";
+import type { DemandForecastResult } from "./demand-forecast";
 import type { EvidenceRecord, EvidencePeriod, MetricSnapshot } from "./types";
 
 const asOf = "2026-11-26T00:00:00.000Z";
@@ -79,7 +80,7 @@ function evidenceFor(metricValue: MetricSnapshot): EvidenceRecord {
 
 function build(
   products: ReplenishmentProductInput[],
-  options: { period?: EvidencePeriod; omitEvidence?: boolean; asOf?: string } = {},
+  options: { period?: EvidencePeriod; omitEvidence?: boolean; asOf?: string; demandForecast?: DemandForecastResult | null } = {},
 ) {
   const metrics = products.flatMap((item) => [
     item.availableToPromise,
@@ -96,6 +97,7 @@ function build(
     period: options.period ?? period,
     evidenceRecords: options.omitEvidence ? [] : metrics.map(evidenceFor),
     products,
+    demandForecast: options.demandForecast,
   });
 }
 
@@ -335,5 +337,69 @@ describe("replenishment UTC offset ceiling", () => {
     "2026-11-26T23:59:00.000+23:59",
   ])("rejects a replenishment snapshot clock beyond the ISO offset range: %s", asOf => {
     expect(() => build([], { asOf })).toThrow("asOf must be valid");
+  });
+});
+
+
+describe("verified demand forecast in replenishment calculations", () => {
+  const forecastPeriod: EvidencePeriod = { from: "2026-11-01", to: "2026-11-10" };
+  const baselinePeriod: EvidencePeriod = { from: "2026-10-22", to: "2026-10-31" };
+  const demandForecast: DemandForecastResult = {
+    id: "demand-forecast-fixture", asOf, status: "VERIFIED", completePopulation: true,
+    period: forecastPeriod, baselinePeriod,
+    forecasts: [{
+      productRef: "forecast-product", productLabel: "Forecast product", unitOfMeasure: "EA",
+      trend: "INCREASING", currentDailyDemand: 20, baselineDailyDemand: 10,
+      changePercentHundredths: 10000, currentOrders: 10, baselineOrders: 8,
+      horizons: [
+        { days: 7, lowQuantity: 70, expectedQuantity: 140, highQuantity: 140 },
+        { days: 30, lowQuantity: 300, expectedQuantity: 600, highQuantity: 600 },
+        { days: 90, lowQuantity: 900, expectedQuantity: 1800, highQuantity: 1800 },
+      ],
+      period: forecastPeriod, baselinePeriod, asOf,
+      evidenceIds: ["forecast-current-evidence", "forecast-baseline-evidence"],
+      metricKeys: ["product.order_items.quantity", "product.orders.sample_count"],
+      formulaVersions: ["product.quantity@1.0.0", "product.sample@1.0.0"],
+      warnings: [],
+    }],
+    withheld: [], warnings: [],
+  };
+
+  it("uses the aligned 30-day forecast projection for a 12-day supplier lead time", () => {
+    const result = build([product("forecast-product", { leadDays: 12 })], { period: forecastPeriod, demandForecast });
+    expect(result.recommendations[0]).toMatchObject({
+      status: "VERIFIED", action: "RECOMMEND", demandSource: "FORECAST", demandTrend: "INCREASING",
+      dailyDemand: 20, leadTimeDemand: 240,
+      forecastLeadTimeDemand: { horizonDays: 30, lowQuantity: 120, expectedQuantity: 240, highQuantity: 240 },
+      targetStock: 240, coveredAfterIncoming: 15, recommendedQuantity: 225,
+      forecastEvidenceIds: ["forecast-current-evidence", "forecast-baseline-evidence"],
+      forecastMetricKeys: ["product.order_items.quantity", "product.orders.sample_count"],
+    });
+    expect(result.recommendations[0].evidenceIds).toContain("forecast-current-evidence");
+  });
+
+  it.each([
+    ["partial forecast", { ...demandForecast, status: "NEEDS_REVIEW" as const }],
+    ["incomplete population", { ...demandForecast, completePopulation: false }],
+    ["different snapshot", { ...demandForecast, asOf: "2026-11-26T00:00:00.001Z" }],
+    ["different period", { ...demandForecast, period: { from: "2026-10-31", to: "2026-11-09" } }],
+  ])("falls back to the historical formula for %s", (_label, rejectedForecast) => {
+    const result = build([product("forecast-product", { leadDays: 12 })], { period: forecastPeriod, demandForecast: rejectedForecast });
+    expect(result.recommendations[0]).toMatchObject({
+      status: "VERIFIED", demandSource: "HISTORICAL", dailyDemand: 10, leadTimeDemand: 120,
+    });
+    expect(result.recommendations[0].warnings).toContain(
+      "DEMAND_FORECAST_UNVERIFIED_OR_SCOPE_MISMATCH_HISTORICAL_RATE_USED",
+    );
+  });
+
+  it("retains historical demand when supplier lead time exceeds 90 forecast days", () => {
+    const result = build([product("forecast-product", { leadDays: 120 })], { period: forecastPeriod, demandForecast });
+    expect(result.recommendations[0]).toMatchObject({
+      demandSource: "HISTORICAL", dailyDemand: 10, leadTimeDemand: 1200,
+    });
+    expect(result.recommendations[0].warnings).toContain(
+      "DEMAND_FORECAST_UNVERIFIED_OR_SCOPE_MISMATCH_HISTORICAL_RATE_USED",
+    );
   });
 });
