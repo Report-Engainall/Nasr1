@@ -20,6 +20,7 @@ function sheets(document: CustomerServiceDeskPrintDocument): Sheet[] {
     ["حد تفاصيل التقرير", "يشمل الحالات التي تم تحميل صفحاتها فقط. إذا كانت هناك صفحات أخرى، حمّلها من مكتب الخدمة ثم أعد التصدير."],
     ["نطاق المؤشرات", "مؤشرات الحالات المفتوحة أدناه هي ملخص المؤسسة الكامل كما أعاده الخادم، وليست مجموع صفوف الصفحة الحالية ولا تتقيد بمرشحات تفاصيل القائمة."],
     ["الخصوصية", "لا يتضمن التقرير وصف الحالة التفصيلي أو رسائل المحادثة أو الملاحظات الداخلية أو معرفات UUID أو المؤسسة أو المستخدم أو المهمة."],
+    ["مراجع ERP", "أي مرجع مستند ERP في هذا الملف أرسله العميل للمراجعة فقط؛ لا يحتوي الملف الأصلي أو رابط تنزيل أو إثباتًا معتمدًا."],
     ["طريقة احتساب التأخير", "تأخر الاستجابة: حالة نشطة لم تسجل أول استجابة بعد تجاوز موعدها. تأخر الحل: حالة نشطة تجاوز موعد الحل عند وقت استخراج التقرير."],
   ];
   const metrics: CellValue[][] = [
@@ -33,11 +34,16 @@ function sheets(document: CustomerServiceDeskPrintDocument): Sheet[] {
   ];
   const cases: CellValue[][] = [
     ["رقم الحالة", "العميل", "كود العميل", "الموضوع", "النوع", "الأولوية", "الحالة",
+      "رقم مستند ERP", "مرجع حركة ERP", "عملة المستند", "المصدر المشار إليه", "وقت لقطة الكشف المشار إليها", "نوع الحركة ERP",
       "تاريخ الفتح", "آخر تحديث", "موعد الاستجابة", "أول استجابة", "تأخر الاستجابة",
       "موعد الحل", "تأخر الحل", "مستوى التصعيد", "المسؤول", "استحقاق المهمة", "مهمة مرتبطة"],
     ...document.cases.map((row) => [
       row.caseCode, row.customerName, row.customerCode, row.subject, row.caseType,
-      row.priority, row.status, row.createdAt, row.updatedAt, row.responseDueAt,
+      row.priority, row.status,
+      row.documentReview?.documentNumber ?? "", row.documentReview?.entryReference ?? "",
+      row.documentReview?.currencyCode ?? "", row.documentReview?.sourceLabel ?? "",
+      row.documentReview?.sourceAsOf ?? "", row.documentReview?.entryTypeLabel ?? "",
+      row.createdAt, row.updatedAt, row.responseDueAt,
       dateText(row.firstResponseAt), row.responseOverdue ? "متأخر" : "لا",
       row.resolutionDueAt, row.resolutionOverdue ? "متأخر" : "لا",
       row.escalationLevel, row.assignedToName, dateText(row.taskDueAt),

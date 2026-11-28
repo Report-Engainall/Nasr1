@@ -8,6 +8,17 @@ function date(value: string | null): string {
     : "—";
 }
 
+function dateUtc(value: string): string {
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime())
+    ? new Intl.DateTimeFormat("ar-YE", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      }).format(parsed) + " UTC"
+    : "—";
+}
+
 export function CustomerServiceDeskPrintSheet({
   document,
 }: {
@@ -48,12 +59,22 @@ export function CustomerServiceDeskPrintSheet({
         <h3>تفاصيل الحالات ضمن الصفحات المحمّلة</h3>
         {document.cases.length === 0 ? <p>لا توجد حالات في النطاق المحمّل.</p> : (
           <table><thead><tr>
-            <th>الحالة / العميل</th><th>الموضوع</th><th>النوع</th><th>الأولوية / الحالة</th>
+            <th>الحالة / العميل</th><th>الموضوع</th><th>مرجع مراجعة ERP</th><th>النوع</th><th>الأولوية / الحالة</th>
             <th>موعد الاستجابة</th><th>موعد الحل</th><th>المسؤول / التصعيد</th><th>فتح / تحديث</th>
           </tr></thead><tbody>{document.cases.map((row, index) => (
             <tr key={row.caseCode + "-" + index}>
               <td><strong>{row.caseCode}</strong><small>{row.customerName}{row.customerCode ? " · " + row.customerCode : ""}</small></td>
               <td>{row.subject}</td>
+              <td>{row.documentReview ? (
+                <>
+                  <strong>{row.documentReview.documentNumber}</strong>
+                  <small>مرجع الحركة: {row.documentReview.entryReference}</small>
+                  <small>{row.documentReview.sourceLabel} · {row.documentReview.currencyCode}</small>
+                  <small>{row.documentReview.entryTypeLabel}</small>
+                  <small>لقطة الكشف: {dateUtc(row.documentReview.sourceAsOf)}</small>
+                  <small>مرجع عميل غير معتمد</small>
+                </>
+              ) : "—"}</td>
               <td>{row.caseType}</td>
               <td>{row.priority}<small>{row.status}</small></td>
               <td>{date(row.responseDueAt)}<small>{row.firstResponseAt ? "أول رد: " + date(row.firstResponseAt) : row.responseOverdue ? "تجاوز الموعد" : "لم تسجل استجابة"}</small></td>
@@ -66,7 +87,7 @@ export function CustomerServiceDeskPrintSheet({
       </section>
 
       <footer className="customer-service-desk-print-footer">
-        هذا كشف تشغيلي داخلي من بيانات الطابور المصرح بها. لا يتضمن وصف الحالة التفصيلي أو نص المحادثات أو الملاحظات الداخلية أو معرفات النظام. تفاصيل الحالات تقتصر على الصفحات التي حمّلها المستخدم؛ حمّل الصفحات المتبقية من مكتب الخدمة قبل إعادة التصدير للوصول إلى كامل نتائج المرشح.
+        هذا كشف تشغيلي داخلي من بيانات الطابور المصرح بها. لا يتضمن وصف الحالة التفصيلي أو نص المحادثات أو الملاحظات الداخلية أو معرفات النظام. مرجع ERP الظاهر هو معلومات قدّمها العميل للمراجعة فقط، وليس ملفًا أصليًا أو إثباتًا معتمدًا. تفاصيل الحالات تقتصر على الصفحات التي حمّلها المستخدم؛ حمّل الصفحات المتبقية من مكتب الخدمة قبل إعادة التصدير للوصول إلى كامل نتائج المرشح.
       </footer>
     </article>
   );

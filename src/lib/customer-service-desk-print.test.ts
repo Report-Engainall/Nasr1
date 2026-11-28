@@ -117,6 +117,30 @@ describe("customer service desk report projection", () => {
     expect(document.filters.priority).toBe("عاجلة");
   });
 
+  it("projects only approved ERP review metadata into print and Excel without exporting the customer narrative", () => {
+    const document = project({
+      items: [queueCase({ description: "أرجو التحقق من الفاتورة ومطابقتها مع كشف الحساب.\\n\\nالمستند المحدد: INV-2026-014\\nمرجع الحركة: ERP-INV-014\\nالعملة: YER\\nالمصدر الظاهر في الكشف: Onyx Pro\\nتوقيت لقطة الكشف الظاهرة: 2026-11-28T05:30:00.000Z\\nنوع الحركة: فاتورة.\\nمراجعة فقط؛ لا يغيّر هذا الطلب الرصيد ولا ينشئ دفعة أو يرحّل قيدًا محاسبيًا." })],
+    });
+    expect(document.cases[0].documentReview).toMatchObject({
+      documentNumber: "INV-2026-014",
+      entryReference: "ERP-INV-014",
+      currencyCode: "YER",
+      sourceLabel: "Onyx Pro",
+      sourceMode: "ONYX",
+      entryTypeLabel: "فاتورة",
+    });
+    const serialized = JSON.stringify(document);
+    expect(serialized).toContain("INV-2026-014");
+    expect(serialized).not.toContain("أرجو التحقق من الفاتورة");
+    expect(serialized).not.toContain("customerMessage");
+    const workbook = new TextDecoder().decode(buildCustomerServiceDeskWorkbookXlsx(document));
+    for (const value of ["INV-2026-014", "ERP-INV-014", "YER", "Onyx Pro", "فاتورة", "2026-11-28T05:30:00.000Z"]) {
+      expect(workbook).toContain(value);
+    }
+    expect(workbook).not.toContain("أرجو التحقق من الفاتورة");
+    expect(workbook).toContain("مرجع عميل غير معتمد");
+  });
+
   it("projects only approved report fields and excludes private narrative and internal identifiers", () => {
     const document = project();
     const serialized = JSON.stringify(document);
