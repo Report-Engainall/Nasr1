@@ -74,6 +74,9 @@ export function buildDemandScenarioDecisionCandidate(
     String(scenario.changePercent),
     scenario.formulaId,
     scenario.formulaVersion,
+    [...scenario.evidenceIds].sort().join(","),
+    [...scenario.metricKeys].sort().join(","),
+    [...scenario.formulaVersions].sort().join(","),
   ].join("|");
   const candidateId = "demand.whatif:" + fingerprint64(identity);
   const what = boundedText("محاكاة تغير الطلب — " + scenario.productLabel + " (" + assumption + "%)", 500);

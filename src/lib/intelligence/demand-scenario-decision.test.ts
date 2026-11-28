@@ -58,6 +58,8 @@ describe("demand scenario decision candidate", () => {
     const first = buildDemandScenarioDecisionCandidate(scenario);
     expect(buildDemandScenarioDecisionCandidate({ ...scenario })).toEqual(first);
     expect(buildDemandScenarioDecisionCandidate({ ...scenario, changePercent: 25 })?.id).not.toBe(first?.id);
+    expect(buildDemandScenarioDecisionCandidate({ ...scenario, formulaVersions: ["quantity@2", "sample@1"] })?.id).not.toBe(first?.id);
+    expect(buildDemandScenarioDecisionCandidate({ ...scenario, evidenceIds: ["corrected-current", "evidence-baseline"] })?.id).not.toBe(first?.id);
   });
 
   it("withholds invalid, partial, duplicate or incomplete scenario payloads", () => {
