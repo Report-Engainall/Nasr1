@@ -168,3 +168,10 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 - Shipment rejection still runs through the existing status-transition helper, which supplies manager claims while performing only the isolated fixture status update as the local owner. Its post-failure status/sale evidence is read after that helper resets the role.
 - Corrected the negative-peer follow-up so FEFO reallocation is invoked under the manager session after the shipment helper returns; previous code would otherwise have tested an owner-context call rather than the intended authenticated manager RPC.
 - This correction changes only the local PostgreSQL acceptance script; it does not grant browser table access or change production privileges.
+
+
+## 2026-11-28 — Deterministic finalizer lock order and sold-order cancellation guard
+
+- Changed finalizer advisory lock acquisition to a PL/pgSQL loop ordered by `product_id`; each product mutex is acquired explicitly and sequentially, rather than relying on target-list evaluation order in a set-returning `PERFORM` query.
+- Cancellation now fails closed when an order already has a sale movement, requiring the documented return workflow instead of releasing reservations a second time.
+- This completes the finalizer lock-order/cancellation boundary review; exact-head PostgreSQL 17 and full CI results remain required. No production operation was performed.
