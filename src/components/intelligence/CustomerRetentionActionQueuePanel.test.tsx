@@ -14,6 +14,7 @@ import {
   filterCustomerRetentionActions,
   normalizeCustomerRetentionSearch,
   paginateCustomerRetentionActions,
+  summarizeCustomerRetentionRecency,
 } from "./CustomerRetentionActionQueuePanel";
 
 const verifiedQueue: CustomerRetentionActionQueue = {
@@ -66,6 +67,39 @@ describe("customer retention action triage", () => {
       .map(item => item.customerRef)).toEqual(["customer-medium"]);
     expect(filterCustomerRetentionActions(actions, "", "HIGH", "ALL")
       .map(item => item.customerRef)).toEqual(["customer-high-oldest", "customer-1234567890"]);
+  });
+
+  it("filters exact purchase-recency bands and keeps missing or invalid ages separate", () => {
+    const actions = [
+      { ...verifiedQueue.actions[0], customerRef: "age-0", daysSinceLastOrder: 0 },
+      { ...verifiedQueue.actions[0], customerRef: "age-30", daysSinceLastOrder: 30 },
+      { ...verifiedQueue.actions[0], customerRef: "age-31", daysSinceLastOrder: 31 },
+      { ...verifiedQueue.actions[0], customerRef: "age-60", daysSinceLastOrder: 60 },
+      { ...verifiedQueue.actions[0], customerRef: "age-61", daysSinceLastOrder: 61 },
+      { ...verifiedQueue.actions[0], customerRef: "age-90", daysSinceLastOrder: 90 },
+      { ...verifiedQueue.actions[0], customerRef: "age-91", daysSinceLastOrder: 91 },
+      { ...verifiedQueue.actions[0], customerRef: "age-null", daysSinceLastOrder: null },
+      { ...verifiedQueue.actions[0], customerRef: "age-negative", daysSinceLastOrder: -4 },
+      { ...verifiedQueue.actions[0], customerRef: "age-fraction", daysSinceLastOrder: 3.5 },
+    ];
+
+    expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "0_30")
+      .map(item => item.customerRef)).toEqual(["age-0", "age-30"]);
+    expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "31_60")
+      .map(item => item.customerRef)).toEqual(["age-31", "age-60"]);
+    expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "61_90")
+      .map(item => item.customerRef)).toEqual(["age-61", "age-90"]);
+    expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "OVER_90")
+      .map(item => item.customerRef)).toEqual(["age-91"]);
+    expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "UNKNOWN")
+      .map(item => item.customerRef)).toEqual(["age-fraction", "age-negative", "age-null"]);
+    expect(summarizeCustomerRetentionRecency(actions)).toEqual({
+      within30Days: 2,
+      days31To60: 2,
+      days61To90: 2,
+      over90Days: 1,
+      unknownAge: 3,
+    });
   });
 
   it("exports masked customer references with safe text, evidence lineage and honest coverage", () => {
@@ -151,6 +185,26 @@ describe("CustomerRetentionActionQueuePanel", () => {
     expect(screen.getByText("منع فقدان العميل")).toBeInTheDocument();
     expect(screen.queryByText("إعادة تنشيط العميل")).not.toBeInTheDocument();
     expect(screen.getByText(/يعرض 1 من 2 إجراء محمّل/)).toBeInTheDocument();
+  });
+
+  it("opens a purchase-recency segment from its workload counter and distinguishes unknown age", () => {
+    const additional = [
+      { ...verifiedQueue.actions[0], customerRef: "customer-31-to-60", priority: "MEDIUM" as const, daysSinceLastOrder: 45 },
+      { ...verifiedQueue.actions[0], customerRef: "customer-age-unknown", priority: "REVIEW" as const, daysSinceLastOrder: null, lastOrderAt: null },
+    ];
+    render(<CustomerRetentionActionQueuePanel
+      queue={{ ...verifiedQueue, actions: [...verifiedQueue.actions, ...additional], totalActionable: 3 }}
+      loading={false}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "عرض العملاء بمدة انقطاع غير موثقة" }));
+    expect(screen.getByText("مدة الانقطاع غير موثقة")).toBeInTheDocument();
+    expect(screen.queryByText(/112 يوماً/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("تصفية مدة الانقطاع عن الشراء"), {
+      target: { value: "31_60" },
+    });
+    expect(screen.getByText(/منذ 45 يوماً/)).toBeInTheDocument();
   });
 
   it("delegates customer decision persistence to the workspace and confirms only a successful save", async () => {
