@@ -68,6 +68,11 @@ describe("SupplierPerformancePanel triage", () => {
     expect(filterSupplierPerformanceSuppliers(result.suppliers, "ALL")).toHaveLength(2);
   });
 
+  it("orders supplier follow-ups by inconsistent receipts, verified lateness, then receipt backlog", () => {
+    expect(filterSupplierPerformanceSuppliers([reliableSupplier, lateSupplier], "ALL").map(item=>item.supplierCode))
+      .toEqual(["SUP-LATE","SUP-OK"]);
+  });
+
   it("searches by supplier code and Arabic name", () => {
     expect(filterSupplierPerformanceSuppliers(result.suppliers, "ALL", "sup-ok"))
       .toEqual([reliableSupplier]);
@@ -89,6 +94,15 @@ describe("SupplierPerformancePanel triage", () => {
     expect(csv).toContain("SUP-LATE");
     expect(csv).toContain("لا يتضمن الملف أسعار الشراء");
     expect(csv).not.toContain("unit_cost");
+  });
+
+  it("opens the exact late purchase order from its follow-up note", () => {
+    const onOpenPurchaseOrder = vi.fn();
+    render(<SupplierPerformancePanel result={result} onOpenPurchaseOrder={onOpenPurchaseOrder} />);
+    const region = screen.getByRole("region", { name: "ذكاء أداء الموردين" });
+    fireEvent.click(within(region).getByRole("button", { name: /تأخر مسجل/ }));
+    fireEvent.click(within(region).getByRole("button", { name: "فتح أمر PO-LATE-01" }));
+    expect(onOpenPurchaseOrder).toHaveBeenCalledWith("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   });
 
   it("lets the manager open the late-delivery queue in the existing panel", () => {
