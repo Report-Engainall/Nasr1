@@ -129,3 +129,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - The test verifies the APP_ONLY PDF action is absent for ONYX, external XLSX remains enabled, and browser printing is reached only after a third source revalidation.
 - The implementation also includes the parallel correction commits `ad70dab048ec07450eb08f5678bcaa1f8c8af8e7` (microsecond-precision running balance comparison) and `f1dac9854da14a8b9bf550fe7d25e437be43af08` (partial-detail totals/closing balance reconciliation).
 - This test is authored acceptance evidence only. It must run on the final PR head under P1 Vitest/strict TypeScript; P2 Playwright must also finish on that same head. No PASS is claimed until those jobs complete.
+
+
+## P1 follow-up — restore APP_ONLY statement XLSX decimal validation (2026-11-28)
+
+- Root cause: `moneyDecimal` used a twice-escaped digit/decimal regex, so valid server decimal strings such as `1250.50` were rejected before the APP_ONLY customer statement workbook could be generated. The same defect was present on the recorded `main` baseline.
+- Corrected the regex to match decimal digits and an optional decimal fraction while retaining the existing maximum length, precision, positivity and BigInt minor-unit checks.
+- Added a Vitest regression to `src/lib/customer-external-statement.test.ts` that builds an APP_ONLY XLSX from a valid invoice and authoritative per-currency summary and asserts a valid ZIP/XLSX signature.
+- Exact-head acceptance is pending for the resulting PR #699 SHA. The regression is authored, not yet run; no PASS is claimed.
+- Next: inspect the new exact-head P1 Vitest/strict-TypeScript and P2 Playwright workflow results; repair any reproduced failure on that same branch.

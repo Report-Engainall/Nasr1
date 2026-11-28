@@ -5,7 +5,7 @@ import {
   isSameCustomerExternalStatementSourceAsOf,
   parseCustomerExternalStatement,
 } from "./customer-external-statement";
-import { buildCustomerExternalStatementWorkbookXlsx } from "./customer-account-statement-xlsx";
+import { buildCustomerAccountStatementWorkbookXlsx, buildCustomerExternalStatementWorkbookXlsx } from "./customer-account-statement-xlsx";
 
 const sourceAsOf = new Date(Date.now() - 10 * 60_000).toISOString();
 const currencyAsOf = new Date(Date.now() - 5 * 60_000).toISOString();
@@ -187,5 +187,40 @@ describe("customer external ERP statement contract", () => {
   it("maps external statement entry types into customer-safe Arabic labels", () => {
     expect(customerExternalStatementEntryTypeLabel("opening_balance")).toBe("رصيد افتتاحي");
     expect(customerExternalStatementEntryTypeLabel("credit_note")).toBe("إشعار دائن");
+  });
+});
+
+
+describe("APP_ONLY customer account statement workbook", () => {
+  it("builds an XLSX workbook when the server returns valid decimal amounts", () => {
+    const bytes = buildCustomerAccountStatementWorkbookXlsx({
+      invoices: [{
+        id: "invoice-1",
+        invoice_number: "INV-001",
+        status: "issued",
+        issued_at: "2026-11-28T00:00:00.000Z",
+        due_at: null,
+        currency: "YER",
+        total_amount: "1250.50",
+      }],
+      payments: [],
+      credits: [],
+      summary: [{
+        currency: "YER",
+        invoiced: "1250.50",
+        paid: "0.00",
+        credited: "0.00",
+        outstanding: "1250.50",
+        overdue_outstanding: "0.00",
+        overdue_invoice_count: 0,
+        unknown_due_date_outstanding: "0.00",
+        unknown_due_date_invoice_count: 0,
+      }],
+      summaryAsOfUtc: "2026-11-28T00:00:00.000Z",
+      generatedAt: "2026-11-28T00:00:00.000Z",
+      creditDetailsAvailable: true,
+    });
+
+    expect(Array.from(bytes.slice(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
   });
 });

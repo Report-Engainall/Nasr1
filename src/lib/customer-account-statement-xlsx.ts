@@ -58,7 +58,7 @@ function validTimestamp(value: unknown): value is string {
 
 function moneyDecimal(value: unknown, label: string, allowZero = true): string {
   const raw = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
-  if (!raw || raw.length > 40 || !/^\\d+(?:\\.\\d{1,2})?$/.test(raw)) {
+  if (!raw || raw.length > 40 || !/^\d+(?:\.\d{1,2})?$/.test(raw)) {
     throw new Error("لا يمكن تصدير كشف الحساب: قيمة " + label + " غير صالحة.");
   }
   const [whole, fraction = ""] = raw.split(".");
