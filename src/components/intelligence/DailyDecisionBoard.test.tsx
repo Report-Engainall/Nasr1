@@ -157,8 +157,9 @@ describe("daily decision queue search and filters", () => {
     const inconsistentDated = decision({ decisionId: "inconsistent-dated", reviewDisposition: "NOT_SCHEDULED", reviewAt: "2026-11-29T00:00:00.000Z" });
     const notRequired = decision({ decisionId: "not-required", reviewDisposition: "NOT_REQUIRED", reviewAt: null });
     const rejected = decision({ decisionId: "rejected", state: "REJECTED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
+    const executed = decision({ decisionId: "executed", state: "EXECUTED", reviewDisposition: "NOT_SCHEDULED", reviewAt: null });
     const measured = decision({ decisionId: "measured", state: "MEASURED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
-    const records = [overdue, dueNow, dueWithin24Hours, upcoming, tooFar, unscheduled, inconsistentDated, notRequired, rejected, measured];
+    const records = [overdue, dueNow, dueWithin24Hours, upcoming, tooFar, unscheduled, inconsistentDated, notRequired, rejected, executed, measured];
 
     expect(filterDailyDecisionRecords(records, { ...allFilters, due: "OVERDUE" }, now)
       .map(item => item.decisionId)).toEqual(["overdue", "due-now"]);
@@ -221,7 +222,7 @@ describe("daily decision queue search and filters", () => {
       decision({ decisionId: "week", reviewDisposition: "SCHEDULED", reviewAt: "2026-12-02T00:00:00.000Z" }),
       decision({ decisionId: "unscheduled", reviewDisposition: "NOT_SCHEDULED", reviewAt: null }),
       decision({ decisionId: "review", state: "IN_REVIEW", reviewDisposition: "NOT_REQUIRED" }),
-      decision({ decisionId: "measurement", state: "EXECUTED", reviewDisposition: "NOT_REQUIRED" }),
+      decision({ decisionId: "measurement", state: "EXECUTED", reviewDisposition: "NOT_SCHEDULED" }),
       decision({ decisionId: "rejected", state: "REJECTED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" }),
       decision({ decisionId: "measured", state: "MEASURED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" }),
     ];
