@@ -333,3 +333,12 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - After a fresh ONYX sync watermark is recorded, isolated PostgreSQL 17 acceptance calls the customer statement RPC again. It must report the missing P4 staging prerequisite when those tables are absent, or reject an unmapped currency scope when staging exists but has not completed. Both paths are SQLSTATE 55000 and prohibit APP_ONLY fallback.
 - After an approved return cutover, the final customer statement response must explicitly identify `source_mode=APP_ONLY` while preserving the pre-cutover ledger summary.
 - Removed a redundant assignment to an untyped PL/pgSQL `record` target; an empty dynamic SELECT INTO naturally nulls the record and yields row count zero.
+
+
+## 2026-11-28 — MUTAKAMEL customer statement source-isolation assertion
+
+- Extended the existing end-to-end APP_ONLY → ONYX → MUTAKAMEL → APP_ONLY maker/checker acceptance path.
+- Immediately after the authorized MUTAKAMEL cutover, the customer resolver must report `source_mode=MUTAKAMEL` and `can_read_app_ledger=false`.
+- The customer statement RPC must reject with SQLSTATE `55000` and the explicit `app ledger fallback is prohibited` guard when MUTAKAMEL's own source-sync evidence or the P4 statement staging prerequisite is absent. This proves the resolver cannot alias an external customer statement to APP_ONLY merely because no external ledger has been staged.
+- This is an isolated PostgreSQL acceptance assertion; it does not create synthetic ERP rows or mutate production, customer balances, payments, invoices, journals or inventory.
+- New exact-head P1/P2 and PostgreSQL 17 acceptance is still required. Previous workflow results do not transfer to the updated SHA.

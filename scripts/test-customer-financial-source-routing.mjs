@@ -1994,6 +1994,21 @@ async function main() {
   assert.equal(mutakamelApproved.source_mode, "MUTAKAMEL");
   assert.equal(mutakamelApproved.revision, 3);
 
+  const mutakamelCustomerResolver = await rpc(
+    customerDb,
+    "select public.get_my_customer_financial_source() as result",
+  );
+  assert.equal(mutakamelCustomerResolver.source_mode, "MUTAKAMEL",
+    "customer resolver must expose the approved MUTAKAMEL mode, not an APP_ONLY alias");
+  assert.equal(mutakamelCustomerResolver.can_read_app_ledger, false,
+    "MUTAKAMEL binding must never authorize the internal app ledger");
+  await expectFailure(
+    "MUTAKAMEL customer statement fails closed when its own provider evidence or P4 staging is unavailable",
+    rpc(customerDb, "select public.get_customer_account_statement() as result"),
+    "55000",
+    "app ledger fallback is prohibited",
+  );
+
   await expectFailure(
     "MUTAKAMEL source rejects internal single-invoice payment writes",
     rpc(accountantDb,
