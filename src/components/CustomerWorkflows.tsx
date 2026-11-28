@@ -2008,6 +2008,12 @@ function CustomerPayments() {
   const paymentReadSequenceRef = useRef(0);
   const [xlsxError, setXlsxError] = useState("");
   const [xlsxBusy, setXlsxBusy] = useState(false);
+  const clearPaymentHistoryProjection = useCallback(() => {
+    paymentReadSequenceRef.current += 1;
+    setInvoices([]);
+    setPayments([]);
+    setXlsxBusy(false);
+  }, []);
 
   const load = useCallback(async () => {
     const requestId = ++paymentReadSequenceRef.current;
@@ -2017,6 +2023,8 @@ function CustomerPayments() {
     setError("");
     setFinancialSource(null);
     setFinancialSourceError("");
+    setXlsxBusy(false);
+    setXlsxError("");
     setInvoices([]);
     setPayments([]);
     try {
@@ -2082,25 +2090,38 @@ function CustomerPayments() {
 
   async function downloadPaymentHistoryXlsx() {
     if (!appLedgerAvailable || loading || error || paymentFilter.error || filtered.length === 0 || xlsxBusy || !financialSource) return;
+    const requestId = paymentReadSequenceRef.current;
+    const isCurrentRequest = () => paymentReadSequenceRef.current === requestId;
     const sourceSnapshot = financialSource;
+    const invoiceSnapshot = invoices;
+    const paymentSnapshot = payments;
+    const filteredSnapshot = filtered;
+    const invoiceIndexSnapshot = new Map(invoiceSnapshot.map((invoice) => [invoice.id, invoice]));
+    const detailMayBePartialSnapshot = paymentSnapshot.length >= 500 || invoiceSnapshot.length >= 200;
+    const searchFilteredSnapshot = paymentFilter.active;
     setXlsxBusy(true);
     setXlsxError("");
     try {
       let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
-      try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
-      catch (cause) {
+      try {
+        sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+      } catch {
+        if (!isCurrentRequest()) return;
         setFinancialSource(null);
         setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تصدير سجل الدفعات؛ أوقفنا التصدير.");
-        throw cause;
+        clearPaymentHistoryProjection();
+        return;
       }
+      if (!isCurrentRequest()) return;
       if (!sourceCheck.unchanged) {
         setFinancialSource(sourceCheck.source);
         setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا تصدير سجل الدفعات القديم.");
-        throw new Error("تغير مصدر الحساب؛ حدّث سجل الدفعات ثم أعد التصدير.");
+        clearPaymentHistoryProjection();
+        return;
       }
       downloadCustomerPaymentHistoryWorkbookXlsx({
-        payments: filtered.map((payment) => {
-          const invoice = invoiceById.get(payment.invoice_id);
+        payments: filteredSnapshot.map((payment) => {
+          const invoice = invoiceIndexSnapshot.get(payment.invoice_id);
           return {
             paidAt: payment.paid_at ?? null,
             invoiceNumber: invoice?.invoice_number ?? null,
@@ -2108,14 +2129,14 @@ function CustomerPayments() {
             currency: invoice?.currency ?? null,
           };
         }),
-        loadedCount: payments.length,
-        detailMayBePartial,
-        searchFiltered: paymentFilter.active,
+        loadedCount: paymentSnapshot.length,
+        detailMayBePartial: detailMayBePartialSnapshot,
+        searchFiltered: searchFilteredSnapshot,
       });
     } catch (cause) {
-      setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لسجل الدفعات.");
+      if (isCurrentRequest()) setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لسجل الدفعات.");
     } finally {
-      setXlsxBusy(false);
+      if (isCurrentRequest()) setXlsxBusy(false);
     }
   }
 

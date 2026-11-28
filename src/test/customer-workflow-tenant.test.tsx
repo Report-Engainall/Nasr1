@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   rpc: vi.fn(),
   getSession: vi.fn(),
+  downloadPaymentHistoryWorkbook: vi.fn(),
   signOut: vi.fn(),
   responses: {} as Record<string, unknown[]>,
   queries: [] as Array<{
@@ -64,6 +65,10 @@ vi.mock("@/lib/api", () => ({
   fetchProducts: mocks.fetchProducts,
   fetchResolvedProductPrices: mocks.fetchResolvedProductPrices,
   fetchSettingsMap: mocks.fetchSettingsMap,
+}));
+
+vi.mock("@/lib/customer-payment-history-xlsx", () => ({
+  downloadCustomerPaymentHistoryWorkbookXlsx: mocks.downloadPaymentHistoryWorkbook,
 }));
 
 
@@ -166,6 +171,7 @@ describe("customer quote workspace tenant boundary", () => {
     window.localStorage.clear();
     vi.clearAllMocks();
     mocks.getSession.mockReset();
+    mocks.downloadPaymentHistoryWorkbook.mockReset();
     mocks.user = null;
     mocks.queries.splice(0);
     mocks.responses = {
@@ -1532,6 +1538,68 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.querySelector('[aria-label="ترقيم سندات قبض العميل"]')).toBeNull();
   });
 
+
+  it("clears stale customer payment history when the source changes at XLSX output", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 81, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "MUTAKAMEL", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 82, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            invoices: [{
+              id: "6c111111-1111-4111-8111-111111111111",
+              invoice_number: "INV-PAYMENT-OUTPUT-CUTOVER",
+              currency: "YER",
+            }],
+            payments: [{
+              id: "6c222222-2222-4222-8222-222222222222",
+              invoice_id: "6c111111-1111-4111-8111-111111111111",
+              amount: "75.00",
+              paid_at: "2026-11-27T10:00:00Z",
+            }],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/payments");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("INV-PAYMENT-OUTPUT-CUTOVER");
+    expect(host?.textContent).toContain("75.00");
+    const exportButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("تنزيل Excel"));
+    expect(exportButton).toBeDefined();
+    expect(exportButton?.disabled).toBe(false);
+
+    await act(async () => {
+      exportButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).toContain("تغير مصدر الحساب؛ أوقفنا تصدير سجل الدفعات القديم.");
+    expect(host?.textContent).not.toContain("INV-PAYMENT-OUTPUT-CUTOVER");
+    expect(host?.textContent).not.toContain("75.00");
+    expect(mocks.downloadPaymentHistoryWorkbook).not.toHaveBeenCalled();
+  });
 
   it("discards the customer invoice list when its financial source changes during the query", async () => {
     mocks.user = {

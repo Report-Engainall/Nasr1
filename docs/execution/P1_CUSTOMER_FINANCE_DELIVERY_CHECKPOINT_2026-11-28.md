@@ -177,3 +177,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Invoice and payment routes already expose explicit refresh controls; those controls continue to call the same source-resolved loader.
 - Added separate route-level regressions for invoice and payment source cutovers on foreground return. The statement regression from the preceding change covers the positive ONYX replacement path and duplicate focus/visibility event suppression.
 - Exact-head P1 Vitest/strict-TypeScript and P2 Playwright are required; tests are authored and not yet accepted. No production, schema, payment or inventory writes were made.
+
+## P1 follow-up — customer payment-history XLSX source cutover (2026-11-28)
+
+- Customer payment-history export is now bound to the payment read sequence. If a refresh/foreground source reload starts while export preflight is pending, the old export is abandoned before workbook generation.
+- Export captures an immutable snapshot of the invoices, payments, filtered rows and partial-detail metadata used to build the workbook.
+- If source revalidation fails or the server selects another financial source, the page clears both payment and invoice projections, cancels the pending output, and keeps the source warning visible; the export busy state is reset by the invalidation path.
+- Added a route regression with a valid APP_ONLY invoice/payment projection followed by a server-side APP_ONLY-to-MUTAKAMEL change at XLSX preflight. It asserts the previous invoice reference and amount disappear and the workbook builder is never called.
+- This regression is authored and requires terminal P1 Vitest/strict TypeScript and P2 Playwright on the final current PR SHA; no pass is inferred from a previous or pending head.
+- No database/schema, financial posting, stock update, production access, live ERP call, secret, deployment or paid service was added.
