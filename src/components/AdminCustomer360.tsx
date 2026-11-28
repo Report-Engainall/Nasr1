@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarClock, CreditCard, Download, MessageSquare, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
 import { Button, Empty, ErrorBox, Loading, Modal, TableWrap } from '@/components/AdminPages';
@@ -16,6 +16,8 @@ import { fetchCustomerRetentionReport } from '@/lib/customer-retention-client';
 import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retention';
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
 import { CustomerAssetsPanel } from '@/components/CustomerAssetsPanel';
+import { CustomerFinancialSourceNotice } from '@/components/CustomerFinancialSourceNotice';
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistoryPage, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode, type CustomerFinancialSourceChangeHistoryItem, type CustomerFinancialSourceChangeHistoryCursor, type CustomerFinancialSourceReviewDecision } from '@/lib/customer-financial-source';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -855,8 +857,425 @@ function Customer360Interactions({
   );
 }
 
+
+
+const financialSourceModeLabel: Record<CustomerFinancialSourceMode, string> = {
+  APP_ONLY: "دفتر متجر الأغبري",
+  ONYX: "Onyx Pro",
+  MUTAKAMEL: "المتكامل",
+};
+const financialSourceRequestStatusLabel: Record<CustomerFinancialSourceChangeHistoryItem["status"], string> = {
+  pending_reconciliation: "بانتظار المطابقة",
+  pending_approval: "بانتظار اعتماد المحاسبة",
+  approved: "معتمد",
+  rejected: "مرفوض",
+  cancelled: "ملغى",
+};
+
+function CustomerFinancialSourceChangeHistory({
+  items,
+  loading,
+  error,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  activeReviewRequestId,
+  reviewReason,
+  reviewBusyRequestId,
+  reviewError,
+  onBeginReview,
+  onCancelReview,
+  onReviewReasonChange,
+  onReview,
+}: {
+  items: CustomerFinancialSourceChangeHistoryItem[];
+  loading: boolean;
+  error: string;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  activeReviewRequestId: string | null;
+  reviewReason: string;
+  reviewBusyRequestId: string | null;
+  reviewError: string;
+  onBeginReview: (requestId: string) => void;
+  onCancelReview: () => void;
+  onReviewReasonChange: (reason: string) => void;
+  onReview: (requestId: string, decision: CustomerFinancialSourceReviewDecision) => void;
+}) {
+  if (loading) return <p className="report-note" role="status">جارٍ تحميل سجل طلبات تغيير المصدر…</p>;
+  if (error) return <p className="report-note" role="status">{error}</p>;
+  if (items.length === 0) return <p className="report-note">لا توجد طلبات تغيير مصدر سابقة لهذا العميل.</p>;
+  return (
+    <TableWrap>
+      <table>
+        <thead><tr><th>الطلب</th><th>المصدر</th><th>الحالة</th><th>التاريخ</th><th>السبب والمراجعة</th><th>الإجراء</th></tr></thead>
+        <tbody>
+          {items.map((item) => {
+            const reviewable = item.can_review &&
+              (item.status === "pending_reconciliation" || item.status === "pending_approval");
+            const reviewingThisRequest = activeReviewRequestId === item.request_id;
+            const busy = reviewBusyRequestId === item.request_id;
+            return (
+              <tr key={item.request_id}>
+                <td><code dir="ltr">{item.request_id.slice(0, 8)}</code><small style={{ display: "block" }}>الإصدار {formatNumber(item.expected_binding_revision)}</small></td>
+                <td>{financialSourceModeLabel[item.current_source_mode]} ← {financialSourceModeLabel[item.target_source_mode]}</td>
+                <td>
+                  <strong>{financialSourceRequestStatusLabel[item.status]}</strong>
+                  {item.reconciliation_result ? (
+                    <small style={{ display: "block" }}>
+                      المطابقة: {item.reconciliation_result === "matched" ? "مطابقة" : "اختلاف"}
+                      {item.reconciliation_currency_codes.length ? " · " + item.reconciliation_currency_codes.join("، ") : ""}
+                    </small>
+                  ) : null}
+                </td>
+                <td>{formatDateShort(item.requested_at)}{item.reviewed_at ? <small style={{ display: "block" }}>المراجعة: {formatDateShort(item.reviewed_at)}</small> : null}</td>
+                <td>
+                  <span>{item.reason}</span>
+                  {item.review_reason ? <small style={{ display: "block", color: "var(--muted, #667085)" }}>ملاحظة المراجع: {item.review_reason}</small> : null}
+                </td>
+                <td>
+                  {reviewable ? (
+                    reviewingThisRequest ? (
+                      <div style={{ display: "grid", gap: 6, minWidth: 190 }}>
+                        <label style={{ display: "grid", gap: 4 }}>
+                          <span>سبب قرار المراجعة</span>
+                          <textarea
+                            aria-label={"سبب مراجعة " + item.request_id.slice(0, 8)}
+                            value={reviewReason}
+                            minLength={5}
+                            maxLength={500}
+                            rows={3}
+                            disabled={Boolean(reviewBusyRequestId)}
+                            onChange={(event) => onReviewReasonChange(event.target.value)}
+                          />
+                        </label>
+                        {item.status === "pending_approval" && item.reconciliation_result === "matched" ? (
+                          <Button
+                            type="button"
+                            disabled={busy || reviewReason.trim().length < 5}
+                            onClick={() => onReview(item.request_id, "approve")}
+                          >
+                            {busy ? "جارٍ الاعتماد…" : "اعتماد وتفعيل المصدر"}
+                          </Button>
+                        ) : (
+                          <small className="report-note">لا يتاح التفعيل قبل اكتمال المطابقة وإرسال الطلب للاعتماد.</small>
+                        )}
+                        <Button
+                          type="button"
+                          disabled={busy || reviewReason.trim().length < 5}
+                          onClick={() => onReview(item.request_id, "reject")}
+                        >
+                          {busy ? "جارٍ الرفض…" : "رفض الطلب"}
+                        </Button>
+                        <Button type="button" disabled={Boolean(reviewBusyRequestId)} onClick={onCancelReview}>إلغاء</Button>
+                        {reviewError ? <ErrorBox message={reviewError} /> : null}
+                      </div>
+                    ) : (
+                      <Button type="button" disabled={Boolean(reviewBusyRequestId)} onClick={() => onBeginReview(item.request_id)}>
+                        مراجعة الطلب
+                      </Button>
+                    )
+                  ) : <span>—</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {hasMore ? (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+          <Button type="button" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? "جارٍ تحميل بقية السجل…" : "تحميل المزيد من الطلبات"}
+          </Button>
+        </div>
+      ) : null}
+    </TableWrap>
+  );
+}
+
+function CustomerFinancialSourceChangeRequestPanel({
+  customerId,
+  source,
+  onSourceChanged,
+}: {
+  customerId: string;
+  source: CustomerFinancialSource;
+  onSourceChanged: () => Promise<void>;
+}) {
+  const [targetMode, setTargetMode] = useState<CustomerFinancialSourceMode>(
+    source.source_mode === "APP_ONLY" ? "ONYX" : source.source_mode,
+  );
+  const [accountRef, setAccountRef] = useState(source.external_account_ref ?? "");
+  const [companyRef, setCompanyRef] = useState(source.company_external_ref ?? "");
+  const [branchRef, setBranchRef] = useState(source.branch_external_ref ?? "");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createCustomerInteractionIdempotencyKey());
+  const [history, setHistory] = useState<CustomerFinancialSourceChangeHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyCursor, setHistoryCursor] = useState<CustomerFinancialSourceChangeHistoryCursor | null>(null);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  const [activeReviewRequestId, setActiveReviewRequestId] = useState<string | null>(null);
+  const [reviewReason, setReviewReason] = useState("");
+  const [reviewBusyRequestId, setReviewBusyRequestId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState("");
+  const historyRequestSequence = useRef(0);
+
+  const reloadHistory = useCallback(async () => {
+    const requestSequence = ++historyRequestSequence.current;
+    setHistoryLoading(true);
+    setHistoryLoadingMore(false);
+    setHistoryError("");
+    setHistoryHasMore(false);
+    setHistoryCursor(null);
+    try {
+      const result = await fetchCustomerFinancialSourceChangeHistoryPage(customerId, 10);
+      if (historyRequestSequence.current !== requestSequence) return;
+      setHistory(result.records);
+      setHistoryHasMore(result.has_more);
+      setHistoryCursor(result.next_cursor);
+    } catch (cause) {
+      if (historyRequestSequence.current !== requestSequence) return;
+      setHistory([]);
+      setHistoryError(cause instanceof Error ? cause.message : "تعذر تحميل سجل طلبات تغيير المصدر.");
+    } finally {
+      if (historyRequestSequence.current === requestSequence) setHistoryLoading(false);
+    }
+  }, [customerId]);
+
+  const loadMoreHistory = useCallback(async () => {
+    const cursor = historyCursor;
+    if (!historyHasMore || !cursor || historyLoadingMore) return;
+    const requestSequence = historyRequestSequence.current;
+    setHistoryLoadingMore(true);
+    setHistoryError("");
+    try {
+      const result = await fetchCustomerFinancialSourceChangeHistoryPage(customerId, 10, cursor);
+      if (historyRequestSequence.current !== requestSequence) return;
+      setHistory((current) => {
+        const seen = new Set(current.map((item) => item.request_id));
+        return [...current, ...result.records.filter((item) => !seen.has(item.request_id))];
+      });
+      setHistoryHasMore(result.has_more);
+      setHistoryCursor(result.next_cursor);
+    } catch (cause) {
+      if (historyRequestSequence.current === requestSequence) {
+        setHistoryError(cause instanceof Error ? cause.message : "تعذر تحميل بقية سجل طلبات تغيير المصدر.");
+      }
+    } finally {
+      if (historyRequestSequence.current === requestSequence) setHistoryLoadingMore(false);
+    }
+  }, [customerId, historyCursor, historyHasMore, historyLoadingMore]);
+
+
+  useEffect(() => {
+    setTargetMode(source.source_mode === "APP_ONLY" ? "ONYX" : source.source_mode);
+    setAccountRef(source.external_account_ref ?? "");
+    setCompanyRef(source.company_external_ref ?? "");
+    setBranchRef(source.branch_external_ref ?? "");
+    setReason("");
+    setError("");
+    setNotice("");
+    setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+  }, [
+    customerId,
+    source.revision,
+    source.source_mode,
+    source.external_account_ref,
+    source.company_external_ref,
+    source.branch_external_ref,
+  ]);
+
+  useEffect(() => {
+    void reloadHistory();
+    return () => { historyRequestSequence.current += 1; };
+  }, [reloadHistory]);
+
+  const isExternalTarget = targetMode !== "APP_ONLY";
+  const requestReady = reason.trim().length >= 5 &&
+    (!isExternalTarget || Boolean(accountRef.trim() && companyRef.trim() && branchRef.trim()));
+
+  function resetIdempotency() {
+    setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+    setNotice("");
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!requestReady || saving) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await requestCustomerFinancialSourceChange({
+        customerId,
+        targetSourceMode: targetMode,
+        externalAccountRef: isExternalTarget ? accountRef : null,
+        companyExternalRef: isExternalTarget ? companyRef : null,
+        branchExternalRef: isExternalTarget ? branchRef : null,
+        reason,
+        idempotencyKey,
+        expectedBindingRevision: source.revision,
+      });
+      if (!result.changed) {
+        setNotice("مصدر الحساب هو بالفعل المصدر المحدد؛ لم يُنشأ طلب مكرر.");
+      } else {
+        setNotice(
+          (result.replayed ? "تم استرجاع طلب سابق بنفس مفتاح التكرار. " : "أُنشئ طلب تغيير المصدر. ") +
+          "الحالة: " + result.status + " · رقم الطلب: " + result.request_id,
+        );
+      }
+      setReason("");
+      setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+      await reloadHistory();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر إنشاء طلب تغيير مصدر الحساب.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function beginReview(requestId: string) {
+    setActiveReviewRequestId(requestId);
+    setReviewReason("");
+    setReviewError("");
+  }
+
+  function cancelReview() {
+    setActiveReviewRequestId(null);
+    setReviewReason("");
+    setReviewError("");
+  }
+
+  async function submitReview(
+    requestId: string,
+    decision: CustomerFinancialSourceReviewDecision,
+  ) {
+    if (reviewBusyRequestId || reviewReason.trim().length < 5) {
+      setReviewError("أدخل سبب مراجعة واضحًا لا يقل عن خمسة أحرف.");
+      return;
+    }
+    setReviewBusyRequestId(requestId);
+    setReviewError("");
+    setError("");
+    setNotice("");
+    try {
+      const result = await reviewCustomerFinancialSourceChange(requestId, decision, reviewReason);
+      setNotice(
+        (decision === "approve" ? "تم اعتماد وتفعيل مصدر الحساب." : "تم رفض طلب تغيير المصدر.") +
+        (result.replayed ? " تم تأكيد القرار السابق." : "")
+      );
+      cancelReview();
+      await reloadHistory();
+      if (decision === "approve") await onSourceChanged();
+    } catch (cause) {
+      setReviewError(cause instanceof Error ? cause.message : "تعذر مراجعة طلب تغيير مصدر الحساب.");
+    } finally {
+      setReviewBusyRequestId(null);
+    }
+  }
+
+  return (
+    <section className="panel" aria-label="طلب تغيير مصدر الحساب المالي">
+      <h3>إدارة مصدر الحساب المالي</h3>
+      <p className="report-note">
+        يرسل هذا النموذج طلب تغيير موثقًا فقط. لا ينقل الأرصدة ولا يفعّل المصدر الجديد قبل اكتمال المطابقة وتسجيل أدلة المزامنة واعتماد صاحب الصلاحية.
+      </p>
+      <form onSubmit={(event) => { void submit(event); }} style={{ display: "grid", gap: 10 }}>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span>المصدر المالي المطلوب</span>
+          <select
+            value={targetMode}
+            disabled={saving}
+            onChange={(event) => {
+              setTargetMode(event.target.value as CustomerFinancialSourceMode);
+              resetIdempotency();
+              if (event.target.value === "APP_ONLY") {
+                setAccountRef("");
+                setCompanyRef("");
+                setBranchRef("");
+              }
+            }}
+          >
+            <option value="APP_ONLY">دفتر متجر الأغبري (APP_ONLY)</option>
+            <option value="ONYX">Onyx Pro</option>
+            <option value="MUTAKAMEL">المتكامل</option>
+          </select>
+        </label>
+        {isExternalTarget ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span>مرجع الشركة في ERP</span>
+              <input value={companyRef} maxLength={256} required disabled={saving} dir="ltr"
+                onChange={(event) => { setCompanyRef(event.target.value); resetIdempotency(); }}
+                placeholder="COMPANY-001" />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span>مرجع الفرع في ERP</span>
+              <input value={branchRef} maxLength={256} required disabled={saving} dir="ltr"
+                onChange={(event) => { setBranchRef(event.target.value); resetIdempotency(); }}
+                placeholder="BRANCH-001" />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span>مرجع حساب العميل في ERP</span>
+              <input value={accountRef} maxLength={160} required disabled={saving} dir="ltr"
+                onChange={(event) => { setAccountRef(event.target.value); resetIdempotency(); }}
+                placeholder="CUSTOMER-001" />
+            </label>
+          </div>
+        ) : (
+          <p className="report-note">سيُطلب الرجوع إلى دفتر متجر الأغبري. لن يتم فتح دفتر APP_ONLY قبل اعتماد التحويل.</p>
+        )}
+        <label style={{ display: "grid", gap: 5 }}>
+          <span>سبب تغيير المصدر</span>
+          <textarea value={reason} maxLength={500} minLength={5} rows={3} required disabled={saving}
+            onChange={(event) => { setReason(event.target.value); resetIdempotency(); }}
+            placeholder="اذكر سبب طلب التغيير ومرجع مستند المطابقة أو التكليف الداخلي." />
+        </label>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button type="submit" disabled={saving || !requestReady}>
+            {saving ? "جارٍ إرسال الطلب…" : "إرسال طلب تغيير مصدر الحساب"}
+          </Button>
+        </div>
+      </form>
+      {notice && <p className="customer-360-interaction-notice" role="status">{notice}</p>}
+      {error && <ErrorBox message={error} />}
+      <div style={{ marginTop: 14 }}>
+        <h4>سجل طلبات تغيير المصدر</h4>
+        <CustomerFinancialSourceChangeHistory
+          items={history}
+          loading={historyLoading}
+          error={historyError}
+          hasMore={historyHasMore}
+          loadingMore={historyLoadingMore}
+          onLoadMore={() => { void loadMoreHistory(); }}
+          activeReviewRequestId={activeReviewRequestId}
+          reviewReason={reviewReason}
+          reviewBusyRequestId={reviewBusyRequestId}
+          reviewError={reviewError}
+          onBeginReview={beginReview}
+          onCancelReview={cancelReview}
+          onReviewReasonChange={setReviewReason}
+          onReview={(requestId, decision) => { void submitReview(requestId, decision); }}
+        />
+      </div>
+    </section>
+  );
+}
+
 export function AdminCustomer360({ customer, onClose }: { customer: Pick<Customer, "id">; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
+  const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [financialSourceCustomerId, setFinancialSourceCustomerId] = useState<string | null>(null);
+  const customer360LoadSequence = useRef(0);
+  const activeCustomerIdRef = useRef(customer.id);
+  activeCustomerIdRef.current = customer.id;
+  const [financialSourceError, setFinancialSourceError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exportError, setExportError] = useState('');
@@ -865,13 +1284,20 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
   const [interactionHistoryLoading, setInteractionHistoryLoading] = useState(true);
   const [interactionHistoryError, setInteractionHistoryError] = useState('');
   const handleInteractionHistoryState = useCallback((items: CustomerInteraction[], isLoading: boolean, historyError: string) => {
+    if (activeCustomerIdRef.current !== customer.id) return;
     setInteractionHistory(items);
     setInteractionHistoryLoading(isLoading);
     setInteractionHistoryError(historyError);
-  }, []);
+  }, [customer.id]);
 
   const loadCustomer360 = useCallback(async () => {
+    const requestId = ++customer360LoadSequence.current;
+    const isCurrentRequest = () => customer360LoadSequence.current === requestId;
+    let financialSourceResolved = false;
     setSummary(null);
+    setFinancialSource(null);
+    setFinancialSourceCustomerId(customer.id);
+    setFinancialSourceError('');
     setInteractionHistory([]);
     setInteractionHistoryLoading(true);
     setInteractionHistoryError('');
@@ -880,51 +1306,76 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
     setExportError('');
     try {
       const scope = await getCurrentTenantScope();
+      if (!isCurrentRequest()) return;
       const { data: scopedCustomer, error: scopedCustomerError } = await supabase
         .from('customers')
         .select('id')
         .eq('organization_id', scope.organizationId)
         .eq('id', customer.id)
         .maybeSingle();
+      if (!isCurrentRequest()) return;
       if (scopedCustomerError) throw scopedCustomerError;
       if (!scopedCustomer || scopedCustomer.id !== customer.id) {
         throw new Error(CUSTOMER_SCOPE_BLOCKED_MESSAGE);
       }
+      const selectedSource = await fetchStaffCustomerFinancialSource(customer.id);
+      if (!isCurrentRequest()) return;
+      financialSourceResolved = true;
+      setFinancialSource(selectedSource);
+      if (!canReadCustomerAppLedger(selectedSource)) {
+        // The SECURITY DEFINER Customer 360 projection includes APP_ONLY finance.
+        // Never call it for external, stale or suspended source bindings.
+        setSummary(null);
+        return;
+      }
       const customerSummary = await fetchStaffCustomer360Summary(customer.id);
+      if (!isCurrentRequest()) return;
       setSummary(customerSummary);
     } catch (cause) {
+      if (!isCurrentRequest()) return;
       setSummary(null);
+      if (!financialSourceResolved) {
+        setFinancialSourceError('تعذر التحقق من مصدر الحساب المالي لهذا العميل؛ أوقفنا ملخص Customer 360 المالي حتى يؤكد الخادم المصدر والصلاحية.');
+      }
       setError(cause instanceof Error && cause.message === CUSTOMER_SCOPE_BLOCKED_MESSAGE ? CUSTOMER_SCOPE_BLOCKED_MESSAGE : CUSTOMER360_LOAD_ERROR_MESSAGE);
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [customer.id]);
 
-  useEffect(() => { void loadCustomer360(); }, [loadCustomer360]);
+  useEffect(() => {
+    void loadCustomer360();
+    return () => { customer360LoadSequence.current += 1; };
+  }, [loadCustomer360]);
+
+  const currentSummary = summary?.customer.id === customer.id ? summary : null;
+  const currentFinancialSource = financialSourceCustomerId === customer.id ? financialSource : null;
+  const currentFinancialSourceError = financialSourceCustomerId === customer.id ? financialSourceError : '';
+  const currentCustomerLoading = loading || financialSourceCustomerId !== customer.id;
 
   async function reload() {
     await loadCustomer360();
   }
 
-  const overdueInvoiceCount = summary?.finance_by_currency.reduce((total, row) => total + row.overdue_invoice_count, 0) ?? 0;
+  const overdueInvoiceCount = currentSummary?.finance_by_currency.reduce((total, row) => total + row.overdue_invoice_count, 0) ?? 0;
   const printDocument = useMemo(() => {
-    if (!summary || interactionHistoryLoading || interactionHistoryError) return null;
+    if (!currentSummary || interactionHistoryLoading || interactionHistoryError) return null;
     try {
-      return projectStaffCustomer360PrintDocument(summary, interactionHistory);
+      return projectStaffCustomer360PrintDocument(currentSummary, interactionHistory);
     } catch {
       return null;
     }
-  }, [summary, interactionHistory, interactionHistoryLoading, interactionHistoryError]);
+  }, [currentSummary, interactionHistory, interactionHistoryLoading, interactionHistoryError]);
 
   function exportCustomer360() {
-    if (!summary) return;
+    if (!currentSummary) return;
     setExportError('');
     if (interactionHistoryLoading || interactionHistoryError) {
       setExportError('تعذر تضمين سجل التواصل الحالي؛ حدّث السجل قبل تصدير ملف العميل.');
       return;
     }
     try {
-      downloadStaffCustomer360WorkbookXlsx(summary, interactionHistory);
+      downloadStaffCustomer360WorkbookXlsx(currentSummary, interactionHistory);
     } catch (cause) {
       setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.');
     }
@@ -955,11 +1406,11 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
       setPrintError('تعذر فتح نافذة الطباعة في هذا المتصفح.');
     }
   }
-  return <Modal title={summary ? 'ملف العميل 360 — ' + summary.customer.business_name : 'ملف العميل 360'} onClose={onClose}>
+  return <Modal title={currentSummary ? 'ملف العميل 360 — ' + currentSummary.customer.business_name : 'ملف العميل 360'} onClose={onClose}>
     <div style={{ display: 'grid', gap: 14, maxHeight: '75vh', overflowY: 'auto', padding: 2 }}>
       <Customer360Header
-        summary={summary}
-        loading={loading}
+        summary={currentSummary}
+        loading={currentCustomerLoading}
         exportError={exportError}
         printError={printError}
         printDisabled={!printDocument}
@@ -967,16 +1418,40 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
         onExport={exportCustomer360}
         onPrint={printCustomer360}
       />
-      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : summary ? (
+      <CustomerFinancialSourceNotice source={currentFinancialSource} loading={currentCustomerLoading} error={currentFinancialSourceError} />
+      {currentFinancialSource && currentFinancialSource.source_status === 'active' && !currentCustomerLoading ? (
+        <CustomerFinancialSourceChangeRequestPanel
+          key={customer.id}
+          customerId={customer.id}
+          source={currentFinancialSource}
+          onSourceChanged={loadCustomer360}
+        />
+      ) : null}
+      {currentFinancialSource && currentFinancialSource.source_mode !== 'APP_ONLY' ? (
+        <section className="report-note" role="note" aria-label="نطاق الحساب في النظام المحاسبي الخارجي">
+          <strong>هوية حساب العميل في النظام المحاسبي الخارجي</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginTop: 8 }}>
+            <div><span className="muted">الشركة</span><div dir="ltr">{currentFinancialSource.company_external_ref || 'غير متاح'}</div></div>
+            <div><span className="muted">الفرع</span><div dir="ltr">{currentFinancialSource.branch_external_ref || 'غير متاح'}</div></div>
+            <div><span className="muted">حساب العميل</span><div dir="ltr">{currentFinancialSource.external_account_ref || 'غير متاح'}</div></div>
+          </div>
+        </section>
+      ) : null}
+      {currentCustomerLoading ? <Loading /> : error ? <ErrorBox message={error} /> :
+        currentFinancialSource && !canReadCustomerAppLedger(currentFinancialSource) ? (
+          <p className="report-note" role="status">
+            ملخص Customer 360 المالي غير متاح لهذا العميل لأن مصدر الحساب المحدد ليس دفتر متجر الأغبري النشط. لم نقرأ أو نجمع فواتير أو دفعات APP_ONLY؛ يجب أن تأتي القراءة المالية من الموصل المعتمد للمصدر الخارجي.
+          </p>
+        ) : currentSummary ? (
         <>
           <Customer360LoadedView
-            summary={summary}
+            summary={currentSummary}
             overdueInvoiceCount={overdueInvoiceCount}
           />
-          <Customer360RetentionInsights customerId={summary.customer.id} />
-          <CustomerServiceCases customerId={summary.customer.id} />
-          <CustomerAssetsPanel customerId={summary.customer.id} />
-          <Customer360Interactions customerId={summary.customer.id} onHistoryState={handleInteractionHistoryState} />
+          <Customer360RetentionInsights customerId={currentSummary.customer.id} />
+          <CustomerServiceCases customerId={currentSummary.customer.id} />
+          <CustomerAssetsPanel customerId={currentSummary.customer.id} />
+          <Customer360Interactions customerId={currentSummary.customer.id} onHistoryState={handleInteractionHistoryState} />
         </>
       ) : null}   </div>
     {printDocument && typeof document !== 'undefined' ? createPortal(<Customer360PrintSheet document={printDocument} />, document.body) : null}

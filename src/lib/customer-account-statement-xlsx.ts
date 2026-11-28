@@ -8,6 +8,10 @@ import {
   type PaymentAmount,
 } from "@/lib/commerce-utils";
 import { xmlEscape, worksheetXml, zipStore, type CellValue } from "@/lib/onyx-export";
+import {
+  parseCustomerExternalStatement,
+  type CustomerExternalStatement,
+} from "@/lib/customer-external-statement";
 
 const MAX_INVOICES = 200;
 const MAX_PAYMENTS = 500;
@@ -54,7 +58,7 @@ function validTimestamp(value: unknown): value is string {
 
 function moneyDecimal(value: unknown, label: string, allowZero = true): string {
   const raw = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
-  if (!raw || raw.length > 40 || !/^\\d+(?:\\.\\d{1,2})?$/.test(raw)) {
+  if (!raw || raw.length > 40 || !/^\d+(?:\.\d{1,2})?$/.test(raw)) {
     throw new Error("لا يمكن تصدير كشف الحساب: قيمة " + label + " غير صالحة.");
   }
   const [whole, fraction = ""] = raw.split(".");
@@ -316,8 +320,12 @@ function workbookSheets(input: CustomerAccountStatementWorkbookInput): { name: s
   ];
 }
 
-function workbookFiles(input: CustomerAccountStatementWorkbookInput): { name: string; content: string }[] {
-  const sheets = workbookSheets(input);
+type WorkbookMetadata = { title: string; subject: string; generatedAt: string };
+
+function workbookFilesFromSheets(
+  sheets: ReturnType<typeof workbookSheets>,
+  metadata: WorkbookMetadata,
+): { name: string; content: string }[] {
   const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -343,9 +351,9 @@ function workbookFiles(input: CustomerAccountStatementWorkbookInput): { name: st
     '</Relationships>';
   const core = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
-    '<dc:title>' + xmlEscape(BUSINESS_BRAND_NAME + " — كشف حساب العميل") + '</dc:title><dc:creator>' + xmlEscape(BUSINESS_BRAND_NAME) + '</dc:creator>' +
-    '<dc:subject>Authenticated customer account statement with complete per-currency summary and bounded details</dc:subject><dcterms:created xsi:type="dcterms:W3CDTF">' +
-    xmlEscape(input.generatedAt) + '</dcterms:created></cp:coreProperties>';
+    '<dc:title>' + xmlEscape(metadata.title) + '</dc:title><dc:creator>' + xmlEscape(BUSINESS_BRAND_NAME) + '</dc:creator>' +
+    '<dc:subject>' + xmlEscape(metadata.subject) + '</dc:subject><dcterms:created xsi:type="dcterms:W3CDTF">' +
+    xmlEscape(metadata.generatedAt) + '</dcterms:created></cp:coreProperties>';
   const app = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">' +
     '<Application>' + xmlEscape(BUSINESS_BRAND_NAME) + '</Application><TitlesOfParts><vt:vector size="' + sheets.length + '" baseType="lpstr">' +
@@ -363,6 +371,109 @@ function workbookFiles(input: CustomerAccountStatementWorkbookInput): { name: st
       content: worksheetXml(sheet.rows, true),
     })),
   ];
+}
+
+function workbookFiles(input: CustomerAccountStatementWorkbookInput): { name: string; content: string }[] {
+  return workbookFilesFromSheets(workbookSheets(input), {
+    title: BUSINESS_BRAND_NAME + " — كشف حساب العميل",
+    subject: "Authenticated APP_ONLY customer ledger statement with per-currency totals and bounded details",
+    generatedAt: input.generatedAt,
+  });
+}
+
+function externalStatementWorkbookSheets(statement: CustomerExternalStatement): ReturnType<typeof workbookSheets> {
+  const totalEntries = statement.currencies.reduce((sum, currency) => sum + currency.entry_count, 0);
+  const overview: CellValue[][] = [
+    ["مصدر الحساب", statement.source_mode === "ONYX" ? "Onyx Pro" : "المتكامل"],
+    ["تاريخ لقطة المصدر", statement.source_as_of],
+    ["عدد العملات", statement.currencies.length],
+    ["عدد الحركات في كامل اللقطة", totalEntries],
+    ["منهجية الأرصدة", "كل عملة في ورقة مستقلة؛ لا تجمع العملات ولا تطبق أسعار صرف مفترضة."],
+    ["حد التفاصيل", "حتى 500 حركة لكل عملة؛ تبقى الإجماليات والرصيد الختامي من كامل النطاق."],
+    ["الخصوصية", "لا يتضمن الملف معرّفات العميل أو المؤسسة أو مفاتيح النطاق أو بيانات اعتماد ERP."],
+    ["الحقول الداخلية", "لا يتضمن الملف تكلفة الشراء أو الهامش أو قيود الأستاذ العام."],
+  ];
+  const balances: CellValue[][] = [
+    ["العملة", "تاريخ اكتمال النطاق", "عدد الحركات", "إجمالي المدين", "إجمالي الدائن", "الرصيد الختامي", "تفاصيل جزئية"],
+    ...statement.currencies.map((currency) => [
+      currency.currency_code,
+      currency.source_as_of,
+      currency.entry_count,
+      currency.total_debit,
+      currency.total_credit,
+      currency.closing_balance,
+      currency.details_partial ? "نعم — أحدث 500 فقط" : "لا",
+    ]),
+  ];
+  const sheets: ReturnType<typeof workbookSheets> = [
+    { name: "ملخص الكشف", rows: overview },
+    { name: "الأرصدة حسب العملة", rows: balances },
+  ];
+  for (const currency of statement.currencies) {
+    const rows: CellValue[][] = [
+      ["التاريخ", "مرجع الحركة", "المستند المصدر", "النوع", "تاريخ الاستحقاق", "مدين", "دائن", "الرصيد الجاري", "البيان"],
+      ...currency.entries.map((entry) => [
+        entry.entry_date,
+        entry.entry_reference,
+        entry.source_document_number,
+        entry.entry_type,
+        entry.due_date,
+        entry.debit_amount,
+        entry.credit_amount,
+        entry.running_balance,
+        entry.description,
+      ]),
+    ];
+    sheets.push({ name: "حركات " + currency.currency_code, rows });
+  }
+  return sheets;
+}
+
+export type CustomerExternalStatementWorkbookInput = {
+  statement: CustomerExternalStatement;
+  generatedAt: string;
+};
+
+function externalStatementWorkbookFiles(input: CustomerExternalStatementWorkbookInput) {
+  if (!input || typeof input.generatedAt !== "string" || !Number.isFinite(Date.parse(input.generatedAt))) {
+    throw new Error("لا يمكن تصدير كشف ERP: وقت إنشاء الملف غير صالح.");
+  }
+  const statement = parseCustomerExternalStatement(
+    input.statement,
+    input.statement.source_mode,
+    input.statement.source_as_of,
+  );
+  return workbookFilesFromSheets(externalStatementWorkbookSheets(statement), {
+    title: BUSINESS_BRAND_NAME + " — كشف الحساب الخارجي",
+    subject: "Read-only ERP customer statement with separate currency ledgers and bounded details",
+    generatedAt: input.generatedAt,
+  });
+}
+
+export function buildCustomerExternalStatementWorkbookXlsx(input: CustomerExternalStatementWorkbookInput): Uint8Array {
+  return zipStore(externalStatementWorkbookFiles(input));
+}
+
+export function downloadCustomerExternalStatementWorkbookXlsx(input: CustomerExternalStatementWorkbookInput): void {
+  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
+    throw new Error("تنزيل ملفات Excel غير متاح في هذا المتصفح.");
+  }
+  const bytes = buildCustomerExternalStatementWorkbookXlsx(input);
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "aghbari-external-account-statement-" + input.generatedAt.slice(0, 10) + ".xlsx";
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
 }
 
 export function buildCustomerAccountStatementWorkbookXlsx(input: CustomerAccountStatementWorkbookInput): Uint8Array {

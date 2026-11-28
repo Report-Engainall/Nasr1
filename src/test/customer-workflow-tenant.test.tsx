@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
   fetchSettingsMap: vi.fn(),
   from: vi.fn(),
   rpc: vi.fn(),
+  getSession: vi.fn(),
+  downloadPaymentHistoryWorkbook: vi.fn(),
   signOut: vi.fn(),
   responses: {} as Record<string, unknown[]>,
   queries: [] as Array<{
@@ -55,6 +57,7 @@ vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: mocks.from,
     rpc: mocks.rpc,
+    auth: { getSession: mocks.getSession },
   },
 }));
 
@@ -62,6 +65,10 @@ vi.mock("@/lib/api", () => ({
   fetchProducts: mocks.fetchProducts,
   fetchResolvedProductPrices: mocks.fetchResolvedProductPrices,
   fetchSettingsMap: mocks.fetchSettingsMap,
+}));
+
+vi.mock("@/lib/customer-payment-history-xlsx", () => ({
+  downloadCustomerPaymentHistoryWorkbookXlsx: mocks.downloadPaymentHistoryWorkbook,
 }));
 
 
@@ -163,6 +170,8 @@ describe("customer quote workspace tenant boundary", () => {
     Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
     window.localStorage.clear();
     vi.clearAllMocks();
+    mocks.getSession.mockReset();
+    mocks.downloadPaymentHistoryWorkbook.mockReset();
     mocks.user = null;
     mocks.queries.splice(0);
     mocks.responses = {
@@ -195,6 +204,7 @@ describe("customer quote workspace tenant boundary", () => {
     if (originalOnlineDescriptor) {
       Object.defineProperty(window.navigator, "onLine", originalOnlineDescriptor);
     }
+    document.body.removeAttribute("data-print-mode");
     if (root) {
       await act(async () => root?.unmount());
       root = undefined;
@@ -670,6 +680,21 @@ describe("customer quote workspace tenant boundary", () => {
       }],
     };
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            source_status: "active",
+            source_as_of: null,
+            last_synced_at: null,
+            verified_at: null,
+            revision: 1,
+            is_stale: false,
+            can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
       return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
@@ -694,6 +719,341 @@ describe("customer quote workspace tenant boundary", () => {
     expect(mocks.queries.some((query) => query.table === "customer_invoice_items")).toBe(false);
     expect(mocks.queries.some((query) => query.table === "customers")).toBe(false);
   });
+
+
+  it("drops invoice details and the list when the source switches to ONYX before invoice-detail commit", async () => {
+    const invoiceId = "2a222222-2222-4222-8222-222222222222";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-DETAIL-CUTOVER",
+        order_id: "2a333333-3333-4333-8333-333333333333",
+        customer_id: "2a444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-11-27T00:00:00Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? {
+                source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+                last_synced_at: null, verified_at: null, revision: 31,
+                is_stale: false, can_read_app_ledger: true,
+              }
+            : {
+                source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z",
+                last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z",
+                revision: 32, is_stale: false, can_read_app_ledger: false,
+              },
+          error: null,
+        };
+      }
+      if (name === "get_customer_invoice_pdf") {
+        expect(args).toEqual({ p_invoice_id: invoiceId });
+        return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(sourceReads).toBe(2);
+    const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("عرض / طباعة"),
+    );
+    expect(openButton).toBeDefined();
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_invoice_pdf", { p_invoice_id: invoiceId });
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي أثناء تحميل تفاصيل الفاتورة");
+    expect(host?.textContent).not.toContain("INV-DETAIL-CUTOVER");
+    expect(host?.textContent).not.toContain("سعر الوحدة");
+    expect(host?.textContent).not.toContain("25.00");
+  });
+
+  it("fails closed on invoice details when the source resolver fails after the detail read", async () => {
+    const invoiceId = "2b222222-2222-4222-8222-222222222222";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-DETAIL-UNVERIFIED",
+        order_id: "2b333333-3333-4333-8333-333333333333",
+        customer_id: "2b444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-11-27T00:00:00Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        if (sourceReads > 2) return { data: null, error: { message: "source unavailable" } };
+        return {
+          data: {
+            source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+            last_synced_at: null, verified_at: null, revision: 41,
+            is_stale: false, can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
+      if (name === "get_customer_invoice_pdf") {
+        expect(args).toEqual({ p_invoice_id: invoiceId });
+        return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(sourceReads).toBe(2);
+    const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("عرض / طباعة"),
+    );
+    expect(openButton).toBeDefined();
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_invoice_pdf", { p_invoice_id: invoiceId });
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).toContain("تعذر التحقق من مصدر الحساب بعد تحميل تفاصيل الفاتورة");
+    expect(host?.textContent).not.toContain("INV-DETAIL-UNVERIFIED");
+    expect(host?.textContent).not.toContain("سعر الوحدة");
+    expect(host?.textContent).not.toContain("25.00");
+  });
+
+  it("cancels a stale invoice PDF preflight when a newer invoice is opened", async () => {
+    const invoiceAId = "5c222222-2222-4222-8222-222222222222";
+    const invoiceBId = "5c333333-3333-4333-8333-333333333333";
+    const orderId = "5c444444-4444-4444-8444-444444444444";
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: "test-access-token" } },
+      error: null,
+    });
+    mocks.responses = {
+      customer_invoices: [
+        {
+          id: invoiceAId, invoice_number: "INV-CONCURRENT-A", order_id: orderId,
+          customer_id: "5c555555-5555-4555-8555-555555555555",
+          status: "issued", issued_at: "2026-11-28T00:00:00Z", due_at: null, currency: "YER",
+        },
+        {
+          id: invoiceBId, invoice_number: "INV-CONCURRENT-B", order_id: orderId,
+          customer_id: "5c555555-5555-4555-8555-555555555555",
+          status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null, currency: "YER",
+        },
+      ],
+      orders: [{
+        quantity_review_required: false, customer_adjustment_note: null,
+        customer_payment_requested_at: null, payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+
+    let sourceReads = 0;
+    let releaseDeferredSource: ((result: { data: unknown; error: null }) => void) | undefined;
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        if (sourceReads === 4) {
+          return await new Promise<{ data: unknown; error: null }>((resolve) => {
+            releaseDeferredSource = resolve;
+          });
+        }
+        return {
+          data: {
+            source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+            last_synced_at: null, verified_at: null, revision: 71,
+            is_stale: false, can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
+      if (name === "get_customer_invoice_pdf") {
+        expect([invoiceAId, invoiceBId]).toContain(args.p_invoice_id);
+        return { data: createCustomerInvoicePdfPayload(args.p_invoice_id ?? ""), error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(sourceReads).toBe(2);
+    const openRowInvoice = async (invoiceNumber: string) => {
+      const button = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((candidate) => candidate.textContent?.includes("عرض / طباعة") &&
+          candidate.closest("tr")?.textContent?.includes(invoiceNumber));
+      expect(button).toBeDefined();
+      await act(async () => {
+        button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+
+    await openRowInvoice("INV-CONCURRENT-A");
+    expect(sourceReads).toBe(3);
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).toContain("INV-CONCURRENT-A");
+
+    const pdfButton = Array.from(host?.querySelectorAll<HTMLButtonElement>('[aria-label="تفاصيل الفاتورة"] button') ?? [])
+      .find((button) => button.textContent?.includes("تنزيل PDF عربي"));
+    expect(pdfButton).toBeDefined();
+    await act(async () => {
+      pdfButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(sourceReads).toBe(4);
+    expect(releaseDeferredSource).toBeDefined();
+    expect(mocks.getSession).not.toHaveBeenCalled();
+
+    const closeButton = Array.from(host?.querySelectorAll<HTMLButtonElement>('[aria-label="تفاصيل الفاتورة"] button') ?? [])
+      .find((button) => button.textContent?.includes("إغلاق"));
+    expect(closeButton).toBeDefined();
+    await act(async () => {
+      closeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')).toBeNull();
+
+    await openRowInvoice("INV-CONCURRENT-B");
+    expect(sourceReads).toBe(5);
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).toContain("INV-CONCURRENT-B");
+
+    await act(async () => {
+      releaseDeferredSource?.({
+        data: {
+          source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+          last_synced_at: null, verified_at: null, revision: 71,
+          is_stale: false, can_read_app_ledger: true,
+        },
+        error: null,
+      });
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.getSession).not.toHaveBeenCalled();
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).toContain("INV-CONCURRENT-B");
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')?.textContent).not.toContain("INV-CONCURRENT-A");
+  });
+
+  it.each(["تنزيل PDF عربي", "تنزيل Excel"])(
+    "clears customer invoice rows and details when the source changes before %s",
+    async (exportLabel) => {
+    const invoiceId = "5b222222-2222-4222-8222-222222222222";
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId, invoice_number: "INV-PDF-OUTPUT-CUTOVER",
+        order_id: "5b333333-3333-4333-8333-333333333333",
+        customer_id: "5b444444-4444-4444-8444-444444444444",
+        status: "issued", issued_at: "2026-11-27T00:00:00Z",
+        due_at: null, currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false, customer_adjustment_note: null,
+        customer_payment_requested_at: null, payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 3
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 61, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 62, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_invoice_pdf") {
+        expect(args).toEqual({ p_invoice_id: invoiceId });
+        return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(sourceReads).toBe(2);
+    const openButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("عرض / طباعة"));
+    expect(openButton).toBeDefined();
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).toContain("INV-PDF-OUTPUT-CUTOVER");
+    expect(host?.textContent).toContain("25.00");
+
+    const exportButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes(exportLabel));
+    expect(exportButton).toBeDefined();
+    expect(exportButton?.disabled).toBe(false);
+    await act(async () => {
+      exportButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(4);
+    expect(host?.textContent).toContain(
+      exportLabel === "تنزيل PDF عربي"
+        ? "تغير مصدر الحساب المالي؛ أوقفنا تنزيل الفاتورة من الدفتر السابق."
+        : "تغير مصدر الحساب؛ أوقفنا تصدير تفاصيل الفاتورة القديمة.",
+    );
+    expect(host?.textContent).not.toContain("INV-PDF-OUTPUT-CUTOVER");
+    expect(host?.textContent).not.toContain("25.00");
+    expect(host?.querySelector('[aria-label="تفاصيل الفاتورة"]')).toBeNull();
+    },
+  );
 
   it("omits invoice price columns and totals when the server hides invoice financial details", async () => {
     const invoiceId = "66666666-6666-4666-8666-666666666666";
@@ -725,6 +1085,21 @@ describe("customer quote workspace tenant boundary", () => {
       }],
     };
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            source_status: "active",
+            source_as_of: null,
+            last_synced_at: null,
+            verified_at: null,
+            revision: 1,
+            is_stale: false,
+            can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
       return {
@@ -804,6 +1179,21 @@ describe("customer quote workspace tenant boundary", () => {
       }],
     };
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            source_status: "active",
+            source_as_of: null,
+            last_synced_at: null,
+            verified_at: null,
+            revision: 1,
+            is_stale: false,
+            can_read_app_ledger: true,
+          },
+          error: null,
+        };
+      }
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
       return {
@@ -897,6 +1287,367 @@ describe("customer quote workspace tenant boundary", () => {
 
     expect(host?.textContent).toContain("تعذر تحميل نطاق المؤسسة من الخادم.");
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+
+  it("discards a statement projection when the financial source revision changes during the read", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads === 1
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 7, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 8, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            invoices: [{ id: "11111111-1111-4111-8111-111111111111", invoice_number: "INV-CUTOVER-STALE", order_id: "22222222-2222-4222-8222-222222222222", customer_id: "33333333-3333-4333-8333-333333333333", status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null, currency: "YER" }],
+            payments: [],
+            credits: [],
+            summary: null,
+            summary_as_of_utc: "2026-11-28T00:00:00Z",
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/statement");
+
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_account_statement");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي أثناء إعداد كشف الحساب");
+    expect(host?.textContent).not.toContain("INV-CUTOVER-STALE");
+    expect(host?.querySelector('[aria-label="تنزيل Excel"]')).toBeNull();
+  });
+
+  it("clears the APP_ONLY statement projection when the source changes before PDF download", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 51, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 52, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            invoices: [{
+              id: "51111111-1111-4111-8111-111111111111",
+              invoice_number: "INV-PDF-CUTOVER-STALE",
+              order_id: "52222222-2222-4222-8222-222222222222",
+              customer_id: "53333333-3333-4333-8333-333333333333",
+              status: "issued", issued_at: "2026-11-27T00:00:00Z",
+              due_at: null, currency: "YER",
+            }],
+            payments: [], credits: [], summary: null,
+            summary_as_of_utc: "2026-11-28T00:00:00Z",
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/statement");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("INV-PDF-CUTOVER-STALE");
+    const pdfButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("تنزيل PDF عربي"));
+    expect(pdfButton).toBeDefined();
+
+    await act(async () => {
+      pdfButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي؛ أوقفنا إنشاء كشف من الدفتر السابق.");
+    expect(host?.textContent).not.toContain("INV-PDF-CUTOVER-STALE");
+    expect(
+      Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .some((button) => button.textContent?.includes("تنزيل PDF عربي")),
+    ).toBe(false);
+  });
+
+  it("renders and prints a source-routed ONYX statement as separate customer currency ledgers", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const sourceAsOf = new Date(Date.now() - 2 * 60_000).toISOString();
+    const currencyAsOf = new Date(Date.now() - 60_000).toISOString();
+    const externalSource = {
+      source_mode: "ONYX", source_status: "active", source_as_of: sourceAsOf,
+      last_synced_at: sourceAsOf, verified_at: sourceAsOf, revision: 77,
+      is_stale: false, can_read_app_ledger: false,
+    };
+    const externalStatement = {
+      source_mode: "ONYX", source_as_of: sourceAsOf, details_limit_per_currency: 500,
+      currencies: [
+        {
+          currency_code: "YER", source_as_of: currencyAsOf, entry_count: 2,
+          total_debit: "1500.0000", total_credit: "500.0000", closing_balance: "1000.0000",
+          details_partial: false,
+          // The parser requires newest-first details and microsecond-exact running balances.
+          entries: [
+            {
+              entry_reference: "ONYX-RC-001", entry_date: "2026-11-28", due_date: null,
+              entry_type: "payment", debit_amount: "0", credit_amount: "500.0000",
+              running_balance: "1000.0000", source_document_number: "ONYX-RC-001",
+              description: "سداد جزئي",
+            },
+            {
+              entry_reference: "ONYX-JV-001", entry_date: "2026-11-27", due_date: null,
+              entry_type: "invoice", debit_amount: "1500.0000", credit_amount: "0",
+              running_balance: "1500.0000", source_document_number: "ONYX-INV-001",
+              description: "فاتورة من المصدر الخارجي",
+            },
+          ],
+        },
+        {
+          currency_code: "USD", source_as_of: currencyAsOf, entry_count: 1,
+          total_debit: "25.0000", total_credit: "0", closing_balance: "25.0000",
+          details_partial: false,
+          entries: [{
+            entry_reference: "ONYX-JV-USD-001", entry_date: "2026-11-27", due_date: null,
+            entry_type: "opening_balance", debit_amount: "25.0000", credit_amount: "0",
+            running_balance: "25.0000", source_document_number: null,
+            description: "رصيد افتتاحي بالدولار",
+          }],
+        },
+      ],
+    };
+    let sourceReads = 0;
+    let statementReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return { data: externalSource, error: null };
+      }
+      if (name === "get_customer_account_statement") {
+        statementReads += 1;
+        return {
+          data: {
+            source_mode: "ONYX", invoices: [], payments: [], credits: [],
+            summary: null, summary_as_of_utc: sourceAsOf,
+            external_statement: externalStatement,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    const printSpy = vi.fn();
+    const originalPrintDescriptor = Object.getOwnPropertyDescriptor(window, "print");
+    Object.defineProperty(window, "print", { configurable: true, value: printSpy });
+    try {
+      await mountQuoteWorkspace("/statement");
+      expect(sourceReads).toBe(2);
+      expect(statementReads).toBe(1);
+      expect(host?.textContent).toContain("كشف الحساب الخارجي");
+      expect(host?.textContent).toContain("Onyx Pro");
+      expect(host?.textContent).toContain("كشف YER");
+      expect(host?.textContent).toContain("كشف USD");
+      expect(host?.textContent).toContain("ONYX-JV-001");
+      expect(host?.textContent).toContain("ONYX-JV-USD-001");
+      expect(host?.textContent).not.toContain("INV-APP-ONLY");
+      expect(host?.textContent).not.toContain("دفتر متجر الأغبري الكامل");
+
+      const buttons = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+      const pdfButton = buttons.find((button) => button.textContent?.includes("تنزيل PDF عربي"));
+      const excelButton = buttons.find((button) => button.textContent?.includes("تنزيل Excel"));
+      const printButton = buttons.find((button) => button.textContent?.includes("طباعة من المتصفح"));
+      expect(pdfButton).toBeUndefined();
+      expect(excelButton).toBeDefined();
+      expect(excelButton?.disabled).toBe(false);
+      expect(printButton).toBeDefined();
+
+      await act(async () => {
+        printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(sourceReads).toBe(3);
+      expect(printSpy).toHaveBeenCalledTimes(1);
+      expect(document.body).toHaveAttribute("data-print-mode", "customer-account-statement");
+      window.dispatchEvent(new Event("afterprint"));
+      expect(document.body).not.toHaveAttribute("data-print-mode");
+    } finally {
+      if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
+      else Reflect.deleteProperty(window, "print");
+    }
+  });
+
+  it("discards a payment history projection when its source revision changes before commit", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads === 1
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 11, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "MUTAKAMEL", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 12, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            invoices: [{ id: "44444444-4444-4444-8444-444444444444", invoice_number: "INV-PAYMENT-CUTOVER", currency: "YER" }],
+            payments: [{ id: "55555555-5555-4555-8555-555555555555", invoice_id: "44444444-4444-4444-8444-444444444444", amount: "75.00", paid_at: "2026-11-27T10:00:00Z" }],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/payments");
+
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_account_statement");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي أثناء تحميل سجل الدفعات");
+    expect(host?.textContent).not.toContain("INV-PAYMENT-CUTOVER");
+    expect(host?.querySelector('[aria-label="ترقيم سندات قبض العميل"]')).toBeNull();
+  });
+
+
+  it("clears stale customer payment history when the source changes at XLSX output", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 81, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "MUTAKAMEL", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 82, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            invoices: [{
+              id: "6c111111-1111-4111-8111-111111111111",
+              invoice_number: "INV-PAYMENT-OUTPUT-CUTOVER",
+              currency: "YER",
+            }],
+            payments: [{
+              id: "6c222222-2222-4222-8222-222222222222",
+              invoice_id: "6c111111-1111-4111-8111-111111111111",
+              amount: "75.00",
+              paid_at: "2026-11-27T10:00:00Z",
+            }],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/payments");
+    expect(sourceReads).toBe(2);
+    const paymentRow = Array.from(host?.querySelectorAll<HTMLTableRowElement>("tbody tr") ?? [])
+      .find((row) => row.textContent?.includes("INV-PAYMENT-OUTPUT-CUTOVER"));
+    expect(paymentRow).toBeDefined();
+    expect(paymentRow?.textContent).toContain("٧٥");
+    const exportButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("تنزيل Excel"));
+    expect(exportButton).toBeDefined();
+    expect(exportButton?.disabled).toBe(false);
+
+    await act(async () => {
+      exportButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).toContain("تغير مصدر الحساب؛ أوقفنا تصدير سجل الدفعات القديم.");
+    expect(host?.textContent).not.toContain("INV-PAYMENT-OUTPUT-CUTOVER");
+    expect(
+      Array.from(host?.querySelectorAll<HTMLTableRowElement>("tbody tr") ?? [])
+        .some((row) => row.textContent?.includes("٧٥")),
+    ).toBe(false);
+    expect(mocks.downloadPaymentHistoryWorkbook).not.toHaveBeenCalled();
+  });
+
+  it("discards the customer invoice list when its financial source changes during the query", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses.customer_invoices = [{
+      id: "66666666-6666-4666-8666-666666666666",
+      invoice_number: "INV-INVOICE-CUTOVER",
+      order_id: "77777777-7777-4777-8777-777777777777",
+      customer_id: "88888888-8888-4888-8888-888888888888",
+      status: "issued",
+      issued_at: "2026-11-27T00:00:00Z",
+      due_at: null,
+      currency: "YER",
+    }];
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads === 1
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 21, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 22, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي أثناء تحميل الفواتير");
+    expect(host?.textContent).not.toContain("INV-INVOICE-CUTOVER");
   });
 
   it("keeps barcode scanning open for multiple products and merges repeat scans by each product's order multiple", async () => {
@@ -1005,6 +1756,375 @@ describe("customer quote workspace tenant boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(router.state.location.pathname).toBe("/cart");
+  });
+
+
+  it("blocks invoice browser printing when the server source changes immediately before print", async () => {
+    const invoiceId = "2c222222-2222-4222-8222-222222222222";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-PRINT-CUTOVER",
+        order_id: "2c333333-3333-4333-8333-333333333333",
+        customer_id: "2c444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-11-27T00:00:00Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 3
+            ? {
+                source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+                last_synced_at: null, verified_at: null, revision: 51,
+                is_stale: false, can_read_app_ledger: true,
+              }
+            : {
+                source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z",
+                last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z",
+                revision: 52, is_stale: false, can_read_app_ledger: false,
+              },
+          error: null,
+        };
+      }
+      if (name === "get_customer_invoice_pdf") {
+        expect(args).toEqual({ p_invoice_id: invoiceId });
+        return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    const printSpy = vi.fn();
+    const originalPrintDescriptor = Object.getOwnPropertyDescriptor(window, "print");
+    Object.defineProperty(window, "print", { configurable: true, value: printSpy });
+
+    try {
+      await mountQuoteWorkspace("/invoices");
+      const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("عرض / طباعة"),
+      );
+      expect(openButton).toBeDefined();
+      await act(async () => {
+        openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(sourceReads).toBe(3);
+
+      const browserPrintButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("طباعة من المتصفح"),
+      );
+      expect(browserPrintButton).toBeDefined();
+      await act(async () => {
+        browserPrintButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(sourceReads).toBe(4);
+      expect(printSpy).not.toHaveBeenCalled();
+      expect(host?.textContent).toContain("تغير مصدر الحساب المالي؛ لم تتم طباعة الفاتورة القديمة.");
+      expect(host?.textContent).not.toContain("INV-PRINT-CUTOVER");
+      expect(host?.textContent).not.toContain("25.00");
+    } finally {
+      if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
+      else Reflect.deleteProperty(window, "print");
+    }
+  });
+
+
+  it("blocks ERP statement printing when the displayed snapshot is one microsecond older than the current binding", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const sourceAsOf = new Date(Date.now() - 2 * 60_000).toISOString().replace(/Z$/, "001Z");
+    const changedSourceAsOf = sourceAsOf.replace(/001Z$/, "002Z");
+    const currencyAsOf = new Date(Date.now() - 60_000).toISOString();
+    const sourceFor = (watermark: string) => ({
+      source_mode: "ONYX", source_status: "active", source_as_of: watermark,
+      last_synced_at: watermark, verified_at: watermark,
+      revision: watermark === sourceAsOf ? 77 : 78,
+      is_stale: false, can_read_app_ledger: false,
+    });
+    const externalStatement = {
+      source_mode: "ONYX", source_as_of: sourceAsOf, details_limit_per_currency: 500,
+      currencies: [{
+        currency_code: "YER", source_as_of: currencyAsOf, entry_count: 1,
+        total_debit: "10.0000", total_credit: "0", closing_balance: "10.0000",
+        details_partial: false,
+        entries: [{
+          entry_reference: "ONYX-JV-MICRO-001", entry_date: "2026-11-28", due_date: null,
+          entry_type: "invoice", debit_amount: "10.0000", credit_amount: "0",
+          running_balance: "10.0000", source_document_number: "ONYX-INV-MICRO-001",
+          description: "قيد اختبار دقة توقيت المصدر",
+        }],
+      }],
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return { data: sourceFor(sourceReads <= 2 ? sourceAsOf : changedSourceAsOf), error: null };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            source_mode: "ONYX", invoices: [], payments: [], credits: [],
+            summary: null, summary_as_of_utc: sourceAsOf, external_statement: externalStatement,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    const printSpy = vi.fn();
+    const originalPrintDescriptor = Object.getOwnPropertyDescriptor(window, "print");
+    Object.defineProperty(window, "print", { configurable: true, value: printSpy });
+    try {
+      await mountQuoteWorkspace("/statement");
+      expect(sourceReads).toBe(2);
+      expect(host?.textContent).toContain("ONYX-JV-MICRO-001");
+      const printButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((button) => button.textContent?.includes("طباعة من المتصفح"));
+      expect(printButton).toBeDefined();
+
+      await act(async () => {
+        printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(sourceReads).toBe(3);
+      expect(host?.textContent).toContain("تغير مصدر الحساب؛ أوقفنا طباعة كشف الدفتر السابق.");
+      expect(host?.textContent).not.toContain("ONYX-JV-MICRO-001");
+      expect(printButton).toBeDisabled();
+      expect(printSpy).not.toHaveBeenCalled();
+    } finally {
+      if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
+      else Reflect.deleteProperty(window, "print");
+    }
+  });
+
+
+  it("refreshes the customer statement after returning to the foreground and supports explicit refresh", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const externalAsOf = new Date(Date.now() - 2 * 60_000).toISOString();
+    const currencyAsOf = new Date(Date.now() - 60_000).toISOString();
+    const appSource = {
+      source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+      last_synced_at: null, verified_at: null, revision: 91, is_stale: false,
+      can_read_app_ledger: true,
+    };
+    const externalSource = {
+      source_mode: "ONYX", source_status: "active", source_as_of: externalAsOf,
+      last_synced_at: externalAsOf, verified_at: externalAsOf, revision: 92,
+      is_stale: false, can_read_app_ledger: false,
+    };
+    const externalStatement = {
+      source_mode: "ONYX", source_as_of: externalAsOf, details_limit_per_currency: 500,
+      currencies: [{
+        currency_code: "YER", source_as_of: currencyAsOf, entry_count: 1,
+        total_debit: "20.0000", total_credit: "0", closing_balance: "20.0000",
+        details_partial: false,
+        entries: [{
+          entry_reference: "EXT-NEW-001", entry_date: "2026-11-28", due_date: null,
+          entry_type: "invoice", debit_amount: "20.0000", credit_amount: "0",
+          running_balance: "20.0000", source_document_number: "EXT-INV-001",
+          description: "فاتورة من مصدر الحساب الجديد",
+        }],
+      }],
+    };
+    let sourceReads = 0;
+    let statementReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return { data: sourceReads <= 2 ? appSource : externalSource, error: null };
+      }
+      if (name === "get_customer_account_statement") {
+        statementReads += 1;
+        if (statementReads === 1) {
+          return {
+            data: {
+              source_mode: "APP_ONLY",
+              invoices: [{
+                id: "91111111-1111-4111-8111-111111111111",
+                invoice_number: "INV-FOREGROUND-STALE",
+                order_id: "92222222-2222-4222-8222-222222222222",
+                customer_id: "93333333-3333-4333-8333-333333333333",
+                status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null,
+                currency: "YER", subtotal: "100.00", tax_amount: "0.00", total_amount: "100.00",
+              }],
+              payments: [], credits: [],
+              summary: [{
+                currency: "YER", invoiced: "100.00", paid: "0.00", credited: "0.00",
+                outstanding: "100.00", overdue_outstanding: "0.00", overdue_invoice_count: 0,
+                unknown_due_date_outstanding: "0.00", unknown_due_date_invoice_count: 0,
+              }],
+              summary_as_of_utc: "2026-11-28T00:00:00Z",
+            },
+            error: null,
+          };
+        }
+        return {
+          data: {
+            source_mode: "ONYX", invoices: [], payments: [], credits: [],
+            summary: null, summary_as_of_utc: externalAsOf, external_statement: externalStatement,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/statement");
+    expect(sourceReads).toBe(2);
+    expect(statementReads).toBe(1);
+    expect(host?.textContent).toContain("INV-FOREGROUND-STALE");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      // A browser may also emit visibilitychange for the same foreground transition.
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(4);
+    expect(statementReads).toBe(2);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-STALE");
+    expect(host?.textContent).toContain("كشف الحساب الخارجي");
+    expect(host?.textContent).toContain("EXT-NEW-001");
+
+    const refreshButton = host?.querySelector<HTMLButtonElement>('button[aria-label="تحديث كشف الحساب"]');
+    expect(refreshButton).toBeDefined();
+    expect(refreshButton).toBeEnabled();
+    await act(async () => {
+      refreshButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(sourceReads).toBe(6);
+    expect(statementReads).toBe(3);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-STALE");
+    expect(host?.textContent).toContain("EXT-NEW-001");
+  });
+
+
+  it("refreshes customer invoices after returning to the foreground and drops the APP_ONLY list on source cutover", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const invoiceId = "a1111111-1111-4111-8111-111111111111";
+    mocks.responses.customer_invoices = [{
+      id: invoiceId, invoice_number: "INV-FOREGROUND-INVOICE-STALE",
+      order_id: "a2222222-2222-4222-8222-222222222222",
+      customer_id: "a3333333-3333-4333-8333-333333333333",
+      status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null, currency: "YER",
+    }];
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 101, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 102, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("INV-FOREGROUND-INVOICE-STALE");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-INVOICE-STALE");
+    expect(host?.textContent).toContain("لا نعرض مستندات دفتر التطبيق");
+  });
+
+  it("refreshes customer payments after returning to the foreground and drops the APP_ONLY ledger on source cutover", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    let sourceReads = 0;
+    let statementReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 111, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "MUTAKAMEL", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 112, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        statementReads += 1;
+        return {
+          data: {
+            invoices: [{
+              id: "b1111111-1111-4111-8111-111111111111",
+              invoice_number: "INV-FOREGROUND-PAYMENT-STALE", currency: "YER",
+            }],
+            payments: [{
+              id: "b2222222-2222-4222-8222-222222222222",
+              invoice_id: "b1111111-1111-4111-8111-111111111111",
+              amount: "75.00", paid_at: "2026-11-27T10:00:00Z",
+            }],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/payments");
+    expect(sourceReads).toBe(2);
+    expect(statementReads).toBe(1);
+    expect(host?.textContent).toContain("INV-FOREGROUND-PAYMENT-STALE");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(statementReads).toBe(1);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-PAYMENT-STALE");
+    expect(host?.textContent).toContain("مصدر الحساب المحدد: المتكامل.");
+    expect(host?.querySelector('[aria-label="ترقيم سندات قبض العميل"]')).toBeNull();
   });
 
 });

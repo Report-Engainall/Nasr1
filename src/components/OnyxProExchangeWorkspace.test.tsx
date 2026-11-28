@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   fetchActiveInventoryWarehouses: vi.fn(),
   fetchOnyxProLiveExportRecords: vi.fn(),
   buildOnyxProDataWorkbook: vi.fn(),
+  runErpReadSync: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -16,6 +17,10 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/onyx-pro-live-export", () => ({
   ONYX_PRO_LIVE_DATASET_IDS: ["products", "customers", "warehouses", "stock_balances"],
   fetchOnyxProLiveExportRecords: mocks.fetchOnyxProLiveExportRecords,
+}));
+
+vi.mock("@/lib/erp-read-sync", () => ({
+  runErpReadSync: mocks.runErpReadSync,
 }));
 
 vi.mock("@/lib/onyx-pro-workbook", () => ({
@@ -47,6 +52,11 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
       stock_balances: [],
     });
     mocks.buildOnyxProDataWorkbook.mockReturnValue(new Uint8Array([1, 2, 3]));
+    mocks.runErpReadSync.mockResolvedValue({
+      status: "complete", pages_committed: 1, records_read: 2,
+      counts: { created: 2, updated: 0, unchanged: 0, rejected: 0, conflicted: 0 },
+      checkpoint: { version: 1, has_cursor: false, pending_watermark: null, completed_watermark: "2026-11-28T00:00:00Z" },
+    });
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
@@ -149,7 +159,8 @@ describe("OnyxProExchangeWorkspace live stock export scope", () => {
       />,
     );
 
-    expect(screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" })).toHaveTextContent("المزامنة المباشرة غير متاحة");
+    expect(screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" })).toHaveTextContent("الاتصال الخارجي غير مفعّل");
+    expect(screen.getByRole("region", { name: "تشغيل مزامنة قراءة ERP" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "حالة تكامل الأنظمة المحاسبية" })).toHaveTextContent("لا يوجد موصل خادمي مفعّل");
     expect(screen.queryByRole("region", { name: "تصدير بيانات الأغبري الحالية إلى Onyx" })).not.toBeInTheDocument();
     expect(mocks.fetchActiveInventoryWarehouses).not.toHaveBeenCalled();

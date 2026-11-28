@@ -1,0 +1,262 @@
+# P1 Delivery Checkpoint — Customer Financial Documents
+Date: 2026-11-28
+Repository: `Report-Engainall/Nasr1`
+Owner: P1 — customer workflows, financial presentation and admin UI.
+Main baseline: `12b0db37a97128a19073f907ba12fb700251802b`
+Branch: `p1/customer-financial-source-ui-guard-20261127-r2`
+PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not merge.
+
+## Prior delivery retained
+- Customer invoice list, pagination, statement and payment-history read projections are bound to the server-owned source revision; late requests and cutovers drop stale data.
+- Customer saved-receipt self-service stays on customer-only read RPCs, verifies selected receipt identity and performs no payment mutation.
+- Admin Customer 360 source preflight and request-sequence guards remain in place.
+- The Onyx exchange workspace retains P4's read-only server panel; it does not claim a live connector.
+
+## New P1 delivery in this batch
+- Added `revalidateMyCustomerFinancialSource(expected)`. It re-reads `get_my_customer_financial_source` and returns the current server snapshot plus an exact revision/access comparison. A resolver failure throws and callers fail closed.
+- Invoice detail loading now has its own request sequence, invalidated by invoice-list refresh and unmount. It revalidates the financial-source revision after invoice/order reads and before committing item lines or totals. A cutover or failed recheck clears the selected detail and invoice list.
+- Invoice PDF export verifies source before requesting the file and again after receiving/validating the PDF blob, immediately before browser download.
+- Invoice Excel export revalidates source before building the workbook.
+- Statement PDF verifies before the server request and after the PDF blob. Statement Excel and browser print revalidate before output.
+- Payment-history Excel revalidates before workbook generation.
+- Source mismatch updates the displayed source notice and blocks stale output. Resolver failure clears the trusted source and blocks document output.
+- Added helper tests for unchanged APP_ONLY revision, ONYX cutover and resolver failure.
+- Added route-level `/invoices` regressions for source cutover to ONYX after `get_customer_invoice_pdf`, and for resolver failure after detail read; both assert the stale invoice identifier, line prices and totals are not rendered.
+- Customer saved-receipt list now revalidates the server-selected source immediately before the list RPC and again after the list returns. A source revision cutover discards the page.
+- Customer saved-receipt print checks source before the print-data RPC and after its payload returns, then validates the receipt ID before rendering. Source failure/cutover closes the popup without printing.
+- A dedicated print sequence cancels pending print output when the selected receipt changes, the list is refreshed/paginated, the source prop changes, or the component unmounts.
+- Added three receipt-self-service regressions for server-side cutover after list fetch, before print RPC, and after receipt payload; previous prop-change cancellation and identity-mismatch tests remain.
+
+## Branch and ownership
+- Implementation commit: `71a7653ca4581b5325852cb2d245ca28acc5d4d5` (first parent `02a0144b06953618b81575dbb212e833ef1faf5d`).
+- Receipt source revalidation batch is based on P1 branch head `757177e28672d2d070bfed69fb3e71fcc2181092`; it preserves the concurrent P4 staged-preview commit already on the branch.
+- Receipt implementation commit: `b3c27ccd2d268ac13cf266b24789dca64e8d03ff` (first parent `757177e28672d2d070bfed69fb3e71fcc2181092`).
+- Nullability and asynchronous-test refinement: `feeddb085ee543c3235a87829fc3ca39380b5ce4` (first parent `b3c27ccd2d268ac13cf266b24789dca64e8d03ff`).
+
+- Checkpoint trace commit: `d8e8c3d408ac612663df2806dfb3f4855c8f3744`.
+- Invoice detail route regression commit: `4e631a06569948ceb3bbf73d0c8bc9dd71c55d5d` (adds both source-cutover and resolver-failure test cases).
+- All updates use non-forced, expected-SHA branch leases; no force push.
+- Changed files in the invoice-export batch: `src/lib/customer-financial-source.ts`, `src/lib/customer-financial-source.test.ts`, `src/components/CustomerWorkflows.tsx`, `src/test/customer-workflow-tenant.test.tsx`. This receipt batch also changes `src/components/CustomerPaymentReceiptSelfServiceActions.tsx` and `src/components/CustomerPaymentReceiptSelfServiceActions.test.tsx`.
+- P1 does not write production data, post payments, move inventory, call live ERP endpoints, add secrets, deploy or merge to `main`.
+
+## Cross-owner dependencies
+- P2 #697 owns authoritative source-binding locks/RPCs and customer-only receipt RPCs. PostgreSQL 17/security exact-SHA acceptance remains a release dependency; frontend revalidation is defense in depth only.
+- P4 #686 owns durable ERP staging/connector. The previously observed truncated staging-migration CHECK remains a blocker until fixed and replayed in isolated PostgreSQL 17 with concurrency, tenant-scope, rollback and ACL tests.
+- P3 owns AI/analytics integration and main-branch integration. P1 does not merge to `main`.
+
+## Acceptance
+- New unit tests cover same-revision APP_ONLY approval, ONYX cutover and unavailable resolver.
+- New route regressions cover invoice detail source cutover to ONYX and resolver failure after the detail RPC.
+- At code-head `4e631a06569948ceb3bbf73d0c8bc9dd71c55d5`, the workflow/check-run listing had not yet surfaced a run. Earlier-head P1 run `46080902577` was pending and P2 Playwright run `46080902639` was queued; these do not prove acceptance of the new SHA.
+- Exact final-head Vitest, strict TypeScript, build and P2 browser gates must be terminal SUCCESS. No PASS is claimed for an absent, queued, pending, cancelled, skipped or blocked job.
+
+## P1 follow-up — final receipt print boundary (2026-11-28)
+
+- Code commit: `ffa15cfcaa46c526fe85981f9d885364dbc3afbb`, based on prior PR head `7e35cc6df90b63d53da49450b174f80e4618c0c7`.
+- The delayed 180ms receipt-print callback now re-reads `get_my_customer_financial_source` immediately before `print()`. It requires the same request sequence, the same selected receipt ID, an unchanged server source revision, and a currently readable APP_ONLY source.
+- If the server source has moved to ONYX/MUTAKAMEL, the source is suspended/stale, or the final resolver fails, the popup closes, the success notice is removed, and the UI surfaces an explicit error. No receipt/payment mutation is performed.
+- Added two focused regressions: APP_ONLY-to-ONYX cutover at the final print boundary, and final source-resolver failure. These tests are authored; they are **not yet accepted** until exact-head CI executes them.
+- Changed application paths: `src/components/CustomerPaymentReceiptSelfServiceActions.tsx` and its paired `.test.tsx`; no migration, production data or ERP write.
+
+### Exact-head acceptance after this checkpoint update
+
+- The code commit `ffa15cfcaa46c526fe85981f9d885364dbc3afbb` had no workflow run/status surfaced at the first immediate query. No PASS is claimed.
+- The checkpoint update itself is documentation-only; re-fetch the live PR #699 head and require terminal P1 Admin Context Verification plus the relevant P2 Playwright result on that exact head. Queued, absent, skipped or cancelled remains non-acceptance.
+
+## P1 follow-up — guarded customer invoice browser print (2026-11-28)
+
+- Invoice browser printing no longer calls `window.print()` directly from the button. It now revalidates the server-owned financial source immediately before printing, requires the same APP_ONLY revision, and binds the decision to the selected invoice ID and detail-request sequence.
+- If source revalidation fails or the account has moved to ONYX/MUTAKAMEL/stale/suspended, the UI clears the stale invoice/list projection, retains a precise source notice, and blocks the browser print. Closing/changing the selected invoice invalidates any in-flight print check.
+- Added a route-level regression that loads an APP_ONLY invoice, changes the authoritative source to ONYX at the print boundary, and asserts no browser print occurs and no stale invoice details remain visible.
+- Code paths changed: `src/components/CustomerWorkflows.tsx` and `src/test/customer-workflow-tenant.test.tsx`. This is a read/print guard only; no financial write or database change.
+
+### Acceptance
+- Regression test authored; it has not yet been run locally in this session.
+- Must pass the exact-head P1 Vitest/strict TypeScript workflow and the applicable P2 Playwright run. No PASS is claimed from tests authored or earlier SHAs.
+
+### Next executable action
+
+- Inspect exact-head P1/P2 workflow results for the updated #699 branch; repair a reproduced failing step in the same branch. Keep #699 Draft and unmerged until exact-head acceptance and P2 PostgreSQL 17/security acceptance are complete.
+
+## Safety and release
+- `main` remains `12b0db37a97128a19073f907ba12fb700251802b`.
+- No production DB writes/migrations, payment posting, stock movement, live ERP call, secrets, deployments or paid services were used.
+- PR #699 remains Draft and unmerged. Release remains **NO-GO** until exact-head UI, backend, PostgreSQL 17 and security gates are terminal SUCCESS.
+
+
+## P1 follow-up — render and export approved external customer statements (2026-11-28)
+
+- Closed a customer-facing gap in the existing `Statement` route: it previously fetched the authoritative account statement only after an APP_ONLY check, so ONYX/MUTAKAMEL accounts never invoked their server-approved external statement reader and were left without a usable statement view.
+- The route now calls the same authenticated `get_customer_account_statement` RPC for an active source, verifies the returned `source_mode` matches the server-selected binding, parses only the external statement DTO, then re-fetches the source binding and drops the result if its revision/source identity changed while the read was in flight.
+- ONYX and MUTAKAMEL now render separate currency ledgers from the accepted server projection: debit, credit, running/closing balance, entry references, dates, source document numbers and descriptions. No APP_ONLY invoice/payment rows are synthesized or merged into an external statement. Partial detail is labeled while server totals remain visible.
+- External statements now export to XLSX with a per-currency detail sheet and currency-separated summary; metadata explicitly says currency values are not combined and no currency conversion is applied. The existing server-generated APP_ONLY PDF stays restricted to APP_ONLY; external statements can use guarded browser print / Save as PDF after source revalidation.
+- Added a focused external statement workspace test covering multiple currency ledgers and the 500-row partial-detail label. Extended parser/XLSX tests for dynamic source timestamps, per-currency worksheet generation, and exclusion of raw tenant/account scope keys. Added the new component and tests to the P1 strict typecheck input set.
+- Changed paths: `src/components/CustomerWorkflows.tsx`, new `src/components/CustomerExternalAccountStatement.tsx` and paired test, `src/lib/customer-account-statement-xlsx.ts`, `src/lib/customer-external-statement.test.ts`, and `tsconfig.p1-typecheck.json`.
+- These are authored tests, not PASS evidence. Require terminal P1 Vitest/strict-TypeScript plus P2 exact-head UI checks. Financial source selection, RLS and ERP staging remain owned by P2/P4; no direct customer or tenant identifier is exposed in the returned UI model.
+- No production DB, payment, stock, journal, live ERP endpoint, secret, deployment, or paid service was used. PR #699 remains unmerged; P1 does not merge to main.
+
+### Acceptance boundary
+
+- The UI must fail closed when the source mode differs, the external payload is invalid/stale, the current binding changed during fetch/print/export, or the server cannot confirm the source.
+- External XLSX/print does not invoke the APP_ONLY PDF API, post ledger rows, or merge currency totals.
+- Exact final-head P1 and P2 workflows are required. Queued, pending, skipped, cancelled or absent jobs do not count as acceptance.
+
+
+## P1 follow-up — external statement print/export source revalidation
+
+- The source-version comparator now includes exact `source_as_of`, `last_synced_at` and `verified_at` timestamps in addition to revision, mode, status, stale and read flags. A fresh snapshot cannot silently replace the statement snapshot without invalidating an in-flight action.
+- Kept `revalidateMyCustomerFinancialSource` APP_ONLY-only for existing invoice/payment document callers. Added `revalidateMyCustomerFinancialSourceSnapshot` for source-routed statement actions: APP_ONLY retains its existing read permission; ONYX/MUTAKAMEL require active status, non-stale state and a source-as-of timestamp, then must match the exact saved snapshot.
+- External Statement XLSX and browser print use the source-routed snapshot validator. If the account moves, becomes stale/suspended, or the source watermark changes during the action, the action is rejected. The server-generated APP_ONLY PDF remains behind its original APP_ONLY-only validator.
+- Added three tests for successful external snapshot validation, stale/suspended/changed-watermark denial, and preservation of the APP_ONLY-only helper.
+- Authored tests still require exact-head P1 Vitest/strict TypeScript and P2 browser acceptance; no PASS is claimed.
+- No production database, financial ledger, inventory, live ERP endpoint, secret or deployment was touched.
+
+
+
+## P1 follow-up — exact external statement output binding (2026-11-28)
+
+- Added `isSameCustomerExternalStatementSourceAsOf`, which compares valid source watermarks as exact PostgreSQL-microsecond instants, accepts equivalent valid timezone representations, and fails closed on malformed values.
+- External statement XLSX and browser print now require the displayed statement watermark and provider mode to match the currently selected server binding exactly. They also cancel if a new statement read supersedes an in-flight print/export.
+- Added a route regression for a real UI state transition: the first print revalidation observes a one-microsecond source cutover, updates the server binding in the UI, clears the old external statement rows and disables print/export controls; `window.print()` is never invoked. Added direct comparator tests for equivalent offsets, one-microsecond difference and malformed input.
+- No source/ledger/inventory/ERP writes; no new migration. The change protects only customer statement presentation, printing and XLSX output.
+- On source mismatch or resolver failure during print/export, the statement page now clears invoices, payments, credits, external statement rows, summary and watermark before showing the unavailable state; it does not leave an old balance visible behind a warning.
+- Tests are authored and require exact-head P1 Vitest/strict TypeScript plus P2 browser acceptance; no PASS is claimed until the current SHA jobs finish.
+
+## P1 route-level external statement acceptance — 2026-11-28
+
+- Added a customer route-level test for `/statement` that selects ONYX from the authenticated server resolver, reads the statement RPC, revalidates the binding after the read, and verifies separate YER/USD ledgers are rendered without APP_ONLY invoice rows.
+- The fixture satisfies the strict parser contract: fresh timezone-qualified source/currency watermarks, newest-first chronological detail, exact microsecond-compatible running balances, and debit/credit totals that reconcile to the closing balance.
+- The test verifies the APP_ONLY PDF action is absent for ONYX, external XLSX remains enabled, and browser printing is reached only after a third source revalidation.
+- The implementation also includes the parallel correction commits `ad70dab048ec07450eb08f5678bcaa1f8c8af8e7` (microsecond-precision running balance comparison) and `f1dac9854da14a8b9bf550fe7d25e437be43af08` (partial-detail totals/closing balance reconciliation).
+- This test is authored acceptance evidence only. It must run on the final PR head under P1 Vitest/strict TypeScript; P2 Playwright must also finish on that same head. No PASS is claimed until those jobs complete.
+
+
+## P1 follow-up — restore APP_ONLY statement XLSX decimal validation (2026-11-28)
+
+- Root cause: `moneyDecimal` used a twice-escaped digit/decimal regex, so valid server decimal strings such as `1250.50` were rejected before the APP_ONLY customer statement workbook could be generated. The same defect was present on the recorded `main` baseline.
+- Corrected the regex to match decimal digits and an optional decimal fraction while retaining the existing maximum length, precision, positivity and BigInt minor-unit checks.
+- Added a Vitest regression to `src/lib/customer-external-statement.test.ts` that builds an APP_ONLY XLSX from a valid invoice and authoritative per-currency summary and asserts a valid ZIP/XLSX signature.
+- Exact-head acceptance is pending for the resulting PR #699 SHA. The regression is authored, not yet run; no PASS is claimed.
+- Next: inspect the new exact-head P1 Vitest/strict-TypeScript and P2 Playwright workflow results; repair any reproduced failure on that same branch.
+
+## P1 follow-up — clear APP_ONLY statement state on PDF source cutover (2026-11-28)
+
+- Customer statement PDF generation now captures the current statement-read sequence and checks it after each asynchronous boundary (source revalidation, session lookup, PDF fetch and blob read). A later statement load invalidates an older in-flight PDF request before it can download.
+- If the APP_ONLY source cannot be revalidated or changes to ONYX/MUTAKAMEL before or after PDF generation, the page clears invoices, payments, credit memos, external statement rows, summary and watermark before presenting the source warning. The APP_ONLY PDF path remains unavailable to external-source customers.
+- A new route-level regression in `src/test/customer-workflow-tenant.test.tsx` loads a customer APP_ONLY statement, changes the server-selected source on the PDF preflight read, and asserts that the old invoice reference and APP_ONLY PDF action disappear.
+- Files changed in this follow-up: `src/components/CustomerWorkflows.tsx` and `src/test/customer-workflow-tenant.test.tsx`. The test is included in the existing P1 strict TypeScript/test path; no schema, server RPC or production behavior was changed.
+- These checks are authored, not run/pass evidence. Require P1 Vitest/strict TypeScript and P2 Playwright on the final branch SHA. Queued, pending, cancelled, skipped or prior-SHA results are not acceptance.
+- No production DB, financial mutation, stock mutation, live ERP call, secret, deployment, paid service or merge was performed.
+
+## P1 follow-up — invoice PDF/XLSX stale-projection cutover (2026-11-28)
+
+- Added one invoice-projection invalidation path that drops the invoice list and selected invoice detail, line items, customer identity/tier, amounts, order summary and transient document actions; it also invalidates outstanding detail requests.
+- Invoice PDF now verifies the selected invoice identity and detail-request sequence after each asynchronous boundary. A source resolver failure, APP_ONLY source revision change, or a newer invoice selection prevents a stale PDF response from downloading.
+- Invoice XLSX now snapshots the selected invoice/customer/line/financial payload before its asynchronous source check, then verifies that the same invoice selection and sequence are still active before workbook generation. Resolver failure or source change clears the complete invoice projection.
+- The existing invoice-detail close and list-refresh paths now reset or invalidate document work so an older PDF request cannot leave the UI in a permanent busy state.
+- Route-level regression now runs as two independent Vitest cases (PDF and Excel): it loads an APP_ONLY invoice and its actual detail payload, transitions the server-owned source to ONYX at output preflight, then asserts that the invoice reference, monetary amount and detail dialog are removed and the source-cutover warning is visible.
+- Tests are authored and require terminal P1 Vitest/strict TypeScript and P2 Playwright on the same final PR SHA. No PASS is claimed from queued/pending or prior-head runs.
+- No migration, production DB access, financial/inventory write, live ERP call, credential, secret or deployment was introduced.
+
+
+## P1 follow-up — foreground source refresh for customer statements (2026-11-28)
+
+- Added foreground revalidation to the existing customer Statement route. Returning to a visible/focused browser window reloads the server-selected source and the matching statement; this prevents the prior APP_ONLY/ERP projection from lingering after a source cutover while the customer is away.
+- Focus and visibility-change events are deduplicated within 30 seconds, and foreground refresh is skipped while a statement read is already running. The existing request sequence prevents late responses from replacing the current view.
+- Added an explicit "تحديث كشف الحساب" action; it calls the existing source-resolved statement loader, with a disabled/loading state and no alternate data path.
+- Added a route-level regression: start with an APP_ONLY invoice, switch the server source to ONYX while the page is in the background, return to the foreground, and assert the old invoice disappears and the new currency-separated external statement replaces it. The test also triggers the explicit refresh and confirms both source resolution and statement RPC are called again.
+- Acceptance is pending exact-head P1 Vitest/strict-TypeScript and P2 Playwright; the test is authored, not a PASS. No migration, payment, inventory, production DB, live ERP, credential or deployment was introduced.
+
+- Added an invoice-output concurrency race test: while the customer invoice A PDF source preflight is pending, the customer closes A and opens invoice B. Releasing the old preflight must not call auth session lookup or start a PDF fetch, and B remains the selected detail dialog. The test is authored; it needs the exact-head P1/P2 acceptance run.
+
+
+## P1 follow-up — unify foreground source refresh across customer finance screens (2026-11-28)
+
+- Extracted one shared, 30-second-deduplicated foreground refresh hook and mounted it in the customer invoice list, statement, and payment-history routes. Focus and visible-tab return use each route's existing loader and server source resolver; no parallel query or client-selected source was introduced.
+- When an APP_ONLY invoice or payment view is left in the background and the server source changes to ONYX/MUTAKAMEL, returning to the page reloads the source, clears the old projection, and does not expose the old APP_ONLY document or receipt actions.
+- Invoice and payment routes already expose explicit refresh controls; those controls continue to call the same source-resolved loader.
+- Added separate route-level regressions for invoice and payment source cutovers on foreground return. The statement regression from the preceding change covers the positive ONYX replacement path and duplicate focus/visibility event suppression.
+- Exact-head P1 Vitest/strict-TypeScript and P2 Playwright are required; tests are authored and not yet accepted. No production, schema, payment or inventory writes were made.
+
+## P1 follow-up — customer payment-history XLSX source cutover (2026-11-28)
+
+- Customer payment-history export is now bound to the payment read sequence. If a refresh/foreground source reload starts while export preflight is pending, the old export is abandoned before workbook generation.
+- Export captures an immutable snapshot of the invoices, payments, filtered rows and partial-detail metadata used to build the workbook.
+- If source revalidation fails or the server selects another financial source, the page clears both payment and invoice projections, cancels the pending output, and keeps the source warning visible; the export busy state is reset by the invalidation path.
+- Added a route regression with a valid APP_ONLY invoice/payment projection followed by a server-side APP_ONLY-to-MUTAKAMEL change at XLSX preflight. It asserts the previous invoice reference and amount disappear and the workbook builder is never called.
+- This regression is authored and requires terminal P1 Vitest/strict TypeScript and P2 Playwright on the final current PR SHA; no pass is inferred from a previous or pending head.
+- No database/schema, financial posting, stock update, production access, live ERP call, secret, deployment or paid service was added.
+
+
+## P1 follow-up — external statement entry to customer document-review case (2026-11-28)
+
+- Added a direct customer action to every approved external statement entry: open the existing service portal with the source document number (or entry reference when no document number exists), entry reference, currency and approved entry type prefilled.
+- The service portal accepts only the existing allowlisted statement entry types, three-uppercase-letter currency code, non-empty printable document/reference values up to 100 characters each. Malformed or oversized deep links are rejected visibly and do not create a financial request.
+- The server-side customer-scoped service-case RPC remains the only create path; organization/customer identity and permissions remain derived by the server. The payload is a review request only and explicitly states it does not change balances, create a payment or post an accounting journal. It does not expose additional ERP rows or account identifiers.
+- Added UI tests for YER/USD document references, reference fallback for opening-balance rows, deep-link prefill and creation, and malformed/oversized-link rejection. Tests are authored; exact-head CI is still required and no PASS is claimed.
+- Changed paths: src/components/CustomerExternalAccountStatement.tsx, paired component test, src/components/CustomerServicePortal.tsx, paired portal test. No migration, financial/inventory write, production access, live ERP call, secret, deployment or paid service.
+
+### Acceptance boundary
+
+- Exact document/reference/currency/type must survive the route handoff without becoming an authorization input; the server continues to derive customer, company and create permission.
+- Invalid parameters must not preselect a document-review intent. This flow creates only a service case; it must never post a journal or perform an invoice/payment mutation.
+- The new regression cases require terminal P1 Vitest/strict TypeScript and applicable P2 browser acceptance on the same final branch SHA.
+
+
+## P1 follow-up — bind document-review handoff to the statement snapshot (2026-11-28)
+
+- Extended the review deep link with the server-accepted statement source mode and exact source watermark in addition to document number, entry reference, currency and entry type.
+- The portal validates the provider allowlist and timestamp syntax with the same strict microsecond-aware comparator used by external statement output. These values are client-carried descriptive metadata only; they do not prove or authorize the provider/source on the server. Missing or malformed watermark/provider metadata rejects the prefilled intent.
+- The generated service-case narrative labels the provider and exact snapshot as what was visible in the customer link, so accounting staff can identify the view being reported. Client query values are untrusted descriptive metadata, never proof of source identity, authorization inputs or a lookup path.
+- Added regression assertions for the source mode/watermark round-trip and rejection of invalid watermark values. A further guard rejects duplicate critical query parameters as ambiguous. Test outcomes remain pending exact-head P1/P2 acceptance.
+- No source reader, database RPC, ledger data, payment posting or ERP write was added.
+
+
+## P1 follow-up — source-checked customer statement print (2026-11-28)
+
+- Reused the existing `طباعة من المتصفح` action in the customer statement workspace; no duplicate print button or unguarded component print path remains.
+- After the existing server-side source revision recheck and exact ERP source/watermark comparison, the action now activates a dedicated `customer-account-statement` print mode. The new A4 landscape RTL layout prints the current customer statement only, retains independent currency totals/closing balances and the external source snapshot timestamps, repeats table headers, and hides refresh/export/review actions.
+- The temporary body print mode is restored after `afterprint`, or immediately if native printing is unavailable/throws. Print does not call a financial mutation RPC or alter a payment, ledger or balance.
+- Extended the existing customer workflow integration test to assert the print mode appears only after the source recheck and is restored when the print dialog closes. Component tests verify the external statement's review actions are excluded from the printed copy.
+- The external statement DTO still does not contain the original ERP invoice document; those rows link to the existing audited document-review request instead of fabricating a vendor invoice.
+- Exact-head P1/Vitest and browser checks are pending; earlier queued or prior-SHA results do not count as acceptance.
+
+
+
+## P1 follow-up — multi-stream ERP control in the existing integration workspace (2026-11-28)
+
+- Extended the existing `ErpReadSyncPanel` to select and execute multiple ERP object streams in one operator action, using the existing authenticated `erp-read-sync` server function for each bounded stream. No browser-to-ERP or browser-to-database connection was introduced.
+- Each object type retains its own server checkpoint and scope. Runs execute sequentially; one failed stream does not hide completed results for unrelated streams. The operator can inspect each stream's real counters/watermarks, open its existing staging preview/receipt history, retry only the failed stream, resume only a continuation-required stream, or stop before the next queued stream.
+- Scope edits clear prior displayed results to prevent confusing one company/branch/warehouse/currency with a previous run. No outbound invoice/payment/ledger posting is added; all results remain in the read-only staging lane.
+- Added component acceptance for independent multi-stream execution, retrying the failed stream only, and stopping the sequence after the current server request.
+- The UI calls the existing single-object server contract because the P4 batch orchestrator is currently a shared engine primitive, not an exposed endpoint in `erp-read-sync`. This avoids claiming that the UI invokes a batch API that does not yet exist; the server-side object scope/checkpoint and authorization remain authoritative.
+- Exact-head acceptance is pending the P1/Vitest and browser checks on the resulting PR SHA.
+
+
+
+## P1 correction — integration batch scope cleanup (2026-11-28)
+
+- Corrected the scope-reset helper in the multi-stream ERP panel so provider/company/branch/warehouse/currency edits clear the active request, displayed result and per-stream outcomes without recursive invocation.
+- The customer-workflow test teardown now removes the transient statement print mode even if an assertion aborts before the simulated browser `afterprint` event.
+- Exact-head acceptance is pending for the updated P1 PR SHA; no results transfer from prior heads.
+
+
+## P1 acceptance refinement — multi-stream failure continuation (2026-11-28)
+
+- Tightened the ERP panel test to run products, customers and warehouses in one selected batch, deliberately fail customers, verify warehouses still completes, and prove only customers is retried. This covers the failure-isolation contract rather than only a terminal failure on the last selected stream.
+- Kept task labels out of the generic `role=status` region so the existing result/status accessibility assertions resolve to the actual selected stream result instead of an incidental per-row label.
+- Final P1 exact-head checks are still pending and must be tied to the current PR head.
+
+
+## P1 test synchronization — multi-stream final assertions (2026-11-28)
+
+- The multi-stream acceptance waits for each resolved stream state to be rendered before checking completed counts. This prevents a test race between a resolved promise invocation and React's batched state commit; it does not alter production flow behavior.
+- Required P1/Vitest + strict TypeScript and browser gates remain queued for the resulting exact SHA.
+
+
+## P1 correction — explicit ERP statement timezone labels (2026-11-28)
+
+- Corrected the existing external customer statement renderer: both the account-level source snapshot and each currency synchronization watermark were formatted in UTC but displayed without a timezone label.
+- The UI now uses semantic `<time dateTime>` elements, formats the same exact source instants in UTC, and visibly labels each watermark `UTC`. This prevents an accounting operator in UTC+03:00 from mistaking the displayed source time for Yemen local time.
+- Added a component regression asserting both visible UTC labels and exact preservation of the account/currency `dateTime` values. No source data, financial totals, ledger, provider contract, migration, or document action changes.
+- Exact-head Vitest/strict TypeScript and browser checks must run after this commit; this regression is authored, not yet accepted.
