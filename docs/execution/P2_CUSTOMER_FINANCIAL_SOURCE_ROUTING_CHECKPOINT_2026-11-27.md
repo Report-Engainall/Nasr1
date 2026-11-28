@@ -7,7 +7,7 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 ## Current source pointers
 - Latest observed main HEAD: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only execution directive refresh).
 - Latest code-bearing main SHA recorded in the shared execution state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
-- Latest P2 code/test head before this checkpoint refresh: `31071b0dfb955dcdc58b4aaf77bccc4e920c1fd4`. It includes the bounded source-history RPC tests and safe response allowlist assertions. Source-posting + RLS guard commits remain `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
+- Latest P2 code/test head before the current performance hardening: `5de82604c9f94329600fcc23b7897b9dfac63c3e`. It includes the bounded source-history RPC tests, safe response allowlist and installed/valid compound history-index assertions. Source-posting + RLS guard commits remain `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
 - PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
 - No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
 
@@ -268,3 +268,11 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - Additional acceptance commit `31071b0dfb955dcdc58b4aaf77bccc4e920c1fd4` constrains the returned record keys to the explicit staff-safe DTO allowlist, forbids raw ERP account/company/branch references, evidence hashes and per-currency balance values, verifies one-row pagination preserves the total, and asserts authenticated-only SECURITY DEFINER execute grants.
 - This is read-only audit visibility; it creates no financial or inventory mutation and does not expose raw provider identity or reconciliation balances. The migration and all assertions still require exact-head PostgreSQL 17 execution; no PASS is carried from earlier SHAs.
 - Last observed PR head before this checkpoint write: `31071b0dfb955dcdc58b4aaf77bccc4e920c1fd4`. This checkpoint commit will supersede it and becomes the new exact acceptance target. Keep PR #697 Draft until PostgreSQL 17, P2 and P1 workflows finish successfully on the final SHA.
+
+
+## 2026-11-28 — Financial source history query index
+
+- Added `customer_financial_source_change_history_page_idx` to the existing customer financial source-routing migration, ordered by `(organization_id, customer_id, requested_at DESC, id DESC)`. The partial unique pending-request index remains dedicated to enforcing the one-pending-change invariant and is not reused for full history retrieval.
+- The PostgreSQL acceptance now checks through `pg_catalog.pg_index` that the history index exists, is valid, and exposes the exact tenant/customer newest-first ordering required by the reader.
+- Migration commit: `e0142a005d77dd79cf047947a7056c18375ca674`; test commit: `5de82604c9f94329600fcc23b7897b9dfac63c3e`. This is a read-path performance index only; no source binding, reconciliation, payment, receipt, invoice, journal or inventory row is modified.
+- The previous exact-head P1/P2 jobs were attached to SHA `9ed8e66509fb41c677b95ff443c0cfb4c7dd6583`; their results do not transfer to this updated SHA. Require new exact-head PG17/P2 and P1 terminal-success evidence before acceptance. No PG17 PASS is claimed.
