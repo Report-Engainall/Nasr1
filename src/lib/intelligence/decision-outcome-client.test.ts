@@ -547,32 +547,37 @@ describe("decision outcome assignable staff directory", () => {
     const assigned = {
       ...outcome,
       state: "ASSIGNED",
-      version: 2,
+      version: 4,
+      updatedAt: "2026-10-31T10:03:00.000Z",
+      approvedAt: "2026-10-31T10:01:00.000Z",
+      approvedBy: "22222222-2222-4222-8222-222222222222",
       owner: { id: staffId, label: "مسؤول المخزون" },
-      assignedAt: "2026-10-31T10:02:00.000Z",
-      eventCount: 2,
+      assignedAt: "2026-10-31T10:03:00.000Z",
+      eventCount: 4,
       history: [
         outcome.history[0],
-        historyEvent("assign-event", "ASSIGN", 2, "2026-10-31T10:02:00.000Z", "تسليم متابعة المورد إلى مسؤول المخزون"),
+        historyEvent("submit-event", "SUBMIT_FOR_REVIEW", 2, "2026-10-31T10:00:30.000Z"),
+        historyEvent("approve-event", "APPROVE", 3, "2026-10-31T10:01:00.000Z", "تم اعتماد القرار"),
+        historyEvent("assign-event", "ASSIGN", 4, "2026-10-31T10:03:00.000Z", "تسليم متابعة المورد إلى مسؤول المخزون"),
       ],
     };
     rpc.mockResolvedValueOnce({ data: { ok: true, duplicate: false, outcome: assigned }, error: null });
     const result = await commandDecisionOutcome({
       outcomeId: outcome.id,
-      expectedVersion: 1,
+      expectedVersion: 3,
       eventType: "ASSIGN",
       ownerProfileId: staffId,
       reason: "تسليم متابعة المورد إلى مسؤول المخزون",
     });
     expect(rpc).toHaveBeenCalledWith("command_decision_outcome", expect.objectContaining({
       p_outcome_id: outcome.id,
-      p_expected_version: 1,
+      p_expected_version: 3,
       p_event_type: "ASSIGN",
       p_owner_profile_id: staffId,
       p_reason: "تسليم متابعة المورد إلى مسؤول المخزون",
     }));
     expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_organization_id");
-    expect(result).toMatchObject({ ok: true, outcome: { state: "ASSIGNED", version: 2, ownerProfileId: staffId } });
+    expect(result).toMatchObject({ ok: true, outcome: { state: "ASSIGNED", version: 4, ownerProfileId: staffId } });
   });
 
   it("loads only active assignable roles from the existing tenant-scoped RPC", async () => {
