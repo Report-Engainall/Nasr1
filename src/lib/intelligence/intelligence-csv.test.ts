@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { DemandForecastResult } from "./demand-forecast";
+import type { DeadStockReport } from "./dead-stock";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import {
+  buildDeadStockCsv,
   buildDemandForecastCsv,
   buildReplenishmentCsv,
   serializeIntelligenceCsv,
@@ -71,6 +73,75 @@ const replenishment: ReplenishmentRecommendation = {
   forecastFormulaVersions: [],
 };
 
+const deadStockReport: DeadStockReport = {
+  "id": "dead-stock-export",
+  "asOf": "2026-11-28T02:00:00.000Z",
+  "period": {
+    "from": "2026-08-29",
+    "to": "2026-11-28"
+  },
+  "ruleId": "inventory.dead-stock",
+  "ruleVersion": "1.1.0",
+  "status": "NEEDS_REVIEW",
+  "items": [
+    {
+      "productRef": "stagnant-product",
+      "classification": "STAGNANT",
+      "daysSinceMovement": 95,
+      "lowTurnover": true,
+      "turnoverRatio": 0.2,
+      "availableQuantity": 10,
+      "unitCost": 4,
+      "currency": "YER",
+      "financialExposure": 40,
+      "exposureStatus": "VERIFIED",
+      "movementStatus": "VERIFIED",
+      "formulaId": "dead-stock.exposure",
+      "formulaVersion": "1.1.0",
+      "evidenceIds": [
+        "stock-evidence"
+      ],
+      "warnings": []
+    },
+    {
+      "productRef": "unknown-product",
+      "classification": "UNKNOWN",
+      "daysSinceMovement": null,
+      "lowTurnover": null,
+      "turnoverRatio": null,
+      "availableQuantity": 5,
+      "unitCost": null,
+      "currency": null,
+      "financialExposure": null,
+      "exposureStatus": "NEEDS_REVIEW",
+      "movementStatus": "NEEDS_REVIEW",
+      "formulaId": "dead-stock.exposure",
+      "formulaVersion": "1.1.0",
+      "evidenceIds": [],
+      "warnings": [
+        "MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED"
+      ]
+    }
+  ],
+  "totalsByCurrency": [
+    {
+      "currency": "YER",
+      "exposure": 40,
+      "verifiedItems": 1,
+      "withheldItems": 0
+    },
+    {
+      "currency": "USD",
+      "exposure": null,
+      "verifiedItems": 0,
+      "withheldItems": 1
+    }
+  ],
+  "warnings": [
+    "PARTIAL_SOURCE_COVERAGE"
+  ]
+};
+
 describe("intelligence spreadsheet exports", () => {
   it("uses a UTF-8 BOM, CRLF rows, spreadsheet-safe text and numeric cells", () => {
     const csv = serializeIntelligenceCsv([
@@ -111,6 +182,20 @@ describe("intelligence spreadsheet exports", () => {
     expect(csv).toContain("WITHHELD");
     expect(csv).toContain("يضم الملف كل النتائج المحملة");
     expect(csv).toContain("15");
+  });
+
+  it("exports dead-stock states and independent currency totals without inventing exposure", () => {
+    const csv = buildDeadStockCsv(deadStockReport);
+    expect(csv).toContain("stagnant-product");
+    expect(csv).toContain("stock-evidence");
+    expect(csv).toContain("unknown-product");
+    expect(csv).toContain("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
+    expect(csv).toContain("CURRENCY_TOTAL");
+    expect(csv).toContain("YER");
+    expect(csv).toContain("USD");
+    expect(csv).toContain("لا يتم تحويل أو جمع عملات مختلفة");
+    expect(csv).toContain("PARTIAL_SOURCE_COVERAGE");
+    expect(csv).toContain(",40,VERIFIED,VERIFIED,dead-stock.exposure,1.1.0,");
   });
 
   it("escapes formula-like product labels and never changes numeric quantities into text", () => {
