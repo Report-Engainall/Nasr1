@@ -4,6 +4,7 @@ import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
 import {
+  buildDecisionMemoryPrecedentCsv,
   buildDecisionPolicyReviewSuggestions,
   filterDecisionMemoryPrecedents,
   searchSimilarDecisionMemory,
@@ -455,6 +456,21 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       setLearningBusy("");
     }
   }
+  function exportPrecedents(){
+    if(!searchTarget||!result||!visiblePrecedentMatches.length)return;
+    const csv=buildDecisionMemoryPrecedentCsv({
+      matches:visiblePrecedentMatches,
+      reference:searchTarget,
+      loadedCount:result.loadedCount,
+      totalCount:result.totalCount,
+    });
+    const url=window.URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
+    const anchor=document.createElement("a");
+    anchor.href=url;
+    anchor.download="decision-precedents-"+searchTarget.decisionId.slice(0,8)+".csv";
+    anchor.click();
+    window.setTimeout(()=>window.URL.revokeObjectURL(url),0);
+  }
   const pageCount=Math.max(1,Math.ceil((result?.records.length??0)/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
   const currentPage=Math.min(recordPage,pageCount-1);
   const pageRecords=result?.records.slice(
@@ -512,6 +528,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">سياق مختلف</p><strong className="text-lg tabular-nums">{precedentSummary.notComparable}</strong></article>
         <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">غير مثبت</p><strong className="text-lg tabular-nums">{precedentSummary.outcomeUnverified}</strong></article>
       </div>
+      {visiblePrecedentMatches.length?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" onClick={exportPrecedents}>تصدير السوابق المفلترة CSV ({visiblePrecedentMatches.length})</button>:null}
       <p className="text-xs text-muted-foreground">التصنيف يعتمد على تطابق قاعدة القرار وإصدارها، ثم توافق خط الأساس والنتيجة الفعلية: المؤشر، الوحدة، العملة، الفترة، والمعادلة. العدّادات تخص أفضل 20 سابقة محملة فقط، ولا تعني اكتمال تاريخ المؤسسة.</p>
       {searchTarget?<div className="rounded-lg bg-muted/40 p-2 text-xs">
         <p><strong>السياق المرجعي:</strong> {searchTarget.proposedResult} · {searchTarget.ruleId}@{searchTarget.ruleVersion}</p>
