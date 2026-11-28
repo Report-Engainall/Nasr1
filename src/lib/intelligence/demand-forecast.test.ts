@@ -68,8 +68,8 @@ const signal: GrowthOpportunitySignal = {
 function fixture(options: {
   currentQuantity?: number | string;
   baselineQuantity?: number | string;
-  currentOrders?: number;
-  baselineOrders?: number;
+  currentOrders?: number | string;
+  baselineOrders?: number | string;
   currentQuantityUnit?: MetricUnit;
   baselineQuantityUnit?: MetricUnit;
   currentOrdersUnit?: MetricUnit;
@@ -183,6 +183,16 @@ describe("evidence-backed product demand forecast", () => {
   });
 
   it.each([
+    ["current period", { currentOrders: "9007199254740992" }],
+    ["baseline period", { baselineOrders: "9007199254740992" }],
+  ])("withholds unsafe sample counts beyond the JavaScript safe-integer ceiling in the %s", (_label, options) => {
+    const result = fixture(options);
+    expect(result.forecasts).toHaveLength(0);
+    expect(result.withheld).toMatchObject([{ reason: "UNSUPPORTED_PRECISION" }]);
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+
+  it.each([
     ["current quantity", { currentQuantityUnit: "TEXT" as const }],
     ["baseline quantity", { baselineQuantityUnit: "TEXT" as const }],
     ["current sample count", { currentOrdersUnit: "TEXT" as const }],
@@ -276,6 +286,13 @@ describe("demand forecast ISO timestamp offset contract", () => {
       expect(resultAt(timestamp).asOf).toBe(timestamp);
     });
   }
+
+  it("accepts PostgreSQL microseconds and rejects sub-microsecond as-of precision", () => {
+    const valid = "2026-11-26T02:45:47.123456Z";
+    expect(resultAt(valid).asOf).toBe(valid);
+    expect(() => resultAt("2026-11-26T02:45:47.1234567Z"))
+      .toThrow("demand_forecast_id_or_timestamp_invalid");
+  });
 
   for (const timestamp of [
     "2026-11-26T16:45:47.000+14:01",

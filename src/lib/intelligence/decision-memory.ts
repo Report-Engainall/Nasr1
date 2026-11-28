@@ -101,6 +101,246 @@ export interface DecisionMemoryBookResult {
   records: DecisionMemoryRecord[]; warnings: string[];
 }
 
+
+export type DecisionReviewQueueKind =
+  | "OVERDUE"
+  | "DUE_TODAY"
+  | "UPCOMING"
+  | "UNSCHEDULED"
+  | "LESSONS_PENDING";
+
+export interface DecisionReviewQueueItem {
+  decisionId: string;
+  proposedResult: string;
+  ruleId: string;
+  owner: string;
+  state: DecisionMemoryRecord["state"];
+  kind: DecisionReviewQueueKind;
+  reviewAt: string | null;
+  daysUntilReview: number | null;
+  updatedAt: string;
+}
+
+export interface DecisionReviewQueueResult {
+  referenceDay: string;
+  horizonDays: number;
+  items: DecisionReviewQueueItem[];
+  counts: Record<DecisionReviewQueueKind, number>;
+  invalidScheduleCount: number;
+}
+
+const DAY_MILLISECONDS = 86_400_000;
+const OPEN_REVIEW_STATES = new Set<DecisionMemoryRecord["state"]>([
+  "APPROVED", "DEFERRED", "ASSIGNED", "EXECUTING", "EXECUTED",
+]);
+const REVIEW_KIND_ORDER: Record<DecisionReviewQueueKind, number> = {
+  OVERDUE: 0, DUE_TODAY: 1, UPCOMING: 2, UNSCHEDULED: 3, LESSONS_PENDING: 4,
+};
+
+function decisionDayOrdinal(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const timestamp = Date.parse(value + "T00:00:00.000Z");
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== value) return null;
+  return Math.floor(timestamp / DAY_MILLISECONDS);
+}
+
+function scheduledReviewDay(value: string | null): string | null {
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value) ||
+      !Number.isFinite(Date.parse(value))) return null;
+  const day = value.slice(0, 10);
+  return decisionDayOrdinal(day) === null ? null : day;
+}
+
+/** Builds a date-aware queue from authorized, actually loaded decision records. */
+export function buildDecisionReviewQueue(
+  records: DecisionMemoryRecord[],
+  referenceDay: string,
+  horizonDays = 30,
+): DecisionReviewQueueResult {
+  const referenceOrdinal = decisionDayOrdinal(referenceDay);
+  if (referenceOrdinal === null || !Number.isInteger(horizonDays) || horizonDays < 0 || horizonDays > 90) {
+    throw new Error("decision_review_queue_input_invalid");
+  }
+
+  const counts: Record<DecisionReviewQueueKind, number> = {
+    OVERDUE: 0, DUE_TODAY: 0, UPCOMING: 0, UNSCHEDULED: 0, LESSONS_PENDING: 0,
+  };
+  const items: DecisionReviewQueueItem[] = [];
+  let invalidScheduleCount = 0;
+
+  for (const record of records) {
+    if (record.state === "MEASURED") {
+      if (!record.lessonsReviewed) {
+        items.push({
+          decisionId: record.decisionId, proposedResult: record.proposedResult,
+          ruleId: record.ruleId, owner: record.owner, state: record.state,
+          kind: "LESSONS_PENDING", reviewAt: null, daysUntilReview: null, updatedAt: record.updatedAt,
+        });
+      }
+      continue;
+    }
+    if (!OPEN_REVIEW_STATES.has(record.state) || record.reviewDisposition === "NOT_REQUIRED") continue;
+
+    let kind: DecisionReviewQueueKind;
+    let daysUntilReview: number | null = null;
+    if (record.reviewDisposition === "SCHEDULED") {
+      const reviewDay = scheduledReviewDay(record.reviewAt);
+      if (!reviewDay) {
+        invalidScheduleCount += 1;
+        continue;
+      }
+      const reviewOrdinal = decisionDayOrdinal(reviewDay);
+      if (reviewOrdinal === null) {
+        invalidScheduleCount += 1;
+        continue;
+      }
+      daysUntilReview = reviewOrdinal - referenceOrdinal;
+      if (daysUntilReview < 0) kind = "OVERDUE";
+      else if (daysUntilReview === 0) kind = "DUE_TODAY";
+      else if (daysUntilReview <= horizonDays) kind = "UPCOMING";
+      else continue;
+    } else {
+      kind = "UNSCHEDULED";
+    }
+
+    items.push({
+      decisionId: record.decisionId, proposedResult: record.proposedResult,
+      ruleId: record.ruleId, owner: record.owner, state: record.state,
+      kind, reviewAt: record.reviewAt, daysUntilReview, updatedAt: record.updatedAt,
+    });
+  }
+
+  items.sort((left, right) => {
+    const kindDifference = REVIEW_KIND_ORDER[left.kind] - REVIEW_KIND_ORDER[right.kind];
+    if (kindDifference !== 0) return kindDifference;
+    if (left.kind === "OVERDUE" && right.kind === "OVERDUE") {
+      return (left.daysUntilReview ?? 0) - (right.daysUntilReview ?? 0);
+    }
+    if (left.kind === "UPCOMING" && right.kind === "UPCOMING") {
+      return (left.daysUntilReview ?? 0) - (right.daysUntilReview ?? 0);
+    }
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
+  for (const item of items) counts[item.kind] += 1;
+
+  return { referenceDay, horizonDays, items, counts, invalidScheduleCount };
+}
+
+
+const decisionMemoryCsvStateLabels: Record<DecisionMemoryRecord["state"], string> = {
+  PROPOSED: "مقترح",
+  IN_REVIEW: "قيد المراجعة",
+  APPROVED: "معتمد",
+  REJECTED: "مرفوض",
+  DEFERRED: "مؤجل",
+  ASSIGNED: "مُعيّن",
+  EXECUTING: "قيد التنفيذ",
+  EXECUTED: "بانتظار القياس",
+  MEASURED: "مقاس",
+};
+
+function csvCell(value: string | number | null | undefined): string {
+  const raw = value === null || value === undefined ? "" : String(value);
+  const firstMeaningful = raw.trimStart().charAt(0);
+  const formulaLike = firstMeaningful === "=" || firstMeaningful === "+" ||
+    firstMeaningful === "-" || firstMeaningful === "@";
+  const safe = formulaLike ? "'" + raw : raw;
+  return '"' + safe.replace(/"/g, '""') + '"';
+}
+
+function exportMetric(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.value,
+    metric.currency ?? metric.unitOfMeasure ?? metric.unit,
+    metric.period.from + " — " + metric.period.to,
+    metric.asOf,
+    metric.formulaId + "@" + metric.formulaVersion,
+  ].join(" | ");
+}
+
+/** Exports only the records supplied by the caller, preserving their source and verification scope. */
+export function buildDecisionMemoryCsv(records: DecisionMemoryRecord[]): string {
+  const headers = [
+    "معرف القرار", "القرار", "قاعدة القرار", "حالة القرار", "إصدار القرار",
+    "المسؤول", "حالة توثيق الذاكرة", "المشكلة", "الوقائع المثبتة",
+    "مراجع الأدلة", "آراء الإدارة", "فرضيات قيد التحقق", "الافتراضات",
+    "البدائل", "البديل المختار", "الإجراء التنفيذي", "حالة المراجعة",
+    "موعد المراجعة", "المتوقع", "الفعلي", "الفرق", "الدروس المستفادة",
+    "مراجعة الدروس", "عدد أحداث التدقيق", "آخر تحديث",
+  ];
+  const rows = records.map(record => {
+    const evidenceIds = [
+      ...record.facts.flatMap(fact => fact.evidenceIds),
+      ...(record.metricComparison.expected?.evidenceIds ?? []),
+      ...(record.metricComparison.actual?.evidenceIds ?? []),
+      ...record.alternatives.flatMap(option => option.evidenceIds),
+    ];
+    const reviewLabel = record.reviewDisposition === "SCHEDULED" ? "مجدولة"
+      : record.reviewDisposition === "NOT_REQUIRED" ? "غير مطلوبة"
+        : record.reviewDisposition === "NOT_SCHEDULED" ? "غير مجدولة" : "غير موثقة";
+    const memoryLabel = record.memoryStatus === "VERIFIED" ? "مكتملة"
+      : record.memoryStatus === "PARTIAL" ? "جزئية" : "غير موثقة";
+    return [
+      record.decisionId,
+      record.proposedResult,
+      record.ruleId + "@" + record.ruleVersion,
+      decisionMemoryCsvStateLabels[record.state],
+      record.version,
+      record.owner,
+      memoryLabel,
+      record.problem,
+      record.facts.map(fact => fact.text).join(" ؛ "),
+      [...new Set(evidenceIds)].join(" ; "),
+      record.opinions.map(item => item.text).join(" ؛ "),
+      record.hypotheses.map(item => item.text).join(" ؛ "),
+      record.assumptions.join(" ؛ "),
+      record.alternatives.map(item => item.label + (item.rationale ? " — " + item.rationale : "")).join(" ؛ "),
+      record.chosenAlternative?.label ?? "",
+      record.actionTaken,
+      reviewLabel,
+      record.reviewAt,
+      exportMetric(record.metricComparison.expected),
+      exportMetric(record.metricComparison.actual),
+      record.metricComparison.difference,
+      record.lessons.join(" ؛ "),
+      record.lessonsReviewed ? "نعم" : "لا",
+      record.eventCount,
+      record.updatedAt,
+    ];
+  });
+  return String.fromCharCode(0xfeff) +
+    [headers, ...rows].map(row => row.map(csvCell).join(",")).join(String.fromCharCode(13, 10));
+}
+
+export interface DecisionMemoryRecordFilter {
+  query?: string;
+  state?: DecisionMemoryRecord["state"] | "ALL";
+  memoryStatus?: DecisionMemoryRecord["memoryStatus"] | "ALL";
+}
+
+/** Filters only the supplied records; it does not imply coverage of unseen pages. */
+export function filterDecisionMemoryRecords(
+  records: DecisionMemoryRecord[],
+  filter: DecisionMemoryRecordFilter = {},
+): DecisionMemoryRecord[] {
+  const query = filter.query ?? "";
+  const state = filter.state ?? "ALL";
+  const memoryStatus = filter.memoryStatus ?? "ALL";
+  if (typeof query !== "string" || query.length > 500) {
+    throw new Error("decision_memory_filter_input_invalid");
+  }
+  const tokens = decisionSearchTokens(query);
+  return records.filter(record => {
+    if (state !== "ALL" && record.state !== state) return false;
+    if (memoryStatus !== "ALL" && record.memoryStatus !== memoryStatus) return false;
+    if (!tokens.length) return true;
+    const searchable = normalizeDecisionSearchText(decisionRecordSearchText(record));
+    return tokens.every(token => searchable.includes(token));
+  });
+}
+
 export interface DecisionMemoryPrecedentMatch {
   record: DecisionMemoryRecord;
   matchedTerms: string[];
@@ -126,7 +366,11 @@ function normalizeDecisionSearchText(value: string): string {
 function decisionSearchTokens(value: string): string[] {
   const normalized = normalizeDecisionSearchText(value);
   const tokens = normalized.match(/[\p{L}\p{N}]{2,}/gu) ?? [];
-  return [...new Set(tokens.filter(token => !decisionSearchStopwords.has(token)))].slice(0, 240);
+  // Match the common Arabic definite-article form without weakening token-boundary search.
+  const canonicalTokens = tokens.map(token =>
+    token.startsWith("ال") && token.length > 4 ? token.slice(2) : token,
+  );
+  return [...new Set(canonicalTokens.filter(token => !decisionSearchStopwords.has(token)))].slice(0, 240);
 }
 
 function decisionRecordSearchText(record: DecisionMemoryRecord): string {

@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DecisionMemoryBook } from "./DecisionMemoryBook";
-import type { DecisionMemoryBookResult } from "@/lib/intelligence/decision-memory";
+import type { DecisionMemoryBookResult, DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
 import type {
   DecisionPolicyLearningCandidate,
   DecisionPolicyLearningEvent,
@@ -183,12 +183,123 @@ const emptyCompleteResult: DecisionMemoryBookResult = {
   warnings: [],
 };
 
+
+function makeReviewRecord(overrides:Partial<DecisionMemoryRecord>={}):DecisionMemoryRecord {
+  return {
+    decisionId,
+    candidateRef:"cashflow.expected_collections:YER:2026-11-17:2026-12-17",
+    ruleId:"cashflow.collection.followup",
+    ruleVersion:"1.0.0",
+    state:"APPROVED",
+    version:2,
+    createdAt:"2026-11-17T00:00:00.000Z",
+    updatedAt:"2026-11-18T00:00:00.000Z",
+    owner:"مدير المالية",
+    ownerProfileId:actorId,
+    proposedResult:"مراجعة تحصيل مستحقات العملاء الخاصة",
+    decisionReason:"متابعة تحصيل موثقة",
+    approvalAt:at,
+    executionAt:null,
+    eventCount:2,
+    events:[],
+    legacyMeasurement:null,
+    candidateSnapshot:null,
+    snapshotVersion:1,
+    capturedAt:at,
+    snapshot:null,
+    problem:"تأخر تحصيل مستحقات العملاء الخاصة",
+    factsReviewed:true,
+    facts:[],
+    opinions:[],
+    hypotheses:[],
+    assumptionsReviewed:true,
+    assumptions:[],
+    lessonsReviewed:false,
+    withheldFacts:0,
+    alternatives:[],
+    chosenAlternative:null,
+    actionTaken:"مراجعة الفواتير المستحقة",
+    reviewDisposition:"SCHEDULED",
+    reviewAt:"2020-01-02T23:59:59.000Z",
+    expectedMetric:null,
+    metricComparison:{status:"WITHHELD",expected:null,actual:null,difference:null,differencePercent:null,reason:"لا يوجد قياس بعد"},
+    lessons:[],
+    corrections:[],
+    missingFields:[],
+    warnings:[],
+    memoryStatus:"PARTIAL",
+    precedents:[],
+    ...overrides,
+  };
+}
 describe("DecisionMemoryBook outcome learning controls", () => {
   beforeEach(() => {
     suggestions.mockReset().mockReturnValue([suggestion]);
     fetchCandidates.mockReset().mockResolvedValue({ ok: true, items: [], total: 0 });
     createCandidate.mockReset();
     commandCandidate.mockReset();
+  });
+
+
+  it("shows a saved review follow-up queue and filters only the loaded decision records", async () => {
+    const record=makeReviewRecord();
+    const result:DecisionMemoryBookResult={
+      ...emptyCompleteResult,
+      status:"PARTIAL",
+      loadedCount:1,
+      totalCount:3,
+      records:[record],
+    };
+    render(<DecisionMemoryBook result={result}/>);
+    expect(screen.getByText("طابور مراجعة القرارات والمتابعة")).toBeInTheDocument();
+    expect(screen.getByText(/متأخرة \\d+ يوم/)).toBeInTheDocument();
+    expect(screen.getByText(/يغطي الطابور 1 قراراً محمّلاً من أصل 3/)).toBeInTheDocument();
+    const overdueTile=screen.getByRole("button",{name:/مراجعات متأخرة/});
+    expect(overdueTile).toHaveAttribute("aria-pressed","false");
+    fireEvent.click(overdueTile);
+    expect(screen.getByText(/فئة طابور المراجعة: مراجعات متأخرة/)).toBeInTheDocument();
+    const openRecord=await screen.findByRole("button",{name:"فتح السجل والمراجعة"});
+    fireEvent.click(openRecord);
+    const openReview=await screen.findByRole("button",{name:"توثيق ذاكرة هذا القرار"});
+    await waitFor(()=>expect(openReview).toHaveAttribute("aria-expanded","true"));
+    expect(screen.getByText(/نتائج البحث: 1 من 1 قراراً محمّلاً/)).toBeInTheDocument();
+    fireEvent.click(overdueTile);
+    expect(screen.queryByText(/فئة طابور المراجعة: مراجعات متأخرة/)).not.toBeInTheDocument();
+
+    const search=screen.getByLabelText("بحث في القرارات المحمّلة");
+    fireEvent.change(search,{target:{value:"مصطلح لا يوجد"}});
+    expect(screen.getByText("لا توجد قرارات تطابق البحث أو الحالة المحددة.")).toBeInTheDocument();
+    fireEvent.change(search,{target:{value:"تحصيل مستحقات"}});
+    expect(screen.getAllByText("مراجعة تحصيل مستحقات العملاء الخاصة").length).toBeGreaterThan(0);
+    expect(screen.getByText(/نتائج البحث: 1 من 1 قراراً محمّلاً/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("تصفية حسب جودة الذاكرة"),{target:{value:"VERIFIED"}});
+    expect(screen.getByText("لا توجد قرارات تطابق البحث أو الحالة المحددة.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("تصفية حسب جودة الذاكرة"),{target:{value:"PARTIAL"}});
+    expect(screen.getByText(/نتائج البحث: 1 من 1 قراراً محمّلاً/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("أفق متابعة المراجعات"),{target:{value:"7"}});
+    expect(screen.getByText("الأفق: 7 أيام")).toBeInTheDocument();
+  });
+
+  it("loads saved learning candidates from the server in pages and preserves the real total", async () => {
+    const firstPage = makeCandidate("DRAFT", 1);
+    const secondPage = { ...makeCandidate("IN_REVIEW", 2), id: "77777777-7777-4777-8777-777777777777" };
+    fetchCandidates
+      .mockResolvedValueOnce({ ok: true, items: [firstPage], total: 51 })
+      .mockResolvedValueOnce({ ok: true, items: [secondPage], total: 51 })
+      .mockResolvedValueOnce({ ok: true, items: [firstPage], total: 51 });
+    render(<DecisionMemoryBook result={emptyCompleteResult} />);
+
+    expect(await screen.findByText("مسودة محفوظة")).toBeInTheDocument();
+    expect(screen.getByText("عرض 1–1 من 51 مرشحاً · الصفحة 1 من 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
+    expect(await screen.findByText("قيد المراجعة المستقلة")).toBeInTheDocument();
+    expect(fetchCandidates).toHaveBeenNthCalledWith(2, 50, 50);
+    expect(screen.getByText("عرض 51–51 من 51 مرشحاً · الصفحة 2 من 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "السابق" }));
+    expect(await screen.findByText("مسودة محفوظة")).toBeInTheDocument();
+    expect(fetchCandidates).toHaveBeenNthCalledWith(3, 50, 0);
   });
 
   it("creates a server-owned Candidate v2 from the complete suggestion source IDs", async () => {

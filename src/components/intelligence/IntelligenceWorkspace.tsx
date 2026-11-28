@@ -20,6 +20,9 @@ import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggrega
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
 import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
+import { fetchProductRevenueConcentration, type ProductRevenueConcentrationFetchResult } from "@/lib/intelligence/product-revenue-concentration-client";
+import { fetchSupplierPostedPayableActivity, type SupplierPostedPayableActivityFetchResult } from "@/lib/intelligence/supplier-posted-payable-activity-client";
+import { buildConcentrationDecisionCandidates } from "@/lib/intelligence/concentration-decisions";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -39,9 +42,15 @@ import {
   type CashflowMeasurementProof,
   type CashflowScheduleResult,
 } from "@/lib/intelligence/cashflow-schedule-client";
+import { buildDecisionOutcomeDisplayScope } from "@/lib/intelligence/decision-outcome-display";
 import {
   commandDecisionOutcome,
   createDecisionOutcomeProposal,
+  deferDecisionOutcome,
+  fetchDecisionOutcomeAssignees,
+  resumeDeferredDecisionOutcome,
+  type DecisionOutcomeAssignee,
+  type DecisionOutcomeAssigneeListResult,
   fetchDecisionOutcomes,
   fetchDecisionOutcomeCollection,
   type DecisionCandidateSnapshot,
@@ -89,10 +98,10 @@ const stateLabels: Record<DecisionOutcomeView["state"], string> = {
   PROPOSED: "مقترح", IN_REVIEW: "قيد المراجعة", APPROVED: "معتمد", REJECTED: "مرفوض",
   DEFERRED: "مؤجل", ASSIGNED: "مُعيّن", EXECUTING: "قيد التنفيذ", EXECUTED: "بانتظار القياس", MEASURED: "مقاس",
 };
-function currencyFromCandidate(candidateId: string): string | null {
-  const parts = candidateId.split(":");
-  return parts[0] === "cashflow.expected_collections" && /^[A-Z]{3}$/.test(parts[1] ?? "") ? parts[1] : null;
-}
+const decisionAssigneeRoleLabels: Record<string, string> = {
+  admin: "مدير", manager: "مدير المؤسسة", staff: "موظف",
+  accountant: "محاسب", warehouse: "المخزون", purchasing: "المشتريات", sales: "المبيعات",
+};
 function candidateIdFor(currency: string, period: { from: string; to: string }): string {
   return "cashflow.expected_collections:" + currency + ":" + period.from + ":" + period.to;
 }
@@ -108,12 +117,14 @@ function shiftUtcDay(day: string, offset: number): string {
 }
 
 function isUtcDay(value: string): boolean {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value + "T00:00:00.000Z");
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function previousMatchingPeriod(from: string, to: string): { from: string; to: string } | null {
+  // Validate Gregorian day strings before Date.parse, which otherwise normalizes overflow dates.
+  if (!isUtcDay(from) || !isUtcDay(to)) return null;
   const start = Date.parse(from + "T00:00:00.000Z");
   const end = Date.parse(to + "T00:00:00.000Z");
   if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) return null;
@@ -167,19 +178,35 @@ type DecisionTransitionOptions = {
 
 type DecisionTransitionHandler = (
   outcome: DecisionOutcomeView,
-  eventType: Exclude<DecisionOutcomeEventType, "DEFER" | "RESUBMIT_FOR_REVIEW">,
+  eventType: DecisionOutcomeEventType,
   options?: DecisionTransitionOptions,
 ) => void;
 
+const decisionEventLabels: Record<string, string> = {
+  CREATE: "إنشاء المقترح",
+  SUBMIT_FOR_REVIEW: "إرسال للمراجعة",
+  APPROVE: "اعتماد القرار",
+  REJECT: "رفض القرار",
+  DEFER: "تأجيل القرار",
+  RESUBMIT_FOR_REVIEW: "إعادة للمراجعة",
+  ASSIGN: "تعيين المسؤول",
+  START_EXECUTION: "بدء التنفيذ",
+  COMPLETE_EXECUTION: "إتمام التنفيذ",
+  MEASURE: "قياس النتيجة",
+};
+
 function DecisionOutcomeHistory({ events }: { events: DecisionOutcomeView["history"] }) {
   return (
-    <>
+    <ol className="space-y-2">
       {events.map((event) => (
-        <span key={event.id} className="me-3">
-          {event.version}. {event.type} · {event.actorRole} · {formatDay(event.at.slice(0, 10))}
-        </span>
+        <li key={event.id} className="flex flex-wrap items-start gap-x-2">
+          <span className="font-medium">{event.version}. {decisionEventLabels[event.type] ?? event.type}</span>
+          <span>{event.actorRole}</span>
+          <time dateTime={event.at}>{formatDay(event.at.slice(0, 10))}</time>
+          {event.reason ? <p className="w-full text-muted-foreground">السبب المحفوظ: {event.reason}</p> : null}
+        </li>
       ))}
-    </>
+    </ol>
   );
 }
 
@@ -190,6 +217,10 @@ function DecisionOutcomeCard({
   busy,
   anyBusy,
   profileId,
+  assignableAssignees,
+  assigneesLoading,
+  assigneesError,
+  onRetryAssignees,
   onReasonChange,
   onTransition,
 }: {
@@ -199,14 +230,24 @@ function DecisionOutcomeCard({
   busy: boolean;
   anyBusy: boolean;
   profileId: string | undefined;
+  assignableAssignees: DecisionOutcomeAssignee[];
+  assigneesLoading: boolean;
+  assigneesError: string | null;
+  onRetryAssignees: () => void;
   onReasonChange: (id: string, value: string) => void;
   onTransition: DecisionTransitionHandler;
 }) {
-  const currency = currencyFromCandidate(outcome.candidateId);
-  const candidatePeriod = outcome.candidateId.split(":").slice(2).join(":");
-  const proof = measurementMetrics.find((item) =>
-    item.currency === currency && item.period.from + ":" + item.period.to === candidatePeriod,
-  );
+  const scope = buildDecisionOutcomeDisplayScope(outcome);
+  const currency = scope.currency;
+  // Ratio decisions must never borrow a same-currency cashflow proof to become "measured".
+  const proof = scope.measurementKind === "CURRENCY" && currency
+    ? measurementMetrics.find((item) =>
+        item.currency === currency &&
+        scope.period !== null &&
+        item.period.from === scope.period.from &&
+        item.period.to === scope.period.to,
+      )
+    : undefined;
 
   return (
     <article className="rounded-xl border p-4" aria-label={"قرار " + outcome.id}>
@@ -218,27 +259,66 @@ function DecisionOutcomeCard({
         <span className="rounded-full border px-3 py-1 text-xs">{stateLabels[outcome.state]} · v{outcome.version}</span>
       </header>
       <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-        <p>النطاق: {currency ?? "غير محدد"} · {candidatePeriod.split(":").join(" — ")}</p>
+        <p>النطاق: {scope.label} · العملة: {currency ?? "غير محددة"}</p>
+        {scope.period ? <p>الفترة: {scope.period.from} — {scope.period.to}</p> : null}
+        {scope.baselinePeriod ? <p>الفترة المقارنة: {scope.baselinePeriod.from} — {scope.baselinePeriod.to}</p> : null}
+        {scope.asOf ? <p>لقطة المصدر: {scope.asOf}</p> : null}
+        {scope.sourceNote ? <p className="text-xs text-muted-foreground sm:col-span-2">{scope.sourceNote}</p> : null}
         <p>الأحداث المحفوظة: {outcome.eventCount} · آخر تحديث: {formatDay(outcome.updatedAt.slice(0, 10))}</p>
         {outcome.measuredOutcome ? <p className="font-semibold">النتيجة المقاسة: {formatMoney(outcome.measuredOutcome.value, outcome.measuredOutcome.currency)} · {outcome.measuredOutcome.asOf}</p> : null}
         {outcome.reason ? <p>السبب: {outcome.reason}</p> : null}
       </div>
-      {outcome.state === "IN_REVIEW" ? (
-        <label className="mt-3 grid gap-1 text-sm">سبب الاعتماد أو الرفض
-          <input className="rounded-lg border bg-background p-2" value={actionReason} maxLength={2000} onChange={(event) => onReasonChange(outcome.id, event.target.value)} />
+      {outcome.state === "APPROVED" ? (
+        <label className="mt-3 grid gap-1 text-sm">
+          سبب الإسناد (اختياري)
+          <input
+            className="rounded-lg border bg-background p-2"
+            value={actionReason}
+            maxLength={2000}
+            onChange={(event) => onReasonChange(outcome.id, event.target.value)}
+            placeholder="مثلاً: تسليم متابعة المورد إلى مسؤول المشتريات"
+          />
+        </label>
+      ) : null}
+      {outcome.state === "IN_REVIEW" || outcome.state === "DEFERRED" ? (
+        <label className="mt-3 grid gap-1 text-sm">
+          {outcome.state === "DEFERRED" ? "سبب إعادة القرار للمراجعة" : "سبب الاعتماد أو الرفض أو التأجيل"}
+          <input
+            className="rounded-lg border bg-background p-2"
+            value={actionReason}
+            maxLength={2000}
+            aria-describedby={"decision-reason-help-" + outcome.id}
+            onChange={(event) => onReasonChange(outcome.id, event.target.value)}
+          />
+          <span id={"decision-reason-help-" + outcome.id} className="text-xs text-muted-foreground">
+            {outcome.state === "DEFERRED"
+              ? "أدخل سبباً لا يقل عن 3 أحرف لإعادة القرار إلى المراجعة."
+              : "الاعتماد والرفض والتأجيل يتطلب كل منها سبباً موثقاً؛ التأجيل يتطلب 3 أحرف على الأقل."}
+          </span>
         </label>
       ) : null}
       <DecisionOutcomeActions
         outcome={outcome}
         proof={proof}
         currency={currency}
+        measurementKind={scope.measurementKind}
         busy={busy}
         anyBusy={anyBusy}
         profileId={profileId}
+        assignableAssignees={assignableAssignees}
+        assigneesLoading={assigneesLoading}
+        assigneesError={assigneesError}
+        onRetryAssignees={onRetryAssignees}
         actionReason={actionReason}
         onTransition={onTransition}
       />
-      {outcome.state === "EXECUTED" && !proof ? <p className="mt-2 text-xs text-muted-foreground">القياس محجوب: لا توجد حزمة إثبات كاملة للعملة والفترة المطابقتين تماماً.</p> : null}
+      {outcome.state === "EXECUTED" && !proof ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {scope.measurementKind === "RATIO"
+            ? "اكتمل التنفيذ وبقيت متابعة الاتجاه؛ هذا المؤشر نسبة تركّز وليس مبلغاً نقدياً، وخادم القياس الحالي لا يقبل تحويله إلى نتيجة مالية. لا يُستخدم إثبات التحصيل النقدي لقياسه."
+            : "القياس محجوب: لا توجد حزمة إثبات كاملة للعملة والفترة المطابقتين تماماً."}
+        </p>
+      ) : null}
       <footer className="mt-3 border-t pt-2 text-xs text-muted-foreground">
         <DecisionOutcomeHistory events={outcome.history} />
       </footer>
@@ -250,37 +330,101 @@ function DecisionOutcomeActions({
   outcome,
   proof,
   currency,
+  measurementKind,
   busy,
   anyBusy,
   profileId,
+  assignableAssignees,
+  assigneesLoading,
+  assigneesError,
+  onRetryAssignees,
   actionReason,
   onTransition,
 }: {
   outcome: DecisionOutcomeView;
   proof: CashflowMeasurementProof | undefined;
   currency: string | null;
+  measurementKind: "CURRENCY" | "RATIO" | "UNKNOWN";
   busy: boolean;
   anyBusy: boolean;
   profileId: string | undefined;
+  assignableAssignees: DecisionOutcomeAssignee[];
+  assigneesLoading: boolean;
+  assigneesError: string | null;
+  onRetryAssignees: () => void;
   actionReason: string;
   onTransition: DecisionTransitionHandler;
 }) {
   const disabled = busy || anyBusy;
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState("");
   if (outcome.state === "PROPOSED") {
     return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
   }
   if (outcome.state === "IN_REVIEW") {
-    const missingReason = !actionReason.trim();
     return (
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn primary" type="button" disabled={disabled || missingReason} onClick={() => onTransition(outcome, "APPROVE", { reason: actionReason })}>اعتماد</button>
-        <button className="btn secondary" type="button" disabled={disabled || missingReason} onClick={() => onTransition(outcome, "REJECT", { reason: actionReason })}>رفض مع السبب</button>
+        <button className="btn primary" type="button" disabled={disabled || actionReason.trim().length < 3} onClick={() => onTransition(outcome, "APPROVE", { reason: actionReason })}>اعتماد</button>
+        <button className="btn secondary" type="button" disabled={disabled || actionReason.trim().length < 3} onClick={() => onTransition(outcome, "REJECT", { reason: actionReason })}>رفض مع السبب</button>
+        <button className="btn secondary" type="button" disabled={disabled || actionReason.trim().length < 3} onClick={() => onTransition(outcome, "DEFER", { reason: actionReason })}>تأجيل مع السبب</button>
         {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
       </div>
     );
   }
   if (outcome.state === "APPROVED") {
-    return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled || !profileId} onClick={() => profileId && onTransition(outcome, "ASSIGN", { ownerProfileId: profileId })}>تعيين لنفسي</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+    const selectedAssignee =
+      assignableAssignees.find(item => item.profileId === selectedAssigneeId) ??
+      assignableAssignees.find(item => item.profileId === profileId) ??
+      assignableAssignees[0] ?? null;
+    return (
+      <div className="mt-3 space-y-2">
+        {assigneesLoading ? <p role="status" className="text-xs text-muted-foreground">جارٍ تحميل أعضاء المؤسسة المسموح إسناد القرار إليهم…</p> : null}
+        {assigneesError ? (
+          <div className="rounded-lg border p-2 text-xs" role="alert">
+            <p>{assigneesError}</p>
+            <button className="btn secondary mt-2" type="button" disabled={disabled || assigneesLoading} onClick={onRetryAssignees}>إعادة تحميل أعضاء المؤسسة</button>
+          </div>
+        ) : null}
+        {!assigneesLoading && !assigneesError && assignableAssignees.length === 0 ? (
+          <p role="status" className="text-xs text-muted-foreground">لا يوجد عضو نشط بدور قابل للإسناد في المؤسسة؛ لم يُنفذ أي إسناد.</p>
+        ) : null}
+        {assignableAssignees.length ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="grid min-w-52 flex-1 gap-1 text-sm">
+              إسناد القرار إلى عضو من المؤسسة
+              <select
+                className="rounded-lg border bg-background p-2"
+                aria-label="تعيين القرار إلى عضو من المؤسسة"
+                value={selectedAssignee?.profileId ?? ""}
+                onChange={event => setSelectedAssigneeId(event.target.value)}
+                disabled={disabled || assigneesLoading}
+              >
+                {assignableAssignees.map(assignee => (
+                  <option key={assignee.profileId} value={assignee.profileId}>
+                    {(assignee.fullName || assignee.email || "عضو المؤسسة") + " · " + assignee.roles.map(role => decisionAssigneeRoleLabels[role] ?? role).join("، ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={disabled || !selectedAssignee}
+              onClick={() => selectedAssignee && onTransition(outcome, "ASSIGN", {
+                ownerProfileId: selectedAssignee.profileId,
+                ...(actionReason.trim() ? { reason: actionReason.trim() } : {}),
+              })}
+            >تثبيت المسؤول</button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={disabled || assigneesLoading}
+              onClick={onRetryAssignees}
+            >تحديث الفريق</button>
+          </div>
+        ) : null}
+        {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الإسناد...</span> : null}
+      </div>
+    );
   }
   if (outcome.state === "ASSIGNED") {
     return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "START_EXECUTION")}>بدء التنفيذ</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
@@ -288,12 +432,29 @@ function DecisionOutcomeActions({
   if (outcome.state === "EXECUTING") {
     return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "COMPLETE_EXECUTION")}>إتمام التنفيذ</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
   }
+  if (outcome.state === "DEFERRED") {
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          className="btn primary"
+          type="button"
+          disabled={disabled || actionReason.trim().length < 3}
+          onClick={() => onTransition(outcome, "RESUBMIT_FOR_REVIEW", { reason: actionReason })}
+        >
+          إعادة للمراجعة
+        </button>
+        {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
+      </div>
+    );
+  }
   if (outcome.state === "EXECUTED") {
     return (
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn primary" type="button" disabled={disabled || !proof} onClick={() => proof && onTransition(outcome, "MEASURE", { proof })}>
-          قياس من مصدر {currency ?? "غير متاح"}
-        </button>
+        {proof && measurementKind === "CURRENCY" ? (
+          <button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "MEASURE", { proof })}>
+            اعتماد قياس {currency ?? "المصدر"}
+          </button>
+        ) : null}
         {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
       </div>
     );
@@ -312,6 +473,10 @@ function DecisionCyclePanel({
   outcomeBusyId,
   measurementMetrics,
   profileId,
+  assignableAssignees,
+  assigneesLoading,
+  assigneesError,
+  onRetryAssignees,
   onReasonChange,
   onTransition,
 }: {
@@ -324,6 +489,10 @@ function DecisionCyclePanel({
   outcomeBusyId: string | null;
   measurementMetrics: CashflowMeasurementProof[];
   profileId: string | undefined;
+  assignableAssignees: DecisionOutcomeAssignee[];
+  assigneesLoading: boolean;
+  assigneesError: string | null;
+  onRetryAssignees: () => void;
   onReasonChange: (id: string, value: string) => void;
   onTransition: DecisionTransitionHandler;
 }) {
@@ -360,6 +529,10 @@ function DecisionCyclePanel({
               busy={outcomeBusyId === outcome.id}
               anyBusy={outcomeBusyId !== null}
               profileId={profileId}
+              assignableAssignees={assignableAssignees}
+              assigneesLoading={assigneesLoading}
+              assigneesError={assigneesError}
+              onRetryAssignees={onRetryAssignees}
               onReasonChange={onReasonChange}
               onTransition={onTransition}
             />
@@ -411,6 +584,17 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [outcomeBusyId, setOutcomeBusyId] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
   const [outcomeReasons, setOutcomeReasons] = useState<Record<string, string>>({});
+  const outcomeCommandKeys = useRef(new Map<string, {
+    eventId: string;
+    idempotencyKey: string;
+    reason: string;
+    ownerProfileId?: string;
+    proofKey: string;
+    measuredAt?: string;
+  }>());
+  const [decisionAssigneesResult, setDecisionAssigneesResult] = useState<DecisionOutcomeAssigneeListResult | null>(null);
+  const [decisionAssigneesLoading, setDecisionAssigneesLoading] = useState(false);
+  const [decisionAssigneesRefreshKey, setDecisionAssigneesRefreshKey] = useState(0);
   const [proposalCurrency, setProposalCurrency] = useState("");
   const [proposalExpected, setProposalExpected] = useState("متابعة التحصيل وفق الفواتير المثبتة في الفترة المحددة");
   const [proposalReason, setProposalReason] = useState("");
@@ -422,7 +606,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [demandForecastResult, setDemandForecastResult] = useState<DemandForecastResult | null>(null);
   const [productGrossMarginResult, setProductGrossMarginResult] = useState<ProductGrossMarginFetchResult | null>(null);
   const [productGrossMarginLoading, setProductGrossMarginLoading] = useState(true);
+  const [businessHealthSources, setBusinessHealthSources] = useState<{
+    asOf: string;
+    productRevenueConcentration: ProductRevenueConcentrationFetchResult;
+    productRevenueConcentrationBaseline: ProductRevenueConcentrationFetchResult;
+    supplierCurrent: SupplierPostedPayableActivityFetchResult;
+    supplierBaseline: SupplierPostedPayableActivityFetchResult;
+  } | null>(null);
+  const [businessHealthSourcesLoading, setBusinessHealthSourcesLoading] = useState(true);
   const productGrossMarginRequestGeneration = useRef(0);
+  const businessHealthSourceRequestGeneration = useRef(0);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
@@ -469,6 +662,30 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       decisionMemoryRequestGeneration.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!canManage) {
+      setDecisionAssigneesResult({ ok: false, status: "DENIED", message: "تتطلب قائمة أعضاء المؤسسة صلاحية المدير." });
+      setDecisionAssigneesLoading(false);
+      return () => { active = false; };
+    }
+    setDecisionAssigneesLoading(true);
+    void fetchDecisionOutcomeAssignees().then(response => {
+      if (!active) return;
+      setDecisionAssigneesResult(response);
+      setDecisionAssigneesLoading(false);
+    }).catch(() => {
+      if (!active) return;
+      setDecisionAssigneesResult({
+        ok: false,
+        status: "UNAVAILABLE",
+        message: "تعذر تحميل أعضاء المؤسسة؛ لم يُرسل أمر إسناد.",
+      });
+      setDecisionAssigneesLoading(false);
+    });
+    return () => { active = false; };
+  }, [canManage, decisionAssigneesRefreshKey]);
 
   const loadCashflow = useCallback(async (active: () => boolean) => {
     if (!canManage) {
@@ -924,7 +1141,129 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const data = result?.ok ? result.data : null;
   const cashflowDenied = Boolean(result && !result.ok && result.status === "DENIED");
   const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
+  useEffect(() => {
+    let active = true;
+    const generation = ++businessHealthSourceRequestGeneration.current;
+    if (!canManage || !inventoryData) {
+      setBusinessHealthSources(null);
+      setBusinessHealthSourcesLoading(false);
+      return () => {
+        active = false;
+        businessHealthSourceRequestGeneration.current += 1;
+      };
+    }
+
+    const fromTime = Date.parse(inventoryData.period.from + "T00:00:00.000Z");
+    const toTime = Date.parse(inventoryData.period.to + "T00:00:00.000Z");
+    const windowDays = Math.round((toTime - fromTime) / 86_400_000) + 1;
+    if (!Number.isFinite(fromTime) || !Number.isFinite(toTime) || fromTime > toTime ||
+        !Number.isInteger(windowDays) || windowDays < 1 || windowDays > 365) {
+      const invalid = {
+        ok: false as const,
+        status: "ERROR" as const,
+        message: "فترة خريطة صحة الأعمال غير صالحة؛ لم تُطلب مؤشرات مالية بفترة بديلة.",
+      };
+      setBusinessHealthSources({
+        asOf: inventoryData.asOf,
+        productRevenueConcentration: invalid,
+        productRevenueConcentrationBaseline: invalid,
+        supplierCurrent: invalid,
+        supplierBaseline: invalid,
+      });
+      setBusinessHealthSourcesLoading(false);
+      return () => {
+        active = false;
+        businessHealthSourceRequestGeneration.current += 1;
+      };
+    }
+
+    const baselinePeriod = {
+      from: shiftUtcDay(inventoryData.period.from, -windowDays),
+      to: shiftUtcDay(inventoryData.period.to, -windowDays),
+    };
+    setBusinessHealthSourcesLoading(true);
+    void Promise.all([
+      fetchProductRevenueConcentration({
+        from: inventoryData.period.from,
+        to: inventoryData.period.to,
+        asOf: inventoryData.asOf,
+      }),
+      fetchProductRevenueConcentration({
+        from: baselinePeriod.from,
+        to: baselinePeriod.to,
+        asOf: inventoryData.asOf,
+      }),
+      fetchSupplierPostedPayableActivity({
+        from: inventoryData.period.from,
+        to: inventoryData.period.to,
+        asOf: inventoryData.asOf,
+      }),
+      fetchSupplierPostedPayableActivity({
+        from: baselinePeriod.from,
+        to: baselinePeriod.to,
+        asOf: inventoryData.asOf,
+      }),
+    ]).then(([productRevenueConcentration, productRevenueConcentrationBaseline, supplierCurrent, supplierBaseline]) => {
+      if (!active || generation !== businessHealthSourceRequestGeneration.current) return;
+      setBusinessHealthSources({
+        asOf: inventoryData.asOf,
+        productRevenueConcentration,
+        productRevenueConcentrationBaseline,
+        supplierCurrent,
+        supplierBaseline,
+      });
+    }).catch(() => {
+      if (!active || generation !== businessHealthSourceRequestGeneration.current) return;
+      const unavailable = {
+        ok: false as const,
+        status: "UNAVAILABLE" as const,
+        message: "تعذر تحميل أحد مصادر خريطة صحة الأعمال؛ لم تُستبدل البيانات بأصفار.",
+      };
+      setBusinessHealthSources({
+        asOf: inventoryData.asOf,
+        productRevenueConcentration: unavailable,
+        productRevenueConcentrationBaseline: unavailable,
+        supplierCurrent: unavailable,
+        supplierBaseline: unavailable,
+      });
+    }).finally(() => {
+      if (active && generation === businessHealthSourceRequestGeneration.current) {
+        setBusinessHealthSourcesLoading(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      businessHealthSourceRequestGeneration.current += 1;
+    };
+  }, [canManage, inventoryData]);
   const customerRetention = retentionResult?.ok ? retentionResult.data : null;
+  const concentrationDecisionResult = useMemo(() => {
+    if (!inventoryData || businessHealthSources?.asOf !== inventoryData.asOf) {
+      return { candidates: [], evidenceRecords: [], metrics: [], withheld: [] };
+    }
+    return buildConcentrationDecisionCandidates({
+      generatedAt: inventoryData.asOf,
+      productCurrent: businessHealthSources.productRevenueConcentration.ok
+        ? businessHealthSources.productRevenueConcentration.snapshot : null,
+      productBaseline: businessHealthSources.productRevenueConcentrationBaseline.ok
+        ? businessHealthSources.productRevenueConcentrationBaseline.snapshot : null,
+      supplierCurrent: businessHealthSources.supplierCurrent.ok
+        ? businessHealthSources.supplierCurrent.snapshot : null,
+      supplierBaseline: businessHealthSources.supplierBaseline.ok
+        ? businessHealthSources.supplierBaseline.snapshot : null,
+    });
+  }, [inventoryData, businessHealthSources]);
+  const concentrationDecisionActions = useMemo<EvidenceBackedAction[]>(() =>
+    concentrationDecisionResult.candidates.map(decision => ({
+      decision,
+      proof: null,
+      candidateId: decision.id,
+      metricIds: concentrationDecisionResult.metrics
+        .filter(metric => decision.proof.metricKeys.includes(metric.key))
+        .map(metric => metric.id),
+    })),
+  [concentrationDecisionResult]);
   const shiftWorkspace = shiftResponse?.ok ? shiftResponse.data : null;
   const shiftViewState = shiftLoading ? "loading"
     : shiftResponse?.ok ? "ready"
@@ -1031,6 +1370,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       ...(retentionResult?.ok && retentionResult.data.asOf === evidencePassport.asOf &&
           retentionResult.growthInputs.sourceSnapshotVerified
         ? retentionResult.growthInputs.metrics : []),
+      ...concentrationDecisionResult.metrics,
     ];
     const metricsById = new Map<string, MetricSnapshot>();
     const conflictingMetrics: MetricSnapshot[] = [];
@@ -1046,10 +1386,11 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       id: "intelligence-claim-evidence:" + evidencePassport.asOf,
       generatedAt: evidencePassport.generatedAt,
       asOf: evidencePassport.asOf,
-      evidenceRecords: [...evidencePassport.evidenceRecords, ...(inventoryData?.evidenceRecords ?? []), ...retentionEvidence],
+      evidenceRecords: [...evidencePassport.evidenceRecords, ...(inventoryData?.evidenceRecords ?? []), ...retentionEvidence,
+        ...concentrationDecisionResult.evidenceRecords],
       metrics: [...evidencePassport.metrics, ...metricsById.values(), ...conflictingMetrics],
     });
-  }, [evidencePassport, inventoryData, retentionResult]);
+  }, [evidencePassport, inventoryData, retentionResult, concentrationDecisionResult]);
 
   const cashflowForecast = useMemo(() => {
     if (!data) return null;
@@ -1253,7 +1594,8 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       metricIds: [metric.id],
       boundaries: metric.warnings,
     }));
-    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions];
+    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions,
+      ...customerRetentionDecisionActions, ...concentrationDecisionActions];
     const drivers = actions.flatMap(({ decision, metricIds }) => {
       const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
       return linkedMetricIds.length ? [{
@@ -1278,11 +1620,13 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
     }] : [];
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
-  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
+    customerRetentionDecisionActions, concentrationDecisionActions]);
 
   const dailyDecisionActionSelection = useMemo(() => {
     const selection = selectTopDailyDecisionActions(
-      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
+      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions,
+        ...customerRetentionDecisionActions, ...concentrationDecisionActions]
         .map(action => ({ decision: action.decision, payload: action })),
       10,
     );
@@ -1298,8 +1642,18 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       omittedCount: selection.omittedCount + omittedRetentionActions,
     };
   }, [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
-    customerRetentionDecisionActions, retentionResult, evidencePassport]);
+    customerRetentionDecisionActions, concentrationDecisionActions, retentionResult, evidencePassport]);
   const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
+  const savedDailyDecisionOutcomes = useMemo(() => {
+    const byCandidateId = new Map<string, DecisionOutcomeView>();
+    const collection = decisionMemoryCollectionResult?.ok
+      ? decisionMemoryCollectionResult.collection.items : [];
+    for (const outcome of collection) byCandidateId.set(outcome.candidateId, outcome);
+    if (outcomeResult?.ok) {
+      for (const outcome of outcomeResult.items) byCandidateId.set(outcome.candidateId, outcome);
+    }
+    return byCandidateId;
+  }, [decisionMemoryCollectionResult, outcomeResult]);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -1309,7 +1663,8 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         : "error";
 
   const businessHealthMap = useMemo<BusinessHealthMapResult | null>(() => {
-    if (!inventoryData || !deadStockReport || !replenishmentReport) return null;
+    const sources = businessHealthSources?.asOf === inventoryData?.asOf ? businessHealthSources : null;
+    if (!inventoryData || !deadStockReport || !replenishmentReport || !sources) return null;
     try {
       return buildBusinessHealthMap({
         id: "business-health-map:" + inventoryData.asOf,
@@ -1325,13 +1680,26 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
           period: inventoryData.period,
           recommendations: replenishmentReport.recommendations,
         },
+        productRevenueConcentration: sources.productRevenueConcentration.ok
+          ? sources.productRevenueConcentration.snapshot : null,
+        productRevenueConcentrationUnavailableReason: sources.productRevenueConcentration.ok
+          ? undefined : sources.productRevenueConcentration.message,
+        supplierPostedPayableActivity: sources.supplierCurrent.ok
+          ? sources.supplierCurrent.snapshot : null,
+        supplierPostedPayableActivityUnavailableReason: sources.supplierCurrent.ok
+          ? undefined : sources.supplierCurrent.message,
+        supplierPostedPayableActivityPriorPeriod: sources.supplierBaseline.ok
+          ? sources.supplierBaseline.snapshot : null,
+        supplierPostedPayableActivityPriorPeriodUnavailableReason: sources.supplierBaseline.ok
+          ? undefined : sources.supplierBaseline.message,
       });
     } catch {
       return null;
     }
-  }, [inventoryData, deadStockReport, replenishmentReport, customerRetention, data, cashflowForecast]);
+  }, [inventoryData, deadStockReport, replenishmentReport, customerRetention, data, cashflowForecast, businessHealthSources]);
 
-  const businessHealthMapState = inventoryLoading
+  const businessHealthMapState = inventoryLoading || businessHealthSourcesLoading ||
+      (Boolean(inventoryData) && businessHealthSources?.asOf !== inventoryData?.asOf)
     ? "loading"
     : businessHealthMap
       ? "ready"
@@ -1483,35 +1851,75 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
 
   const runTransition = async (
     outcome: DecisionOutcomeView,
-    eventType: Exclude<DecisionOutcomeEventType, "DEFER" | "RESUBMIT_FOR_REVIEW">,
+    eventType: DecisionOutcomeEventType,
     options: { reason?: string; ownerProfileId?: string; proof?: CashflowMeasurementProof } = {},
   ) => {
     if (outcomeBusyId) return;
-    if ((eventType === "APPROVE" || eventType === "REJECT") && !options.reason?.trim()) {
-      setOutcomeMessage("أدخل سبب الاعتماد أو الرفض قبل إرسال الأمر.");
+    const reason = options.reason?.trim() ?? "";
+    const reasonRequired = eventType === "APPROVE" || eventType === "REJECT" ||
+      eventType === "DEFER" || eventType === "RESUBMIT_FOR_REVIEW";
+    if (reasonRequired && reason.length < 3) {
+      setOutcomeMessage(
+        eventType === "DEFER"
+          ? "أدخل سبب التأجيل (3 أحرف على الأقل) قبل إرسال الأمر."
+          : eventType === "RESUBMIT_FOR_REVIEW"
+            ? "أدخل سبب إعادة القرار للمراجعة (3 أحرف على الأقل)."
+            : "أدخل سبب الاعتماد أو الرفض قبل إرسال الأمر.",
+      );
       return;
     }
+    const commandIdentity = outcome.id + ":" + outcome.version + ":" + eventType;
+    const proofKey = options.proof ? JSON.stringify(options.proof) : "";
+    const pendingCommand = outcomeCommandKeys.current.get(commandIdentity);
+    if (pendingCommand && (
+      pendingCommand.reason !== reason ||
+      pendingCommand.ownerProfileId !== options.ownerProfileId ||
+      pendingCommand.proofKey !== proofKey
+    )) {
+      setOutcomeMessage("نتيجة الأمر السابق غير مؤكدة؛ أعد المحاولة بالسبب والمسؤول والإثبات نفسيهما قبل تغيير التفاصيل.");
+      return;
+    }
+    const commandTokens = pendingCommand ?? {
+      eventId: crypto.randomUUID(),
+      idempotencyKey: crypto.randomUUID(),
+      reason,
+      ...(options.ownerProfileId ? { ownerProfileId: options.ownerProfileId } : {}),
+      proofKey,
+      ...(options.proof ? { measuredAt: new Date().toISOString() } : {}),
+    };
+    if (!pendingCommand) outcomeCommandKeys.current.set(commandIdentity, commandTokens);
     setOutcomeBusyId(outcome.id);
     setOutcomeMessage(null);
     const measuredOutcome = options.proof
-      ? { ...options.proof, measuredAt: new Date().toISOString() }
+      ? { ...options.proof, measuredAt: commandTokens.measuredAt as string }
       : undefined;
-    const updated = await commandDecisionOutcome({
+    const commandInput = {
       outcomeId: outcome.id,
       expectedVersion: outcome.version,
-      eventType,
-      ...(options.reason ? { reason: options.reason.trim() } : {}),
-      ...(options.ownerProfileId ? { ownerProfileId: options.ownerProfileId } : {}),
-      ...(measuredOutcome ? { measuredOutcome } : {}),
-    });
+      reason,
+      eventId: commandTokens.eventId,
+      idempotencyKey: commandTokens.idempotencyKey,
+    };
+    const updated = eventType === "DEFER"
+      ? await deferDecisionOutcome(commandInput)
+      : eventType === "RESUBMIT_FOR_REVIEW"
+        ? await resumeDeferredDecisionOutcome(commandInput)
+        : await commandDecisionOutcome({
+            ...commandInput,
+            eventType,
+            ...(options.ownerProfileId ? { ownerProfileId: options.ownerProfileId } : {}),
+            ...(measuredOutcome ? { measuredOutcome } : {}),
+          });
     setOutcomeBusyId(null);
     if (!updated.ok) {
+      if (updated.status !== "UNAVAILABLE") outcomeCommandKeys.current.delete(commandIdentity);
       setOutcomeMessage(updated.message);
       if (updated.status === "STALE" || updated.status === "CONFLICT") {
         await Promise.all([loadOutcomes(), loadDecisionMemoryCollection()]);
       }
       return;
     }
+    outcomeCommandKeys.current.delete(commandIdentity);
     setOutcomeMessage(updated.duplicate ? "تم التعرف على إعادة إرسال الأمر دون إنشاء حدث مكرر." : "تم تسجيل انتقال القرار وإثباته في سجل التدقيق.");
     setOutcomeReasons((current) => ({ ...current, [outcome.id]: "" }));
     await Promise.all([loadOutcomes(), loadDecisionMemoryCollection()]);
@@ -1936,6 +2344,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             outcomeBusyId={outcomeBusyId}
             measurementMetrics={data?.measurementMetrics ?? []}
             profileId={user?.profileId}
+            assignableAssignees={decisionAssigneesResult?.ok ? decisionAssigneesResult.items : []}
+            assigneesLoading={decisionAssigneesLoading}
+            assigneesError={decisionAssigneesResult && !decisionAssigneesResult.ok ? decisionAssigneesResult.message : null}
+            onRetryAssignees={() => setDecisionAssigneesRefreshKey(value => value + 1)}
             onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
             onTransition={runTransition}
           />
@@ -2024,15 +2436,50 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                       : " جميع الإجراءات المستحقة ظاهرة."}
                   </p>
                 ) : null}
-                {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
-                  <ActionCard
-                    key={candidateId}
-                    decision={decision}
-                    state="ready"
-                    ctaLabel="حفظ الإجراء في دورة القرارات"
-                    onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
-                  />
-                )) : (
+                {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => {
+                  const evidenceScope = buildDecisionOutcomeDisplayScope({
+                    candidateId,
+                    ruleId: decision.ruleId,
+                    candidateSnapshot: { proof: decision.proof },
+                  });
+                  const savedOutcome = savedDailyDecisionOutcomes.get(candidateId);
+                  return (
+                    <div key={candidateId} className="space-y-2">
+                      {savedOutcome ? (
+                        <div
+                          role="status"
+                          aria-label={"الإجراء محفوظ " + savedOutcome.id}
+                          data-testid="daily-saved-decision"
+                          className="rounded-xl border p-3 text-sm"
+                        >
+                          <p className="font-semibold">الإجراء محفوظ بالفعل في دورة القرارات</p>
+                          <p className="mt-1">الحالة: {stateLabels[savedOutcome.state]} · الإصدار {savedOutcome.version}</p>
+                          <p>المسؤول: {savedOutcome.ownerLabel}</p>
+                          {savedOutcome.reason ? <p className="text-xs text-muted-foreground">آخر سبب محفوظ: {savedOutcome.reason}</p> : null}
+                        </div>
+                      ) : (
+                        <ActionCard
+                          decision={decision}
+                          state="ready"
+                          ctaLabel="حفظ الإجراء في دورة القرارات"
+                          onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
+                        />
+                      )}
+                      {evidenceScope.measurementKind === "RATIO" ? (
+                        <div className="rounded-lg border px-3 py-2 text-xs text-muted-foreground" role="note">
+                          <p>{evidenceScope.label} · {evidenceScope.currency ?? "عملة غير محددة"}</p>
+                          {evidenceScope.period && evidenceScope.baselinePeriod ? (
+                            <p>الفترة الحالية: {evidenceScope.period.from} — {evidenceScope.period.to} · المقارنة: {evidenceScope.baselinePeriod.from} — {evidenceScope.baselinePeriod.to}</p>
+                          ) : (
+                            <p>تعذر إثبات نافذتي المقارنة من مراجع المصدر المحفوظة.</p>
+                          )}
+                          {evidenceScope.asOf ? <p>وقت اللقطة: {evidenceScope.asOf}</p> : null}
+                          {evidenceScope.sourceNote ? <p>{evidenceScope.sourceNote}</p> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }) : (
                   <ActionCard
                     state={loading ? "loading" : data ? "empty" : cashflowDenied ? "error" : "unavailable"}
                     errorMessage={result && !result.ok ? result.message : undefined}

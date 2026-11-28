@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 
 export interface CustomerServiceIntelligenceSummary {
   openCount: number;
@@ -30,7 +31,7 @@ function count(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 function timestamp(value: unknown): value is string {
-  return typeof value === "string" && Number.isFinite(Date.parse(value));
+  return timestampMicroseconds(value) !== null;
 }
 
 function exactKeys(value: Row, expected: readonly string[]): boolean {

@@ -9,10 +9,12 @@ function input(overrides: {
   asOf?: string;
   sourceTimestamp?: string;
   metricAsOf?: string;
+  sourceAsOf?: string;
   calculatedAt?: string;
 } = {}): BuildEvidencePassportInput {
   const asOf = overrides.asOf ?? AS_OF;
   const metricAsOf = overrides.metricAsOf ?? asOf;
+  const sourceAsOf = overrides.sourceAsOf ?? metricAsOf;
   return {
     id: "passport-test",
     generatedAt: overrides.generatedAt ?? GENERATED_AT,
@@ -21,7 +23,7 @@ function input(overrides: {
       id: "source:1",
       source: { kind: "RPC", name: "test.evidence_passport", version: "1.0.0" },
       sourceTimestamp: overrides.sourceTimestamp ?? "2026-11-26T11:55:00.000Z",
-      asOf: metricAsOf,
+      asOf: sourceAsOf,
       period: null,
       status: "VERIFIED",
       completeness: "COMPLETE",
@@ -57,19 +59,69 @@ describe("evidence passport strict clock contract", () => {
     expect(result.metrics[0]).toMatchObject({ status: "VERIFIED", completeness: "COMPLETE" });
   });
 
+  it("accepts equivalent report, metric and source as-of instants with different valid UTC offsets", () => {
+    const result = buildEvidencePassport(input({
+      asOf: "2026-11-26T09:00:00.000000Z",
+      metricAsOf: "2026-11-26T12:00:00.000000+03:00",
+      sourceAsOf: "2026-11-26T11:00:00.000000+02:00",
+      sourceTimestamp: "2026-11-26T08:55:00.000000Z",
+    }));
+    expect(result.status).toBe("VERIFIED");
+    expect(result.metrics[0].status).toBe("VERIFIED");
+  });
+
+  it("rejects a metric as-of one microsecond after the report snapshot", () => {
+    const result = buildEvidencePassport(input({
+      asOf: "2026-11-26T12:00:00.000000Z",
+      metricAsOf: "2026-11-26T12:00:00.000001Z",
+    }));
+    expect(result.metrics[0].status).toBe("NEEDS_REVIEW");
+    expect(result.metrics[0].warnings).toContain("METRIC_AS_OF_MISMATCH");
+  });
+
+  it("rejects a source as-of one microsecond after its metric snapshot", () => {
+    const result = buildEvidencePassport(input({
+      sourceAsOf: "2026-11-26T12:00:00.000001Z",
+    }));
+    expect(result.metrics[0].status).toBe("NEEDS_REVIEW");
+    expect(result.metrics[0].warnings).toContain("SOURCE_AS_OF_MISMATCH");
+  });
+
   it.each([
     ["timezone-less timestamp", "2026-11-26T12:00:00.000"],
     ["impossible calendar date", "2026-02-31T12:00:00.000Z"],
     ["hour beyond 23", "2026-11-26T25:00:00.000Z"],
     ["minute beyond 59", "2026-11-26T12:60:00.000Z"],
     ["second beyond 59", "2026-11-26T12:00:60.000Z"],
-    ["more than nine fractional digits", "2026-11-26T12:00:00.1234567890Z"],
+    ["more than PostgreSQL microsecond precision", "2026-11-26T12:00:00.1234567Z"],
     ["UTC offset beyond 14 hours", "2026-11-26T12:00:00.000+14:01"],
   ])("rejects an invalid top-level report clock: %s", (_label, timestamp) => {
     expect(() => buildEvidencePassport(input({ generatedAt: timestamp })))
       .toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
     expect(() => buildEvidencePassport(input({ asOf: timestamp })))
       .toThrow("generatedAt and asOf must be valid timezone-qualified timestamps");
+  });
+
+  it("accepts six-digit PostgreSQL microseconds across the report, source and calculation clocks", () => {
+    const precise = "2026-11-26T12:00:00.123456Z";
+    const result = buildEvidencePassport(input({
+      generatedAt: "2026-11-26T12:05:00.123456Z",
+      asOf: precise,
+      sourceTimestamp: precise,
+      calculatedAt: precise,
+    }));
+    expect(result.status).toBe("VERIFIED");
+    expect(result.metrics[0].status).toBe("VERIFIED");
+  });
+
+  it("withholds a source one microsecond after its metric even when Date.parse collapses both clocks", () => {
+    const asOf = "2026-11-26T12:00:00.123456Z";
+    const result = buildEvidencePassport(input({
+      asOf,
+      sourceTimestamp: "2026-11-26T12:00:00.123457Z",
+    }));
+    expect(result.metrics[0].status).toBe("NEEDS_REVIEW");
+    expect(result.metrics[0].warnings).toContain("SOURCE_TIMESTAMP_AFTER_METRIC_AS_OF");
   });
 
   it("rejects an as-of instant later than the report generation instant", () => {
@@ -83,7 +135,7 @@ describe("evidence passport strict clock contract", () => {
     ["timezone-less source time", "2026-11-26T11:55:00.000"],
     ["impossible source date", "2026-02-31T11:55:00.000Z"],
     ["out-of-range source clock", "2026-11-26T25:55:00.000Z"],
-    ["over-precision source time", "2026-11-26T11:55:00.1234567890Z"],
+    ["over-precision source time", "2026-11-26T11:55:00.1234567Z"],
     ["unsupported source offset", "2026-11-26T11:55:00.000+15:00"],
   ])("withholds VERIFIED status for invalid source timestamps: %s", (_label, sourceTimestamp) => {
     const result = buildEvidencePassport(input({ sourceTimestamp }));
@@ -100,12 +152,37 @@ describe("evidence passport strict clock contract", () => {
     expect(result.metrics[0].warnings).toContain("SOURCE_TIMESTAMP_AFTER_METRIC_AS_OF");
   });
 
+  it("rejects an as-of instant one microsecond after report generation", () => {
+    expect(() => buildEvidencePassport(input({
+      generatedAt: "2026-11-26T12:00:00.123456Z",
+      asOf: "2026-11-26T12:00:00.123457Z",
+    }))).toThrow("asOf cannot be after generatedAt");
+  });
+
   it("allows calculation after the data as-of instant when it precedes report generation", () => {
     const result = buildEvidencePassport(input({
       calculatedAt: "2026-11-26T12:03:00.000Z",
     }));
     expect(result.metrics[0].status).toBe("VERIFIED");
     expect(result.metrics[0].warnings).not.toContain("METRIC_CALCULATED_AFTER_REPORT_GENERATION");
+  });
+
+  it("withholds a verified metric calculated one microsecond after report generation", () => {
+    const result = buildEvidencePassport(input({
+      calculatedAt: "2026-11-26T12:05:00.000001Z",
+    }));
+    expect(result.metrics[0].status).toBe("NEEDS_REVIEW");
+    expect(result.metrics[0].warnings).toContain("METRIC_CALCULATED_AFTER_REPORT_GENERATION");
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+
+  it("accepts a calculation at the exact report-generation microsecond", () => {
+    const generatedAt = "2026-11-26T12:05:00.123456Z";
+    const result = buildEvidencePassport(input({
+      generatedAt,
+      calculatedAt: generatedAt,
+    }));
+    expect(result.metrics[0].status).toBe("VERIFIED");
   });
 
   it("preserves the calculation-clock warning on metrics already needing review", () => {

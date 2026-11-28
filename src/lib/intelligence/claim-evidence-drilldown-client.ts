@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { EvidenceRecord } from "./types";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 
 type JsonScalar = string | number | null;
 export type ClaimEvidenceRow = Record<string, JsonScalar>;
@@ -111,7 +112,7 @@ function object(value: unknown): Record<string, unknown> | null {
 }
 
 function isIsoTimestamp(value: unknown): value is string {
-  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+  return timestampMicroseconds(value) !== null;
 }
 
 function periodMatches(value: unknown, expected: EvidenceRecord["period"]): boolean {
@@ -160,7 +161,7 @@ export function parseClaimEvidenceDrilldownResponse(
     raw.sideEffects !== "NONE" ||
     raw.sourceName !== record.source.name ||
     !isIsoTimestamp(raw.asOf) ||
-    Date.parse(raw.asOf) !== Date.parse(record.asOf) ||
+    timestampMicroseconds(raw.asOf) !== timestampMicroseconds(record.asOf) ||
     !periodMatches(raw.period, record.period) ||
     typeof raw.hasMore !== "boolean"
   ) return null;

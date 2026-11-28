@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDecisionMemoryBook, buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "./decision-memory";
+import { buildDecisionMemoryBook, buildDecisionMemoryCsv, buildDecisionPolicyReviewSuggestions, buildDecisionReviewQueue, filterDecisionMemoryRecords, searchSimilarDecisionMemory } from "./decision-memory";
 import type { DecisionMemorySnapshot } from "./decision-memory";
 import type { DecisionOutcomeView } from "./decision-outcome-client";
 import type { EvidenceRecord, MetricSnapshot } from "./types";
@@ -448,6 +448,103 @@ describe("decision memory evidence engine", () => {
       decisionId: "target-decision",
       query: "x".repeat(501),
     })).toThrow("decision_memory_search_input_invalid");
+  });
+});
+
+
+describe("decision review queue and memory filtering", () => {
+  function queueRecord(
+    id: string,
+    state: DecisionOutcomeView["state"],
+    reviewDisposition: DecisionMemorySnapshot["reviewDisposition"],
+    reviewAt: string | null,
+    lessonsReviewed = false,
+  ) {
+    const result = buildDecisionMemoryBook({
+      generatedAt,
+      outcomes: [makeOutcome(id, { state })],
+      snapshots: [makeSnapshot(id, { reviewDisposition, reviewAt, lessonsReviewed })],
+    });
+    return result.records[0];
+  }
+
+  it("sorts overdue, today, upcoming, unscheduled and post-measurement learning reviews", () => {
+    const records = [
+      queueRecord("future-outside-horizon", "APPROVED", "SCHEDULED", "2026-12-06T23:59:59.000Z"),
+      queueRecord("lessons-pending", "MEASURED", "NOT_SCHEDULED", null, false),
+      queueRecord("unscheduled", "ASSIGNED", "NOT_SCHEDULED", null),
+      queueRecord("upcoming", "EXECUTING", "SCHEDULED", "2026-10-15T23:59:59.000Z"),
+      queueRecord("due-today", "DEFERRED", "SCHEDULED", "2026-10-06T23:59:59.000Z"),
+      queueRecord("overdue", "APPROVED", "SCHEDULED", "2026-10-05T23:59:59.000Z"),
+      queueRecord("review-not-required", "APPROVED", "NOT_REQUIRED", null),
+      queueRecord("rejected", "REJECTED", "NOT_SCHEDULED", null),
+    ];
+    const queue = buildDecisionReviewQueue(records, "2026-10-06", 30);
+    expect(queue.items.map(item => item.decisionId)).toEqual([
+      "overdue", "due-today", "upcoming", "unscheduled", "lessons-pending",
+    ]);
+    expect(queue.counts).toEqual({
+      OVERDUE: 1, DUE_TODAY: 1, UPCOMING: 1, UNSCHEDULED: 1, LESSONS_PENDING: 1,
+    });
+    expect(queue.items.find(item => item.decisionId === "upcoming")?.daysUntilReview).toBe(9);
+    const shortHorizon = buildDecisionReviewQueue(records, "2026-10-06", 7);
+    const longHorizon = buildDecisionReviewQueue(records, "2026-10-06", 90);
+    expect(shortHorizon.items.some(item => item.decisionId === "upcoming")).toBe(false);
+    expect(longHorizon.items.some(item => item.decisionId === "upcoming")).toBe(true);
+  });
+
+  it("withholds malformed scheduled dates and rejects invalid queue bounds", () => {
+    const malformed = queueRecord("malformed-review", "APPROVED", "SCHEDULED", null);
+    malformed.reviewAt = "2026-02-31T23:59:59.000Z";
+    const queue = buildDecisionReviewQueue([malformed], "2026-10-06", 30);
+    expect(queue.items).toEqual([]);
+    expect(queue.invalidScheduleCount).toBe(1);
+    expect(() => buildDecisionReviewQueue([], "2026-02-31", 30)).toThrow("decision_review_queue_input_invalid");
+    expect(() => buildDecisionReviewQueue([], "2026-10-06", 91)).toThrow("decision_review_queue_input_invalid");
+  });
+
+
+  it("exports the filtered source records as safe UTF-8 CSV with evidence and verification context", () => {
+    const record = queueRecord("csv-export", "MEASURED", "NOT_REQUIRED", null, true);
+    record.proposedResult = "=HYPERLINK(\"https://example.invalid\",\"click\")";
+    record.problem = ["سطر أول, \"مقتبس\"","سطر ثان"].join(String.fromCharCode(10));
+    record.facts = [{
+      id: "fact-csv",
+      kind: "FACT",
+      text: "فاتورة مثبتة",
+      actorRole: "manager",
+      recordedAt: generatedAt,
+      evidenceIds: ["invoice:00000000-0000-4000-8000-000000000001"],
+    }];
+
+    const csv = buildDecisionMemoryCsv([record]);
+    expect(csv.startsWith(String.fromCharCode(0xfeff))).toBe(true);
+    expect(csv).toContain("\"معرف القرار\",\"القرار\"");
+    expect(csv).toContain("'=HYPERLINK(");
+    expect(csv).toContain('"سطر أول, ""مقتبس""'+String.fromCharCode(10)+'سطر ثان"');
+    expect(csv).toContain("invoice:00000000-0000-4000-8000-000000000001");
+    expect(csv).toContain("\"جزئية\"");
+    expect(buildDecisionMemoryCsv([])).toBe(String.fromCharCode(0xfeff));
+  });
+
+  it("filters by normalized Arabic terms and exact decision state without changing source records", () => {
+    const first = queueRecord("matching", "APPROVED", "NOT_SCHEDULED", null);
+    first.problem = "تأخر تحصيل مستحقات العملاء";
+    const second = queueRecord("other", "MEASURED", "NOT_REQUIRED", null, true);
+    second.problem = "تحسن دوران المخزون";
+    expect(filterDecisionMemoryRecords([first, second], { query: "تحصيل المستحقات" }).map(item => item.decisionId))
+      .toEqual(["matching"]);
+    expect(filterDecisionMemoryRecords([first, second], { state: "MEASURED" }).map(item => item.decisionId))
+      .toEqual(["other"]);
+    first.memoryStatus = "PARTIAL";
+    second.memoryStatus = "VERIFIED";
+    expect(filterDecisionMemoryRecords([first, second], { state: "ALL" })).toHaveLength(2);
+    expect(filterDecisionMemoryRecords([first, second], { memoryStatus: "PARTIAL" }).map(item => item.decisionId))
+      .toEqual(["matching"]);
+    expect(filterDecisionMemoryRecords([first, second], { memoryStatus: "VERIFIED" }).map(item => item.decisionId))
+      .toEqual(["other"]);
+    expect(() => filterDecisionMemoryRecords([first], { query: "x".repeat(501) }))
+      .toThrow("decision_memory_filter_input_invalid");
   });
 });
 

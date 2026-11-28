@@ -48,7 +48,11 @@ function metricIndex(metrics:MetricSnapshot[]):Map<string,MetricSnapshot> {
 function checkMetric(metric:MetricSnapshot|null,index:Map<string,MetricSnapshot>,unit:string,asOf:string,period?:EvidencePeriod,quantityUnit?:string):MetricCheck {
  if(!metric)return {metric:null,value:null,status:"UNAVAILABLE",warnings:[]};
  const source=index.get(metric.id);if(!source)return {metric:null,value:null,status:"UNVERIFIED",warnings:[]};
- const timestampWarnings=(source.warnings??[]).filter(warning=>warning==="METRIC_CALCULATION_TIMESTAMP_INVALID");
+ const passportClockWarning=(source.warnings??[]).find(warning=>
+  warning==="METRIC_CALCULATION_TIMESTAMP_INVALID"||warning==="METRIC_CALCULATED_AFTER_REPORT_GENERATION");
+ const timestampWarnings=passportClockWarning==="METRIC_CALCULATED_AFTER_REPORT_GENERATION"
+  ?["METRIC_CALCULATED_AFTER_SNAPSHOT"]
+  :passportClockWarning?[passportClockWarning]:[];
  if(source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.unit!==unit||source.asOf!==asOf||!source.lineage.evidenceIds.length)
   return {metric:source,value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status,warnings:timestampWarnings};
 

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 
 export type CustomerReceivableBucketName =
   | "NOT_DUE" | "OVERDUE_1_30" | "OVERDUE_31_60" | "OVERDUE_61_90" | "OVERDUE_90_PLUS" | "UNKNOWN_DUE_DATE";
@@ -36,17 +37,7 @@ export type CustomerReceivableAgingResult =
 type Row = Record<string, unknown>;
 const isRecord = (value: unknown): value is Row => value !== null && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown, max = 500): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= max;
-const time = (value: unknown): value is string => {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
-    return false;
-  }
-  const day = value.slice(0, 10);
-  const dayMillis = Date.parse(day + "T00:00:00.000Z");
-  return Number.isFinite(Date.parse(value)) &&
-    Number.isFinite(dayMillis) &&
-    new Date(dayMillis).toISOString().slice(0, 10) === day;
-};
+const time = (value: unknown): value is string => timestampMicroseconds(value) !== null;
 const numeric = (value: unknown): number | null => {
   if (typeof value !== "number" && typeof value !== "string") return null;
   const minorUnits = decimalToMinorUnits(value, 2);
@@ -69,6 +60,7 @@ function parseItem(value: unknown, asOf: string): CustomerReceivableAgingItem | 
       (value.oldestAgeDays !== null && (!Number.isSafeInteger(value.oldestAgeDays) || (value.oldestAgeDays as number) < 0)) ||
       !statuses.has(String(value.status)) || value.asOf !== asOf ||
       !text(value.formulaId,150) || !text(value.formulaVersion,80) || !time(value.calculatedAt) ||
+      timestampMicroseconds(value.calculatedAt)! > timestampMicroseconds(asOf)! ||
       !Array.isArray(value.agingBuckets) || value.agingBuckets.length > 6 || !warnings) return null;
   const parsedBuckets: CustomerReceivableAgingBucket[] = [];
   const seen = new Set<string>();

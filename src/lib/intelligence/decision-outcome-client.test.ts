@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomeCollection, fetchDecisionOutcomes, resumeDeferredDecisionOutcome } from "./decision-outcome-client";
+import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomeAssignees, fetchDecisionOutcomeCollection, fetchDecisionOutcomes, resumeDeferredDecisionOutcome } from "./decision-outcome-client";
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
@@ -406,5 +406,214 @@ describe("persisted decision outcome client", () => {
       p_reason: reason,
     }));
     expect(result).toMatchObject({ ok: true, outcome: { state: "IN_REVIEW", version: 3, reason } });
+  });
+});
+
+
+const rankedCandidateSnapshotForClockTests = {
+  schemaVersion: "1.0.0" as const,
+  candidateId: outcome.candidateId,
+  ruleId: outcome.ruleId,
+  ruleVersion: outcome.ruleVersion,
+  priority: "P0" as const,
+  priorityScore: 400,
+  what: "متابعة التحصيل",
+  why: "يوجد مستحق مثبت",
+  risk: "تأخر التحصيل",
+  soWhat: "قد يتأخر التدفق النقدي",
+  whatNext: "راجع الفواتير",
+  owner: "مسؤول التحصيل",
+  expectedOutcome: outcome.expectedOutcome,
+  impact: null,
+  impactStatus: "WITHHELD" as const,
+  impactReason: "لا يوجد أثر مالي مثبت",
+  proof: {
+    evidenceIds: ["invoice:one"],
+    metricKeys: ["cashflow.expected_collections"],
+    asOf: "2026-10-31T10:00:00.000Z",
+    formulaVersions: ["cashflow.collection@1.0.0"],
+  },
+  createdAt: outcome.createdAt,
+  expiresAt: null,
+};
+
+async function expectInvalidPersistedOutcome(value: unknown) {
+  rpc.mockResolvedValueOnce({ data: { items: [value], total: 1 }, error: null });
+  await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+}
+
+describe("decision outcome strict evidence clock and lifecycle chronology", () => {
+  it("withholds persisted outcomes with timezone-less and impossible clocks", async () => {
+    await expectInvalidPersistedOutcome({ ...outcome, createdAt: "2026-10-31T10:00:00.000" });
+    await expectInvalidPersistedOutcome({ ...outcome, updatedAt: "2026-02-30T10:00:00.000Z" });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      approvedAt: "2026-10-31T10:02:00.000+14:01",
+      approvedBy: "22222222-2222-4222-8222-222222222222",
+    });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      history: [{ ...outcome.history[0], at: "2026-10-31T10:00:00.000" }],
+    });
+  });
+
+  it("accepts the ISO maximum timezone offset for persisted lifecycle clocks", async () => {
+    const at = "2026-10-31T23:59:59.123456+14:00";
+    const valid = {
+      ...outcome,
+      createdAt: at,
+      updatedAt: at,
+      history: [{ ...outcome.history[0], at }],
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [valid], total: 1 }, error: null });
+    await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: true, items: [{ state: "PROPOSED" }] });
+  });
+
+  it("rejects decision evidence clocks finer than PostgreSQL microseconds", async () => {
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshotForClockTests,
+        proof: {
+          ...rankedCandidateSnapshotForClockTests.proof,
+          asOf: "2026-10-31T10:00:00.1234567Z",
+        },
+      },
+    });
+  });
+
+  it("rejects measured evidence with an impossible period date", async () => {
+    const invalid = {
+      ...measuredOutcome,
+      measuredOutcome: {
+        ...fullMeasurement,
+        period: { from: "2026-02-30", to: "2026-10-31" },
+      },
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [invalid], total: 1 }, error: null });
+    await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("rejects a measurement timestamp later than the persisted decision update", async () => {
+    const invalid = {
+      ...measuredOutcome,
+      measuredOutcome: {
+        ...fullMeasurement,
+        measuredAt: "2026-10-31T10:06:00.001Z",
+      },
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [invalid], total: 1 }, error: null });
+    await expect(fetchDecisionOutcomes()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("rejects candidate evidence clocks after creation, local clocks and invalid expiry", async () => {
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshotForClockTests,
+        proof: { ...rankedCandidateSnapshotForClockTests.proof, asOf: "2026-10-31T10:00:00.000" },
+      },
+    });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshotForClockTests,
+        proof: { ...rankedCandidateSnapshotForClockTests.proof, asOf: "2026-10-31T10:01:00.000Z" },
+      },
+    });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshotForClockTests,
+        expiresAt: "2026-02-30T10:00:00.000Z",
+      },
+    });
+    await expectInvalidPersistedOutcome({
+      ...outcome,
+      candidateSnapshot: {
+        ...rankedCandidateSnapshotForClockTests,
+        expiresAt: "2026-10-31T09:59:59.999Z",
+      },
+    });
+  });
+});
+
+
+describe("decision outcome assignable staff directory", () => {
+  beforeEach(() => rpc.mockReset());
+
+  it("sends a selected same-organization assignee and optional handoff reason to the existing command RPC", async () => {
+    const staffId = "33333333-3333-4333-8333-333333333333";
+    const assigned = {
+      ...outcome,
+      state: "ASSIGNED",
+      version: 4,
+      updatedAt: "2026-10-31T10:03:00.000Z",
+      approvedAt: "2026-10-31T10:01:00.000Z",
+      approvedBy: "22222222-2222-4222-8222-222222222222",
+      owner: { id: staffId, label: "مسؤول المخزون" },
+      assignedAt: "2026-10-31T10:03:00.000Z",
+      eventCount: 4,
+      history: [
+        outcome.history[0],
+        historyEvent("submit-event", "SUBMIT_FOR_REVIEW", 2, "2026-10-31T10:00:30.000Z"),
+        historyEvent("approve-event", "APPROVE", 3, "2026-10-31T10:01:00.000Z", "تم اعتماد القرار"),
+        historyEvent("assign-event", "ASSIGN", 4, "2026-10-31T10:03:00.000Z", "تسليم متابعة المورد إلى مسؤول المخزون"),
+      ],
+    };
+    rpc.mockResolvedValueOnce({ data: { ok: true, duplicate: false, outcome: assigned }, error: null });
+    const result = await commandDecisionOutcome({
+      outcomeId: outcome.id,
+      expectedVersion: 3,
+      eventType: "ASSIGN",
+      ownerProfileId: staffId,
+      reason: "تسليم متابعة المورد إلى مسؤول المخزون",
+    });
+    expect(rpc).toHaveBeenCalledWith("command_decision_outcome", expect.objectContaining({
+      p_outcome_id: outcome.id,
+      p_expected_version: 3,
+      p_event_type: "ASSIGN",
+      p_owner_profile_id: staffId,
+      p_reason: "تسليم متابعة المورد إلى مسؤول المخزون",
+    }));
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_organization_id");
+    expect(result).toMatchObject({ ok: true, outcome: { state: "ASSIGNED", version: 4, ownerProfileId: staffId } });
+  });
+
+  it("loads only active assignable roles from the existing tenant-scoped RPC", async () => {
+    rpc.mockResolvedValue({
+      data: [
+        { profile_id: "33333333-3333-4333-8333-333333333333", full_name: "مسؤول المخزون", email: "stock@example.test", roles: ["warehouse", "staff"] },
+        { profile_id: "44444444-4444-4444-8444-444444444444", full_name: "عميل", email: "customer@example.test", roles: ["customer"] },
+      ],
+      error: null,
+    });
+    const result = await fetchDecisionOutcomeAssignees();
+    expect(rpc).toHaveBeenCalledWith("list_operational_task_assignees");
+    expect(result).toEqual({
+      ok: true,
+      items: [{
+        profileId: "33333333-3333-4333-8333-333333333333",
+        fullName: "مسؤول المخزون",
+        email: "stock@example.test",
+        roles: ["staff", "warehouse"],
+      }],
+    });
+  });
+
+  it("withholds the full list when any returned member is malformed or duplicated", async () => {
+    rpc.mockResolvedValue({
+      data: [
+        { profile_id: "33333333-3333-4333-8333-333333333333", full_name: "موظف", email: null, roles: ["staff"] },
+        { profile_id: "33333333-3333-4333-8333-333333333333", full_name: "مكرر", email: null, roles: ["manager"] },
+      ],
+      error: null,
+    });
+    await expect(fetchDecisionOutcomeAssignees()).resolves.toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("maps the manager-gated directory denial to a non-success result", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "internal detail" } });
+    await expect(fetchDecisionOutcomeAssignees()).resolves.toMatchObject({ ok: false, status: "DENIED" });
   });
 });

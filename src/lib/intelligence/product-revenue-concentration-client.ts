@@ -55,22 +55,42 @@ function validDay(value: unknown): value is string {
   const millis = Date.parse(value + "T00:00:00.000Z");
   return Number.isFinite(millis) && new Date(millis).toISOString().slice(0,10) === value;
 }
-function validTimestamp(value: unknown): value is string {
-  if (typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) {
-    return false;
+export function timestampMicroseconds(value: unknown): bigint | null {
+  if (typeof value !== "string") return null;
+  const match = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.(\d{1,6}))?(Z|([+-])((?:0\d|1[0-3]|14)):([0-5]\d))$/.exec(value);
+  if (!match || !validDay(match[1])) return null;
+
+  if (match[3] !== "Z") {
+    const offsetHours = Number(match[5]);
+    const offsetMinutes = Number(match[6]);
+    if (offsetHours > 14 || (offsetHours === 14 && offsetMinutes !== 0)) return null;
   }
-  const day = value.slice(0, 10);
-  const dayMillis = Date.parse(day + "T00:00:00.000Z");
-  return Number.isFinite(Date.parse(value)) &&
-    Number.isFinite(dayMillis) &&
-    new Date(dayMillis).toISOString().slice(0, 10) === day;
+
+  const epochMilliseconds = Date.parse(value);
+  if (!Number.isFinite(epochMilliseconds)) return null;
+  // PostgreSQL timestamptz preserves microseconds, while Date.parse truncates
+  // to milliseconds. Keep the sub-millisecond remainder for exact as-of checks.
+  const fractionMicros = (match[2] ?? "").padEnd(6, "0");
+  const millisecondMicros = BigInt(fractionMicros.slice(0, 3) || "0") * 1000n;
+  return BigInt(epochMilliseconds) * 1000n + BigInt(fractionMicros || "0") - millisecondMicros;
+}
+
+function validTimestamp(value: unknown): value is string {
+  return timestampMicroseconds(value) !== null;
 }
 function integer(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 function mapFailure(error: unknown): ProductRevenueConcentrationFetchResult {
   const failure = error as { code?: string; message?: string };
+  const code = typeof failure?.code === "string" ? failure.code : "";
+  const message = typeof failure?.message === "string" ? failure.message : "";
+  if (
+    ["FETCH_ERROR", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(code) ||
+    /failed to fetch|network unavailable|network error|connection (?:timed out|reset|refused)|timed out/i.test(message)
+  ) {
+    return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بمصدر تركّز الفواتير؛ أعد المحاولة عند عودة الاتصال." };
+  }
   if (failure?.code === "42501" || failure?.code === "28000" || failure?.code === "PGRST301") {
     return { ok: false, status: "DENIED", message: "لا تملك صلاحية قراءة تركّز قيمة الفواتير حسب المنتج." };
   }
@@ -101,7 +121,7 @@ export async function fetchProductRevenueConcentration(input: {
 
     const raw = object(data);
     const rawPeriod = object(raw?.period);
-    if (!raw || !validTimestamp(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(input.asOf) ||
+    if (!raw || !validTimestamp(raw.asOf) || timestampMicroseconds(raw.asOf) !== timestampMicroseconds(input.asOf) ||
         !integer(raw.invoiceCount) || !integer(raw.invoiceWithoutLinesCount) ||
         !integer(raw.currencyCount) || !Array.isArray(raw.currencies) ||
         raw.currencies.length > 20 || raw.currencyCount !== raw.currencies.length ||

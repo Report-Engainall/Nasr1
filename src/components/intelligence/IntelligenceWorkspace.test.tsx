@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   fetchShiftWorkspace: vi.fn(),
   fetchProcessBottlenecks: vi.fn(),
   fetchProductGrossMargin: vi.fn(),
+  fetchProductRevenueConcentration: vi.fn(),
+  fetchSupplierPostedPayableActivity: vi.fn(),
   fetchCustomerRetention: vi.fn(),
   startShift: vi.fn(),
   recordShiftCash: vi.fn(),
@@ -30,6 +32,10 @@ const mocks = vi.hoisted(() => ({
   simulatePolicy: vi.fn(),
   previewPolicyRollback: vi.fn(),
   createProposal: vi.fn(),
+  deferDecision: vi.fn(),
+  resumeDecision: vi.fn(),
+  fetchDecisionAssignees: vi.fn(),
+  commandOutcome: vi.fn(),
   asOf: "2026-10-31T09:00:00.000Z",
   period: { from: "2026-08-01", to: "2026-10-31" },
 }));
@@ -58,7 +64,10 @@ vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   fetchDecisionOutcomes: mocks.fetchOutcomes,
   fetchDecisionOutcomeCollection: mocks.fetchMemoryCollection,
   createDecisionOutcomeProposal: mocks.createProposal,
-  commandDecisionOutcome: vi.fn(),
+  deferDecisionOutcome: mocks.deferDecision,
+  resumeDeferredDecisionOutcome: mocks.resumeDecision,
+  fetchDecisionOutcomeAssignees: mocks.fetchDecisionAssignees,
+  commandDecisionOutcome: mocks.commandOutcome,
 }));
 vi.mock("@/lib/intelligence/shift-operations-client", () => ({
   fetchOperationalShiftWorkspace: mocks.fetchShiftWorkspace,
@@ -73,6 +82,12 @@ vi.mock("@/lib/intelligence/process-bottlenecks-client", () => ({
 }));
 vi.mock("@/lib/intelligence/product-gross-margin-client", () => ({
   fetchProductGrossMargin: mocks.fetchProductGrossMargin,
+}));
+vi.mock("@/lib/intelligence/product-revenue-concentration-client", () => ({
+  fetchProductRevenueConcentration: mocks.fetchProductRevenueConcentration,
+}));
+vi.mock("@/lib/intelligence/supplier-posted-payable-activity-client", () => ({
+  fetchSupplierPostedPayableActivity: mocks.fetchSupplierPostedPayableActivity,
 }));
 vi.mock("@/lib/intelligence/commerce-policy-governance-client", () => ({
   fetchCommercePolicyCatalog: mocks.fetchPolicyCatalog,
@@ -284,6 +299,71 @@ function inventoryFixture(): InventoryIntelligenceData {
   };
 }
 
+function productRevenueConcentrationFixture() {
+  return {
+    ok: true as const,
+    snapshot: {
+      status: "VERIFIED" as const,
+      asOf,
+      period,
+      completePopulation: true,
+      invoiceCount: 3,
+      invoiceWithoutLinesCount: 0,
+      currencyCount: 1,
+      currencies: [{
+        currency: "YER",
+        status: "VERIFIED" as const,
+        invoiceCount: 3,
+        invoiceLineCount: 10,
+        productCount: 5,
+        mappedLineCount: 10,
+        unmappedLineCount: 0,
+        invalidCreditLineCount: 0,
+        invoicesWithoutLines: 0,
+        grossInvoiceLineAmount: 1200,
+        netInvoiceLineAmount: 1000,
+        top5NetInvoiceLineAmount: 800,
+        top5ConcentrationPercent: 80,
+      }],
+      formulaId: "nasr1.invoice-line-product-concentration-net-posted-credit-memos" as const,
+      formulaVersion: "1" as const,
+      formulaDescription: "Product revenue concentration fixture from invoice lines.",
+    },
+  };
+}
+
+function supplierPayableActivityFixture(
+  sourcePeriod: EvidencePeriod,
+  top5Percent: number,
+) {
+  return {
+    ok: true as const,
+    snapshot: {
+      status: "VERIFIED" as const,
+      asOf,
+      period: sourcePeriod,
+      completeSourceAggregation: true,
+      sourceEntryCount: 8,
+      currencyCount: 1,
+      currencies: [{
+        currency: "YER",
+        status: "VERIFIED" as const,
+        supplierCount: 6,
+        sourceEntryCount: 8,
+        grossPayableCreditAmount: 1000,
+        postedSupplierCreditNoteDebitAmount: 125,
+        netPayableMovementAmount: 875,
+        top5GrossPayableCreditAmount: top5Percent === 85 ? 850 : 800,
+        top5GrossPayableCreditPercent: top5Percent,
+      }],
+      activityScope: "POSTED_SOURCE_LINKED_RECEIPT_AND_SUPPLIER_CREDIT_NOTE_JOURNALS" as const,
+      formulaId: "nasr1.posted-supplier-payable-credit-concentration" as const,
+      formulaVersion: "1" as const,
+      formulaDescription: "Posted supplier payable activity fixture.",
+    },
+  };
+}
+
 describe("production intelligence workspace inventory screens", () => {
   beforeEach(() => {
     mocks.user = { profileId: "admin-profile", name: "مدير المالية", roles: ["admin"] };
@@ -297,6 +377,10 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [], total: 0 });
     mocks.fetchMemoryCollection.mockReset().mockResolvedValue({ ok: true, collection: { items: [], total: 0, loaded: 0, pageCount: 1, complete: true, reason: "COMPLETE" } });
     mocks.createProposal.mockReset().mockResolvedValue({ ok: true, duplicate: false });
+    mocks.deferDecision.mockReset();
+    mocks.resumeDecision.mockReset();
+    mocks.fetchDecisionAssignees.mockReset().mockResolvedValue({ ok: true, items: [] });
+    mocks.commandOutcome.mockReset();
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
     mocks.fetchShiftWorkspace.mockReset().mockResolvedValue({
       ok: false, status: "NOT_FOUND", message: "no shift for this date",
@@ -306,6 +390,12 @@ describe("production intelligence workspace inventory screens", () => {
     });
     mocks.fetchProductGrossMargin.mockReset().mockResolvedValue({
       ok: false, status: "DENIED", message: "gross margin finance source denied in workspace fixture",
+    });
+    mocks.fetchProductRevenueConcentration.mockReset().mockResolvedValue({
+      ok: false, status: "UNAVAILABLE", message: "product concentration source unavailable in fixture",
+    });
+    mocks.fetchSupplierPostedPayableActivity.mockReset().mockResolvedValue({
+      ok: false, status: "UNAVAILABLE", message: "supplier payable source unavailable in fixture",
     });
     mocks.startShift.mockReset().mockResolvedValue({ ok: true, data: { shiftId: "shift-1" } });
     mocks.recordShiftCash.mockReset().mockResolvedValue({ ok: true, data: {} });
@@ -328,6 +418,312 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.previewPolicyRollback.mockReset().mockResolvedValue({ ok: true, data: {} });
   });
   afterEach(() => cleanup());
+
+  it("defers an in-review decision with a required reason and exposes the immutable event", async () => {
+    const review = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000071", "قرار يحتاج مستنداً"),
+      state: "IN_REVIEW" as const,
+      version: 2,
+      eventCount: 2,
+      history: [
+        decisionOutcomeFixture("00000000-0000-4000-8000-000000000071", "قرار يحتاج مستنداً").history[0],
+        { id: "submit-71", type: "SUBMIT_FOR_REVIEW", version: 2, at: asOf, actorRole: "manager", reason: null },
+      ],
+    };
+    const reason = "المستند الداعم لم يصل بعد";
+    const deferred = {
+      ...review,
+      state: "DEFERRED" as const,
+      version: 3,
+      reason,
+      updatedAt: asOf,
+      eventCount: 3,
+      history: [...review.history, {
+        id: "defer-71", type: "DEFER", version: 3, at: asOf, actorRole: "admin", reason,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [review], total: 1 })
+      .mockResolvedValue({ ok: true, items: [deferred], total: 1 });
+    mocks.deferDecision.mockResolvedValue({ ok: true, duplicate: false, outcome: deferred });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "قرار يحتاج مستنداً" })).closest("article");
+    expect(card).not.toBeNull();
+    const reasonInput = within(card as HTMLElement).getByRole("textbox", { name: "سبب الاعتماد أو الرفض أو التأجيل" });
+    const deferButton = within(card as HTMLElement).getByRole("button", { name: "تأجيل مع السبب" });
+    expect(deferButton).toBeDisabled();
+    fireEvent.change(reasonInput, { target: { value: "لا" } });
+    expect(deferButton).toBeDisabled();
+    fireEvent.change(reasonInput, { target: { value: reason } });
+    expect(deferButton).toBeEnabled();
+    fireEvent.click(deferButton);
+
+    await waitFor(() => expect(mocks.deferDecision).toHaveBeenCalledWith(expect.objectContaining({
+      outcomeId: review.id,
+      expectedVersion: 2,
+      reason,
+      eventId: expect.any(String),
+      idempotencyKey: expect.any(String),
+    })));
+    await waitFor(() => {
+      const deferredCard = within(register).getByRole("heading", { name: "قرار يحتاج مستنداً" }).closest("article");
+      expect(deferredCard).toHaveTextContent("مؤجل");
+      expect(deferredCard).toHaveTextContent("تأجيل القرار");
+      expect(deferredCard).toHaveTextContent("السبب المحفوظ: " + reason);
+    });
+  });
+
+  it("retries a deferred decision with the same event and idempotency keys after an ambiguous response", async () => {
+    const review = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000073", "قرار ينتظر مستند الشحن"),
+      state: "IN_REVIEW" as const,
+      version: 2,
+    };
+    const reason = "بانتظار صورة مستند الشحن";
+    const deferred = {
+      ...review,
+      state: "DEFERRED" as const,
+      version: 3,
+      reason,
+      updatedAt: asOf,
+      eventCount: 3,
+      history: [...review.history, {
+        id: "defer-73", type: "DEFER", version: 3, at: asOf, actorRole: "admin", reason,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [review], total: 1 })
+      .mockResolvedValue({ ok: true, items: [deferred], total: 1 });
+    mocks.deferDecision
+      .mockResolvedValueOnce({ ok: false, status: "UNAVAILABLE", message: "نتيجة الاتصال غير مؤكدة" })
+      .mockResolvedValueOnce({ ok: true, duplicate: true, outcome: deferred });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "قرار ينتظر مستند الشحن" })).closest("article");
+    const reasonInput = within(card as HTMLElement).getByRole("textbox", { name: "سبب الاعتماد أو الرفض أو التأجيل" });
+    fireEvent.change(reasonInput, { target: { value: reason } });
+    const defer = within(card as HTMLElement).getByRole("button", { name: "تأجيل مع السبب" });
+    fireEvent.click(defer);
+    expect(await within(register).findByText("نتيجة الاتصال غير مؤكدة")).toBeInTheDocument();
+    fireEvent.click(defer);
+
+    await waitFor(() => expect(mocks.deferDecision).toHaveBeenCalledTimes(2));
+    expect(mocks.deferDecision.mock.calls[0][0].eventId).toBe(mocks.deferDecision.mock.calls[1][0].eventId);
+    expect(mocks.deferDecision.mock.calls[0][0].idempotencyKey).toBe(mocks.deferDecision.mock.calls[1][0].idempotencyKey);
+    expect(mocks.deferDecision.mock.calls[0][0].reason).toBe(reason);
+  });
+
+  it("returns a deferred decision to review only after a reasoned resume command", async () => {
+    const deferred = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000072", "قرار مؤجل للمراجعة"),
+      state: "DEFERRED" as const,
+      version: 4,
+      reason: "انتظار رد المورد",
+      eventCount: 3,
+      history: [
+        decisionOutcomeFixture("00000000-0000-4000-8000-000000000072", "قرار مؤجل للمراجعة").history[0],
+        { id: "submit-72", type: "SUBMIT_FOR_REVIEW", version: 2, at: asOf, actorRole: "manager", reason: null },
+        { id: "defer-72", type: "DEFER", version: 3, at: asOf, actorRole: "admin", reason: "انتظار رد المورد" },
+      ],
+    };
+    const reason = "وصل رد المورد وأصبح الملف جاهزاً";
+    const resumed = {
+      ...deferred,
+      state: "IN_REVIEW" as const,
+      version: 5,
+      reason,
+      updatedAt: asOf,
+      eventCount: 4,
+      history: [...deferred.history, {
+        id: "resume-72", type: "RESUBMIT_FOR_REVIEW", version: 5, at: asOf, actorRole: "admin", reason,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [deferred], total: 1 })
+      .mockResolvedValue({ ok: true, items: [resumed], total: 1 });
+    mocks.resumeDecision.mockResolvedValue({ ok: true, duplicate: false, outcome: resumed });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "قرار مؤجل للمراجعة" })).closest("article");
+    expect(card).not.toBeNull();
+    const reasonInput = within(card as HTMLElement).getByRole("textbox", { name: "سبب إعادة القرار للمراجعة" });
+    expect(within(card as HTMLElement).getByRole("button", { name: "إعادة للمراجعة" })).toBeDisabled();
+    fireEvent.change(reasonInput, { target: { value: reason } });
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "إعادة للمراجعة" }));
+
+    await waitFor(() => expect(mocks.resumeDecision).toHaveBeenCalledWith(expect.objectContaining({
+      outcomeId: deferred.id,
+      expectedVersion: 4,
+      reason,
+      eventId: expect.any(String),
+      idempotencyKey: expect.any(String),
+    })));
+    await waitFor(() => {
+      const resumedCard = within(register).getByRole("heading", { name: "قرار مؤجل للمراجعة" }).closest("article");
+      expect(resumedCard).toHaveTextContent("قيد المراجعة");
+      expect(resumedCard).toHaveTextContent("إعادة للمراجعة");
+      expect(resumedCard).toHaveTextContent("السبب المحفوظ: " + reason);
+    });
+  });
+
+  it("shows an existing server-saved daily action instead of offering a duplicate proposal", async () => {
+    const saved = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000077", "مراجعة إعادة توريد الصنف SKU-1"),
+      candidateId: "inventory.replenishment:SKU-1:" + asOf.slice(0, 10),
+      ruleId: "inventory.replenishment.review",
+      ruleVersion: "1.0.0",
+      state: "IN_REVIEW" as const,
+      version: 2,
+      ownerProfileId: "admin-profile",
+      ownerLabel: "مسؤول المشتريات",
+      reason: "تم إرسال التوصية للمراجعة",
+      candidateSnapshot: null,
+    };
+    mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [saved], total: 1 });
+    mocks.fetchMemoryCollection.mockReset().mockResolvedValue({
+      ok: true,
+      collection: { items: [saved], total: 1, loaded: 1, pageCount: 1, complete: true, reason: "COMPLETE" },
+    });
+    render(<IntelligenceWorkspace />);
+
+    const status = await screen.findByTestId("daily-saved-decision");
+    expect(status).toHaveTextContent("الإجراء محفوظ بالفعل في دورة القرارات");
+    expect(status).toHaveTextContent("قيد المراجعة");
+    expect(status).toHaveTextContent("الإصدار 2");
+    expect(status).toHaveTextContent("مسؤول المشتريات");
+    expect(status).toHaveTextContent("تم إرسال التوصية للمراجعة");
+    expect(screen.queryByRole("button", { name: "حفظ الإجراء في دورة القرارات" })).not.toBeInTheDocument();
+    expect(mocks.createProposal).not.toHaveBeenCalled();
+  });
+
+  it("assigns an approved decision to an active same-organization team member selected from the server directory", async () => {
+    const approved = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000099", "تسوية التزام مورد"),
+      state: "APPROVED" as const,
+      version: 3,
+      approvedAt: asOf,
+      ownerProfileId: null,
+      ownerLabel: "غير معيّن",
+      eventCount: 3,
+      history: [
+        decisionOutcomeFixture("00000000-0000-4000-8000-000000000099", "تسوية التزام مورد").history[0],
+        { id: "submit-99", type: "SUBMIT_FOR_REVIEW", version: 2, at: asOf, actorRole: "manager", reason: null },
+        { id: "approve-99", type: "APPROVE", version: 3, at: asOf, actorRole: "admin", reason: "تمت مراجعة مستندات المورد" },
+      ],
+    };
+    const staffId = "33333333-3333-4333-8333-333333333333";
+    const assigned = {
+      ...approved,
+      state: "ASSIGNED" as const,
+      version: 4,
+      ownerProfileId: staffId,
+      ownerLabel: "مسؤول المخزون",
+      assignedAt: asOf,
+      eventCount: 4,
+      history: [...approved.history, {
+        id: "assign-99", type: "ASSIGN", version: 4, at: asOf, actorRole: "admin", reason: null,
+      }],
+    };
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [approved], total: 1 })
+      .mockResolvedValue({ ok: true, items: [assigned], total: 1 });
+    mocks.fetchMemoryCollection.mockReset().mockResolvedValue({
+      ok: true,
+      collection: { items: [approved], total: 1, loaded: 1, pageCount: 1, complete: true, reason: "COMPLETE" },
+    });
+    mocks.fetchDecisionAssignees.mockResolvedValue({
+      ok: true,
+      items: [
+        { profileId: "22222222-2222-4222-8222-222222222222", fullName: "مدير المالية", email: "finance@example.test", roles: ["admin"] },
+        { profileId: staffId, fullName: "مسؤول المخزون", email: "stock@example.test", roles: ["staff", "warehouse"] },
+      ],
+    });
+    mocks.commandOutcome.mockResolvedValue({ ok: true, duplicate: false, outcome: assigned });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const card = (await within(register).findByRole("heading", { name: "تسوية التزام مورد" })).closest("article");
+    expect(card).not.toBeNull();
+    const select = await within(card as HTMLElement).findByRole("combobox", { name: "تعيين القرار إلى عضو من المؤسسة" });
+    fireEvent.change(select, { target: { value: staffId } });
+    fireEvent.change(within(card as HTMLElement).getByRole("textbox", { name: "سبب الإسناد (اختياري)" }), {
+      target: { value: "تسليم متابعة المورد إلى مسؤول المخزون" },
+    });
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "تثبيت المسؤول" }));
+
+    await waitFor(() => expect(mocks.commandOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      outcomeId: approved.id,
+      expectedVersion: 3,
+      eventType: "ASSIGN",
+      ownerProfileId: staffId,
+      reason: "تسليم متابعة المورد إلى مسؤول المخزون",
+    })));
+    await waitFor(() => expect(within(register).getByText("مسؤول المخزون")).toBeInTheDocument());
+  });
+
+  it("keeps saved concentration decisions scoped as ratios and never offers cash measurement", async () => {
+    const currentPeriod = { from: "2026-08-01", to: "2026-10-31" };
+    const baselinePeriod = { from: "2026-05-01", to: "2026-07-31" };
+    const candidateId = "finance.product-concentration.review-increase.YER:metric:product.revenue.top5_concentration_change:YER:" + asOf;
+    const ruleId = "finance.product-concentration.review-increase.YER";
+    const outcome = {
+      ...decisionOutcomeFixture("00000000-0000-4000-8000-000000000088", "متابعة تقييم تركّز المنتجات"),
+      candidateId,
+      ruleId,
+      state: "EXECUTED" as const,
+      version: 6,
+      ownerProfileId: "admin-profile",
+      executedAt: asOf,
+      candidateSnapshot: {
+        schemaVersion: "1.0.0" as const,
+        candidateId,
+        ruleId,
+        ruleVersion: "1.0.0",
+        priority: "P3" as const,
+        priorityScore: 100,
+        what: "مراجعة ارتفاع تركّز مبيعات المنتجات",
+        why: "ارتفعت حصة أعلى خمسة منتجات",
+        risk: "زيادة الاعتماد على مجموعة أصغر",
+        soWhat: "مراجعة مخاطر التوريد",
+        whatNext: "راجع توافر الأصناف والبدائل",
+        owner: "مدير المبيعات والمخزون",
+        expectedOutcome: "متابعة تقييم تركّز المنتجات",
+        impact: null,
+        impactStatus: "NOT_CONFIGURED" as const,
+        impactReason: "NO_APPROVED_IMPACT_FORMULA",
+        proof: {
+          evidenceIds: [
+            "rpc:product-revenue-concentration:YER:" + currentPeriod.from + ":" + currentPeriod.to + ":" + asOf,
+            "rpc:product-revenue-concentration:YER:" + baselinePeriod.from + ":" + baselinePeriod.to + ":" + asOf,
+          ],
+          metricKeys: ["product.revenue.top5_concentration_change:YER"],
+          asOf,
+          formulaVersions: ["nasr1.top5-product-revenue-concentration-period-delta@1.0.0"],
+        },
+        createdAt: asOf,
+        expiresAt: null,
+      },
+    };
+    mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [outcome], total: 1 });
+    render(<IntelligenceWorkspace />);
+
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    const heading = await within(register).findByRole("heading", { name: "متابعة تقييم تركّز المنتجات" });
+    const card = heading.closest("article");
+    expect(card).not.toBeNull();
+    expect(card).toHaveTextContent("تركيز مبيعات المنتجات");
+    expect(card).toHaveTextContent("YER");
+    expect(card).toHaveTextContent("الفترة: 2026-08-01 — 2026-10-31");
+    expect(card).toHaveTextContent("الفترة المقارنة: 2026-05-01 — 2026-07-31");
+    expect(card).toHaveTextContent("لقطة المصدر: " + asOf);
+    expect(card).toHaveTextContent("لقطتا RPC تجميعيّتان");
+    expect(card).toHaveTextContent("هذا المؤشر نسبة تركّز وليس مبلغاً نقدياً");
+    expect(within(card as HTMLElement).queryByRole("button", { name: /قياس|اعتماد قياس/ })).not.toBeInTheDocument();
+  });
 
   it("loads the complete stabilized decision-memory collection independently from the 50-row register page", async () => {
     const pageRecords = Array.from({ length: 50 }, (_, index) =>
@@ -518,6 +914,96 @@ describe("production intelligence workspace inventory screens", () => {
     expect(mocks.fetchOutcomes).toHaveBeenCalledTimes(1);
   });
 
+
+  it("passes exact current and adjacent prior-period sources into the existing business health map", async () => {
+    mocks.fetchProductRevenueConcentration
+      .mockResolvedValueOnce(productRevenueConcentrationFixture())
+      .mockResolvedValueOnce({
+        ...productRevenueConcentrationFixture(),
+        snapshot: {
+          ...productRevenueConcentrationFixture().snapshot,
+          period: { from: "2026-05-01", to: "2026-07-31" },
+          currencies: productRevenueConcentrationFixture().snapshot.currencies.map(row => ({
+            ...row, top5ConcentrationPercent: 75, top5NetInvoiceLineAmount: 750,
+          })),
+        },
+      });
+    mocks.fetchSupplierPostedPayableActivity
+      .mockResolvedValueOnce(supplierPayableActivityFixture(period, 85))
+      .mockResolvedValueOnce(supplierPayableActivityFixture({ from: "2026-05-01", to: "2026-07-31" }, 80));
+
+    render(<IntelligenceWorkspace />);
+
+    const map = await screen.findByRole("region", { name: "خريطة صحة العمل ورأس المال المحجوز" });
+    expect(map).toHaveTextContent("تركيز قيمة سطور الفواتير حسب المنتج والعملة");
+    expect(map).toHaveTextContent("Product revenue concentration fixture from invoice lines.");
+    expect(map).toHaveTextContent("حركة الالتزامات المنشورة للموردين");
+    expect(map).toHaveTextContent("صافي حركة الالتزام ضمن النطاق");
+    expect(map).toHaveTextContent("ارتفع التركّز");
+
+    expect(mocks.fetchProductRevenueConcentration).toHaveBeenNthCalledWith(1, {
+      from: period.from, to: period.to, asOf,
+    });
+    expect(mocks.fetchProductRevenueConcentration).toHaveBeenNthCalledWith(2, {
+      from: "2026-05-01", to: "2026-07-31", asOf,
+    });
+    expect(mocks.fetchSupplierPostedPayableActivity).toHaveBeenNthCalledWith(1, {
+      from: period.from, to: period.to, asOf,
+    });
+    expect(mocks.fetchSupplierPostedPayableActivity).toHaveBeenNthCalledWith(2, {
+      from: "2026-05-01", to: "2026-07-31", asOf,
+    });
+
+    const productDecision = await screen.findByRole("heading", { name: /مراجعة ارتفاع تركّز مبيعات المنتجات · YER/ });
+    const productCard = productDecision.closest("article");
+    expect(productCard).not.toBeNull();
+    expect(productCard).toHaveTextContent("75%");
+    expect(productCard).toHaveTextContent("80%");
+    expect(productCard).toHaveTextContent("لم تُهيأ معادلة أثر معتمدة");
+    const dailyConcentrationScope = screen.getAllByRole("note").find(note =>
+      note.textContent?.includes("تركيز مبيعات المنتجات"),
+    );
+    expect(dailyConcentrationScope).toBeDefined();
+    expect(dailyConcentrationScope).toHaveTextContent("الفترة الحالية: 2026-08-01 — 2026-10-31");
+    expect(dailyConcentrationScope).toHaveTextContent("المقارنة: 2026-05-01 — 2026-07-31");
+    expect(dailyConcentrationScope).toHaveTextContent("وقت اللقطة: " + asOf);
+    expect(dailyConcentrationScope).toHaveTextContent("لقطتا RPC تجميعيّتان");
+    fireEvent.click(within(productCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      ruleId: "finance.product-concentration.review-increase.YER",
+      candidateSnapshot: expect.objectContaining({
+        impact: null,
+        impactStatus: "NOT_CONFIGURED",
+        proof: expect.objectContaining({
+          evidenceIds: expect.arrayContaining([
+            expect.stringContaining("rpc:product-revenue-concentration:YER:"),
+          ]),
+          metricKeys: expect.arrayContaining(["product.revenue.top5_concentration_change:YER"]),
+          formulaVersions: expect.arrayContaining(["nasr1.top5-product-revenue-concentration-period-delta@1.0.0"]),
+        }),
+      }),
+    })));
+
+    const supplierDecision = await screen.findByRole("heading", { name: /مراجعة ارتفاع تركّز التزامات الموردين · YER/ });
+    const supplierCard = supplierDecision.closest("article");
+    expect(supplierCard).not.toBeNull();
+    expect(supplierCard).toHaveTextContent("80%");
+    expect(supplierCard).toHaveTextContent("85%");
+    fireEvent.click(within(supplierCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" }));
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      ruleId: "finance.supplier-concentration.review-increase.YER",
+      candidateSnapshot: expect.objectContaining({
+        impact: null,
+        impactStatus: "NOT_CONFIGURED",
+        proof: expect.objectContaining({
+          evidenceIds: expect.arrayContaining([
+            expect.stringContaining("rpc:supplier-posted-payable-activity:YER:"),
+          ]),
+          metricKeys: expect.arrayContaining(["supplier.posted_payable.top5_concentration_change:YER"]),
+        }),
+      }),
+    })));
+  });
 
   it("renders the server evidence passport, scheduled cashflows and an actionable verified collection decision without inventing liquidity", async () => {
     mocks.fetchCashflow.mockResolvedValue(cashflowFixture());

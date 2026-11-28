@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
-import { buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
+import { buildDecisionMemoryCsv, buildDecisionPolicyReviewSuggestions, buildDecisionReviewQueue, filterDecisionMemoryRecords, searchSimilarDecisionMemory, type DecisionReviewQueueKind } from "@/lib/intelligence/decision-memory";
 import {
   commandDecisionPolicyLearningCandidate,
   createDecisionPolicyLearningCandidate,
@@ -46,6 +46,38 @@ function metricLine(title:string,metric:NonNullable<DecisionMemoryRecord["metric
     <p className="text-xs">المعادلة: {metric.formulaId}@{metric.formulaVersion}</p>
     <p className="text-xs">الإثبات: <EvidenceReferences ids={metric.evidenceIds}/></p></div>;
 }
+
+
+function downloadDecisionMemoryCsv(records:DecisionMemoryRecord[]):void {
+  if(!records.length)return;
+  const blob=new Blob([buildDecisionMemoryCsv(records)],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;
+  link.download="aghbari-decision-memory-"+new Date().toISOString().slice(0,10)+".csv";
+  link.hidden=true;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+function browserLocalDay():string {
+  try {
+    const timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Aden";
+    const parts=new Intl.DateTimeFormat("en",{timeZone,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+    const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+    return values.year+"-"+values.month+"-"+values.day;
+  }catch{
+    return new Date().toISOString().slice(0,10);
+  }
+}
+const reviewQueueLabels:Record<DecisionReviewQueueKind,string>={
+  OVERDUE:"مراجعات متأخرة",
+  DUE_TODAY:"مراجعات اليوم",
+  UPCOMING:"مراجعات قادمة",
+  UNSCHEDULED:"بلا موعد مراجعة",
+  LESSONS_PENDING:"دروس بانتظار المراجعة",
+};
 const lines=(value:string)=>value.split(/\r?\n/).map(item=>item.trim()).filter(Boolean);
 function addDays(day:string,count:number){
   const value=new Date(day+"T00:00:00.000Z");
@@ -58,10 +90,11 @@ function factDraft(snapshot:DecisionMemorySnapshot|null):string {
 function alternativesDraft(snapshot:DecisionMemorySnapshot|null):string {
   return snapshot?.alternatives.map(item=>(snapshot.chosenOptionId===item.id?"* ":"")+item.label+(item.rationale?" | "+item.rationale:"")).join("\n")??"";
 }
-function DecisionMemoryCapture({record,onRetry}:{record:DecisionMemoryRecord;onRetry?:()=>void}){
+function DecisionMemoryCapture({record,onRetry,autoOpen=false}:{record:DecisionMemoryRecord;onRetry?:()=>void;autoOpen?:boolean}){
   const snapshot=record.snapshot;
   const defaultDay=record.createdAt.slice(0,10);
   const [open,setOpen]=useState(false);
+  useEffect(()=>{if(autoOpen)setOpen(true);},[autoOpen]);
   const [problem,setProblem]=useState(snapshot?.problem??"");
   const [factsText,setFactsText]=useState(factDraft(snapshot));
   const [opinionsText,setOpinionsText]=useState(snapshot?.opinions.map(item=>item.text).join("\n")??"");
@@ -254,8 +287,8 @@ function DecisionMemoryCapture({record,onRetry}:{record:DecisionMemoryRecord;onR
     </form>:null}
   </section>;
 }
-function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetry?:()=>void}){
-  return <article className="rounded-xl border p-4 space-y-3">
+function DecisionMemoryCard({record,onRetry,highlight=false}:{record:DecisionMemoryRecord;onRetry?:()=>void;highlight?:boolean}){
+  return <article className={"rounded-xl border p-4 space-y-3"+(highlight?" ring-2 ring-primary/40":"")}>
     <header className="flex flex-wrap items-start justify-between gap-2"><div>
       <h3 className="font-semibold">{record.proposedResult}</h3>
       <p className="text-xs text-muted-foreground" dir="ltr">{record.ruleId}@{record.ruleVersion} · {record.decisionId.slice(0,8)}</p>
@@ -310,10 +343,12 @@ function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetr
     {record.missingFields.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">حقول الذاكرة غير المحفوظة</h4><ul className="mt-1 list-disc ps-5 text-xs">{record.missingFields.map(field=><li key={field}>{missingLabels[field]}</li>)}</ul></section>:null}
     {record.precedents.length?<section><h4 className="text-sm font-semibold">قرارات سابقة من القاعدة نفسها — ضمن الصفحة المحمّلة فقط</h4><ul className="list-disc ps-5 text-xs">{record.precedents.map(item=><li key={item.decisionId}>{item.ruleVersion} · {states[item.state]} · {item.createdAt} · {item.measured?"قياس مسجل":"بلا قياس"}</li>)}</ul></section>:null}
     {record.warnings.map(warning=><p key={warning} className="text-xs text-muted-foreground">{warning}</p>)}
-    <DecisionMemoryCapture record={record} onRetry={onRetry}/>
+    <DecisionMemoryCapture record={record} onRetry={onRetry} autoOpen={highlight}/>
   </article>;
 }
 const DECISION_MEMORY_DISPLAY_PAGE_SIZE = 25;
+const LEARNING_CANDIDATE_PAGE_SIZE = 50;
+const LEARNING_CANDIDATE_MAX_OFFSET = 5000;
 const learningStateLabels = {
   DRAFT: "مسودة محفوظة",
   IN_REVIEW: "قيد المراجعة المستقلة",
@@ -325,7 +360,17 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [precedentTargetId,setPrecedentTargetId]=useState("");
   const [precedentQuery,setPrecedentQuery]=useState("");
   const [recordPage,setRecordPage]=useState(0);
+  const [recordSearch,setRecordSearch]=useState("");
+  const [recordStateFilter,setRecordStateFilter]=useState<DecisionMemoryRecord["state"]|"ALL">("ALL");
+  const [recordMemoryFilter,setRecordMemoryFilter]=useState<DecisionMemoryRecord["memoryStatus"]|"ALL">("ALL");
+  const [reviewHorizon,setReviewHorizon]=useState<7|30|90>(30);
+
+  const [focusedDecisionId,setFocusedDecisionId]=useState("");
+  const [selectedReviewKind,setSelectedReviewKind]=useState<DecisionReviewQueueKind|"ALL">("ALL");
+
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
+  const [learningTotal,setLearningTotal]=useState(0);
+  const [learningOffset,setLearningOffset]=useState(0);
   const [learningLoading,setLearningLoading]=useState(true);
   const [learningLoadError,setLearningLoadError]=useState("");
   const [learningBusy,setLearningBusy]=useState("");
@@ -339,24 +384,38 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   useEffect(()=>{
     let active=true;
     setLearningLoading(true);
-    void fetchDecisionPolicyLearningCandidates(50,0).then(response=>{
+    void fetchDecisionPolicyLearningCandidates(LEARNING_CANDIDATE_PAGE_SIZE,learningOffset).then(response=>{
       if(!active)return;
       if(response.ok){
+        const lastPageOffset=Math.min(
+          LEARNING_CANDIDATE_MAX_OFFSET,
+          Math.max(0,Math.floor(Math.max(response.total-1,0)/LEARNING_CANDIDATE_PAGE_SIZE)*LEARNING_CANDIDATE_PAGE_SIZE),
+        );
+        if(learningOffset>lastPageOffset){
+          setLearningOffset(lastPageOffset);
+          setLearningCandidates([]);
+          setLearningTotal(response.total);
+          setLearningLoading(false);
+          return;
+        }
         setLearningCandidates(response.items);
+        setLearningTotal(response.total);
         setLearningLoadError("");
       }else{
         setLearningCandidates([]);
+        setLearningTotal(0);
         setLearningLoadError(response.message);
       }
       setLearningLoading(false);
     }).catch(()=>{
       if(!active)return;
       setLearningCandidates([]);
+      setLearningTotal(0);
       setLearningLoadError("تعذر تحميل المرشحات المحفوظة.");
       setLearningLoading(false);
     });
     return ()=>{active=false;};
-  },[learningRefreshKey]);
+  },[learningRefreshKey,learningOffset]);
 
   async function createLearningCandidate(suggestion:ReturnType<typeof buildDecisionPolicyReviewSuggestions>[number]){
     const eligible=result?.status==="VERIFIED"&&result.loadedCount===result.totalCount&&
@@ -381,10 +440,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         return;
       }
       setLearningCreateKeys(current=>{const next={...current};delete next[suggestion.id];return next;});
-      setLearningCandidates(current=>[
-        response.candidate,
-        ...current.filter(candidate=>candidate.id!==response.candidate.id),
-      ]);
+      setLearningOffset(0);
+      setLearningRefreshKey(current=>current+1);
       setLearningActionMessage(response.duplicate
         ?"هذا المصدر مرتبط مسبقاً بالمرشح المحفوظ؛ لم يُنشأ إصدار مكرر."
         :"حُفظ مرشح جديد من الأدلة المصدرية، وأصبح في انتظار الإرسال للمراجعة.");
@@ -425,6 +482,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       setLearningCommandKeys(current=>{const next={...current};delete next[commandKey];return next;});
       setLearningCandidates(current=>current.map(item=>item.id===response.candidate.id?response.candidate:item));
       setLearningReason(current=>({...current,[candidate.id]:""}));
+      setLearningRefreshKey(current=>current+1);
       setLearningActionMessage(eventType==="SUBMIT_FOR_REVIEW"
         ?"أُرسل المرشح للمراجعة المستقلة."
         :eventType==="APPROVE"
@@ -435,12 +493,18 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       setLearningBusy("");
     }
   }
-  const pageCount=Math.max(1,Math.ceil((result?.records.length??0)/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
+  const reviewQueue=buildDecisionReviewQueue(result?.records??[],browserLocalDay(),reviewHorizon);
+  const reviewQueueIds=selectedReviewKind==="ALL"?null:new Set(
+    reviewQueue.items.filter(item=>item.kind===selectedReviewKind).map(item=>item.decisionId),
+  );
+  const filteredRecords=filterDecisionMemoryRecords(result?.records??[],{query:recordSearch,state:recordStateFilter,memoryStatus:recordMemoryFilter})
+    .filter(record=>reviewQueueIds===null||reviewQueueIds.has(record.decisionId));
+  const pageCount=Math.max(1,Math.ceil(filteredRecords.length/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
   const currentPage=Math.min(recordPage,pageCount-1);
-  const pageRecords=result?.records.slice(
+  const pageRecords=filteredRecords.slice(
     currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
     (currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
-  )??[];
+  );
   const selectedTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??null;
   const referenceOptions=selectedTarget&&!pageRecords.some(record=>record.decisionId===selectedTarget.decisionId)
     ?[selectedTarget,...pageRecords]:pageRecords;
@@ -457,6 +521,59 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <p className="text-xs text-muted-foreground">سياسة {result.policyVersion} · لقطة {result.generatedAt} · الصفحة {result.loadedCount} من {result.totalCount}</p></div>
       <span className="text-xs">{result.status==="EMPTY"?"لا توجد قرارات محفوظة":<EvidenceStatusLabel status={result.status==="VERIFIED"?"VERIFIED":result.status==="PARTIAL"?"NEEDS_REVIEW":"UNAVAILABLE"}/>}</span></header>
     <p className="text-sm text-muted-foreground">يوثق المشكلة والبدائل والافتراضات والإجراء والمراجعة على إصدارات غير قابلة للاستبدال. لا تتحول الوقائع إلى أدلة إلا بعد تحقق الخادم من مصدرها داخل المؤسسة؛ ولا تتغير القواعد أو الأسعار أو الصلاحيات تلقائياً.</p>
+    <section className="space-y-3 rounded-xl border p-3" aria-label="طابور مراجعة القرارات">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="font-semibold">طابور مراجعة القرارات والمتابعة</h3>
+          <p className="mt-1 text-xs text-muted-foreground">المواعيد مشتقة من الإصدارات المحفوظة فعلياً. يغطي الطابور {result.loadedCount} قراراً محمّلاً من أصل {result.totalCount}، ولا يفترض أن السجلات غير المحمّلة بلا مواعيد.</p>
+        </div>
+        <label className="flex items-center gap-2 text-xs">أفق متابعة المراجعات
+          <select aria-label="أفق متابعة المراجعات" className="rounded-lg border bg-background p-2" value={reviewHorizon} onChange={event=>setReviewHorizon(Number(event.target.value) as 7|30|90)}>
+            <option value={7}>7 أيام</option><option value={30}>30 يوماً</option><option value={90}>90 يوماً</option>
+          </select>
+        </label>
+        <span className="text-xs text-muted-foreground">الأفق: {reviewHorizon} أيام</span>
+      </div>
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        {(Object.keys(reviewQueue.counts) as DecisionReviewQueueKind[]).map(kind=><button
+          key={kind}
+          type="button"
+          aria-pressed={selectedReviewKind===kind}
+          className={"rounded-lg border p-2 text-start transition-colors "+(selectedReviewKind===kind?"border-primary bg-primary/10":"bg-muted/40 hover:bg-muted")}
+          onClick={()=>{setSelectedReviewKind(current=>current===kind?"ALL":kind);setRecordPage(0);setFocusedDecisionId("");}}
+        >
+          <span className="block text-xs text-muted-foreground">{reviewQueueLabels[kind]}</span>
+          <strong className="text-xl">{reviewQueue.counts[kind]}</strong>
+        </button>)}
+      </div>
+      {reviewQueue.items.length?<div className="space-y-2">
+        {reviewQueue.items.slice(0,12).map(item=>{
+          const recordIndex=result.records.findIndex(record=>record.decisionId===item.decisionId);
+          const timing=item.daysUntilReview===null
+            ?item.kind==="LESSONS_PENDING"?"يلزم توثيق مراجعة الدروس بعد القياس":"يلزم تحديد موعد مراجعة"
+            :item.daysUntilReview<0?"متأخرة "+Math.abs(item.daysUntilReview)+" يوم"
+              :item.daysUntilReview===0?"موعدها اليوم":"بعد "+item.daysUntilReview+" يوم";
+          return <article key={item.decisionId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">{item.proposedResult}</p>
+              <p className="text-xs text-muted-foreground">{reviewQueueLabels[item.kind]} · {timing} · {states[item.state]} · المسؤول: {item.owner||"غير معيّن"}</p>
+              <p className="text-xs text-muted-foreground" dir="ltr">{item.ruleId} · {item.reviewAt?.slice(0,10)??"لا يوجد موعد"}</p>
+            </div>
+            <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordIndex<0} onClick={()=>{
+              setRecordSearch("");
+              setRecordStateFilter("ALL");
+              setRecordMemoryFilter("ALL");
+              setSelectedReviewKind("ALL");
+              setRecordPage(Math.floor(recordIndex/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
+              setFocusedDecisionId(item.decisionId);
+            }}>فتح السجل والمراجعة</button>
+          </article>;
+        })}
+        {reviewQueue.items.length>12?<p className="text-xs text-muted-foreground">تُعرض أول 12 مهمة حسب الأولوية؛ توجد {reviewQueue.items.length-12} مهام أخرى ضمن السجلات المحمّلة.</p>:null}
+      </div>:<p className="text-sm text-muted-foreground">لا توجد مراجعات متأخرة أو قريبة أو غير مجدولة ضمن نطاق السجلات المحمّلة.</p>}
+      {reviewQueue.invalidScheduleCount?<p className="text-xs text-amber-700" role="status">حُجبت {reviewQueue.invalidScheduleCount} مواعيد مراجعة تالفة أو غير صالحة؛ أصلح سجل الذاكرة من مصدره قبل الاعتماد عليها.</p>:null}
+      {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">الطابور جزئي بسبب ترقيم صفحات المصدر؛ لا يمثل كل تاريخ المؤسسة حتى تحميل بقية الصفحات.</p>:null}
+    </section>
     {result.records.length?<section className="space-y-3 rounded-xl border p-3" aria-label="البحث في القرارات السابقة المشابهة">
       <div><h3 className="font-semibold">البحث في القرارات السابقة المشابهة</h3>
         <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف الفترة والعملة والمعادلة. لا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
@@ -520,6 +637,32 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           <p role="alert" className="text-xs text-destructive">{learningLoadError}</p>
           <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""} onClick={()=>setLearningRefreshKey(value=>value+1)}>إعادة تحميل المرشحات</button>
         </div>:null}
+        {learningTotal>50?(
+          <nav className="flex flex-wrap items-center justify-between gap-2 text-xs" aria-label="صفحات مرشحات التعلم">
+            <span role="status" aria-live="polite">
+              عرض {learningTotal===0?0:learningOffset+1}–{Math.min(learningOffset+learningCandidates.length,learningTotal)} من {learningTotal} مرشحاً · الصفحة {Math.floor(learningOffset/LEARNING_CANDIDATE_PAGE_SIZE)+1} من {Math.max(1,Math.ceil(learningTotal/LEARNING_CANDIDATE_PAGE_SIZE))}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1.5"
+                disabled={learningLoading||learningBusy!==""||learningOffset===0}
+                onClick={()=>setLearningOffset(value=>Math.max(0,value-LEARNING_CANDIDATE_PAGE_SIZE))}
+              >السابق</button>
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1.5"
+                disabled={learningLoading||learningBusy!==""||learningOffset+LEARNING_CANDIDATE_PAGE_SIZE>=learningTotal||learningOffset>=LEARNING_CANDIDATE_MAX_OFFSET}
+                onClick={()=>setLearningOffset(value=>Math.min(LEARNING_CANDIDATE_MAX_OFFSET,value+LEARNING_CANDIDATE_PAGE_SIZE))}
+              >التالي</button>
+            </div>
+          </nav>
+        ):null}
+        {learningTotal>LEARNING_CANDIDATE_MAX_OFFSET+LEARNING_CANDIDATE_PAGE_SIZE?(
+          <p className="text-xs text-amber-700" role="status">
+            تعرض الخدمة حتى 5,050 مرشحاً في نطاق ترقيم الصفحات الحالي؛ يوجد {learningTotal-(LEARNING_CANDIDATE_MAX_OFFSET+LEARNING_CANDIDATE_PAGE_SIZE)} مرشحاً إضافياً خارج حد الاستعلام، ولم تُخفَ هذه الحدود.
+          </p>
+        ):null}
         {learningCandidates.map(candidate=>{
           const snapshot=candidate.candidateSnapshot;
           const context=snapshot.metricContext as {metricKey?:string;unit?:string;currency?:string|null;period?:{from?:string;to?:string};formulaId?:string;formulaVersion?:string}|undefined;
@@ -675,17 +818,42 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <article className="rounded-lg border p-3"><p className="text-xs">بانتظار الاستكمال</p><strong className="text-xl">{result.partialCount}</strong></article>
       <article className="rounded-lg border p-3"><p className="text-xs">قياسات مثبتة قابلة للمقارنة</p><strong className="text-xl">{result.verifiedMeasurementCount}</strong></article>
     </div>
+    {result.records.length?<section className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_11rem_11rem_auto]" aria-label="بحث وتصفية سجل القرارات">
+      <label className="block space-y-1 text-xs">بحث في القرارات المحمّلة
+        <input aria-label="بحث في القرارات المحمّلة" className="w-full rounded-lg border bg-background p-2" maxLength={500} value={recordSearch} onChange={event=>{setRecordSearch(event.target.value);setRecordPage(0);setFocusedDecisionId("");}} placeholder="ابحث في القرار والمشكلة والوقائع والإجراء والدروس…"/>
+      </label>
+      <label className="block space-y-1 text-xs">تصفية حسب الحالة
+        <select aria-label="تصفية حسب الحالة" className="w-full rounded-lg border bg-background p-2" value={recordStateFilter} onChange={event=>{setRecordStateFilter(event.target.value as DecisionMemoryRecord["state"]|"ALL");setRecordPage(0);setFocusedDecisionId("");}}>
+          <option value="ALL">كل الحالات</option>
+          {Object.entries(states).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      <label className="block space-y-1 text-xs">جودة ذاكرة القرار
+        <select aria-label="تصفية حسب جودة الذاكرة" className="w-full rounded-lg border bg-background p-2" value={recordMemoryFilter} onChange={event=>{setRecordMemoryFilter(event.target.value as DecisionMemoryRecord["memoryStatus"]|"ALL");setRecordPage(0);setFocusedDecisionId("");}}>
+          <option value="ALL">كل مستويات التوثيق</option>
+          <option value="VERIFIED">ذاكرة مكتملة</option>
+          <option value="PARTIAL">ذاكرة جزئية</option>
+          <option value="UNVERIFIED">غير موثقة</option>
+        </select>
+      </label>
+      <div className="flex flex-wrap items-end gap-2">
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={recordSearch===""&&recordStateFilter==="ALL"&&recordMemoryFilter==="ALL"&&selectedReviewKind==="ALL"} onClick={()=>{setRecordSearch("");setRecordStateFilter("ALL");setRecordMemoryFilter("ALL");setSelectedReviewKind("ALL");setRecordPage(0);setFocusedDecisionId("");}}>مسح التصفية</button>
+        <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={filteredRecords.length===0} onClick={()=>downloadDecisionMemoryCsv(filteredRecords)}>تصدير CSV ({filteredRecords.length})</button>
+      </div>
+      {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700 sm:col-span-4">التصدير يضم النتائج المطابقة من {result.loadedCount} قراراً محمّلاً فقط من أصل {result.totalCount}؛ السجلات غير المحمّلة غير مشمولة.</p>:null}
+      <p className="text-xs text-muted-foreground sm:col-span-4" role="status">{selectedReviewKind!=="ALL"?"فئة طابور المراجعة: "+reviewQueueLabels[selectedReviewKind]+" · ":""}نتائج البحث: {filteredRecords.length} من {result.loadedCount} قراراً محمّلاً · البحث لا يشمل صفحات لم تُحمّل من الخادم.</p>
+    </section>:null}
     {result.records.length?<>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span>عرض {currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE+1}–{Math.min((currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,result.records.length)} من {result.records.length} قراراً</span>
+        <span>عرض {filteredRecords.length===0?0:currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE+1}–{Math.min((currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,filteredRecords.length)} من {filteredRecords.length} نتيجة · أصلها {result.loadedCount} قراراً محمّلاً</span>
         {pageCount>1?<div className="flex items-center gap-2">
           <button type="button" className="rounded-lg border px-3 py-1.5" disabled={currentPage===0} onClick={()=>setRecordPage(value=>Math.max(0,value-1))}>الأحدث</button>
           <span>{currentPage+1} / {pageCount}</span>
           <button type="button" className="rounded-lg border px-3 py-1.5" disabled={currentPage>=pageCount-1} onClick={()=>setRecordPage(value=>Math.min(pageCount-1,value+1))}>الأقدم</button>
         </div>:null}
       </div>
-      {pageRecords.map(record=><DecisionMemoryCard key={record.decisionId} record={record} onRetry={onRetry}/>)}
-    </>:<p className="text-sm">لا توجد قرارات محفوظة بعد.</p>}
+      {pageRecords.map(record=><DecisionMemoryCard key={record.decisionId} record={record} onRetry={onRetry} highlight={focusedDecisionId===record.decisionId}/>)}
+    </>:result.records.length?<p className="text-sm text-muted-foreground">لا توجد قرارات تطابق البحث أو الحالة المحددة.</p>:<p className="text-sm">لا توجد قرارات محفوظة بعد.</p>}
     {result.warnings.length?<section className="rounded-lg border p-3"><h3 className="text-sm font-semibold">حدود البيانات الحالية</h3>{result.warnings.map(warning=><p key={warning} className="text-xs">{warning}</p>)}</section>:null}
   </section>;
 }

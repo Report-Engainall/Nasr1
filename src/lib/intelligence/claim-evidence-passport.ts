@@ -5,6 +5,7 @@ import type {
   EvidenceStatus,
   MetricSnapshot,
 } from "./types";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 
 export type ClaimKind = "OBSERVATION" | "DRIVER" | "CAUSE";
 export type ClaimDomain =
@@ -108,7 +109,11 @@ const SOURCE_DOMAIN: Record<string, ClaimDomain> = {
 };
 
 const unique = (values: string[]): string[] => [...new Set(values.filter((value) => value.trim().length > 0))];
-const validTime = (value: string): boolean => typeof value === "string" && value.length > 0 && Number.isFinite(Date.parse(value));
+const validTime = (value: string): boolean => timestampMicroseconds(value) !== null;
+const sameInstant = (left: string, right: string): boolean => {
+  const leftMicros = timestampMicroseconds(left);
+  return leftMicros !== null && leftMicros === timestampMicroseconds(right);
+};
 const validConfidence = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
 
 function atLeastReview(status: EvidenceStatus): EvidenceStatus {
@@ -154,8 +159,9 @@ function metricEvidenceIsValid(
   const ids = metric.lineage?.evidenceIds ?? [];
   if (metric.status !== "VERIFIED" || metric.completeness !== "COMPLETE" ||
       metric.quality !== "ACCEPTABLE" || metric.value === null ||
-      metric.asOf !== passport.asOf || !validTime(metric.asOf) ||
+      !sameInstant(metric.asOf, passport.asOf) || !validTime(metric.asOf) ||
       !validTime(metric.lineage?.calculatedAt ?? "") ||
+      timestampMicroseconds(metric.lineage?.calculatedAt)! > timestampMicroseconds(passport.generatedAt)! ||
       !metric.lineage?.formulaId.trim() || !metric.lineage?.formulaVersion.trim() ||
       !ids.length || new Set(ids).size !== ids.length ||
       ids.some((id) => duplicateEvidenceIds.has(id))) return false;
@@ -165,9 +171,9 @@ function metricEvidenceIsValid(
     source.status === "VERIFIED" &&
     source.completeness === "COMPLETE" &&
     source.quality === "ACCEPTABLE" &&
-    source.asOf === metric.asOf &&
+    sameInstant(source.asOf, metric.asOf) &&
     validTime(source.sourceTimestamp) &&
-    Date.parse(source.sourceTimestamp) <= Date.parse(metric.asOf) &&
+    timestampMicroseconds(source.sourceTimestamp)! <= timestampMicroseconds(metric.asOf)! &&
     (!metric.period || samePeriod(source.period, metric.period)) &&
     (metric.unit !== "QUANTITY" || Boolean(metric.unitOfMeasure?.trim())) &&
     ((metric.unit !== "CURRENCY" && metric.unit !== "CURRENCY_PER_UNIT") ||
@@ -192,9 +198,9 @@ function validClaimConfidence(
     source.status === "VERIFIED" &&
     source.completeness === "COMPLETE" &&
     source.quality === "ACCEPTABLE" &&
-    source.asOf === passport.asOf &&
+    sameInstant(source.asOf, passport.asOf) &&
     validTime(source.sourceTimestamp) &&
-    Date.parse(source.sourceTimestamp) <= Date.parse(passport.asOf) &&
+    timestampMicroseconds(source.sourceTimestamp)! <= timestampMicroseconds(passport.asOf)! &&
     (!first || samePeriod(source.period, first.period))
   );
 }
@@ -209,7 +215,7 @@ function validCausalStudy(
   if (!study || metrics.length < 2 || !study.methodology.trim() || !study.design.trim() ||
       !study.assumptions.some((item) => item.trim()) || !study.confounderAssessment.trim() ||
       !study.reviewedBy.trim() || !validTime(study.verifiedAt) ||
-      Date.parse(study.verifiedAt) > Date.parse(passport.asOf) ||
+      timestampMicroseconds(study.verifiedAt)! > timestampMicroseconds(passport.asOf)! ||
       !validConfidence(study.confidence) || !study.confidenceBasis.trim() ||
       !study.evidenceIds.length || new Set(study.evidenceIds).size !== study.evidenceIds.length) {
     return false;
@@ -220,7 +226,7 @@ function validCausalStudy(
     metric.status !== "VERIFIED" ||
     metric.completeness !== "COMPLETE" ||
     metric.quality !== "ACCEPTABLE" ||
-    metric.asOf !== first.asOf ||
+    !sameInstant(metric.asOf, first.asOf) ||
     !samePeriod(metric.period, first.period) ||
     ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") &&
       metric.currency !== first.currency)
@@ -236,9 +242,9 @@ function validCausalStudy(
       source.status === "VERIFIED" &&
       source.completeness === "COMPLETE" &&
       source.quality === "ACCEPTABLE" &&
-      source.asOf === passport.asOf &&
+      sameInstant(source.asOf, passport.asOf) &&
       validTime(source.sourceTimestamp) &&
-      Date.parse(source.sourceTimestamp) <= Date.parse(passport.asOf) &&
+      timestampMicroseconds(source.sourceTimestamp)! <= timestampMicroseconds(passport.asOf)! &&
       samePeriod(source.period, first.period));
   });
 }

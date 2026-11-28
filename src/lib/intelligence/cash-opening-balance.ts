@@ -1,5 +1,6 @@
 import type { CashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
 import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import type { EvidenceRecord, MetricSnapshot } from "./types";
 
 export interface ApprovedCashOpeningBalanceResult {
@@ -10,6 +11,11 @@ export interface ApprovedCashOpeningBalanceResult {
 
 const FORMULA_ID = "nasr1.finance-approved-opening-balance-by-currency";
 const FORMULA_VERSION = "1.0.0";
+
+function strictTimestamp(value: unknown): bigint | null {
+  return timestampMicroseconds(value);
+
+}
 
 function verifiedRecord(input: {
   id: string;
@@ -49,11 +55,11 @@ export function buildApprovedCashOpeningBalances(
   requestedAsOf: string,
 ): ApprovedCashOpeningBalanceResult {
   const warnings: string[] = [];
-  const requestedTime = Date.parse(requestedAsOf);
-  const workspaceTime = Date.parse(workspace.asOf);
+  const requestedTime = strictTimestamp(requestedAsOf);
+  const workspaceTime = strictTimestamp(workspace.asOf);
 
-  if (!Number.isFinite(requestedTime) || !Number.isFinite(workspaceTime) ||
-      new Date(requestedTime).toISOString() !== new Date(workspaceTime).toISOString()) {
+  if (requestedTime === null || workspaceTime === null ||
+      requestedTime !== workspaceTime) {
     return {
       metrics: [],
       evidenceRecords: [],
@@ -61,8 +67,8 @@ export function buildApprovedCashOpeningBalances(
     };
   }
 
-  const asOf = new Date(requestedTime).toISOString();
-  const asOfDate = asOf.slice(0, 10);
+  const asOf = requestedAsOf;
+  const asOfDate = new Date(Date.parse(requestedAsOf)).toISOString().slice(0, 10);
   const accounts = workspace.accounts.filter((account) => account.isActive);
   if (!accounts.length) {
     return {
@@ -129,9 +135,9 @@ export function buildApprovedCashOpeningBalances(
       const ledgerMinor = proposal.postedGlBalance === null
         ? null
         : decimalToMinorUnits(proposal.postedGlBalance, 2, true);
-      const submittedAt = Date.parse(proposal.submittedAt);
-      const documentAt = document ? Date.parse(document.createdAt) : Number.NaN;
-      const reviewedAt = proposal.reviewedAt ? Date.parse(proposal.reviewedAt) : Number.NaN;
+      const submittedAt = strictTimestamp(proposal.submittedAt);
+      const documentAt = document ? strictTimestamp(document.createdAt) : null;
+      const reviewedAt = proposal.reviewedAt ? strictTimestamp(proposal.reviewedAt) : null;
 
       const valid = Boolean(
         proposal.currency === currency &&
@@ -150,9 +156,9 @@ export function buildApprovedCashOpeningBalances(
         document.evidenceKind === "opening_balance" &&
         !proposalIds.has(proposal.id) &&
         !sourceEvidenceIds.has(document.id) &&
-        Number.isFinite(submittedAt) &&
-        Number.isFinite(documentAt) &&
-        Number.isFinite(reviewedAt) &&
+        submittedAt !== null &&
+        documentAt !== null &&
+        reviewedAt !== null &&
         documentAt <= submittedAt &&
         submittedAt <= reviewedAt &&
         reviewedAt <= requestedTime

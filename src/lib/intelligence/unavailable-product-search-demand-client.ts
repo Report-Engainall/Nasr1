@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { timestampMicroseconds } from "./product-revenue-concentration-client";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 import type { GrowthOpportunitySignal } from "./growth-opportunities";
 
@@ -34,7 +35,7 @@ function day(value: unknown): value is string {
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
 }
 function timestamp(value: unknown): value is string {
-  return typeof value === "string" && Number.isFinite(Date.parse(value));
+  return timestampMicroseconds(value) !== null;
 }
 function count(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -92,8 +93,9 @@ export async function fetchUnavailableProductSearchDemand(
   periodDays: 30 | 60 | 90 | 180 | 365,
   asOf: string,
 ): Promise<UnavailableProductSearchDemandFetchResult> {
+  const asOfMicros = timestampMicroseconds(asOf);
   const asOfTime = Date.parse(asOf);
-  if (!PERIODS.has(periodDays) || !timestamp(asOf) || !Number.isFinite(asOfTime)) {
+  if (!PERIODS.has(periodDays) || asOfMicros === null || !Number.isFinite(asOfTime)) {
     return { ok: false, status: "ERROR", message: "فترة قياس طلب الأصناف أو وقت اللقطة غير صالح." };
   }
   const to = new Date(asOfTime).toISOString().slice(0, 10);
@@ -113,7 +115,7 @@ export async function fetchUnavailableProductSearchDemand(
     const rawPeriod = object(raw?.period);
     const coverageStartedOn = raw?.coverageStartedOn === null ? null : raw?.coverageStartedOn;
     const sourceTables = raw?.sourceTables;
-    if (!raw || !rawPeriod || !timestamp(raw.asOf) || Date.parse(raw.asOf) !== asOfTime ||
+    if (!raw || !rawPeriod || timestampMicroseconds(raw.asOf) !== asOfMicros ||
         !day(rawPeriod.from) || !day(rawPeriod.to) ||
         rawPeriod.from !== from || rawPeriod.to !== to ||
         (coverageStartedOn !== null && !day(coverageStartedOn)) ||
@@ -149,6 +151,7 @@ export async function fetchUnavailableProductSearchDemand(
 
     for (const item of raw.products) {
       const row = object(item);
+      const sourceTimestampMicros = timestampMicroseconds(row?.sourceTimestamp);
       if (!row || typeof row.productRef !== "string" || !UUID.test(row.productRef) ||
           !(row.productLabel === null || text(row.productLabel, 140)) ||
           !count(row.searchCount) || !count(row.distinctSearchers) ||
@@ -157,7 +160,7 @@ export async function fetchUnavailableProductSearchDemand(
           !day(row.firstObservedOn) || !day(row.lastObservedOn) ||
           row.firstObservedOn < from || row.lastObservedOn > to ||
           row.firstObservedOn > row.lastObservedOn ||
-          !timestamp(row.sourceTimestamp) || Date.parse(row.sourceTimestamp) > asOfTime) {
+          sourceTimestampMicros === null || sourceTimestampMicros > (asOfMicros as bigint)) {
         return { ok: false, status: "ERROR", message: "صف طلب صنف غير مكتمل أو يتجاوز فترة القياس؛ حُجبت الإشارات." };
       }
       const productRef = row.productRef.toLowerCase();
@@ -181,7 +184,7 @@ export async function fetchUnavailableProductSearchDemand(
           recordId: productRef,
           version: "1",
         },
-        sourceTimestamp: row.sourceTimestamp,
+        sourceTimestamp: row.sourceTimestamp as string,
         asOf,
         period: { from, to },
         status: evidenceStatus,
@@ -289,7 +292,7 @@ export async function createUnavailableProductDemandFollowUpTask(input: {
   if (!UUID.test(input.productId) ||
       !day(input.period.from) || !day(input.period.to) ||
       input.period.from > input.period.to ||
-      !timestamp(input.asOf) ||
+      timestampMicroseconds(input.asOf) === null ||
       input.period.to !== new Date(Date.parse(input.asOf)).toISOString().slice(0, 10)) {
     return { ok: false, status: "ERROR", message: "مرجع الصنف أو فترة دليل الطلب غير صالحة." };
   }

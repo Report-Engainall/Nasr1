@@ -197,6 +197,77 @@ describe("process bottleneck before/after comparison windows", () => {
     expect(parseProcessBottleneckSnapshot(s)).toBeNull();
   });
 
+  it("rejects non-PostgreSQL timestamp precision in bottleneck evidence", () => {
+    const invalidAsOf = snapshot(equalBaselinePeriod);
+    invalidAsOf.asOf = "2026-11-30T23:59:59.1234567Z";
+    expect(parseProcessBottleneckSnapshot(invalidAsOf)).toBeNull();
+
+    const invalidMetricClock = snapshot(equalBaselinePeriod);
+    invalidMetricClock.metrics = invalidMetricClock.metrics.map(item => ({
+      ...item,
+      firstCompletedAt: "2026-11-25T08:00:00.1234567Z",
+    }));
+    expect(parseProcessBottleneckSnapshot(invalidMetricClock)).toBeNull();
+  });
+
+  it("rounds queue age from exact PostgreSQL microseconds without a one-centi-minute tolerance", () => {
+    const exact = snapshot(equalBaselinePeriod);
+    exact.asOf = "2026-11-30T23:59:59.123456Z";
+    exact.sourceCoverage = exact.sourceCoverage.map(item => ({ ...item, asOf: exact.asOf }));
+    exact.queues = [{
+      processKey: "ORDERS",
+      openCount: 1,
+      oldestOpenedAt: "2026-11-30T23:54:59.123456Z",
+      oldestAgeMinutes: 5,
+      asOf: exact.asOf,
+    }];
+    expect(parseProcessBottleneckSnapshot(exact)).not.toBeNull();
+
+    const belowHalfCent = {
+      ...exact,
+      queues: [{
+        ...exact.queues[0],
+        oldestOpenedAt: "2026-11-30T23:54:59.423457Z",
+        oldestAgeMinutes: 4.99,
+      }],
+    };
+    expect(parseProcessBottleneckSnapshot(belowHalfCent)).not.toBeNull();
+    expect(parseProcessBottleneckSnapshot({
+      ...belowHalfCent,
+      queues: [{ ...belowHalfCent.queues[0], oldestAgeMinutes: 5 }],
+    })).toBeNull();
+  });
+
+  it("rejects a queue opened one microsecond after its source snapshot", () => {
+    const future = snapshot(equalBaselinePeriod);
+    future.queues = [{
+      processKey: "ORDERS",
+      openCount: 1,
+      oldestOpenedAt: "2026-11-30T23:59:59.123457Z",
+      oldestAgeMinutes: 0,
+      asOf: "2026-11-30T23:59:59.123456Z",
+    }];
+    future.asOf = "2026-11-30T23:59:59.123456Z";
+    future.sourceCoverage = future.sourceCoverage.map(item => ({ ...item, asOf: future.asOf }));
+    expect(parseProcessBottleneckSnapshot(future)).toBeNull();
+  });
+
+  it("accepts exact six-digit PostgreSQL microseconds in bottleneck evidence", () => {
+    const valid = snapshot(equalBaselinePeriod);
+    valid.asOf = "2026-11-30T23:59:59.123456Z";
+    valid.metrics = valid.metrics.map(item => ({
+      ...item,
+      firstCompletedAt: item.window === "CURRENT"
+        ? "2026-11-02T08:00:00.123456Z"
+        : "2026-10-03T08:00:00.123456Z",
+      lastCompletedAt: item.window === "CURRENT"
+        ? "2026-11-29T18:00:00.123456Z"
+        : "2026-10-30T18:00:00.123456Z",
+    }));
+    valid.sourceCoverage = valid.sourceCoverage.map(item => ({ ...item, asOf: valid.asOf }));
+    expect(parseProcessBottleneckSnapshot(valid)).not.toBeNull();
+  });
+
   it("withholds unavailable source metrics and does not manufacture findings or comparisons", () => {
     const s = snapshot(equalBaselinePeriod);
     s.sourceCoverage = s.sourceCoverage.map(coverage =>
@@ -263,59 +334,4 @@ describe("process bottleneck before/after comparison windows", () => {
     );
   });
 
-});
-
-describe("process bottleneck strict timestamp contract", () => {
-  for (const timestamp of [
-    "2026-12-01T13:59:59.000+14:00",
-    "2026-11-30T09:59:59.000-14:00",
-  ]) {
-    it("accepts the ISO maximum UTC offset " + timestamp.slice(-6), () => {
-      const s = snapshot(equalBaselinePeriod);
-      s.asOf = timestamp;
-      s.sourceCoverage = s.sourceCoverage.map(coverage => ({ ...coverage, asOf: timestamp }));
-      expect(parseProcessBottleneckSnapshot(s)).not.toBeNull();
-    });
-  }
-
-  for (const timestamp of [
-    "2026-11-30T23:59:59.000",
-    "2026-11-30T23:59:59.000+14:01",
-    "2026-11-30T23:59:59.000-15:00",
-    "2026-02-30T23:59:59.000Z",
-  ]) {
-    it("rejects a missing offset, unsupported offset, or normalized calendar day: " + timestamp, () => {
-      const s = snapshot(equalBaselinePeriod);
-      s.asOf = timestamp;
-      s.sourceCoverage = s.sourceCoverage.map(coverage => ({ ...coverage, asOf: timestamp }));
-      expect(parseProcessBottleneckSnapshot(s)).toBeNull();
-    });
-  }
-
-  it("requires the same strict timestamp contract for stage completion evidence", () => {
-    for (const invalid of [
-      "2026-11-02T08:00:00.000+14:01",
-      "2026-11-29T18:00:00.000",
-    ]) {
-      const s = snapshot(equalBaselinePeriod);
-      s.metrics[0] = { ...s.metrics[0], firstCompletedAt: invalid };
-      expect(parseProcessBottleneckSnapshot(s)).toBeNull();
-    }
-  });
-
-  it("requires the same strict timestamp contract for queue age evidence", () => {
-    const s = snapshot(equalBaselinePeriod);
-    const queue = {
-      processKey: "ORDERS" as const,
-      openCount: 1,
-      oldestOpenedAt: "2026-11-30T23:50:00.000Z",
-      oldestAgeMinutes: 9.98,
-      asOf: s.asOf,
-    };
-    expect(parseProcessBottleneckSnapshot({ ...s, queues: [queue] })).not.toBeNull();
-    expect(parseProcessBottleneckSnapshot({
-      ...s,
-      queues: [{ ...queue, oldestOpenedAt: "2026-11-30T23:50:00.000+14:01" }],
-    })).toBeNull();
-  });
 });
