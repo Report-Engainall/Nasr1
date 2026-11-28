@@ -43,3 +43,11 @@ The P2 PostgreSQL 17 suite is required on the exact resulting commit SHA. Queued
 - This prevents an ahead-of-time provider timestamp from becoming the staged "latest" record and suppressing subsequent valid updates under source-timestamp conflict ordering. SQLSTATE `22023` is raised before checkpoint, staged-record, receipt, outcome or cursor writes.
 - Acceptance additions in `scripts/test-erp-sync-checkpoint-store.mjs` verify both future-record and future-completed-watermark rejection with checkpoint version, staged-row count and page-receipt count unchanged. `readonly-sync.test.ts` injects a deterministic clock and verifies the adapter rejects a future record.
 - Code-bearing pre-change head: `5fd4fef5066817d380be85b4b396d4013ec005b6`. Exact new-head Vitest/strict-TypeScript and P2 PostgreSQL 17 / critical-path acceptance must complete; previous queued results are not transferable. No ERP endpoint, production database, secret, financial ledger or inventory row was accessed or changed.
+
+
+## 2026-11-28 — Future pending-watermark rejection acceptance
+
+- Extended the exact isolated PostgreSQL 17 checkpoint-store acceptance with a partial-page request whose `pending_watermark` is one hour ahead of the server clock.
+- The RPC must raise SQLSTATE `22023` before persisting the continuation cursor. Assertions prove checkpoint version remains zero, pending watermark and cursor remain NULL, and no page receipt is created.
+- This complements the existing future record timestamp and future completed-watermark cases, covering both branches of the SQL future-watermark guard.
+- The new test is not a PASS result until the dedicated P4 PostgreSQL 17 job runs on the final branch SHA. No vendor endpoint, production database, inventory, finance, secret or deployment was used.

@@ -304,6 +304,30 @@ async function main() {
     "future-dated record must not create a page receipt");
 
   await expectSql(
+    "future ERP pending watermarks are rejected before cursor or checkpoint mutation",
+    () => persistPage(page({
+      expectedVersion: 0,
+      label: "future-pending-watermark-rejected",
+      records: [],
+      nextCursor: cursorCiphertext("future-pending-must-not-advance"),
+      pendingWatermark: futureSourceTime,
+      completedWatermark: null,
+      completed: false,
+    })),
+    "22023",
+  );
+  const afterFuturePending = await loadCheckpoint(baseScope);
+  const futurePendingReceipts = await previewPageReceipts(baseScope);
+  assert.equal(afterFuturePending.version, 0,
+    "future pending watermark must not advance the checkpoint");
+  assert.equal(afterFuturePending.pending_watermark, null,
+    "future pending watermark must not be stored");
+  assert.equal(afterFuturePending.cursor_ciphertext, null,
+    "future pending watermark must not persist its continuation cursor");
+  assert.equal(futurePendingReceipts.total, 0,
+    "future pending watermark must not create a page receipt");
+
+  await expectSql(
     "future ERP completed watermarks are rejected before checkpoint mutation",
     () => persistPage(page({
       expectedVersion: 0,
