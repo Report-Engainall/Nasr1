@@ -13,7 +13,7 @@ export function filterSupplierPerformanceSuppliers(
  query = "",
 ): SupplierPerformanceSupplier[] {
  const normalizedQuery = query.trim().toLocaleLowerCase("ar");
- return suppliers.filter(supplier => {
+ const selected = suppliers.filter(supplier => {
   const searchable = (supplier.supplierName + " " + (supplier.supplierCode ?? "")).toLocaleLowerCase("ar");
   if (normalizedQuery && !searchable.includes(normalizedQuery)) return false;
   const lateCount = supplier.promisedDeliverySampleCount - supplier.onTimeCount;
@@ -27,6 +27,23 @@ export function filterSupplierPerformanceSuppliers(
    default: return true;
   }
  });
+ const followUpRank = (supplier: SupplierPerformanceSupplier) => {
+  if (supplier.inconsistentReceivedCount > 0) return 0;
+  if (supplier.promisedDeliverySampleCount >= 3 && supplier.onTimeCount < supplier.promisedDeliverySampleCount) return 1;
+  if (supplier.openOrderCount > 0 && supplier.backlogLineCount > 0) return 2;
+  if (supplier.leadTimeSampleCount < 3 || supplier.completedWithoutPromiseCount > 0 ||
+      (supplier.completedOrderCount > 0 && supplier.promisedDeliverySampleCount < 3)) return 3;
+  return 4;
+ };
+ const followUpCount = (supplier: SupplierPerformanceSupplier) =>
+  supplier.inconsistentReceivedCount +
+  (supplier.promisedDeliverySampleCount >= 3 ? supplier.promisedDeliverySampleCount - supplier.onTimeCount : 0) +
+  supplier.backlogLineCount;
+ return selected.sort((a,b) =>
+  followUpRank(a)-followUpRank(b) ||
+  followUpCount(b)-followUpCount(a) ||
+  a.supplierName.localeCompare(b.supplierName,"ar")
+ );
 }
 
 type SupplierFollowUp = { key: string; title: string; count: number; action: string };
@@ -135,7 +152,18 @@ export function SupplierPerformancePanel({result,state="ready",onRetry,onOpenPur
 
   {(() => {
    const entries = visibleSuppliers.flatMap(supplier =>
-    supplierFollowUps(supplier).map(item => ({ ...item, supplierId: supplier.supplierId, supplierName: supplier.supplierName }))
+    supplierFollowUps(supplier).map(item => ({
+     ...item,
+     supplierId: supplier.supplierId,
+     supplierName: supplier.supplierName,
+     relatedOrders: supplier.recentOrders.filter(order =>
+      item.key === "late-delivery" ? order.onTime === false :
+      item.key === "pending-receipt" ? order.status !== "received" && order.pendingLineCount > 0 :
+      item.key === "missing-promise" ? order.status === "received" && order.promisedDeliveryDays === null :
+      item.key === "inconsistent-receipt" ? order.status === "received" && order.pendingLineCount > 0 :
+      false
+     ),
+    }))
    );
    return (
     <section className="space-y-2" aria-label="ملاحظات متابعة الموردين">
@@ -154,6 +182,17 @@ export function SupplierPerformancePanel({result,state="ready",onRetry,onOpenPur
           <span className="rounded-full border px-2 py-1 text-xs">{item.title} · {qty.format(item.count)}</span>
          </div>
          <p className="mt-2 text-sm">{item.action}</p>
+         {onOpenPurchaseOrder && item.relatedOrders.length ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+           {item.relatedOrders.map(order=>(
+            <button key={order.purchaseOrderId} type="button"
+             onClick={()=>onOpenPurchaseOrder(order.purchaseOrderId)}
+             className="rounded-md border px-2 py-1 text-xs">
+             فتح أمر {order.purchaseOrderNumber}
+            </button>
+           ))}
+          </div>
+         ) : null}
         </article>
        ))}
       </div>
