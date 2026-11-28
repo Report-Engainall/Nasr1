@@ -758,6 +758,7 @@ async function main() {
   const sourceTestCreditMemoRequestId = randomUUID();
   const sourceTestCreditMemoId = randomUUID();
   const sourceTestCreditMemoJournalId = randomUUID();
+  const sourceTestCreditMemoReversalJournalId = randomUUID();
   await db.unsafe(
     "insert into public.customer_return_requests(" +
       "id,organization_id,customer_id,order_id,request_number,status,reason,requested_by,idempotency_key,payload_fingerprint" +
@@ -795,6 +796,25 @@ async function main() {
       "organization_id,journal_entry_id,line_number,account_id,debit,credit,memo" +
     ") values($1::uuid,$2::uuid,1,$3::uuid,1.00,0.00,'Financial-source source-bound journal line fixture')",
     [orgId,sourceTestCreditMemoJournalId,returnReceivableAccountId],
+  );
+
+  await db.unsafe(
+    "insert into public.accounting_journal_entries(" +
+      "id,organization_id,entry_date,description,source_type,source_reference,status," +
+      "idempotency_key,payload_fingerprint,created_by_profile_id" +
+    ") values($1::uuid,$2::uuid,(statement_timestamp() at time zone 'UTC')::date,$3::text," +
+      "'adjustment',$4::text,'draft',$5::uuid,$6::text,$7::uuid)",
+    [
+      sourceTestCreditMemoReversalJournalId,orgId,"Financial-source credit memo reversal journal fixture",
+      "customer-return-credit-memo-reversal:"+sourceTestCreditMemoId,
+      randomUUID(),"5".repeat(32),manager.id,
+    ],
+  );
+  await db.unsafe(
+    "insert into public.accounting_journal_lines(" +
+      "organization_id,journal_entry_id,line_number,account_id,debit,credit,memo" +
+    ") values($1::uuid,$2::uuid,1,$3::uuid,1.00,0.00,'Financial-source source-bound reversal line fixture')",
+    [orgId,sourceTestCreditMemoReversalJournalId,returnReceivableAccountId],
   );
   async function assertCreditMemoJournalWritesDenied(sourceLabel) {
     const headerBefore = await db.unsafe(
@@ -902,6 +922,57 @@ async function main() {
       sourceLabel+" denied CRUD leaves exactly one source-bound journal line");
     assert.deepEqual(lineAfter,lineBefore,
       sourceLabel+" rejected journal-line mutation preserves account and debit/credit values");
+
+    const reversalHeaderBefore = await db.unsafe(
+      "select organization_id::text as organization_id,source_type,source_reference,status,description " +
+      "from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+      [sourceTestCreditMemoReversalJournalId,orgId],
+    );
+    assert.equal(reversalHeaderBefore.length,1,
+      sourceLabel+" source-bound reversal journal header fixture exists");
+    await expectFailure(
+      sourceLabel+" source cannot mutate an APP_ONLY return-credit reversal journal header",
+      db.unsafe(
+        "update public.accounting_journal_entries set description=description " +
+        "where id=$1::uuid and organization_id=$2::uuid",
+        [sourceTestCreditMemoReversalJournalId,orgId],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    const reversalHeaderAfter = await db.unsafe(
+      "select organization_id::text as organization_id,source_type,source_reference,status,description " +
+      "from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+      [sourceTestCreditMemoReversalJournalId,orgId],
+    );
+    assert.deepEqual(reversalHeaderAfter,reversalHeaderBefore,
+      sourceLabel+" denied reversal-header mutation preserves source identity and status");
+
+    const reversalLineBefore = await db.unsafe(
+      "select organization_id::text as organization_id,journal_entry_id::text as journal_entry_id," +
+        "line_number,account_id::text as account_id,debit::text as debit,credit::text as credit,memo " +
+      "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+      [orgId,sourceTestCreditMemoReversalJournalId],
+    );
+    assert.equal(reversalLineBefore.length,1,sourceLabel+" source-bound reversal line fixture exists");
+    await expectFailure(
+      sourceLabel+" source cannot mutate an APP_ONLY return-credit reversal journal line",
+      db.unsafe(
+        "update public.accounting_journal_lines set memo=memo " +
+        "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+        [orgId,sourceTestCreditMemoReversalJournalId],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    const reversalLineAfter = await db.unsafe(
+      "select organization_id::text as organization_id,journal_entry_id::text as journal_entry_id," +
+        "line_number,account_id::text as account_id,debit::text as debit,credit::text as credit,memo " +
+      "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+      [orgId,sourceTestCreditMemoReversalJournalId],
+    );
+    assert.deepEqual(reversalLineAfter,reversalLineBefore,
+      sourceLabel+" denied reversal-line mutation preserves account and debit/credit values");
   }
 
 
@@ -1482,6 +1553,31 @@ async function main() {
   );
   assert.equal(restoredCreditMemoJournalLine.length,1,
     "APP_ONLY source restores authorized mutations of its return-credit journal lines");
+
+  const restoredCreditMemoReversalHeader = await db.unsafe(
+    "update public.accounting_journal_entries set description=description " +
+    "where id=$1::uuid and organization_id=$2::uuid returning id",
+    [sourceTestCreditMemoReversalJournalId,orgId],
+  );
+  assert.equal(restoredCreditMemoReversalHeader.length,1,
+    "APP_ONLY source restores authorized mutations of credit-memo reversal journal header");
+  const restoredCreditMemoReversalLine = await db.unsafe(
+    "update public.accounting_journal_lines set memo=memo " +
+    "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1 returning line_number",
+    [orgId,sourceTestCreditMemoReversalJournalId],
+  );
+  assert.equal(restoredCreditMemoReversalLine.length,1,
+    "APP_ONLY source restores authorized mutations of credit-memo reversal journal line");
+  await expectFailure(
+    "APP_ONLY source-bound credit memo reversal journal cannot be detached from its immutable source identity",
+    db.unsafe(
+      "update public.accounting_journal_entries set source_type='manual',source_reference=NULL " +
+      "where id=$1::uuid and organization_id=$2::uuid",
+      [sourceTestCreditMemoReversalJournalId,orgId],
+    ),
+    "55000",
+    "source identity",
+  );
 
   await expectFailure(
     "APP_ONLY source-bound credit memo journal cannot be detached from its immutable source identity",
