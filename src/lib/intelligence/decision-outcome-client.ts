@@ -292,6 +292,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
   if (
     eventStateByType[String(latestEvent.type)] !== raw.state ||
     (raw.state === "MEASURED") !== (measuredOutcome !== null) ||
+    (raw.state === "APPROVED" && (!raw.approvedAt || !raw.approvedBy)) ||
     (raw.state === "MEASURED" && (!raw.executedAt || !raw.assignedAt || !raw.approvedAt)) ||
     (["ASSIGNED", "EXECUTING", "EXECUTED"].includes(String(raw.state)) && (!raw.approvedAt || !raw.assignedAt)) ||
     (raw.state === "EXECUTED" && !raw.executedAt) ||

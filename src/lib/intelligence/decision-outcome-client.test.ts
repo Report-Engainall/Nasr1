@@ -206,6 +206,25 @@ describe("persisted decision outcome client", () => {
     expect(result).toMatchObject({ ok: true, outcome: { state: "MEASURED", version: 7 } });
   });
 
+  it("rejects an approved decision without its approval actor and timestamp", async () => {
+    const incompleteApproval = {
+      ...outcome,
+      state: "APPROVED",
+      version: 3,
+      updatedAt: "2026-10-31T10:02:00.000Z",
+      approvedAt: null,
+      approvedBy: null,
+      eventCount: 3,
+      history: [
+        outcome.history[0],
+        historyEvent("submit-event", "SUBMIT_FOR_REVIEW", 2, "2026-10-31T10:01:00.000Z"),
+        historyEvent("approve-event", "APPROVE", 3, "2026-10-31T10:02:00.000Z", "تمت مراجعة الدليل"),
+      ],
+    };
+    rpc.mockResolvedValue({ data: { items: [incompleteApproval], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects an event count that does not reconcile to the full append-only history", async () => {
     rpc.mockResolvedValue({
       data: { items: [{ ...outcome, eventCount: 2 }], total: 1 },
