@@ -252,3 +252,11 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 
 - The multi-stream acceptance waits for each resolved stream state to be rendered before checking completed counts. This prevents a test race between a resolved promise invocation and React's batched state commit; it does not alter production flow behavior.
 - Required P1/Vitest + strict TypeScript and browser gates remain queued for the resulting exact SHA.
+
+
+## P1 correction — explicit ERP statement timezone labels (2026-11-28)
+
+- Corrected the existing external customer statement renderer: both the account-level source snapshot and each currency synchronization watermark were formatted in UTC but displayed without a timezone label.
+- The UI now uses semantic `<time dateTime>` elements, formats the same exact source instants in UTC, and visibly labels each watermark `UTC`. This prevents an accounting operator in UTC+03:00 from mistaking the displayed source time for Yemen local time.
+- Added a component regression asserting both visible UTC labels and exact preservation of the account/currency `dateTime` values. No source data, financial totals, ledger, provider contract, migration, or document action changes.
+- Exact-head Vitest/strict TypeScript and browser checks must run after this commit; this regression is authored, not yet accepted.

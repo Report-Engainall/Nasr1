@@ -8,6 +8,20 @@ type Props = { statement: CustomerExternalStatement };
 
 const providerLabels = { ONYX: "Onyx Pro", MUTAKAMEL: "المتكامل" } as const;
 
+function formatSourceTimestampUtc(value: string): string {
+  const timestamp = new Date(value);
+  if (!Number.isFinite(timestamp.getTime())) return "وقت غير متاح";
+  return new Intl.DateTimeFormat("ar-YE", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "UTC",
+  }).format(timestamp);
+}
+
 function documentReviewHref(
   entry: CustomerExternalStatement["currencies"][number]["entries"][number],
   currencyCode: string,
@@ -36,7 +50,7 @@ export function CustomerExternalAccountStatement({ statement }: Props) {
         </h2>
         <p role="note" style={{ marginBottom: 0 }}>
           هذا كشف مستقل من المصدر المعتمد. العملات منفصلة ولا تُجمع مع دفتر متجر الأغبري أو مع بعضها.
-          تاريخ لقطة المصدر: {new Date(statement.source_as_of).toLocaleString("ar-YE", { timeZone: "UTC" })}.
+          تاريخ لقطة المصدر (UTC): <time dateTime={statement.source_as_of}>{formatSourceTimestampUtc(statement.source_as_of)}</time>.
           {" "}عدد الحركات في جميع العملات: {totalEntries.toLocaleString("ar-YE")}.
         </p>
       </header>
@@ -47,7 +61,7 @@ export function CustomerExternalAccountStatement({ statement }: Props) {
             <h3 id={"external-statement-" + currency.currency_code} style={{ margin: 0 }}>
               كشف {currency.currency_code}
             </h3>
-            <small>اكتملت المزامنة: {new Date(currency.source_as_of).toLocaleString("ar-YE", { timeZone: "UTC" })}</small>
+            <small>اكتملت المزامنة (UTC): <time dateTime={currency.source_as_of}>{formatSourceTimestampUtc(currency.source_as_of)}</time></small>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(165px,1fr))", gap: 10, marginTop: 12 }}>
             <article className="report-metric">

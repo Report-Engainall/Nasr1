@@ -86,6 +86,18 @@ describe("customer external account statement workspace", () => {
     expect(usdReview.searchParams.get("type")).toBe("opening_balance");
   });
 
+  it("labels every displayed provider watermark as UTC and preserves exact source instants", () => {
+    const { container } = render(<CustomerExternalAccountStatement statement={statement} />);
+    expect(container).toHaveTextContent("تاريخ لقطة المصدر (UTC):");
+    expect(container).toHaveTextContent("اكتملت المزامنة (UTC):");
+    const displayedTimes = Array.from(container.querySelectorAll("time")).map((element) => element.getAttribute("dateTime"));
+    expect(displayedTimes).toEqual([
+      statement.source_as_of,
+      statement.currencies[0].source_as_of,
+      statement.currencies[1].source_as_of,
+    ]);
+  });
+
   it("labels capped details while preserving server totals and closing balance", () => {
     const partial: CustomerExternalStatement = {
       ...statement,
