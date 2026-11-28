@@ -1,4 +1,5 @@
 import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
+import { buildTaskPerformanceScorecardCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import type {
   TaskPerformanceScorecard as ScorecardData,
   TaskPerformanceGroup,
@@ -152,9 +153,15 @@ export function TaskPerformanceScorecard({
             لقطة شاملة للمهام المرئية حسب صلاحيات الدور، كما في {new Date(scorecard.asOf).toLocaleString("ar-YE")}
           </p>
         </div>
-        <span className="rounded-md border px-2 py-1 text-xs">
-          {scorecard.status === "EMPTY" ? "لا توجد مهام" : "بيانات المصدر محمّلة"}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-md border px-2 py-1 text-xs">
+            {scorecard.status === "EMPTY" ? "لا توجد مهام" : "بيانات المصدر محمّلة"}
+          </span>
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs"
+            onClick={() => downloadIntelligenceCsv(buildTaskPerformanceScorecardCsv(scorecard), "aghbari-task-performance.csv")}>
+            تصدير بطاقة أداء المهام CSV
+          </button>
+        </div>
       </header>
 
       {scorecard.status === "EMPTY" ? (
