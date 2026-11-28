@@ -2273,7 +2273,7 @@ async function main() {
     /\(organization_id, customer_id, requested_at DESC, id DESC\)/i,
     "history index supports the exact tenant/customer newest-first keyset order");
   const safeHistoryKeys = [
-    "current_source_mode","expected_binding_revision","reconciliation_currency_codes",
+    "can_review","current_source_mode","expected_binding_revision","reconciliation_currency_codes",
     "reconciliation_record_counts","reconciliation_result","reconciliation_source_as_of",
     "request_id","requested_at","review_reason","reviewed_at","reason",
     "status","target_source_mode",
@@ -2281,6 +2281,8 @@ async function main() {
   for (const row of sourceHistory.records) {
     assert.deepEqual(Object.keys(row).sort(),safeHistoryKeys,
       "source history response stays within the documented DTO allowlist");
+    assert.equal(typeof row.can_review,"boolean",
+      "source history review affordance is a server-derived boolean");
     for (const forbidden of ["external_account_ref","company_external_ref","branch_external_ref",
       "evidence_hash","current_source_balance","target_source_balance"]) {
       assert.equal(Object.hasOwn(row,forbidden),false,
