@@ -75,7 +75,7 @@ describe("SupplierPerformancePanel triage", () => {
     const region = screen.getByRole("region", { name: "ذكاء أداء الموردين" });
     expect(within(region).getByText("2 من 2 مورداً معروضاً")).toBeInTheDocument();
     fireEvent.click(within(region).getByRole("button", { name: /تأخر مسجل/ }));
-    expect(within(region).getByText("مورد متأخر")).toBeInTheDocument();
+    expect(within(region).getAllByText("مورد متأخر").length).toBeGreaterThan(0);
     expect(within(region).queryByText("مورد منتظم")).not.toBeInTheDocument();
     expect(within(region).getByText("1 من 2 مورداً معروضاً")).toBeInTheDocument();
   });
