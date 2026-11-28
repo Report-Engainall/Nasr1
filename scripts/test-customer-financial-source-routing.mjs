@@ -865,6 +865,25 @@ async function main() {
     );
   }
 
+
+  await db.begin(async tx => {
+    await tx.unsafe(
+      "update public.accounting_journal_lines set memo=memo " +
+      "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+      [orgId,sourceTestCreditMemoJournalId],
+    );
+    await expectFailure(
+      "source-bound credit-memo journal-line write holds the customer binding against concurrent cutover",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings " +
+        "where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId,customerId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
+
   const idempotencyKey = randomUUID() + randomUUID();
   const requestArgs = [customerId, "ONYX", "ONYX-CUST-0001", "Verified migration to Onyx customer ledger", idempotencyKey, 1, "ONYX-COMPANY-01", "ONYX-BRANCH-01"];
   const concurrentRequests = await Promise.all([
