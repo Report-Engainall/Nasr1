@@ -89,6 +89,59 @@ function customerReference(value: string): string {
   return value.length > 14 ? value.slice(0, 7) + "…" + value.slice(-4) : value;
 }
 
+function customerRetentionCsvCell(value: string | number | null | undefined): string {
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+  const text = String(value ?? "").replace(/\\r\\n?/g, "\\n");
+  const protectedText = /^[\\s\\u0000-\\u001F]*[=+\\-@]/.test(text) ? "'" + text : text;
+  return "\"" + protectedText.replace(/"/g, '""') + "\"";
+}
+
+/** Exports only the supplied filtered queue and keeps customer references masked. */
+export function buildCustomerRetentionActionsCsv(input: {
+  actions: CustomerRetentionAction[];
+  loadedCount: number;
+  totalActionable: number;
+  omittedCount: number;
+  withheldCustomerCount: number;
+}): string {
+  if (!input || !Array.isArray(input.actions) ||
+      ![input.loadedCount, input.totalActionable, input.omittedCount, input.withheldCustomerCount]
+        .every(value => Number.isSafeInteger(value) && value >= 0) ||
+      input.totalActionable < input.loadedCount) {
+    throw new Error("customer_retention_export_invalid");
+  }
+  const coverageNotice =
+    "تصدير " + input.actions.length + " إجراء بعد التصفية؛ " +
+    input.loadedCount + " إجراء محمّل من " + input.totalActionable +
+    " إجمالي مؤهل؛ خارج حد المصدر " + input.omittedCount +
+    "؛ سجلات محجوبة عن التوصية " + input.withheldCustomerCount +
+    ". لا يعني التصدير اكتمال مجتمع العملاء.";
+  const headers = [
+    "customer_reference_masked", "priority", "action", "activity", "reason",
+    "last_order_at", "days_since_last_order", "order_count_current",
+    "order_count_previous", "evidence_count", "evidence_ids", "metric_ids",
+    "metric_keys", "formula_versions", "coverage_notice",
+  ];
+  const rows = input.actions.map(action => [
+    customerReference(action.customerRef),
+    action.priority,
+    action.action,
+    action.activity,
+    action.reason,
+    action.lastOrderAt,
+    action.daysSinceLastOrder,
+    action.orderCountCurrent,
+    action.orderCountPrevious,
+    action.evidenceIds.length,
+    action.evidenceIds.join(";"),
+    action.metricIds.join(";"),
+    action.metricKeys.join(";"),
+    action.formulaVersions.join(";"),
+    coverageNotice,
+  ].map(customerRetentionCsvCell).join(","));
+  return "\\uFEFF" + [headers.map(customerRetentionCsvCell).join(","), ...rows].join("\\r\\n");
+}
+
 export interface CustomerRetentionActionQueuePanelProps {
   queue: CustomerRetentionActionQueue | null;
   loading: boolean;
@@ -151,6 +204,23 @@ export function CustomerRetentionActionQueuePanel({
     { value: "REENGAGE", label: actionLabels.REENGAGE },
     { value: "VERIFY_ORDER_HISTORY", label: actionLabels.VERIFY_ORDER_HISTORY },
   ];
+  function exportFilteredActions(){
+    if (!filteredActions.length) return;
+    const csv = buildCustomerRetentionActionsCsv({
+      actions: filteredActions,
+      loadedCount: queue.actions.length,
+      totalActionable: queue.totalActionable,
+      omittedCount: queue.omittedCount,
+      withheldCustomerCount: queue.withheldCustomerCount,
+    });
+    const url = window.URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "customer-retention-actions.csv";
+    anchor.click();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+  }
+
 
   return (
     <section dir="rtl" className="space-y-3 rounded-xl border p-4" aria-label="قائمة متابعة العملاء">
@@ -224,6 +294,11 @@ export function CustomerRetentionActionQueuePanel({
             >
               مسح التصفية
             </button>
+            {filteredActions.length > 0 ? (
+              <button type="button" className="rounded-lg border px-3 py-2" onClick={exportFilteredActions}>
+                تصدير الإجراءات المفلترة CSV ({filteredActions.length})
+              </button>
+            ) : null}
           </div>
         </section>
       ) : null}
