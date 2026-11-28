@@ -29,6 +29,7 @@ interface PendingCommand {
   reason: string;
   eventId: string;
   idempotencyKey: string;
+  ownerProfileId?: string;
   measuredOutcome?: CashflowMeasurementProof & { measuredAt: string };
 }
 
@@ -182,6 +183,7 @@ export function DecisionOutcomeLifecycleControls({
       reason: normalizedReason,
       eventId: crypto.randomUUID(),
       idempotencyKey: crypto.randomUUID(),
+      ...(eventType === "ASSIGN" && assignmentProfileId ? { ownerProfileId: assignmentProfileId } : {}),
       ...(eventType === "MEASURE" && selectedMeasurement
         ? { measuredOutcome: { ...selectedMeasurement, measuredAt: new Date().toISOString() } }
         : {}),
@@ -212,7 +214,7 @@ export function DecisionOutcomeLifecycleControls({
             expectedVersion: command.expectedVersion,
             eventType: command.eventType,
             reason: command.reason,
-            ...(command.eventType === "ASSIGN" && assignmentProfileId ? { ownerProfileId: assignmentProfileId } : {}),
+            ...(command.eventType === "ASSIGN" && command.ownerProfileId ? { ownerProfileId: command.ownerProfileId } : {}),
             eventId: command.eventId,
             idempotencyKey: command.idempotencyKey,
             ...(command.measuredOutcome ? { measuredOutcome: command.measuredOutcome } : {}),
