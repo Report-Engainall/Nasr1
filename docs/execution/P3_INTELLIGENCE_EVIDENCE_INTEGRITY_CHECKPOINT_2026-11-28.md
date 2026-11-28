@@ -16,8 +16,8 @@ Branch: `p3/intelligence-evidence-integrity-batch-20261128`
 
 ## Acceptance on the current branch head
 
-- Latest code/test commit before this checkpoint file: `92b394a8d1486b53291e15229bb84005c8c18e65`.
-- Latest observed PR #700 workflow: Vitest/strict TypeScript QUEUED on that exact head; public UI and infrastructure checks have not yet been proven for this head. Do not transfer the prior-head failure or any other SHA's result.
+- Latest code-bearing SHA after the date-window guard: `36cfcc5f92e839b56a7fc41e5430f2101255be5c`.
+- Exact-head PR workflows were created for that SHA: Vitest/strict TypeScript run `46090155934` and P2 public UI/infrastructure run `46090155933`; both remained QUEUED at the last read. They are not PASS and no prior-SHA result is transferred.
 - PostgreSQL 17/local Supabase assertions for P2 evidence/finance are not owned by this P3 slice; no DB acceptance is claimed here.
 - P3 is not accepted and #700 is not ready to merge until the required exact-head CI checks are terminal SUCCESS and the source-backed UI/command-center acceptance passes.
 
