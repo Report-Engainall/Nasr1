@@ -15,3 +15,6 @@ verify_jwt = false
 
 [functions.product-image-upload]
 verify_jwt = true
+
+[functions.erp-read-sync]
+verify_jwt = true

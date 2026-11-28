@@ -41,6 +41,14 @@ on:
       - "scripts/test-decision-outcome-snapshot-required.mjs"
       - "scripts/test-task-quality-review-authorization.mjs"
       - "scripts/test-decision-policy-learning-candidate.mjs"
+      - "scripts/test-erp-sync-checkpoint-store.mjs"
+      - "tsconfig.p4-typecheck.json"
+      - "supabase/functions/_shared/erp-connectors/**"
+      - "supabase/functions/erp-read-sync/**"
+      - "src/lib/erp-connectors/readonly-sync.test.ts"
+      - "src/lib/erp-connectors/supabase-checkpoint-store.test.ts"
+      - "src/lib/erp-connectors/erp-read-sync-handler.test.ts"
+      - "supabase/migrations/20261128010000_erp_sync_durable_checkpoint_staging.sql"
       - "e2e/**"
       - "playwright.config.ts"
       - "tsconfig.p2-e2e-typecheck.json"
@@ -66,7 +74,7 @@ permissions:
   packages: read
 
 concurrency:
-  group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -464,6 +472,8 @@ jobs:
             echo "::warning::Package cache returned HTTP 429; retrying after ${delay}s (attempt ${attempt}/3)."
             sleep "$delay"
           done
+      - name: Strict TypeScript check for ERP connector, Edge handler and staged preview contracts
+        run: bunx tsc --noEmit -p tsconfig.p4-typecheck.json
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359
         with:
@@ -611,6 +621,8 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test durable ERP cursor, tenant-scoped staging and page replay on PostgreSQL 17
+        run: node scripts/test-erp-sync-checkpoint-store.mjs
       - name: Test tenant-safe claim evidence raw drill-down on local PostgreSQL 17
         run: node scripts/test-claim-evidence-drilldown.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
