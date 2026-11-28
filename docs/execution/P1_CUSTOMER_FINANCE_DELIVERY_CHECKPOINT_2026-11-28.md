@@ -221,3 +221,14 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - The external statement DTO still does not contain the original ERP invoice document; those rows link to the existing audited document-review request instead of fabricating a vendor invoice.
 - Exact-head P1/Vitest and browser checks are pending; earlier queued or prior-SHA results do not count as acceptance.
 
+
+
+## P1 follow-up — multi-stream ERP control in the existing integration workspace (2026-11-28)
+
+- Extended the existing `ErpReadSyncPanel` to select and execute multiple ERP object streams in one operator action, using the existing authenticated `erp-read-sync` server function for each bounded stream. No browser-to-ERP or browser-to-database connection was introduced.
+- Each object type retains its own server checkpoint and scope. Runs execute sequentially; one failed stream does not hide completed results for unrelated streams. The operator can inspect each stream's real counters/watermarks, open its existing staging preview/receipt history, retry only the failed stream, resume only a continuation-required stream, or stop before the next queued stream.
+- Scope edits clear prior displayed results to prevent confusing one company/branch/warehouse/currency with a previous run. No outbound invoice/payment/ledger posting is added; all results remain in the read-only staging lane.
+- Added component acceptance for independent multi-stream execution, retrying the failed stream only, and stopping the sequence after the current server request.
+- The UI calls the existing single-object server contract because the P4 batch orchestrator is currently a shared engine primitive, not an exposed endpoint in `erp-read-sync`. This avoids claiming that the UI invokes a batch API that does not yet exist; the server-side object scope/checkpoint and authorization remain authoritative.
+- Exact-head acceptance is pending the P1/Vitest and browser checks on the resulting PR SHA.
+

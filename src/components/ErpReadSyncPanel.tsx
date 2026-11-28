@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Activity, RefreshCw, ShieldCheck } from "lucide-react";
 import {
   runErpReadSync,
@@ -19,6 +19,25 @@ const OBJECT_TYPES: Array<{ value: ErpReadSyncObject; label: string }> = [
   { value: "customer_payment_receipts", label: "سندات قبض العملاء" },
   { value: "customer_statement_entries", label: "حركات كشوف الحساب" },
 ];
+
+type ErpReadSyncTaskStatus = "queued" | "running" | "complete" | "continuation_required" | "failed" | "stopped";
+type ErpReadSyncTaskState = {
+  objectType: ErpReadSyncObject;
+  label: string;
+  request: ErpReadSyncRequest;
+  status: ErpReadSyncTaskStatus;
+  result: ErpReadSyncResult | null;
+  error: string | null;
+};
+
+const TASK_STATUS_LABELS: Record<ErpReadSyncTaskStatus, string> = {
+  queued: "بانتظار التنفيذ",
+  running: "قيد التنفيذ",
+  complete: "مكتملة",
+  continuation_required: "تحتاج استئنافًا",
+  failed: "فشلت",
+  stopped: "أُوقفت قبل البدء",
+};
 
 function formatDate(value: string | null): string {
   if (!value) return "غير متوفر";
@@ -90,7 +109,7 @@ const PREVIEW_FIELD_LABELS: Record<string, string> = {
 
 export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
   const [provider, setProvider] = useState<ErpReadSyncProvider>("onyx_pro");
-  const [objectType, setObjectType] = useState<ErpReadSyncObject>("products");
+  const [selectedObjectTypes, setSelectedObjectTypes] = useState<ErpReadSyncObject[]>(["products"]);
   const [companyExternalId, setCompanyExternalId] = useState("");
   const [branchExternalId, setBranchExternalId] = useState("");
   const [warehouseExternalId, setWarehouseExternalId] = useState("");
@@ -100,14 +119,31 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
   const [activeRequest, setActiveRequest] = useState<ErpReadSyncRequest | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ErpReadSyncResult | null>(null);
+  const [taskRuns, setTaskRuns] = useState<ErpReadSyncTaskState[]>([]);
+  const stopRequestedRef = useRef(false);
 
-  async function runSync() {
-    if (!canManage || busy || previewBusy) return;
-    if (!companyExternalId.trim() || !branchExternalId.trim()) {
-      setError("أدخل معرّف الشركة والفرع كما هما معتمدان في إعداد اتصال ERP على الخادم.");
-      return;
-    }
-    const request: ErpReadSyncRequest = {
+  function clearPreviousScope() {
+    clearPreviousScope();
+    setResult(null);
+    setTaskRuns([]);
+    setError("");
+  }
+
+  function updateTaskRun(objectType: ErpReadSyncObject, update: Partial<ErpReadSyncTaskState>) {
+    setTaskRuns((previous) => previous.map((task) =>
+      task.objectType === objectType ? { ...task, ...update } : task,
+    ));
+  }
+
+  function toggleObjectType(objectType: ErpReadSyncObject, checked: boolean) {
+    setSelectedObjectTypes((previous) => checked
+      ? OBJECT_TYPES.map((item) => item.value).filter((value) => previous.includes(value) || value === objectType)
+      : previous.filter((value) => value !== objectType),
+    );
+  }
+
+  function buildRequest(objectType: ErpReadSyncObject): ErpReadSyncRequest {
+    return {
       provider,
       object_type: objectType,
       company_external_id: companyExternalId.trim(),
@@ -117,19 +153,89 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
       max_pages: 2,
       max_records: 500,
     };
+  }
+
+  function selectTaskResult(task: ErpReadSyncTaskState) {
+    if (!task.result) return;
+    setActiveRequest(task.request);
+    setResult(task.result);
+    setError("");
+  }
+
+  async function executeTask(task: ErpReadSyncTaskState) {
+    updateTaskRun(task.objectType, { status: "running", error: null });
+    try {
+      const response = await runErpReadSync(task.request);
+      const status: ErpReadSyncTaskStatus = response.status === "complete" ? "complete" : "continuation_required";
+      updateTaskRun(task.objectType, { status, result: response, error: null });
+      setActiveRequest(task.request);
+      setResult(response);
+      return response;
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "تعذر تشغيل تدفق بيانات ERP المحدد.";
+      updateTaskRun(task.objectType, { status: "failed", error: message });
+      return null;
+    }
+  }
+
+  async function runSync() {
+    if (!canManage || busy || previewBusy) return;
+    if (!companyExternalId.trim() || !branchExternalId.trim()) {
+      setError("أدخل معرّف الشركة والفرع كما هما معتمدان في إعداد اتصال ERP على الخادم.");
+      return;
+    }
+    if (selectedObjectTypes.length === 0) {
+      setError("اختر نوع بيانات واحدًا على الأقل لتشغيل المزامنة.");
+      return;
+    }
+
+    const requests = selectedObjectTypes.map((objectType) => ({
+      objectType,
+      label: OBJECT_TYPES.find((item) => item.value === objectType)?.label ?? objectType,
+      request: buildRequest(objectType),
+      status: "queued" as const,
+      result: null,
+      error: null,
+    }));
+    stopRequestedRef.current = false;
     setBusy(true);
-    setActiveRequest(null);
+    clearPreviousScope();
     setError("");
     setResult(null);
+    setTaskRuns(requests);
+
     try {
-      const response = await runErpReadSync(request);
-      setActiveRequest(request);
-      setResult(response);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تشغيل مزامنة ERP.");
+      for (const task of requests) {
+        if (stopRequestedRef.current) break;
+        await executeTask(task);
+      }
+      if (stopRequestedRef.current) {
+        setTaskRuns((previous) => previous.map((task) =>
+          task.status === "queued" ? { ...task, status: "stopped" } : task,
+        ));
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  async function retryOrResumeTask(task: ErpReadSyncTaskState) {
+    if (!canManage || busy || previewBusy ||
+        (task.status !== "failed" && task.status !== "continuation_required" && task.status !== "stopped")) return;
+    stopRequestedRef.current = false;
+    setBusy(true);
+    setError("");
+    try {
+      await executeTask(task);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function stopAfterCurrentTask() {
+    if (!busy) return;
+    stopRequestedRef.current = true;
+    setError("سيتوقف التسلسل بعد انتهاء طلب الخادم الحالي؛ لن نبدأ أنواع البيانات المتبقية.");
   }
 
   async function loadPreview(nextOffset: number) {
@@ -199,34 +305,50 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           النظام المحاسبي
-          <select value={provider} onChange={(event) => { setProvider(event.target.value as ErpReadSyncProvider); setActiveRequest(null); }} disabled={busy || previewBusy}>
+          <select value={provider} onChange={(event) => { setProvider(event.target.value as ErpReadSyncProvider); clearPreviousScope(); }} disabled={busy || previewBusy}>
             <option value="onyx_pro">Onyx Pro</option>
             <option value="al_mutakamel">المتكامل</option>
           </select>
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
-          نوع البيانات
-          <select value={objectType} onChange={(event) => { setObjectType(event.target.value as ErpReadSyncObject); setActiveRequest(null); }} disabled={busy || previewBusy}>
-            {OBJECT_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           معرّف الشركة في ERP
-          <input value={companyExternalId} onChange={(event) => { setCompanyExternalId(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
+          <input value={companyExternalId} onChange={(event) => { setCompanyExternalId(event.target.value); clearPreviousScope(); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           معرّف الفرع في ERP
-          <input value={branchExternalId} onChange={(event) => { setBranchExternalId(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
+          <input value={branchExternalId} onChange={(event) => { setBranchExternalId(event.target.value); clearPreviousScope(); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           معرّف المستودع (اختياري)
-          <input value={warehouseExternalId} onChange={(event) => { setWarehouseExternalId(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
+          <input value={warehouseExternalId} onChange={(event) => { setWarehouseExternalId(event.target.value); clearPreviousScope(); }} disabled={busy || previewBusy} maxLength={256} autoComplete="off" />
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
           العملة (اختياري)
-          <input value={currencyCode} onChange={(event) => { setCurrencyCode(event.target.value); setActiveRequest(null); }} disabled={busy || previewBusy} maxLength={3} autoComplete="off" />
+          <input value={currencyCode} onChange={(event) => { setCurrencyCode(event.target.value); clearPreviousScope(); }} disabled={busy || previewBusy} maxLength={3} autoComplete="off" />
         </label>
       </div>
+
+      <fieldset disabled={!canManage || busy || previewBusy}
+        aria-label="أنواع البيانات المحددة للمزامنة"
+        style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 9 }}>
+        <legend style={{ fontWeight: 800, padding: "0 6px" }}>أنواع البيانات للمزامنة</legend>
+        <p className="report-note" style={{ margin: 0 }}>
+          اختر تدفقًا واحدًا أو أكثر. ينفّذ الخادم كل نطاق بصورة مستقلة، ويحتفظ لكل نوع بمؤشر استئناف منفصل.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(175px, 1fr))", gap: 9 }}>
+          {OBJECT_TYPES.map((item) => (
+            <label key={item.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 650 }}>
+              <input
+                type="checkbox"
+                checked={selectedObjectTypes.includes(item.value)}
+                onChange={(event) => toggleObjectType(item.value, event.target.checked)}
+              />
+              {item.label}
+            </label>
+          ))}
+        </div>
+        <span className="report-note">المحدد: {selectedObjectTypes.length} من {OBJECT_TYPES.length}</span>
+      </fieldset>
 
       <div className="privacy-note" role="note">
         <ShieldCheck size={17} />
@@ -234,15 +356,59 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" className="btn primary" onClick={() => void runSync()} disabled={!canManage || busy || previewBusy || !companyExternalId.trim() || !branchExternalId.trim()}>
+        <button type="button" className="btn primary" onClick={() => void runSync()} disabled={!canManage || busy || previewBusy || selectedObjectTypes.length === 0 || !companyExternalId.trim() || !branchExternalId.trim()}>
           <RefreshCw size={16} />
-          {busy ? "جار تنفيذ المزامنة الخادمية…" : "تنفيذ مزامنة القراءة"}
+          {busy ? "جار تنفيذ تدفقات المزامنة…" : selectedObjectTypes.length > 1 ? "تنفيذ المزامنة متعددة الأنواع" : "تنفيذ مزامنة القراءة"}
         </button>
-        <span className="report-note">حد التشغيل: صفحتان و500 سجل كحد أقصى. يمكن استئناف التشغيل التالي من المؤشر المحمي على الخادم.</span>
+        {busy && (
+          <button type="button" className="btn secondary" onClick={stopAfterCurrentTask}>
+            إيقاف بعد المهمة الحالية
+          </button>
+        )}
+        <span className="report-note">كل نوع يحتفظ بمؤشره المستقل. حد المهمة: صفحتان و500 سجل؛ التكرار يستأنف من المؤشر المحمي ويُعاد بأمان وفق مفتاح الصفحة.</span>
       </div>
 
       {!canManage && <p className="report-note" role="note">تشغيل المزامنة متاح للمدير ومدير النظام فقط.</p>}
       {error && <p className="report-note" role="alert" aria-live="assertive">{error}</p>}
+      {taskRuns.length > 0 && (
+        <section aria-label="نتائج تدفقات مزامنة ERP" style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <strong>نتائج تدفقات البيانات المحددة</strong>
+            <span className="report-note">
+              مكتملة {taskRuns.filter((task) => task.status === "complete").length} · متابعة {taskRuns.filter((task) => task.status === "continuation_required").length} · فاشلة {taskRuns.filter((task) => task.status === "failed").length} · متوقفة {taskRuns.filter((task) => task.status === "stopped").length}
+            </span>
+          </div>
+          {taskRuns.map((task) => (
+            <article key={task.objectType} style={{ border: "1px solid var(--border)", borderRadius: 9, padding: 10, display: "grid", gap: 7 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <strong>{task.label}</strong>
+                <span className="report-note" role="status">{TASK_STATUS_LABELS[task.status]}</span>
+              </div>
+              {task.result && (
+                <div className="report-note">
+                  صفحات {task.result.pages_committed} · سجلات {task.result.records_read} · جديد {task.result.counts.created} · محدّث {task.result.counts.updated} · مرفوض {task.result.counts.rejected} · متعارض {task.result.counts.conflicted}
+                  <span style={{ display: "block" }}>
+                    آخر إكمال: {formatDate(task.result.checkpoint.completed_watermark)} · إصدار {task.result.checkpoint.version}
+                  </span>
+                </div>
+              )}
+              {task.error && <p className="report-note" role="alert" style={{ margin: 0 }}>{task.error}</p>}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {task.result && (
+                  <button type="button" className="btn secondary" onClick={() => selectTaskResult(task)} disabled={busy || previewBusy}>
+                    عرض المعاينة والإيصالات
+                  </button>
+                )}
+                {(task.status === "failed" || task.status === "continuation_required" || task.status === "stopped") && (
+                  <button type="button" className="btn secondary" onClick={() => void retryOrResumeTask(task)} disabled={busy || previewBusy}>
+                    {task.status === "continuation_required" ? "استئناف هذا النوع فقط" : task.status === "stopped" ? "متابعة هذا النوع فقط" : "إعادة محاولة هذا النوع فقط"}
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
       {result && (
         <div role="status" aria-live="polite" style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 9 }}>
           <strong>{result.status === "complete" ? "اكتملت مزامنة القراءة" : "توجد متابعة مطلوبة لاستكمال المزامنة"}</strong>

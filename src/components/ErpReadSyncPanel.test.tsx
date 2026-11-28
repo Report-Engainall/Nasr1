@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({ runErpReadSync: vi.fn() }));
@@ -74,7 +74,8 @@ describe("ErpReadSyncPanel", () => {
   it("runs the selected bounded provider scope and renders the actual result", async () => {
     render(<ErpReadSyncPanel canManage />);
     fireEvent.change(screen.getByLabelText("النظام المحاسبي"), { target: { value: "al_mutakamel" } });
-    fireEvent.change(screen.getByLabelText("نوع البيانات"), { target: { value: "customers" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "الأصناف" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "العملاء" }));
     fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "MUT-COMPANY-02" } });
     fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "MUT-BRANCH-03" } });
     fireEvent.change(screen.getByLabelText("معرّف المستودع (اختياري)"), { target: { value: "MUT-WH-04" } });
@@ -206,7 +207,8 @@ describe("ErpReadSyncPanel", () => {
 
   it("supports staging customer invoices, payment receipts and statement entries without posting them", async () => {
     render(<ErpReadSyncPanel canManage />);
-    fireEvent.change(screen.getByLabelText("نوع البيانات"), { target: { value: "customer_statement_entries" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "الأصناف" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "حركات كشوف الحساب" }));
     fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
     fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
     fireEvent.click(screen.getByRole("button", { name: "تنفيذ مزامنة القراءة" }));
@@ -216,6 +218,57 @@ describe("ErpReadSyncPanel", () => {
       branch_external_id: "BRANCH-01",
     })));
     expect(screen.getByText(/لا تُرحّل إلى دفتر الحساب أو المخزون تلقائيًا/)).toBeInTheDocument();
+  });
+
+  it("runs selected ERP streams independently and retries only the failed stream", async () => {
+    mocks.runErpReadSync
+      .mockResolvedValueOnce({ ...result, status: "continuation_required" })
+      .mockRejectedValueOnce(new Error("تعذر اتصال مزود ERP"))
+      .mockResolvedValueOnce({ ...result, status: "complete" });
+
+    render(<ErpReadSyncPanel canManage />);
+    fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
+    fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "العملاء" }));
+    fireEvent.click(screen.getByRole("button", { name: "تنفيذ المزامنة متعددة الأنواع" }));
+
+    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(2));
+    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      object_type: "products", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
+    }));
+    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      object_type: "customers", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
+    }));
+    expect(await screen.findByText("فشلت")).toBeInTheDocument();
+    expect(screen.getByText("تحتاج استئنافًا")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة محاولة هذا النوع فقط" }));
+    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(3));
+    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      object_type: "customers", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
+    }));
+    expect(screen.getByText("مكتملة")).toBeInTheDocument();
+    expect(mocks.runErpReadSync).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops a multi-stream run after the current request without starting queued streams", async () => {
+    let finishFirst: ((value: typeof result) => void) | undefined;
+    mocks.runErpReadSync.mockImplementationOnce(() => new Promise((resolve) => {
+      finishFirst = resolve;
+    }));
+
+    render(<ErpReadSyncPanel canManage />);
+    fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
+    fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "العملاء" }));
+    fireEvent.click(screen.getByRole("button", { name: "تنفيذ المزامنة متعددة الأنواع" }));
+    fireEvent.click(await screen.findByRole("button", { name: "إيقاف بعد المهمة الحالية" }));
+    await act(async () => {
+      finishFirst?.(result);
+    });
+
+    await waitFor(() => expect(screen.getByText("أُوقفت قبل البدء")).toBeInTheDocument());
+    expect(mocks.runErpReadSync).toHaveBeenCalledTimes(1);
   });
 
   it("refuses to run with missing mandatory company and branch identifiers", () => {
