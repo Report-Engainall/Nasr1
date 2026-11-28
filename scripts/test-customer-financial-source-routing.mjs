@@ -369,6 +369,23 @@ async function main() {
       [orgId,fixture.id,returnReceivableAccountId],
     );
   }
+
+  // Mirror the real customer accounting source-posting links for these two
+  // source-bound journals. The relation itself is protected and append-only.
+  const customerSourcePostingFixtures = [
+    { sourceType:"customer_invoice",sourceId:sourceTestInvoiceId,journalId:sourceTestInvoiceJournalId,amount:"125.00",revenueAccountId:returnReceivableAccountId,settlementAccountId:null },
+    { sourceType:"customer_payment",sourceId:sourceTestSinglePaymentId,journalId:sourceTestPaymentJournalId,amount:"1.00",revenueAccountId:null,settlementAccountId:returnReceivableAccountId },
+  ];
+  for (const fixture of customerSourcePostingFixtures) {
+    await db.unsafe(
+      "insert into public.accounting_customer_source_postings(" +
+        "organization_id,source_type,source_id,posting_kind,journal_entry_id,source_amount,source_currency," +
+        "receivable_account_id,revenue_account_id,settlement_account_id,idempotency_key,payload_fingerprint,created_by_profile_id" +
+      ") values($1::uuid,$2::text,$3::uuid,'original',$4::uuid,$5::numeric,'YER',$6::uuid,$7::uuid,$8::uuid,$9::uuid,$10::text,$11::uuid)",
+      [orgId,fixture.sourceType,fixture.sourceId,fixture.journalId,fixture.amount,returnReceivableAccountId,
+        fixture.revenueAccountId,fixture.settlementAccountId,randomUUID(),"8".repeat(32),manager.id],
+    );
+  }
   async function assertInvoicePaymentJournalsDenied(sourceLabel) {
     for (const fixture of invoicePaymentJournalFixtures) {
       const headerBefore = await db.unsafe(
@@ -464,6 +481,50 @@ async function main() {
         "55000",
         "active APP_ONLY financial source",
       );
+
+      const postingFixture = customerSourcePostingFixtures.find(row => row.journalId===fixture.id);
+      assert.ok(postingFixture,sourceLabel+" source posting fixture maps to "+fixture.sourceType+" journal");
+      const postingBefore = await db.unsafe(
+        "select id::text as id,organization_id::text as organization_id,source_type,source_id::text as source_id," +
+          "posting_kind,journal_entry_id::text as journal_entry_id,source_amount::text as source_amount,source_currency," +
+          "receivable_account_id::text as receivable_account_id,revenue_account_id::text as revenue_account_id," +
+          "tax_account_id::text as tax_account_id,settlement_account_id::text as settlement_account_id," +
+          "idempotency_key::text as idempotency_key,payload_fingerprint,reversal_reason,created_by_profile_id::text as created_by_profile_id " +
+        "from public.accounting_customer_source_postings where organization_id=$1::uuid and journal_entry_id=$2::uuid",
+        [orgId,fixture.id],
+      );
+      assert.equal(postingBefore.length,1,sourceLabel+" "+fixture.sourceType+" posting evidence exists");
+      await expectFailure(
+        sourceLabel+" cannot mutate APP_ONLY "+fixture.sourceType+" accounting source-posting evidence",
+        db.unsafe(
+          "update public.accounting_customer_source_postings set payload_fingerprint=payload_fingerprint " +
+          "where organization_id=$1::uuid and journal_entry_id=$2::uuid",
+          [orgId,fixture.id],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+      await expectFailure(
+        sourceLabel+" cannot delete APP_ONLY "+fixture.sourceType+" accounting source-posting evidence",
+        db.unsafe(
+          "delete from public.accounting_customer_source_postings " +
+          "where organization_id=$1::uuid and journal_entry_id=$2::uuid",
+          [orgId,fixture.id],
+        ),
+        "55000",
+        "active APP_ONLY financial source",
+      );
+      const postingAfter = await db.unsafe(
+        "select id::text as id,organization_id::text as organization_id,source_type,source_id::text as source_id," +
+          "posting_kind,journal_entry_id::text as journal_entry_id,source_amount::text as source_amount,source_currency," +
+          "receivable_account_id::text as receivable_account_id,revenue_account_id::text as revenue_account_id," +
+          "tax_account_id::text as tax_account_id,settlement_account_id::text as settlement_account_id," +
+          "idempotency_key::text as idempotency_key,payload_fingerprint,reversal_reason,created_by_profile_id::text as created_by_profile_id " +
+        "from public.accounting_customer_source_postings where organization_id=$1::uuid and journal_entry_id=$2::uuid",
+        [orgId,fixture.id],
+      );
+      assert.deepEqual(postingAfter,postingBefore,
+        sourceLabel+" denied source-posting CRUD preserves the exact evidence row");
     }
   }
 
@@ -1700,6 +1761,29 @@ async function main() {
   assert.equal(appOnlyApproved.source_mode, "APP_ONLY");
   assert.equal(appOnlyApproved.revision, 4);
 
+
+  for (const fixture of customerSourcePostingFixtures) {
+    await expectFailure(
+      "APP_ONLY accounting source-posting evidence remains append-only",
+      db.unsafe(
+        "update public.accounting_customer_source_postings set payload_fingerprint=payload_fingerprint " +
+        "where organization_id=$1::uuid and journal_entry_id=$2::uuid",
+        [orgId,fixture.journalId],
+      ),
+      "55000",
+      "append-only",
+    );
+    await expectFailure(
+      "APP_ONLY accounting source-posting evidence cannot be deleted",
+      db.unsafe(
+        "delete from public.accounting_customer_source_postings " +
+        "where organization_id=$1::uuid and journal_entry_id=$2::uuid",
+        [orgId,fixture.journalId],
+      ),
+      "55000",
+      "append-only",
+    );
+  }
   for (const fixture of invoicePaymentJournalFixtures) {
     const restoredHeader = await db.unsafe(
       "update public.accounting_journal_entries set description=description " +
