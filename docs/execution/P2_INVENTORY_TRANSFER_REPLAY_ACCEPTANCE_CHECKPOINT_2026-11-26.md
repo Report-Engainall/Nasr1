@@ -68,3 +68,14 @@ Branch: `p2/inventory-transfer-replay-endpoint-pg17-20261126`
 - No hosted/production Supabase access, production data writes, deployment, secrets, external APIs, paid services or new dependencies.
 - Existing shared open-source catalog/licence decisions were read; no external code, package, asset or parallel inventory service was added.
 - Next session should read this checkpoint first and not repeat the broad OSS candidate search unless a concrete unmet gap is found.
+
+
+## 2026-11-28 — Batch destination deactivation replay assertion and main synchronization
+
+- Added an explicit negative acceptance case for `transfer_inventory_batch`: after a successful transfer and authorized idempotent retry, the test deactivates the destination warehouse, retries with the same key and payload, requires SQLSTATE `42501`, and compares the complete before/after inventory snapshot. Balances, batches, transfer rows, movement ledger and audit must remain byte-for-byte equivalent. The destination is reactivated before the existing cross-tenant reassignment assertion.
+- The production RPC migration is unchanged. Source inspection confirms both single and batch procedures lock and validate exactly two active warehouses in the actor's organization with `FOR SHARE` before taking the idempotency advisory lock and looking up any prior result.
+- Test-only source commit: `0e193e6a5ed47b595d703f7038880db3eb6b7a25`; test path: `supabase/tests/inventory_transfer_replay_endpoint_guard.sql`. Earlier PostgreSQL 17 success on `3af4b250295a87b302fcf7bda839df0d7573f998` does not include this new negative case and is not carried forward.
+- Exact-head P1 run `46090658291` and P2 run `46090658263` were QUEUED on `0e193e6a5ed47b595d703f7038880db3eb6b7a25`; neither is PASS. The newly added destination-deactivation assertion still requires terminal PostgreSQL 17 acceptance.
+- Synchronized this branch to current `main` `12b0db37a97128a19073f907ba12fb700251802b` using a non-force two-parent merge commit. The 15 main commits since merge base `8605561aaba9fb501f264677abcbf0ccc2b085ad` touch no P2-owned paths in this PR; the resulting tree preserves current main plus this PR's three unique paths (workflow, checkpoint and SQL test). No code from main was discarded.
+- The resulting synchronized branch head is the new exact-SHA acceptance target. Run the dedicated inventory PostgreSQL 17 test, P1 strict typecheck and P2 critical-path suite on that SHA. P1 retains final review and merge ownership; hosted customer/order/tenant E2E remains separate and must not be called PASS when skipped.
+- No hosted database, production inventory, customer balance, financial journal, external ERP, secret or deployment was touched.
