@@ -3051,4 +3051,209 @@ CREATE TRIGGER accounting_journal_lines_app_only_customer_source_guard
   BEFORE INSERT OR UPDATE OR DELETE ON public.accounting_journal_lines
   FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_customer_journal_line_source();
 
+
+-- RLS read-side counterpart: finance staff must not see stale APP_ONLY journals
+-- or posting evidence once the customer has switched to an external ledger.
+CREATE OR REPLACE FUNCTION public.staff_customer_app_only_customer_journal_read_allowed(
+  p_organization_id uuid,
+  p_source_type text,
+  p_source_reference text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_customer_id uuid;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_organization_id IS NULL
+     OR p_organization_id IS DISTINCT FROM public.current_organization_id()
+     OR NOT public.is_staff() THEN
+    RETURN false;
+  END IF;
+
+  IF p_source_type='customer_return_credit_memo' THEN
+    SELECT m.customer_id INTO v_customer_id
+      FROM public.customer_return_credit_memos m
+     WHERE m.organization_id=p_organization_id
+       AND m.id::text=p_source_reference
+     FOR SHARE;
+  ELSIF p_source_type='adjustment'
+        AND p_source_reference LIKE 'customer-return-credit-memo-reversal:%' THEN
+    SELECT m.customer_id INTO v_customer_id
+      FROM public.customer_return_credit_memos m
+     WHERE m.organization_id=p_organization_id
+       AND 'customer-return-credit-memo-reversal:'||m.id::text=p_source_reference
+     FOR SHARE;
+  ELSIF p_source_type IN ('invoice','customer_invoice') THEN
+    SELECT i.customer_id INTO v_customer_id
+      FROM public.customer_invoices i
+     WHERE i.organization_id=p_organization_id
+       AND i.id::text=p_source_reference
+     FOR SHARE;
+  ELSIF p_source_type IN ('payment','customer_payment') THEN
+    SELECT i.customer_id INTO v_customer_id
+      FROM public.customer_payments p
+      JOIN public.customer_invoices i
+        ON i.organization_id=p.organization_id AND i.id=p.invoice_id
+     WHERE p.organization_id=p_organization_id
+       AND p.id::text=p_source_reference
+     FOR SHARE OF p,i;
+  ELSE
+    -- Manual journals and unrelated accounting sources retain their existing
+    -- permissive tenant/role policy; this helper narrows customer-owned sources.
+    RETURN true;
+  END IF;
+
+  IF v_customer_id IS NULL THEN
+    RETURN false;
+  END IF;
+  RETURN public.staff_customer_app_only_financial_rows_read_allowed(
+    v_customer_id,p_organization_id
+  );
+END
+$function$;
+REVOKE ALL ON FUNCTION public.staff_customer_app_only_customer_journal_read_allowed(uuid,text,text)
+  FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_customer_journal_read_allowed(uuid,text,text)
+  TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.staff_customer_app_only_journal_line_read_allowed(
+  p_organization_id uuid,
+  p_journal_entry_id uuid
+)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_source_type text;
+  v_source_reference text;
+BEGIN
+  SELECT e.source_type,e.source_reference
+    INTO v_source_type,v_source_reference
+    FROM public.accounting_journal_entries e
+   WHERE e.organization_id=p_organization_id
+     AND e.id=p_journal_entry_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  RETURN public.staff_customer_app_only_customer_journal_read_allowed(
+    p_organization_id,v_source_type,v_source_reference
+  );
+END
+$function$;
+REVOKE ALL ON FUNCTION public.staff_customer_app_only_journal_line_read_allowed(uuid,uuid)
+  FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.staff_customer_app_only_journal_line_read_allowed(uuid,uuid)
+  TO authenticated;
+
+DROP POLICY IF EXISTS accounting_journal_entries_customer_source_read_guard
+  ON public.accounting_journal_entries;
+CREATE POLICY accounting_journal_entries_customer_source_read_guard
+  ON public.accounting_journal_entries
+  AS RESTRICTIVE
+  FOR SELECT TO authenticated
+  USING (
+    public.staff_customer_app_only_customer_journal_read_allowed(
+      organization_id,source_type,source_reference
+    )
+  );
+
+DROP POLICY IF EXISTS accounting_journal_lines_customer_source_read_guard
+  ON public.accounting_journal_lines;
+CREATE POLICY accounting_journal_lines_customer_source_read_guard
+  ON public.accounting_journal_lines
+  AS RESTRICTIVE
+  FOR SELECT TO authenticated
+  USING (
+    public.staff_customer_app_only_journal_line_read_allowed(
+      organization_id,journal_entry_id
+    )
+  );
+
+DROP POLICY IF EXISTS accounting_customer_source_postings_customer_source_read_guard
+  ON public.accounting_customer_source_postings;
+CREATE POLICY accounting_customer_source_postings_customer_source_read_guard
+  ON public.accounting_customer_source_postings
+  AS RESTRICTIVE
+  FOR SELECT TO authenticated
+  USING (
+    public.staff_customer_app_only_customer_journal_read_allowed(
+      organization_id,source_type,source_id::text
+    )
+  );
+
+DROP POLICY IF EXISTS customer_return_credit_memos_customer_source_read_guard
+  ON public.customer_return_credit_memos;
+CREATE POLICY customer_return_credit_memos_customer_source_read_guard
+  ON public.customer_return_credit_memos
+  AS RESTRICTIVE
+  FOR SELECT TO authenticated
+  USING (
+    public.staff_customer_app_only_financial_rows_read_allowed(
+      customer_id,organization_id
+    )
+  );
+
+DROP POLICY IF EXISTS customer_return_credit_memo_items_customer_source_read_guard
+  ON public.customer_return_credit_memo_items;
+CREATE POLICY customer_return_credit_memo_items_customer_source_read_guard
+  ON public.customer_return_credit_memo_items
+  AS RESTRICTIVE
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+        FROM public.customer_return_credit_memos m
+       WHERE m.organization_id=customer_return_credit_memo_items.organization_id
+         AND m.id=customer_return_credit_memo_items.credit_memo_id
+         AND public.staff_customer_app_only_financial_rows_read_allowed(
+           m.customer_id,m.organization_id
+         )
+    )
+  );
+
+DROP POLICY IF EXISTS accounting_return_credit_memo_postings_customer_source_read_guard
+  ON public.accounting_return_credit_memo_postings;
+CREATE POLICY accounting_return_credit_memo_postings_customer_source_read_guard
+  ON public.accounting_return_credit_memo_postings
+  AS RESTRICTIVE
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+        FROM public.customer_return_credit_memos m
+       WHERE m.organization_id=accounting_return_credit_memo_postings.organization_id
+         AND m.id=accounting_return_credit_memo_postings.credit_memo_id
+         AND public.staff_customer_app_only_financial_rows_read_allowed(
+           m.customer_id,m.organization_id
+         )
+    )
+  );
+
+DROP POLICY IF EXISTS accounting_return_credit_memo_reversals_customer_source_read_guard
+  ON public.accounting_return_credit_memo_reversals;
+CREATE POLICY accounting_return_credit_memo_reversals_customer_source_read_guard
+  ON public.accounting_return_credit_memo_reversals
+  AS RESTRICTIVE
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+        FROM public.customer_return_credit_memos m
+       WHERE m.organization_id=accounting_return_credit_memo_reversals.organization_id
+         AND m.id=accounting_return_credit_memo_reversals.credit_memo_id
+         AND public.staff_customer_app_only_financial_rows_read_allowed(
+           m.customer_id,m.organization_id
+         )
+    )
+  );
+
 COMMIT;
