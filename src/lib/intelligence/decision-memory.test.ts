@@ -622,7 +622,7 @@ describe("decision memory evidence engine", () => {
       totalCount: 7,
     });
 
-    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain("'=HYPERLINK");
     expect(csv).toContain(",80,");
     expect(csv).toContain("older-expected");
