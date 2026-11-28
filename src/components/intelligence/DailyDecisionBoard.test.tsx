@@ -3,6 +3,7 @@ import type { DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
 import {
   buildDailyDecisionBoardCsv,
   filterDailyDecisionRecords,
+  summarizeDailyDecisionQueue,
   normalizeDailyDecisionSearch,
   selectDailyDecisionBoardRows,
   splitDailyDecisionTimelineEvents,
@@ -211,6 +212,27 @@ describe("daily decision queue search and filters", () => {
     const outOfRange = selectDailyDecisionBoardRows([...firstTen, eleventh], allFilters, now, 10, 100);
     expect(outOfRange.pageIndex).toBe(1);
     expect(outOfRange.records.map(item => item.decisionId)).toEqual(["eleventh"]);
+  });
+
+  it("summarizes due, review and measurement workloads from loaded records only", () => {
+    const records = [
+      decision({ decisionId: "overdue", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" }),
+      decision({ decisionId: "today", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-28T12:00:00.000Z" }),
+      decision({ decisionId: "week", reviewDisposition: "SCHEDULED", reviewAt: "2026-12-02T00:00:00.000Z" }),
+      decision({ decisionId: "unscheduled", reviewDisposition: "NOT_SCHEDULED", reviewAt: null }),
+      decision({ decisionId: "review", state: "IN_REVIEW" }),
+      decision({ decisionId: "measurement", state: "EXECUTED" }),
+      decision({ decisionId: "rejected", state: "REJECTED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" }),
+      decision({ decisionId: "measured", state: "MEASURED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" }),
+    ];
+    expect(summarizeDailyDecisionQueue(records, now)).toEqual({
+      overdue: 1,
+      dueWithin24Hours: 1,
+      dueWithinSevenDays: 1,
+      unscheduled: 1,
+      inReview: 1,
+      awaitingMeasurement: 1,
+    });
   });
 
   it("keeps the newest eight timeline events visible and preserves older events for expansion", () => {
