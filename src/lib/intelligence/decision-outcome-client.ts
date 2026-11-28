@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { CashflowMeasurementProof } from "./cashflow-schedule-client";
 import { parseDecisionMemorySnapshot } from "./decision-memory-client";
+import type { MetricUnit } from "./types";
 import type { DecisionMemorySnapshot } from "./decision-memory";
 
 export type DecisionOutcomeState =
@@ -39,6 +40,18 @@ export interface DecisionCandidateSnapshot {
   createdAt: string;
   expiresAt: string | null;
 }
+export interface DecisionOutcomeMeasuredView {
+  metricKey: string;
+  value: number;
+  unit: MetricUnit;
+  currency: string | null;
+  period: { from: string; to: string } | null;
+  asOf: string;
+  measuredAt: string;
+  formulaId: string;
+  formulaVersion: string;
+  evidenceIds: string[];
+}
 export interface DecisionOutcomeView {
   id: string;
   candidateId: string;
@@ -55,7 +68,7 @@ export interface DecisionOutcomeView {
   approvedAt: string | null;
   assignedAt: string | null;
   executedAt: string | null;
-  measuredOutcome: { value: number; currency: string; asOf: string } | null;
+  measuredOutcome: DecisionOutcomeMeasuredView | null;
   memorySnapshot: DecisionMemorySnapshot | null;
   candidateSnapshot: DecisionCandidateSnapshot | null;
   eventCount: number;
@@ -113,42 +126,59 @@ function isNullableIso(value: unknown): value is string | null {
   return value === null || iso(value);
 }
 
-function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutcome"] | undefined {
+function strictIsoDay(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const timestamp = Date.parse(value + "T00:00:00.000Z");
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
+}
+
+function parseMeasuredOutcome(value: unknown): DecisionOutcomeMeasuredView | null | undefined {
   if (value === null) return null;
   const measured = record(value);
-  const period = record(measured?.period);
+  const periodValue = measured?.period;
+  const period = periodValue === null ? null : record(periodValue);
+  const unit = measured?.unit;
+  const monetary = unit === "CURRENCY" || unit === "CURRENCY_PER_UNIT";
+  const currency = measured?.currency === undefined || measured.currency === null ? null : measured.currency;
+  const evidenceIds = measured?.evidenceIds;
+  const periodValid = periodValue === null || Boolean(
+    period && strictIsoDay(period.from) && strictIsoDay(period.to) && period.from <= period.to
+  );
+  const unitValid = ["COUNT", "RATIO", "CURRENCY", "CURRENCY_PER_UNIT", "QUANTITY", "DAYS", "TEXT"].includes(String(unit));
   if (
     !measured ||
     !str(measured.metricKey, 150) ||
     typeof measured.value !== "number" ||
     !Number.isFinite(measured.value) ||
-    !str(measured.unit, 50) ||
-    !str(measured.currency, 3) ||
-    !/^[A-Z]{3}$/.test(measured.currency) ||
-    measured.status !== "VERIFIED" ||
-    measured.completeness !== "COMPLETE" ||
-    measured.quality !== "ACCEPTABLE" ||
-    !period ||
-    !str(period.from, 10) ||
-    !str(period.to, 10) ||
-    !Number.isFinite(Date.parse(period.from)) ||
-    !Number.isFinite(Date.parse(period.to)) ||
-    Date.parse(period.from) > Date.parse(period.to) ||
+    Math.abs(measured.value) > Number.MAX_SAFE_INTEGER ||
+    !unitValid ||
+    (unit === "COUNT" && (!Number.isSafeInteger(measured.value) || measured.value < 0)) ||
+    (monetary
+      ? !str(currency, 3) || !/^[A-Z]{3}$/.test(currency)
+      : currency !== null) ||
+    !periodValid ||
     !iso(measured.asOf) ||
     !iso(measured.measuredAt) ||
     Date.parse(measured.asOf) > Date.parse(measured.measuredAt) ||
     !str(measured.formulaId, 150) ||
     !str(measured.formulaVersion, 80) ||
-    !Array.isArray(measured.evidenceIds) ||
-    measured.evidenceIds.length < 1 ||
-    measured.evidenceIds.length > 500 ||
-    measured.evidenceIds.some(id => !str(id, 500)) ||
-    new Set(measured.evidenceIds).size !== measured.evidenceIds.length
+    !Array.isArray(evidenceIds) ||
+    evidenceIds.length < 1 ||
+    evidenceIds.length > 500 ||
+    evidenceIds.some(id => !str(id, 500)) ||
+    new Set(evidenceIds).size !== evidenceIds.length
   ) return undefined;
   return {
+    metricKey: measured.metricKey,
     value: measured.value,
-    currency: measured.currency,
+    unit: unit as MetricUnit,
+    currency: currency as string | null,
+    period: periodValue === null ? null : { from: period?.from as string, to: period?.to as string },
     asOf: measured.asOf,
+    measuredAt: measured.measuredAt,
+    formulaId: measured.formulaId,
+    formulaVersion: measured.formulaVersion,
+    evidenceIds: [...evidenceIds] as string[],
   };
 }
 

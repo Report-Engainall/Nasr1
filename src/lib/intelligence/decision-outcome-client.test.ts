@@ -244,6 +244,56 @@ describe("persisted decision outcome client", () => {
     expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
   });
 
+  it("retains verified non-currency measurements with a null period and full lineage", async () => {
+    const countMeasurement = {
+      ...fullMeasurement,
+      metricKey: "orders.completed",
+      value: 18,
+      unit: "COUNT",
+      currency: undefined,
+      period: null,
+      formulaId: "orders.completed",
+      formulaVersion: "1.0.0",
+    };
+    rpc.mockResolvedValue({
+      data: { items: [{ ...measuredOutcome, measuredOutcome: countMeasurement }], total: 1 },
+      error: null,
+    });
+
+    const result = await fetchDecisionOutcomes();
+    expect(result).toMatchObject({
+      ok: true,
+      items: [{
+        state: "MEASURED",
+        measuredOutcome: {
+          metricKey: "orders.completed",
+          value: 18,
+          unit: "COUNT",
+          currency: null,
+          period: null,
+          formulaId: "orders.completed",
+          formulaVersion: "1.0.0",
+          evidenceIds: ["invoice:one"],
+        },
+      }],
+    });
+  });
+
+  it("rejects a non-currency measurement carrying a misleading currency", async () => {
+    const malformedMeasurement = {
+      ...fullMeasurement,
+      metricKey: "orders.completed",
+      value: 18,
+      unit: "COUNT",
+      currency: "YER",
+    };
+    rpc.mockResolvedValue({
+      data: { items: [{ ...measuredOutcome, measuredOutcome: malformedMeasurement }], total: 1 },
+      error: null,
+    });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("rejects a measured state with missing, malformed or unverified measurement evidence", async () => {
     const withoutMeasurement = {
       ...measuredOutcome,
