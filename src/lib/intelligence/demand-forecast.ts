@@ -27,6 +27,7 @@ export interface ProductDemandForecast {
   baselinePeriod: EvidencePeriod;
   asOf: string;
   evidenceIds: string[];
+  metricKeys: string[];
   formulaVersions: string[];
   warnings: string[];
 }
@@ -337,6 +338,7 @@ export function buildProductDemandForecast(input: {
       baselinePeriod: input.baselinePeriod,
       asOf: input.asOf,
       evidenceIds,
+      metricKeys: [...new Set(sourceMetrics.map(metric => metric.key))].sort(),
       formulaVersions,
       warnings: [
         "ORDER_LINE_QUANTITY_IS_NOT_VERIFIED_SHIPPED_OR_RECOGNIZED_SALES",

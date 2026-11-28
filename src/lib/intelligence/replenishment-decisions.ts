@@ -1,5 +1,6 @@
-import { REPLENISHMENT_FORMULA_ID, REPLENISHMENT_FORMULA_VERSION } from "./replenishment";
+import { REPLENISHMENT_FORMULA_ID, REPLENISHMENT_FORMULA_VERSION, resolveReplenishmentForecastForLeadTime } from "./replenishment";
 import type { ReplenishmentProductInput, ReplenishmentRecommendation } from "./replenishment";
+import type { DemandForecastResult } from "./demand-forecast";
 import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
 import type { DecisionCandidate } from "./types";
 
@@ -62,6 +63,7 @@ function recommendationMatchesSources(
   product: ReplenishmentProductInput,
   recommendation: ReplenishmentRecommendation,
   asOf: string,
+  demandForecast?: DemandForecastResult | null,
 ): boolean {
   const quantityUnit = product.quantityUnit.trim();
   if (!quantityUnit) return false;
@@ -101,7 +103,18 @@ function recommendationMatchesSources(
   const soldValue = sold as bigint;
   const leadValue = leadDays as bigint;
   const incomingValue = incoming as bigint;
-  const leadDemand = ceilDivNonNegative(soldValue * leadValue, BigInt(days) * 1_000_000n);
+  const resolvedForecast = resolveReplenishmentForecastForLeadTime({
+    demandForecast, productRef: product.productRef.trim(), asOf,
+    period, quantityUnit, leadTimeDays: product.supplierLeadTimeDays.value,
+  });
+  const forecastDemand = recommendation.demandSource === "FORECAST" ? resolvedForecast : null;
+  if (recommendation.demandSource === "FORECAST" && !forecastDemand) return false;
+  if (recommendation.demandSource === "HISTORICAL" && resolvedForecast) return false;
+  if (recommendation.demandSource !== "FORECAST" && recommendation.demandSource !== "HISTORICAL") return false;
+  const leadDemand = forecastDemand
+    ? minor(forecastDemand.leadTimeDemand.expectedQuantity)
+    : ceilDivNonNegative(soldValue * leadValue, BigInt(days) * 1_000_000n);
+  if (leadDemand === null) return false;
   const covered = availableValue + incomingValue;
   const target = reorderValue > leadDemand ? reorderValue : leadDemand;
   let recommended = target > covered ? target - covered : 0n;
@@ -111,10 +124,27 @@ function recommendationMatchesSources(
   }
 
   const soldNumber = minorUnitsToNumber(soldValue, 6);
-  const expectedDailyDemand = soldNumber === null ? null : soldNumber / days;
+  const forecastDailyMinor = forecastDemand ? minor(forecastDemand.forecast.currentDailyDemand) : null;
+  const expectedDailyDemand = forecastDemand
+    ? forecastDailyMinor === null ? null : minorUnitsToNumber(forecastDailyMinor, 6)
+    : soldNumber === null ? null : soldNumber / days;
   const actualDailyDemand = recommendation.dailyDemand;
   if (expectedDailyDemand === null || typeof actualDailyDemand !== "number" ||
       !Number.isFinite(actualDailyDemand) || Math.abs(actualDailyDemand - expectedDailyDemand) > 0.000001) return false;
+  const expectedForecastRange = forecastDemand?.leadTimeDemand ?? null;
+  const receivedForecastRange = recommendation.forecastLeadTimeDemand;
+  const sameForecastRange = expectedForecastRange === null
+    ? receivedForecastRange === null
+    : receivedForecastRange !== null &&
+      receivedForecastRange.horizonDays === expectedForecastRange.horizonDays &&
+      matchesMinor(receivedForecastRange.lowQuantity, minor(expectedForecastRange.lowQuantity) as bigint) &&
+      matchesMinor(receivedForecastRange.expectedQuantity, minor(expectedForecastRange.expectedQuantity) as bigint) &&
+      matchesMinor(receivedForecastRange.highQuantity, minor(expectedForecastRange.highQuantity) as bigint);
+  if (!sameForecastRange ||
+      recommendation.demandTrend !== (forecastDemand?.forecast.trend ?? null) ||
+      !sameStringSet(recommendation.forecastEvidenceIds, forecastDemand?.forecast.evidenceIds ?? []) ||
+      !sameStringSet(recommendation.forecastMetricKeys, forecastDemand?.forecast.metricKeys ?? []) ||
+      !sameStringSet(recommendation.forecastFormulaVersions, forecastDemand?.forecast.formulaVersions ?? [])) return false;
 
   return matchesMinor(recommendation.availableToPromise, availableValue) &&
     matchesMinor(recommendation.incomingPurchaseQuantity, incomingValue) &&
@@ -129,6 +159,10 @@ function recommendationMatchesSources(
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(value => typeof value === "string" && value.trim().length > 0))];
 }
+function sameStringSet(left:string[],right:string[]):boolean {
+ const a=unique(left).sort(),b=unique(right).sort();
+ return a.length===b.length&&a.every((value,index)=>value===b[index]);
+}
 
 /**
  * Converts verified replenishment recommendations into reviewable daily decisions.
@@ -138,6 +172,7 @@ export function buildReplenishmentDecisionCandidates(input: {
   asOf: string;
   products: ReplenishmentProductInput[];
   recommendations: ReplenishmentRecommendation[];
+  demandForecast?: DemandForecastResult | null;
 }): DecisionCandidate[] {
   const snapshotTime = strictInstant(input.asOf);
   if (snapshotTime === null || !Array.isArray(input.products) || !Array.isArray(input.recommendations)) return [];
@@ -195,7 +230,16 @@ export function buildReplenishmentDecisionCandidates(input: {
     });
     if (!evidenceReady) continue;
 
-    if (!recommendationMatchesSources(product, recommendation, input.asOf)) continue;
+    if (!recommendationMatchesSources(product, recommendation, input.asOf, input.demandForecast)) continue;
+    const forecast = recommendation.demandSource === "FORECAST"
+      ? resolveReplenishmentForecastForLeadTime({
+          demandForecast: input.demandForecast, productRef, asOf: input.asOf,
+          period: product.soldQuantityWindow.period as { from: string; to: string },
+          quantityUnit: product.quantityUnit,
+          leadTimeDays: product.supplierLeadTimeDays.value,
+        })
+      : null;
+    if (recommendation.demandSource === "FORECAST" && !forecast) continue;
 
     const available = recommendation.availableToPromise;
     const incoming = recommendation.incomingPurchaseQuantity;
@@ -208,19 +252,28 @@ export function buildReplenishmentDecisionCandidates(input: {
     // A lead-time coverage deficit is the immediate risk; a reorder-point gap remains
     // a medium-priority purchasing review rather than a claimed stockout.
     const urgent = (covered as number) < (leadTimeDemand as number);
+    const highScenarioExceedsCoverage = forecast !== null &&
+      (covered as number) < forecast.leadTimeDemand.highQuantity;
     const priority = urgent ? "P1" as const : "P2" as const;
     const priorityScore = urgent ? 300 : 200;
     const evidenceIds = unique(recommendation.evidenceIds);
-    const sourceEvidenceIds = new Set(unique(metrics.flatMap(metric => metric.lineage.evidenceIds)));
+    const sourceEvidenceIds = new Set(unique([
+      ...metrics.flatMap(metric => metric.lineage.evidenceIds),
+      ...(forecast?.forecast.evidenceIds ?? []),
+    ]));
+    const expectedMetricKeys = unique([...metrics.map(metric => metric.key), ...(forecast?.forecast.metricKeys ?? [])]);
+    const expectedFormulaVersions = unique([
+      REPLENISHMENT_FORMULA_ID + "@" + REPLENISHMENT_FORMULA_VERSION,
+      ...metrics.map(metric => metric.lineage.formulaId + "@" + metric.lineage.formulaVersion),
+      ...(forecast?.forecast.formulaVersions ?? []),
+    ]);
     if (!evidenceIds.length || evidenceIds.length !== sourceEvidenceIds.size ||
-        evidenceIds.some(id => !sourceEvidenceIds.has(id))) continue;
+        !sameStringSet(evidenceIds, [...sourceEvidenceIds]) ||
+        !sameStringSet(recommendation.forecastEvidenceIds, forecast?.forecast.evidenceIds ?? [])) continue;
 
     const id = ("inventory.replenishment:" + productRef.slice(0, 90) + ":" + input.asOf.slice(0, 10)).slice(0, 150);
-    const formulaVersions = unique([
-      recommendation.formulaId + "@" + recommendation.formulaVersion,
-      ...metrics.map(metric => metric.lineage.formulaId + "@" + metric.lineage.formulaVersion),
-    ]).slice(0, 50);
-    const metricKeys = unique(metrics.map(metric => metric.key));
+    const formulaVersions = expectedFormulaVersions.slice(0, 50);
+    const metricKeys = expectedMetricKeys;
 
     candidates.push({
       id,
@@ -231,10 +284,16 @@ export function buildReplenishmentDecisionCandidates(input: {
       what: "مراجعة إعادة توريد الصنف " + productRef + " وإعداد مسودة شراء عند الاعتماد",
       why: "الكمية الموصى بها " + recommendation.recommendedQuantity + " " + recommendation.quantityUnit +
         "؛ المتاح " + available + " والوارد المؤكد " + incoming +
-        "، والتغطية بعد الوارد " + covered + " مقابل طلب مهلة التوريد " + leadTimeDemand + ".",
+        "، والتغطية بعد الوارد " + covered + " مقابل طلب مهلة التوريد المتوقع " + leadTimeDemand + "." +
+        (forecast ? " اتجاه الطلب " + forecast.forecast.trend + "؛ نطاق مهلة التوريد " +
+          forecast.leadTimeDemand.lowQuantity + "–" + forecast.leadTimeDemand.highQuantity +
+          " والمتوقع " + forecast.leadTimeDemand.expectedQuantity + " " + recommendation.quantityUnit +
+          " وفق نافذة " + forecast.leadTimeDemand.horizonDays + " يوماً." : ""),
       soWhat: urgent
-        ? "التغطية الحالية والوارد المؤكد أقل من طلب مهلة التوريد المرصود؛ توجد مخاطرة نقص تستوجب مراجعة عاجلة، ولا تمثل هذه الإشارة ضماناً بحدوث نفاد."
-        : "توجد فجوة عن مستوى المخزون المستهدف بعد احتساب الوارد؛ المتاح يغطي طلب مهلة التوريد المرصود حالياً، لذلك يلزم التخطيط للتوريد دون ادعاء نفاد وشيك.",
+        ? "التغطية الحالية والوارد المؤكد أقل من طلب مهلة التوريد المتوقع؛ توجد مخاطرة نقص تستوجب مراجعة عاجلة، ولا تمثل هذه الإشارة ضماناً بحدوث نفاد."
+        : highScenarioExceedsCoverage
+          ? "التغطية تغطي الطلب المتوقع لكنها تقل عن حد السيناريو الأعلى؛ راجع هامش الأمان والمهلة قبل اعتماد التوريد، دون ادعاء نفاد مؤكد."
+          : "توجد فجوة عن مستوى المخزون المستهدف بعد احتساب الوارد؛ المتاح يغطي طلب مهلة التوريد المتوقع حالياً، لذلك يلزم التخطيط للتوريد دون ادعاء نفاد وشيك.",
       impact: null,
       impactStatus: "WITHHELD",
       impactReason: "UNIT_COST_OR_CURRENCY_NOT_VERIFIED",
@@ -246,7 +305,9 @@ export function buildReplenishmentDecisionCandidates(input: {
         formulaVersions,
       },
       owner: "مسؤول المشتريات والمخزون",
-      expectedOutcome: "تغطية الاحتياج المتوقع خلال مهلة التوريد وفق بيانات الطلب والمخزون المثبتة بعد اعتماد مسودة الشراء.",
+      expectedOutcome: forecast
+        ? "تغطية طلب مهلة التوريد بناءً على توقع موثق ومطابق للصنف والوحدة واللقطة، بعد اعتماد مسودة الشراء."
+        : "تغطية الاحتياج المحسوب من معدل الحركة التاريخي ومخزون المؤسسة بعد اعتماد مسودة الشراء.",
       createdAt: input.asOf,
       expiresAt: null,
     });

@@ -1187,6 +1187,15 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     });
   }, [inventoryData, deadStockReport]);
 
+  const replenishmentDemandForecast = useMemo(() => {
+    if (!inventoryData || !demandForecastResult ||
+        demandForecastResult.status !== "VERIFIED" || !demandForecastResult.completePopulation ||
+        demandForecastResult.asOf !== inventoryData.asOf ||
+        demandForecastResult.period.from !== inventoryData.period.from ||
+        demandForecastResult.period.to !== inventoryData.period.to) return null;
+    return demandForecastResult;
+  }, [inventoryData, demandForecastResult]);
+
   const replenishmentReport = useMemo(() => {
     if (!inventoryData) return null;
     return buildReplenishmentRecommendations({
@@ -1195,14 +1204,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       period: inventoryData.period,
       evidenceRecords: inventoryData.evidenceRecords,
       products: inventoryData.replenishmentProducts,
+      demandForecast: replenishmentDemandForecast,
     });
-  }, [inventoryData]);
+  }, [inventoryData, replenishmentDemandForecast]);
   const replenishmentDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
     if (!inventoryData || !replenishmentReport) return [];
     const candidates = buildReplenishmentDecisionCandidates({
       asOf: inventoryData.asOf,
       products: inventoryData.replenishmentProducts,
       recommendations: replenishmentReport.recommendations,
+      demandForecast: replenishmentDemandForecast,
     });
     return candidates.flatMap((decision) => {
       const source = inventoryData.replenishmentProducts.find((product) =>
@@ -1224,7 +1235,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         ],
       }];
     });
-  }, [inventoryData, replenishmentReport]);
+  }, [inventoryData, replenishmentReport, replenishmentDemandForecast]);
 
   const customerRetentionDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
     if (!retentionResult?.ok || !evidencePassport ||
