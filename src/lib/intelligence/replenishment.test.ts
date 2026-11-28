@@ -386,7 +386,7 @@ describe("verified demand forecast in replenishment calculations", () => {
   ])("falls back to the historical formula for %s", (_label, rejectedForecast) => {
     const result = build([product("forecast-product", { leadDays: 12 })], { period: forecastPeriod, demandForecast: rejectedForecast });
     expect(result.recommendations[0]).toMatchObject({
-      status: "VERIFIED", demandSource: "HISTORICAL", dailyDemand: 10, leadTimeDemand: 12,
+      status: "VERIFIED", demandSource: "HISTORICAL", dailyDemand: 10, leadTimeDemand: 120,
     });
     expect(result.recommendations[0].warnings).toContain(
       "DEMAND_FORECAST_UNVERIFIED_OR_SCOPE_MISMATCH_HISTORICAL_RATE_USED",
@@ -396,7 +396,7 @@ describe("verified demand forecast in replenishment calculations", () => {
   it("retains historical demand when supplier lead time exceeds 90 forecast days", () => {
     const result = build([product("forecast-product", { leadDays: 120 })], { period: forecastPeriod, demandForecast });
     expect(result.recommendations[0]).toMatchObject({
-      demandSource: "HISTORICAL", dailyDemand: 10, leadTimeDemand: 120,
+      demandSource: "HISTORICAL", dailyDemand: 10, leadTimeDemand: 1200,
     });
     expect(result.recommendations[0].warnings).toContain(
       "DEMAND_FORECAST_UNVERIFIED_OR_SCOPE_MISMATCH_HISTORICAL_RATE_USED",
