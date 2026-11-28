@@ -1,4 +1,5 @@
 import type { DemandScenarioResult } from "./demand-forecast";
+import type { DemandScenarioStockImpact } from "./demand-scenario-stock-impact";
 import type { DecisionCandidate } from "./types";
 
 const boundedText = (value: string, maximum: number) => value.trim().slice(0, maximum);
@@ -19,6 +20,7 @@ function fingerprint64(value: string): string {
  */
 export function buildDemandScenarioDecisionCandidate(
   scenario: DemandScenarioResult,
+  stockImpact?: DemandScenarioStockImpact | null,
 ): DecisionCandidate | null {
   if (
     !scenario ||
@@ -77,8 +79,51 @@ export function buildDemandScenarioDecisionCandidate(
     [...scenario.evidenceIds].sort().join(","),
     [...scenario.metricKeys].sort().join(","),
     [...scenario.formulaVersions].sort().join(","),
+    ...(stockImpact?.status === "READY" ? [
+      [...stockImpact.inventoryEvidenceIds].sort().join(","),
+      stockImpact.inventoryFormulaId ?? "",
+      stockImpact.inventoryFormulaVersion ?? "",
+    ] : []),
   ].join("|");
   const candidateId = "demand.whatif:" + fingerprint64(identity);
+  const validStockImpact = stockImpact?.status === "READY" &&
+    stockImpact.productRef === scenario.productRef &&
+    stockImpact.quantityUnit === scenario.unitOfMeasure &&
+    typeof stockImpact.availableToPromise === "number" && Number.isFinite(stockImpact.availableToPromise) &&
+    typeof stockImpact.reorderPoint === "number" && Number.isFinite(stockImpact.reorderPoint) &&
+    stockImpact.availableToPromise >= 0 && stockImpact.reorderPoint >= 0 &&
+    Array.isArray(stockImpact.inventoryEvidenceIds) && stockImpact.inventoryEvidenceIds.length > 0 &&
+    stockImpact.inventoryEvidenceIds.every(id => typeof id === "string" && id.trim()) &&
+    typeof stockImpact.inventoryFormulaId === "string" && stockImpact.inventoryFormulaId.trim() &&
+    typeof stockImpact.inventoryFormulaVersion === "string" && stockImpact.inventoryFormulaVersion.trim() &&
+    Array.isArray(stockImpact.horizons) && stockImpact.horizons.length === 3 &&
+    [7, 30, 90].every(days => stockImpact.horizons.some(item =>
+      item.days === days && Number.isFinite(item.scenarioDemand.expected) &&
+      Number.isFinite(item.scenarioPotentialShortfall) && item.scenarioPotentialShortfall >= 0
+    )) &&
+    stockImpact.leadTime !== null &&
+    Number.isFinite(stockImpact.leadTime.scenarioDemand.expected) &&
+    Number.isFinite(stockImpact.leadTime.scenarioPotentialShortfall);
+  if (stockImpact?.status === "READY" && !validStockImpact) return null;
+  const inventorySummary = validStockImpact
+    ? " لقطة المخزون: ATP " + stockImpact.availableToPromise + " " + scenario.unitOfMeasure +
+      "، ونقطة إعادة الطلب " + stockImpact.reorderPoint + " " + scenario.unitOfMeasure +
+      "؛ المتبقي الافتراضي بعد 7/30/90 يوماً: " +
+      stockImpact.horizons.sort((a, b) => a.days - b.days).map(item =>
+        item.days + " يوم " + item.scenarioRemainingAtp + " (عجز محتمل " + item.scenarioPotentialShortfall + ")"
+      ).join("، ") +
+      "؛ وفي مهلة المورد ضمن أفق " + stockImpact.leadTime.sourceHorizonDays + " يوم، العجز المحتمل " +
+      stockImpact.leadTime.scenarioPotentialShortfall + "."
+    : "";
+  const evidenceIds = [...new Set([
+    ...scenario.evidenceIds,
+    ...(validStockImpact ? stockImpact.inventoryEvidenceIds : []),
+  ])];
+  const formulaVersions = [...new Set([
+    scenario.formulaId + "@" + scenario.formulaVersion,
+    ...scenario.formulaVersions,
+    ...(validStockImpact ? [stockImpact.inventoryFormulaId + "@" + stockImpact.inventoryFormulaVersion] : []),
+  ])];
   const what = boundedText("محاكاة تغير الطلب — " + scenario.productLabel + " (" + assumption + "%)", 500);
   const horizonSummary = orderedHorizons.map((horizon) =>
     horizon.days + " يوماً: " + horizon.baselineExpectedQuantity + " → " +
@@ -88,12 +133,14 @@ export function buildDemandScenarioDecisionCandidate(
   const why = boundedText(
     "افتراض إداري يدوي بتغير معدل الطلب بنسبة " + assumption + "%، مطبق على توقع موثق للمنتج " +
     scenario.productLabel + " للفترة " + scenario.period.from + " إلى " + scenario.period.to +
-    ". نتائج الأساس مقابل السيناريو: " + horizonSummary +
-    ". هذه نتائج افتراضية وليست طلباً محققاً أو مبيعات أو كمية شحن.",
+    ". نتائج الأساس مقابل السيناريو: " + horizonSummary + inventorySummary +
+    ". هذه نتائج افتراضية وليست طلباً محققاً أو مبيعات أو كمية شحن أو رصيداً مرحلاً.",
     2000,
   );
   const soWhat = boundedText(
-    "توضح المحاكاة حساسية كميات الطلب المفترضة على الآفاق الزمنية؛ ولا تثبت وحدها حاجة شراء أو ربحية أو توفر سيولة.",
+    validStockImpact && stockImpact.horizons.some(item => item.scenarioPotentialShortfall > 0)
+      ? "تشير المحاكاة إلى عجز محتمل أمام ATP في واحد أو أكثر من الآفاق؛ يجب مراجعة الاستلامات والطلب الفعلي قبل أي قرار شراء."
+      : "توضح المحاكاة حساسية كميات الطلب المفترضة على الآفاق الزمنية؛ ولا تثبت وحدها حاجة شراء أو ربحية أو توفر سيولة.",
     2000,
   );
   const whatNext = boundedText(
@@ -115,16 +162,13 @@ export function buildDemandScenarioDecisionCandidate(
     impactReason: "USER_SUPPLIED_DEMAND_SCENARIO_IS_NOT_VERIFIED_FINANCIAL_IMPACT",
     whatNext,
     proof: {
-      evidenceIds: [...scenario.evidenceIds],
+      evidenceIds,
       metricKeys: [...scenario.metricKeys],
       asOf: scenario.asOf,
-      formulaVersions: [...new Set([
-        scenario.formulaId + "@" + scenario.formulaVersion,
-        ...scenario.formulaVersions,
-      ])],
+      formulaVersions,
     },
     owner: "مدير المبيعات والمخزون",
-    expectedOutcome: boundedText("نتيجة السيناريو المسجلة — " + horizonSummary + ". المطلوب مراجعة الفرضية مقابل الطلب الفعلي قبل أي إجراء.", 2000),
+    expectedOutcome: boundedText("نتيجة السيناريو المسجلة — " + horizonSummary + inventorySummary + ". المطلوب مراجعة الفرضية مقابل الطلب الفعلي والاستلامات قبل أي إجراء.", 2000),
     createdAt: scenario.asOf,
     expiresAt: null,
   };

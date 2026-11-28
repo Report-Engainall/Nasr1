@@ -1863,8 +1863,8 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
               onRetry={() => setRefreshKey((value) => value + 1)}
               replenishmentRecommendations={replenishmentDemandForecast ? replenishmentReport?.recommendations ?? null : null}
-              onSaveScenario={user?.profileId && canManage ? async scenario => {
-                const candidate = buildDemandScenarioDecisionCandidate(scenario);
+              onSaveScenario={user?.profileId && canManage ? async (scenario, stockImpact) => {
+                const candidate = buildDemandScenarioDecisionCandidate(scenario, stockImpact);
                 return candidate ? persistEvidenceBackedAction(candidate, candidate.id) : false;
               } : undefined}
             />

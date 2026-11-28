@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { buildDemandScenario } from "@/lib/intelligence/demand-forecast";
-import { buildDemandScenarioStockImpact } from "@/lib/intelligence/demand-scenario-stock-impact";
+import { buildDemandScenarioStockImpact, type DemandScenarioStockImpact } from "@/lib/intelligence/demand-scenario-stock-impact";
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
 import type { DemandForecastResult, DemandScenarioResult, DemandTrend } from "@/lib/intelligence/demand-forecast";
 import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
@@ -9,7 +9,7 @@ export interface DemandForecastCardProps {
   result: DemandForecastResult | null;
   state: "loading" | "ready" | "unavailable" | "error";
   onRetry?: () => void;
-  onSaveScenario?: (scenario: DemandScenarioResult) => Promise<boolean>;
+  onSaveScenario?: (scenario: DemandScenarioResult, stockImpact: DemandScenarioStockImpact | null) => Promise<boolean>;
   replenishmentRecommendations?: ReplenishmentRecommendation[] | null;
 }
 
@@ -24,7 +24,7 @@ const trendLabels: Record<DemandTrend, string> = {
 const formatQuantity = (value: number, unit: string) =>
   new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 6 }).format(value) + " " + unit;
 
-function DemandScenarioLab({ result, onSaveScenario, replenishmentRecommendations }: { result: DemandForecastResult; onSaveScenario?: (scenario: DemandScenarioResult) => Promise<boolean>; replenishmentRecommendations?: ReplenishmentRecommendation[] | null }) {
+function DemandScenarioLab({ result, onSaveScenario, replenishmentRecommendations }: { result: DemandForecastResult; onSaveScenario?: (scenario: DemandScenarioResult, stockImpact: DemandScenarioStockImpact | null) => Promise<boolean>; replenishmentRecommendations?: ReplenishmentRecommendation[] | null }) {
   const firstProduct = result.forecasts[0] ?? null;
   const [selectedProductRef, setSelectedProductRef] = useState(firstProduct?.productRef ?? "");
   const [changePercent, setChangePercent] = useState(0);
@@ -45,7 +45,7 @@ function DemandScenarioLab({ result, onSaveScenario, replenishmentRecommendation
     setSavingScenario(true);
     setSaveMessage(null);
     try {
-      const saved = await onSaveScenario(scenario);
+      const saved = await onSaveScenario(scenario, stockImpact?.status === "READY" ? stockImpact : null);
       setSaveMessage(saved
         ? "تم تأكيد إرسال السيناريو إلى دورة القرارات كمقترح يحتاج مراجعة؛ لم يُعتمد أو يُنفذ."
         : "لم يتأكد حفظ السيناريو؛ راجع دورة القرارات وحالة الاتصال قبل إعادة المحاولة.");

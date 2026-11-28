@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DemandForecastResult, DemandScenarioResult } from "@/lib/intelligence/demand-forecast";
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
+import type { DemandScenarioStockImpact } from "@/lib/intelligence/demand-scenario-stock-impact";
 import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import { DemandForecastCard } from "./DemandForecastCard";
 
@@ -140,12 +141,13 @@ describe("DemandForecastCard", () => {
   });
 
   it("saves an evidence-backed simulation only through the supplied decision-cycle action", async () => {
-    const onSaveScenario = vi.fn(async (_scenario: DemandScenarioResult) => true);
+    const onSaveScenario = vi.fn(async (_scenario: DemandScenarioResult, _stockImpact: DemandScenarioStockImpact | null) => true);
     render(<DemandForecastCard result={forecast} state="ready" onSaveScenario={onSaveScenario} />);
     const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
     fireEvent.change(within(lab).getByRole("slider", { name: "نسبة تغير الطلب المفترضة" }), { target: { value: "20" } });
     fireEvent.click(within(lab).getByRole("button", { name: "حفظ السيناريو في دورة القرارات" }));
     await waitFor(() => expect(onSaveScenario).toHaveBeenCalledTimes(1));
+    expect(onSaveScenario.mock.calls[0][1]).toBeNull();
     expect(onSaveScenario.mock.calls[0][0]).toMatchObject({
       status: "SIMULATED",
       changePercent: 20,
@@ -156,7 +158,7 @@ describe("DemandForecastCard", () => {
   });
 
   it("does not claim a save when the decision-cycle service rejects the scenario", async () => {
-    const onSaveScenario = vi.fn(async (_scenario: DemandScenarioResult) => false);
+    const onSaveScenario = vi.fn(async (_scenario: DemandScenarioResult, _stockImpact: DemandScenarioStockImpact | null) => false);
     render(<DemandForecastCard result={forecast} state="ready" onSaveScenario={onSaveScenario} />);
     const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
     fireEvent.click(within(lab).getByRole("button", { name: "حفظ السيناريو في دورة القرارات" }));

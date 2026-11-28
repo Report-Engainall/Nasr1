@@ -29,13 +29,16 @@ export interface DemandScenarioStockImpact {
   } | null;
   horizons: DemandScenarioStockHorizon[];
   inventoryEvidenceIds: string[];
+  inventoryFormulaId: string | null;
+  inventoryFormulaVersion: string | null;
   demandEvidenceIds: string[];
   limitations: string[];
 }
 const withheld = (scenario: DemandScenarioResult, reason: string): DemandScenarioStockImpact => ({
   status: "WITHHELD", reason, productRef: scenario?.productRef ?? "", quantityUnit: null,
   availableToPromise: null, reorderPoint: null, leadTime: null, horizons: [],
-  inventoryEvidenceIds: [], demandEvidenceIds: Array.isArray(scenario?.evidenceIds) ? [...scenario.evidenceIds] : [],
+  inventoryEvidenceIds: [], inventoryFormulaId: null, inventoryFormulaVersion: null,
+  demandEvidenceIds: Array.isArray(scenario?.evidenceIds) ? [...scenario.evidenceIds] : [],
   limitations: [reason, "NO_INVENTORY_OR_PURCHASE_SIDE_EFFECTS"],
 });
 function validEvidence(values: unknown): values is string[] {
@@ -171,6 +174,8 @@ export function buildDemandScenarioStockImpact(input: {
     },
     horizons: projected,
     inventoryEvidenceIds: [...recommendation.evidenceIds],
+    inventoryFormulaId: recommendation.formulaId,
+    inventoryFormulaVersion: recommendation.formulaVersion,
     demandEvidenceIds: [...scenario.evidenceIds],
     limitations: [
       "SCENARIO_USES_USER_SUPPLIED_DEMAND_CHANGE",
