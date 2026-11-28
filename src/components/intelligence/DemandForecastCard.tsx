@@ -181,7 +181,7 @@ function DemandScenarioLab({ result, onSaveScenario }: { result: DemandForecastR
   );
 }
 
-export function DemandForecastCard({ result, state, onRetry }: DemandForecastCardProps) {
+export function DemandForecastCard({ result, state, onRetry, onSaveScenario }: DemandForecastCardProps) {
   if (state !== "ready" || !result) {
     return (
       <section dir="rtl" className="panel space-y-2" aria-label="توقع الطلب">

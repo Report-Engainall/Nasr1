@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
+import type { DemandForecastResult, DemandScenarioResult } from "@/lib/intelligence/demand-forecast";
 import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import { DemandForecastCard } from "./DemandForecastCard";
 
@@ -103,7 +103,7 @@ describe("DemandForecastCard", () => {
   });
 
   it("saves an evidence-backed simulation only through the supplied decision-cycle action", async () => {
-    const onSaveScenario = vi.fn().mockResolvedValue(true);
+    const onSaveScenario = vi.fn(async (_scenario: DemandScenarioResult) => true);
     render(<DemandForecastCard result={forecast} state="ready" onSaveScenario={onSaveScenario} />);
     const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
     fireEvent.change(within(lab).getByRole("slider", { name: "نسبة تغير الطلب المفترضة" }), { target: { value: "20" } });
@@ -119,7 +119,7 @@ describe("DemandForecastCard", () => {
   });
 
   it("does not claim a save when the decision-cycle service rejects the scenario", async () => {
-    const onSaveScenario = vi.fn().mockResolvedValue(false);
+    const onSaveScenario = vi.fn(async (_scenario: DemandScenarioResult) => false);
     render(<DemandForecastCard result={forecast} state="ready" onSaveScenario={onSaveScenario} />);
     const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
     fireEvent.click(within(lab).getByRole("button", { name: "حفظ السيناريو في دورة القرارات" }));
