@@ -1,0 +1,171 @@
+import { describe, expect, it } from "vitest";
+import type { DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
+import {
+  filterDailyDecisionRecords,
+  normalizeDailyDecisionSearch,
+  type DailyDecisionFilters,
+} from "./DailyDecisionBoard";
+
+const now = Date.parse("2026-11-28T00:00:00.000Z");
+const allFilters: DailyDecisionFilters = {
+  searchText: "",
+  state: "ALL",
+  priority: "ALL",
+  due: "ALL",
+};
+
+function decision(overrides: Partial<DecisionMemoryRecord> = {}): DecisionMemoryRecord {
+  return {
+    decisionId: "decision-1",
+    candidateRef: "candidate-1",
+    ruleId: "customers.retention.follow-up",
+    ruleVersion: "1.0.0",
+    state: "PROPOSED",
+    version: 1,
+    createdAt: "2026-11-27T00:00:00.000Z",
+    updatedAt: "2026-11-27T00:00:00.000Z",
+    owner: "مسؤول العملاء",
+    ownerProfileId: null,
+    proposedResult: "إعادة تنشيط عميل متوقف",
+    decisionReason: "متابعة نشاط العملاء",
+    approvalAt: null,
+    executionAt: null,
+    eventCount: 1,
+    events: [],
+    legacyMeasurement: null,
+    candidateSnapshot: {
+      schemaVersion: "1.0.0",
+      candidateId: "candidate-1",
+      ruleId: "customers.retention.follow-up",
+      ruleVersion: "1.0.0",
+      priority: "P1",
+      priorityScore: 300,
+      what: "إعادة تنشيط العميل",
+      why: "لم يظهر طلب",
+      risk: "تراجع النشاط",
+      soWhat: "مخاطر فقدان العميل",
+      whatNext: "راجع آخر تعامل",
+      owner: "مسؤول العملاء",
+      expectedOutcome: "توثيق نتيجة المتابعة",
+      impact: null,
+      impactStatus: "WITHHELD",
+      impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+      proof: { evidenceIds: ["evidence-1"], metricKeys: ["customer.orders.current"], asOf: "2026-11-27T00:00:00.000Z", formulaVersions: ["orders@1"] },
+      createdAt: "2026-11-27T00:00:00.000Z",
+      expiresAt: null,
+    },
+    snapshotVersion: null,
+    capturedAt: null,
+    snapshot: null,
+    problem: null,
+    factsReviewed: false,
+    facts: [],
+    opinions: [],
+    hypotheses: [],
+    assumptionsReviewed: false,
+    assumptions: [],
+    lessonsReviewed: false,
+    withheldFacts: 0,
+    alternatives: [],
+    chosenAlternative: null,
+    actionTaken: null,
+    reviewDisposition: "NOT_SCHEDULED",
+    reviewAt: null,
+    expectedMetric: null,
+    metricComparison: { status: "WITHHELD", expected: null, actual: null, difference: null, differencePercent: null, reason: null },
+    lessons: [],
+    corrections: [],
+    missingFields: [],
+    warnings: [],
+    memoryStatus: "PARTIAL",
+    precedents: [],
+    ...overrides,
+  } as DecisionMemoryRecord;
+}
+
+describe("daily decision queue search and filters", () => {
+  it("normalizes Arabic diacritics and searches loaded decision context", () => {
+    const record = decision({
+      proposedResult: "إِعَادَة تَنْشِيط العميل",
+      owner: "مسؤول التحصيل",
+    });
+    expect(normalizeDailyDecisionSearch("إِعَادَة  تَنْشِيط"))
+      .toBe(normalizeDailyDecisionSearch("اعادة تنشيط"));
+    expect(filterDailyDecisionRecords([record], {
+      ...allFilters,
+      searchText: "اعادة تنشيط",
+    }, now)).toEqual([record]);
+    expect(filterDailyDecisionRecords([record], {
+      ...allFilters,
+      searchText: "مسؤول التحصيل",
+    }, now)).toEqual([record]);
+  });
+
+  it("filters by exact state and only saved priorities, preserving unranked legacy decisions", () => {
+    const proposed = decision({ decisionId: "proposed", state: "PROPOSED" });
+    const inReview = decision({ decisionId: "review", state: "IN_REVIEW", candidateSnapshot: null });
+    const p2 = decision({
+      decisionId: "p2",
+      candidateSnapshot: { ...proposed.candidateSnapshot!, priority: "P2" },
+    });
+
+    expect(filterDailyDecisionRecords([proposed, inReview, p2], {
+      ...allFilters,
+      state: "IN_REVIEW",
+    }, now).map(item => item.decisionId)).toEqual(["review"]);
+    expect(filterDailyDecisionRecords([proposed, inReview, p2], {
+      ...allFilters,
+      priority: "P2",
+    }, now).map(item => item.decisionId)).toEqual(["p2"]);
+    expect(filterDailyDecisionRecords([proposed, inReview, p2], {
+      ...allFilters,
+      priority: "UNRANKED",
+    }, now).map(item => item.decisionId)).toEqual(["review"]);
+  });
+
+  it("isolates overdue, due-within-seven-days and unscheduled non-terminal decisions", () => {
+    const overdue = decision({
+      decisionId: "overdue",
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-11-27T23:59:59.000Z",
+    });
+    const dueNow = decision({
+      decisionId: "due-now",
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-11-28T00:00:00.000Z",
+    });
+    const upcoming = decision({
+      decisionId: "upcoming",
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-12-02T00:00:00.000Z",
+    });
+    const tooFar = decision({
+      decisionId: "too-far",
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-12-10T00:00:00.000Z",
+    });
+    const unscheduled = decision({ decisionId: "unscheduled", reviewDisposition: "NOT_SCHEDULED", reviewAt: null });
+    const notRequired = decision({ decisionId: "not-required", reviewDisposition: "NOT_REQUIRED", reviewAt: null });
+    const rejected = decision({ decisionId: "rejected", state: "REJECTED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
+    const measured = decision({ decisionId: "measured", state: "MEASURED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
+    const records = [overdue, dueNow, upcoming, tooFar, unscheduled, notRequired, rejected, measured];
+
+    expect(filterDailyDecisionRecords(records, { ...allFilters, due: "OVERDUE" }, now)
+      .map(item => item.decisionId)).toEqual(["overdue", "due-now"]);
+    expect(filterDailyDecisionRecords(records, { ...allFilters, due: "DUE_7_DAYS" }, now)
+      .map(item => item.decisionId)).toEqual(["upcoming"]);
+    expect(filterDailyDecisionRecords(records, { ...allFilters, due: "UNSCHEDULED" }, now)
+      .map(item => item.decisionId)).toEqual(["unscheduled"]);
+  });
+
+  it("searches evidence references and event reasons without treating hypotheses as facts", () => {
+    const record = decision({
+      facts: [{ id: "fact-1", kind: "FACT", text: "طلب موثق", actorRole: "manager", recordedAt: "2026-11-27T00:00:00.000Z", evidenceIds: ["invoice-proof"] }],
+      events: [{ id: "event-1", type: "DEFER", version: 2, at: "2026-11-27T00:00:00.000Z", actorRole: "manager", reason: "بانتظار مراجعة المستند" }],
+      hypotheses: [{ id: "hyp-1", kind: "HYPOTHESIS", text: "قد يتأخر العميل", actorRole: "manager", recordedAt: "2026-11-27T00:00:00.000Z", evidenceIds: [] }],
+    });
+    expect(filterDailyDecisionRecords([record], { ...allFilters, searchText: "invoice-proof" }, now)).toEqual([record]);
+    expect(filterDailyDecisionRecords([record], { ...allFilters, searchText: "بانتظار مراجعة المستند" }, now)).toEqual([record]);
+    expect(filterDailyDecisionRecords([record], { ...allFilters, searchText: "قد يتأخر العميل" }, now)).toEqual([record]);
+  });
+});
