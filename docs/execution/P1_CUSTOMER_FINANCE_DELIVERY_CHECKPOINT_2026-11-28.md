@@ -50,6 +50,23 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - At code-head `4e631a06569948ceb3bbf73d0c8bc9dd71c55d5`, the workflow/check-run listing had not yet surfaced a run. Earlier-head P1 run `46080902577` was pending and P2 Playwright run `46080902639` was queued; these do not prove acceptance of the new SHA.
 - Exact final-head Vitest, strict TypeScript, build and P2 browser gates must be terminal SUCCESS. No PASS is claimed for an absent, queued, pending, cancelled, skipped or blocked job.
 
+## P1 follow-up — final receipt print boundary (2026-11-28)
+
+- Code commit: `ffa15cfcaa46c526fe85981f9d885364dbc3afbb`, based on prior PR head `7e35cc6df90b63d53da49450b174f80e4618c0c7`.
+- The delayed 180ms receipt-print callback now re-reads `get_my_customer_financial_source` immediately before `print()`. It requires the same request sequence, the same selected receipt ID, an unchanged server source revision, and a currently readable APP_ONLY source.
+- If the server source has moved to ONYX/MUTAKAMEL, the source is suspended/stale, or the final resolver fails, the popup closes, the success notice is removed, and the UI surfaces an explicit error. No receipt/payment mutation is performed.
+- Added two focused regressions: APP_ONLY-to-ONYX cutover at the final print boundary, and final source-resolver failure. These tests are authored; they are **not yet accepted** until exact-head CI executes them.
+- Changed application paths: `src/components/CustomerPaymentReceiptSelfServiceActions.tsx` and its paired `.test.tsx`; no migration, production data or ERP write.
+
+### Exact-head acceptance after this checkpoint update
+
+- The code commit `ffa15cfcaa46c526fe85981f9d885364dbc3afbb` had no workflow run/status surfaced at the first immediate query. No PASS is claimed.
+- The checkpoint update itself is documentation-only; re-fetch the live PR #699 head and require terminal P1 Admin Context Verification plus the relevant P2 Playwright result on that exact head. Queued, absent, skipped or cancelled remains non-acceptance.
+
+### Next executable action
+
+- Inspect exact-head P1/P2 workflow results for the updated #699 branch; repair a reproduced failing step in the same branch. Keep #699 Draft and unmerged until exact-head acceptance and P2 PostgreSQL 17/security acceptance are complete.
+
 ## Safety and release
 - `main` remains `12b0db37a97128a19073f907ba12fb700251802b`.
 - No production DB writes/migrations, payment posting, stock movement, live ERP call, secrets, deployments or paid services were used.
