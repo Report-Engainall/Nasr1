@@ -1839,7 +1839,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                       item.decision.proof.evidenceIds.length === action.evidenceIds.length &&
                       item.decision.proof.evidenceIds.every(id => action.evidenceIds.includes(id)) &&
                       item.decision.proof.metricKeys.length === action.metricKeys.length &&
-                      item.decision.proof.metricKeys.every(key => action.metricKeys.includes(key))
+                      item.decision.proof.metricKeys.every(key => action.metricKeys.includes(key)) &&
+                      item.metricIds.length === action.metricIds.length &&
+                      item.metricIds.every(id => action.metricIds.includes(id))
                     );
                     return candidate
                       ? persistEvidenceBackedAction(candidate.decision, candidate.candidateId)
