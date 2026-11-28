@@ -10,10 +10,11 @@ const mocks = vi.hoisted(() => ({
   fetchFinancialSource: vi.fn(),
   fetchSummary: vi.fn(),
   fetchInteractions: vi.fn(),
+  requestFinancialSourceChange: vi.fn(),
 }));
 
 vi.mock("@/components/AdminPages", () => ({
-  Button: ({ children, onClick, disabled }: any) => <button onClick={onClick} disabled={disabled}>{children}</button>,
+  Button: ({ children, onClick, disabled, type = "button" }: any) => <button type={type} onClick={onClick} disabled={disabled}>{children}</button>,
   Empty: ({ text }: any) => <p>{text}</p>,
   ErrorBox: ({ message }: any) => <p role="alert">{message}</p>,
   Loading: () => <p role="status">جار التحميل...</p>,
@@ -40,6 +41,7 @@ vi.mock("@/lib/supabase", () => ({
 }));
 vi.mock("@/lib/customer-financial-source", () => ({
   fetchStaffCustomerFinancialSource: mocks.fetchFinancialSource,
+  requestCustomerFinancialSourceChange: mocks.requestFinancialSourceChange,
   canReadCustomerAppLedger: (source: any) => Boolean(
     source && source.source_mode === "APP_ONLY" && source.source_status === "active" &&
     !source.is_stale && source.can_read_app_ledger
@@ -101,6 +103,49 @@ describe("AdminCustomer360 financial source gate", () => {
     render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
     await waitFor(() => expect(mocks.fetchSummary).toHaveBeenCalledWith(customerId));
     expect(screen.getByText(/مصدر الحساب المالي: دفتر متجر الأغبري/)).toBeInTheDocument();
+  });
+
+
+
+  it("submits a source-change request with the selected customer, ERP scope and current revision", async () => {
+    mocks.requestFinancialSourceChange.mockResolvedValue({
+      request_id: "44444444-4444-4444-8444-444444444444",
+      status: "pending_reconciliation",
+      replayed: false,
+      changed: true,
+    });
+    render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
+    expect(await screen.findByText(/إدارة مصدر الحساب المالي/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("المصدر المالي المطلوب"), { target: { value: "ONYX" } });
+    fireEvent.change(screen.getByLabelText("مرجع الشركة في ERP"), { target: { value: "ONYX-COMPANY-01" } });
+    fireEvent.change(screen.getByLabelText("مرجع الفرع في ERP"), { target: { value: "ONYX-BRANCH-01" } });
+    fireEvent.change(screen.getByLabelText("مرجع حساب العميل في ERP"), { target: { value: "ONYX-CUST-0001" } });
+    fireEvent.change(screen.getByLabelText("سبب تغيير المصدر"), { target: { value: "توحيد حساب العميل مع سجل Onyx Pro" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "إرسال طلب تغيير مصدر الحساب" }));
+    await waitFor(() => expect(mocks.requestFinancialSourceChange).toHaveBeenCalledWith(expect.objectContaining({
+      customerId,
+      targetSourceMode: "ONYX",
+      externalAccountRef: "ONYX-CUST-0001",
+      companyExternalRef: "ONYX-COMPANY-01",
+      branchExternalRef: "ONYX-BRANCH-01",
+      reason: "توحيد حساب العميل مع سجل Onyx Pro",
+      expectedBindingRevision: 2,
+    })));
+    expect(await screen.findByText(/أُنشئ طلب تغيير المصدر/)).toBeInTheDocument();
+    expect(screen.getByText(/44444444-4444-4444-8444-444444444444/)).toBeInTheDocument();
+    expect(mocks.fetchSummary).not.toHaveBeenCalled();
+  });
+
+  it("does not render source-change controls for a suspended financial source", async () => {
+    mocks.fetchFinancialSource.mockResolvedValue({
+      ...onyxSource,
+      source_status: "suspended",
+    });
+    render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("مصدر الحساب المالي موقوف");
+    expect(screen.queryByText("إدارة مصدر الحساب المالي")).not.toBeInTheDocument();
   });
 
   it("ignores a late financial-source response after the selected customer changes", async () => {

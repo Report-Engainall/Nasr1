@@ -996,7 +996,7 @@ function CustomerFinancialSourceChangeRequestPanel({
             placeholder="اذكر سبب طلب التغيير ومرجع مستند المطابقة أو التكليف الداخلي." />
         </label>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Button disabled={saving || !requestReady}>
+          <Button type="submit" disabled={saving || !requestReady}>
             {saving ? "جارٍ إرسال الطلب…" : "إرسال طلب تغيير مصدر الحساب"}
           </Button>
         </div>
@@ -1158,7 +1158,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
         onPrint={printCustomer360}
       />
       <CustomerFinancialSourceNotice source={currentFinancialSource} loading={currentCustomerLoading} error={currentFinancialSourceError} />
-      {currentFinancialSource && !currentCustomerLoading ? (
+      {currentFinancialSource && currentFinancialSource.source_status === 'active' && !currentCustomerLoading ? (
         <CustomerFinancialSourceChangeRequestPanel
           key={customer.id}
           customerId={customer.id}
