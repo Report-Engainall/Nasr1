@@ -351,7 +351,7 @@ export function CustomerRetentionActionQueuePanel({
                 <span>طلبات الفترة السابقة: {action.orderCountPrevious}</span>
                 <span>أدلة مرتبطة: {action.evidenceIds.length}</span>
               </div>
-              {canCreateDecision ? (
+              {canCreateDecision && onCreateDecisionProposal ? (
                 <div className="mt-3 border-t pt-3">
                   <button
                     type="button"
