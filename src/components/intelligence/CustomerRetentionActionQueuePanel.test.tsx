@@ -193,10 +193,12 @@ describe("CustomerRetentionActionQueuePanel", () => {
       { ...verifiedQueue.actions[0], customerRef: "customer-age-unknown", priority: "REVIEW" as const, daysSinceLastOrder: null, lastOrderAt: null },
     ];
     render(<CustomerRetentionActionQueuePanel
-      queue={{ ...verifiedQueue, actions: [...verifiedQueue.actions, ...additional], totalActionable: 3 }}
+      queue={{ ...verifiedQueue, actions: [...verifiedQueue.actions, ...additional], totalActionable: 7, omittedCount: 4 }}
       loading={false}
     />);
 
+    expect(screen.getByText(/3 إجراء محمّل من أصل 7 إجراء مؤهل/)).toBeInTheDocument();
+    expect(screen.getByText(/ما زال 4 إجراء خارج الجزء المحمّل/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "عرض العملاء بمدة انقطاع غير موثقة" }));
     expect(screen.getByText("مدة الانقطاع غير موثقة")).toBeInTheDocument();
     expect(screen.queryByText(/112 يوماً/)).not.toBeInTheDocument();
