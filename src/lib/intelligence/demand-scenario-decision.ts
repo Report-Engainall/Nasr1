@@ -80,9 +80,9 @@ export function buildDemandScenarioDecisionCandidate(
     [...scenario.metricKeys].sort().join(","),
     [...scenario.formulaVersions].sort().join(","),
     ...(stockImpact?.status === "READY" ? [
-      [...stockImpact.inventoryEvidenceIds].sort().join(","),
-      stockImpact.inventoryFormulaId ?? "",
-      stockImpact.inventoryFormulaVersion ?? "",
+      Array.isArray(stockImpact.inventoryEvidenceIds) ? [...stockImpact.inventoryEvidenceIds].sort().join(",") : "INVALID_INVENTORY_EVIDENCE",
+      typeof stockImpact.inventoryFormulaId === "string" ? stockImpact.inventoryFormulaId : "INVALID_INVENTORY_FORMULA",
+      typeof stockImpact.inventoryFormulaVersion === "string" ? stockImpact.inventoryFormulaVersion : "INVALID_INVENTORY_FORMULA_VERSION",
     ] : []),
   ].join("|");
   const candidateId = "demand.whatif:" + fingerprint64(identity);
@@ -109,10 +109,10 @@ export function buildDemandScenarioDecisionCandidate(
     ? " لقطة المخزون: ATP " + stockImpact.availableToPromise + " " + scenario.unitOfMeasure +
       "، ونقطة إعادة الطلب " + stockImpact.reorderPoint + " " + scenario.unitOfMeasure +
       "؛ المتبقي الافتراضي بعد 7/30/90 يوماً: " +
-      stockImpact.horizons.sort((a, b) => a.days - b.days).map(item =>
+      [...stockImpact.horizons].sort((a, b) => a.days - b.days).map(item =>
         item.days + " يوم " + item.scenarioRemainingAtp + " (عجز محتمل " + item.scenarioPotentialShortfall + ")"
       ).join("، ") +
-      "؛ وفي مهلة المورد ضمن أفق " + stockImpact.leadTime.sourceHorizonDays + " يوم، العجز المحتمل " +
+      "؛ والتقدير المحسوب لمهلة المورد باستخدام أفق توقع " + stockImpact.leadTime.sourceHorizonDays + " يوم، العجز المحتمل " +
       stockImpact.leadTime.scenarioPotentialShortfall + "."
     : "";
   const evidenceIds = [...new Set([
@@ -124,6 +124,7 @@ export function buildDemandScenarioDecisionCandidate(
     ...scenario.formulaVersions,
     ...(validStockImpact ? [stockImpact.inventoryFormulaId + "@" + stockImpact.inventoryFormulaVersion] : []),
   ])];
+  if (evidenceIds.length > 500 || formulaVersions.length > 50) return null;
   const what = boundedText("محاكاة تغير الطلب — " + scenario.productLabel + " (" + assumption + "%)", 500);
   const horizonSummary = orderedHorizons.map((horizon) =>
     horizon.days + " يوماً: " + horizon.baselineExpectedQuantity + " → " +

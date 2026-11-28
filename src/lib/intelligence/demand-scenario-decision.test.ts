@@ -88,9 +88,10 @@ describe("demand scenario decision candidate", () => {
       },
     });
     expect(candidate?.why).toContain("ATP 40 EA");
-    expect(candidate?.expectedOutcome).toContain("90 يوم 432");
+    expect(candidate?.expectedOutcome).toContain("90 يوماً: 360 → 432 EA");
     expect(candidate?.id).not.toBe(buildDemandScenarioDecisionCandidate(scenario)?.id);
     expect(buildDemandScenarioDecisionCandidate(scenario, { ...stockImpact, productRef: "another-product" })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, { ...stockImpact, inventoryEvidenceIds: [] })).toBeNull();
   });
 
   it("uses the same id for an exact replay and a different id for a changed assumption", () => {
