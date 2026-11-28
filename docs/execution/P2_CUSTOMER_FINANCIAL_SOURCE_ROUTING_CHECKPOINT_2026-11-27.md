@@ -7,7 +7,7 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 ## Current source pointers
 - Latest observed main HEAD: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only execution directive refresh).
 - Latest code-bearing main SHA recorded in the shared execution state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
-- Latest P2 code/test head before the keyset-pagination batch: `fdac0dd430cf0d0db9c616b0f7fc0272a0f40616`. It includes safe source-history DTO allowlist assertions, valid compound history-index checks, and direct cursor traversal without duplicate rows. Source-posting + RLS guard commits remain `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
+- Latest P2 code/test head before this checkpoint refresh: `24a253e5bea64487ec7d2a127043333161c5a959`. It includes safe source-history DTO allowlist assertions including the capability-aware `can_review` flag, valid compound history-index checks, and direct cursor traversal without duplicate rows. Source-posting + RLS guard commits remain `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
 - PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
 - No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
 
@@ -292,3 +292,11 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - The paged source-change history now returns a per-row `can_review` decision only when the current authenticated actor has `finance.customer_source.approve`, the request is still pending, and the actor is not the original requester.
 - The source-change history test proves a maker cannot review their own request, an independent accountant can review a request only after matched evidence moves it to `pending_approval`, and an already approved request is no longer reviewable.
 - This boolean is an affordance for the UI only. `review_customer_financial_source_change` continues to re-check capability, maker/checker separation, request state, binding revision and fresh matched evidence transactionally before approval or rejection.
+
+
+## 2026-11-28 — Capability-aware DTO test and contract synchronization
+
+- Follow-up commit `06f59e60695c1ba3f255e1f50152663c7cb70025` added a read-only `can_review` boolean to each source-history row. It is true only for an authenticated approval-capable actor when the request remains pending and was created by a different maker; the transactional review RPC remains the only authority for approval/rejection.
+- Updated the strict history DTO allowlist and Boolean-type assertion in test commit `24a253e5bea64487ec7d2a127043333161c5a959`, so the privacy test recognizes the new affordance while continuing to reject raw ERP identifiers, hashes and balance values.
+- API/OPS wording was synchronized in commit `c39cc7d15a06c6365b244d4ace9c747a4909b4a0`; the affordance is explicitly documented as UI guidance, not authorization.
+- Exact-head P1/P2 runs created before this follow-up do not prove the current source/test state. Require terminal-success results tied to the final branch SHA. No migration was applied to production, no ERP provider was called, and no financial or inventory business row was changed by this read-only work.
