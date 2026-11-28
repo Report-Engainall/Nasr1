@@ -823,6 +823,7 @@ async function main(){
   "rejected shipment must leave the order in processing");
  assert.equal(salesAfterNegativePeerShip,0,
   "rejected shipment must not post a sale movement");
+ await as(manager);
  await assert.rejects(
   ()=>rpc("select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
    [ledgerOrderA,"fefo-negative-peer-"+randomUUID().replaceAll("-",""),"Reject negative peer reservation ledger"]),
