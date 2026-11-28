@@ -982,6 +982,7 @@ SET search_path=''
 AS $function$
 DECLARE
   v_actor uuid:=public.current_profile_id();
+  v_product uuid;
   v_move record;
   v_after numeric(15,3);
 BEGIN
@@ -1003,20 +1004,21 @@ BEGIN
        NEW.status='cancelled'
        AND OLD.status IN ('confirmed','processing')
      ) THEN
-    PERFORM pg_catalog.pg_advisory_xact_lock(
-      pg_catalog.hashtextextended(
-        NEW.organization_id::text||':inventory-batch-reservation:'||affected_product.product_id::text,
-        0
-      )
-    )
-      FROM (
-        SELECT DISTINCT im.product_id
-          FROM public.inventory_movements im
-         WHERE im.reference_type='order'
-           AND im.reference_id=NEW.id
-           AND im.movement_type IN ('reserve','release_reservation')
-         ORDER BY im.product_id
-      ) affected_product;
+    FOR v_product IN
+      SELECT DISTINCT im.product_id
+        FROM public.inventory_movements im
+       WHERE im.reference_type='order'
+         AND im.reference_id=NEW.id
+         AND im.movement_type IN ('reserve','release_reservation')
+       ORDER BY im.product_id
+    LOOP
+      PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended(
+          NEW.organization_id::text||':inventory-batch-reservation:'||v_product::text,
+          0
+        )
+      );
+    END LOOP;
 
     PERFORM ib.id
       FROM public.inventory_balances ib
@@ -1333,6 +1335,13 @@ BEGIN
     END LOOP;
 
   ELSIF NEW.status='cancelled' AND OLD.status IN ('confirmed','processing') THEN
+    IF EXISTS (
+      SELECT 1 FROM public.inventory_movements
+       WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='sale'
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='55000',
+        MESSAGE='an order with a recorded sale cannot be cancelled without a documented return';
+    END IF;
     IF EXISTS (
       SELECT 1 FROM public.inventory_movements
        WHERE reference_type='order' AND reference_id=NEW.id
