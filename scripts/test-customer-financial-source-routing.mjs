@@ -1900,6 +1900,10 @@ async function main() {
     externalStatementReaderDefinition[0].definition.includes("latest.fields->>'currency_code' IS DISTINCT FROM $4"),
     "P2 refuses customer ERP entries whose currency does not match the checkpoint scope",
   );
+  assert.ok(
+    externalStatementReaderDefinition[0].definition.includes("nullif(btrim(latest.fields->>'external_customer_id'),'') IS NULL"),
+    "P2 blocks a statement scope when a rejected outcome cannot be attributed to a customer",
+  );
   const statementReaderDefinition = await db.unsafe(
     "select pg_catalog.pg_get_functiondef(" +
       "'public.get_customer_account_statement()'::regprocedure) as definition",

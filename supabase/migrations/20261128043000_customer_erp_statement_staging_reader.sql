@@ -473,7 +473,139 @@ BEGIN
       )
       SELECT count(*)::integer
         FROM latest_outcomes latest
-       WHERE latest.fields->>'external_customer_id'=$3
+       WHERE (
+           latest.fields->>'external_customer_id'=$3
+           OR nullif(btrim(latest.fields->>'external_customer_id'),'') IS NULL
+           OR coalesce(latest.fields->>'external_customer_id','') !~ '^[A-Za-z0-9._:/-]{1,160}
+           OR latest.disposition NOT IN ('created','updated','unchanged')
+           OR latest.fields->>'currency_code' IS DISTINCT FROM $4
+           OR jsonb_typeof(latest.fields->'entry_reference') IS DISTINCT FROM 'string'
+           OR length(btrim(coalesce(latest.fields->>'entry_reference',''))) NOT BETWEEN 1 AND 160
+           OR jsonb_typeof(latest.fields->'entry_type') IS DISTINCT FROM 'string'
+           OR (latest.fields->>'entry_type') NOT IN ('invoice','payment','credit_note','debit_note','opening_balance','adjustment')
+           OR jsonb_typeof(latest.fields->'entry_date') IS DISTINCT FROM 'string'
+           OR (latest.fields->>'entry_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+           OR CASE
+                WHEN (latest.fields->>'entry_date') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                THEN (latest.fields->>'entry_date')::date IS NULL
+                ELSE false
+              END
+           OR jsonb_typeof(latest.fields->'debit_amount') IS DISTINCT FROM 'string'
+           OR coalesce(latest.fields->>'debit_amount','') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+           OR jsonb_typeof(latest.fields->'credit_amount') IS DISTINCT FROM 'string'
+           OR coalesce(latest.fields->>'credit_amount','') !~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+           OR CASE WHEN coalesce(latest.fields->>'debit_amount','') ~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+                   THEN (latest.fields->>'debit_amount')::numeric>0 ELSE false END
+              AND CASE WHEN coalesce(latest.fields->>'credit_amount','') ~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
+                       THEN (latest.fields->>'credit_amount')::numeric>0 ELSE false END
+           OR (latest.fields ? 'due_date' AND jsonb_typeof(latest.fields->'due_date')<>'null'
+               AND (jsonb_typeof(latest.fields->'due_date') IS DISTINCT FROM 'string'
+                    OR (latest.fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+           OR (latest.fields ? 'description' AND jsonb_typeof(latest.fields->'description') NOT IN ('string','null'))
+           OR (latest.fields ? 'source_document_number' AND jsonb_typeof(latest.fields->'source_document_number') NOT IN ('string','null'))
+         )
+      $query$
+      INTO v_bad_records
+      USING v_org,v_scope.scope_key,v_binding.external_account_ref,v_scope.currency_code;
+    IF v_bad_records>0 THEN
+      RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='ERP customer statement contains rejected or invalid records for this account; app ledger fallback is prohibited';
+    END IF;
+
+    EXECUTE $query$
+      WITH latest_outcomes AS MATERIALIZED (
+        SELECT DISTINCT ON (outcome.external_id)
+               outcome.external_id,outcome.fields,outcome.disposition,
+               outcome.source_updated_at
+          FROM public.erp_sync_page_record_outcomes outcome
+         WHERE outcome.organization_id=$1 AND outcome.scope_key=$2
+         ORDER BY outcome.external_id,outcome.recorded_at DESC,outcome.page_fingerprint DESC
+      ),
+      account_entries AS MATERIALIZED (
+        SELECT latest.external_id,
+               latest.fields->>'entry_reference' AS entry_reference,
+               (latest.fields->>'entry_date')::date AS entry_date,
+               CASE WHEN latest.fields->>'due_date' IS NULL OR latest.fields->>'due_date'=''
+                    THEN NULL ELSE (latest.fields->>'due_date')::date END AS due_date,
+               latest.fields->>'entry_type' AS entry_type,
+               (latest.fields->>'debit_amount')::numeric AS debit_amount,
+               (latest.fields->>'credit_amount')::numeric AS credit_amount,
+               latest.fields->>'source_document_number' AS source_document_number,
+               coalesce(latest.fields->>'description','') AS description
+          FROM latest_outcomes latest
+         WHERE latest.fields->>'external_customer_id'=$3
+           AND latest.disposition IN ('created','updated','unchanged')
+      ),
+      calculated AS MATERIALIZED (
+        SELECT entry.*,
+               sum(entry.debit_amount-entry.credit_amount) OVER (
+                 ORDER BY entry.entry_date ASC,entry.entry_reference ASC,entry.external_id ASC
+                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+               ) AS running_balance,
+               row_number() OVER (
+                 ORDER BY entry.entry_date DESC,entry.entry_reference DESC,entry.external_id DESC
+               ) AS detail_rank
+          FROM account_entries entry
+      )
+      SELECT pg_catalog.jsonb_build_object(
+        'currency_code',$4,
+        'source_as_of',$5,
+        'entry_count',(SELECT count(*) FROM calculated),
+        'total_debit',coalesce((SELECT sum(debit_amount) FROM calculated),0)::text,
+        'total_credit',coalesce((SELECT sum(credit_amount) FROM calculated),0)::text,
+        'closing_balance',coalesce((
+          SELECT running_balance FROM calculated
+           ORDER BY entry_date DESC,entry_reference DESC,external_id DESC LIMIT 1
+        ),0)::text,
+        'details_partial',(SELECT count(*)>500 FROM calculated),
+        'entries',coalesce((
+          SELECT jsonb_agg(pg_catalog.jsonb_build_object(
+            'entry_reference',entry_reference,
+            'entry_date',entry_date,
+            'due_date',due_date,
+            'entry_type',entry_type,
+            'debit_amount',debit_amount::text,
+            'credit_amount',credit_amount::text,
+            'running_balance',running_balance::text,
+            'source_document_number',source_document_number,
+            'description',description
+          ) ORDER BY entry_date DESC,entry_reference DESC,external_id DESC)
+            FROM calculated WHERE detail_rank<=500
+        ),'[]'::jsonb)
+      )
+      $query$
+      INTO v_currency_statement
+      USING v_org,v_scope.scope_key,v_binding.external_account_ref,
+        v_scope.currency_code,v_checkpoint.completed_watermark;
+
+    v_currencies:=v_currencies || pg_catalog.jsonb_build_array(v_currency_statement);
+  END LOOP;
+
+  v_external_statement:=pg_catalog.jsonb_build_object(
+    'source_mode',v_binding.source_mode,
+    'source_as_of',v_binding.source_as_of,
+    'currencies',v_currencies,
+    'details_limit_per_currency',500
+  );
+  RETURN pg_catalog.jsonb_build_object(
+    'source_mode',v_binding.source_mode,
+    'summary_as_of_utc',v_binding.source_as_of,
+    'invoices','[]'::jsonb,
+    'payments','[]'::jsonb,
+    'credits','[]'::jsonb,
+    'summary',NULL,
+    'external_statement',v_external_statement
+  );
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.get_customer_account_statement() FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.get_customer_account_statement() TO authenticated;
+COMMENT ON FUNCTION public.get_customer_account_statement() IS
+  'Routes APP_ONLY customers to the internal statement. ONYX/MUTAKAMEL customers receive only their own latest accepted P4 staged statement entries, per-currency balances and completed-scope watermarks. Stale, partial, conflicted or unmapped ERP scopes fail closed; there is no APP_ONLY fallback.';
+
+COMMIT;
+
+         )
          AND (
            latest.disposition IN ('rejected','conflicted')
            OR latest.disposition NOT IN ('created','updated','unchanged')

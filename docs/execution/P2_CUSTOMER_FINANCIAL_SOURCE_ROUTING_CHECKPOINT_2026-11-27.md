@@ -357,3 +357,9 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 
 - The P2 reader now independently verifies that every accepted customer statement row's canonical `currency_code` equals the authenticated customer's exact checkpoint currency scope before any totals or balances are computed. A mismatch blocks the statement with the existing fail-closed SQLSTATE 55000 path.
 - P2 PostgreSQL 17 acceptance inspects the installed statement function definition and asserts the database-side currency equality guard is present; P4 additionally rejects a financial record before staging when its currency differs from the requested sync scope.
+
+
+### Unattributable rejected statement rows
+
+- The P2 customer statement reader now treats a rejected/conflicted row with a missing, blank, or malformed external customer identity as a scope-level integrity failure. It refuses to publish any customer's balance from that currency scope until the provider data is corrected and a complete clean snapshot is committed.
+- This prevents a malformed provider row from being silently excluded from one customer's statement when the row cannot be reliably attributed to any customer.
