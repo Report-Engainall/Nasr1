@@ -123,6 +123,8 @@ function isUtcDay(value: string): boolean {
 }
 
 function previousMatchingPeriod(from: string, to: string): { from: string; to: string } | null {
+  // Validate Gregorian day strings before Date.parse, which otherwise normalizes overflow dates.
+  if (!isUtcDay(from) || !isUtcDay(to)) return null;
   const start = Date.parse(from + "T00:00:00.000Z");
   const end = Date.parse(to + "T00:00:00.000Z");
   if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) return null;
