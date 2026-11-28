@@ -23,6 +23,7 @@ import type {
   DecisionMemoryMissingField,
   DecisionMemorySnapshot,
   DecisionMemoryReviewDisposition,
+  DecisionPolicyReviewSuggestion,
 } from "@/lib/intelligence/decision-memory";
 import { EvidenceReferences, EvidenceStatusLabel, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 import { DecisionOutcomeLifecycleControls } from "./DecisionOutcomeLifecycleControls";
@@ -51,6 +52,18 @@ function metricLine(title:string,metric:NonNullable<DecisionMemoryRecord["metric
     <p className="text-xs text-muted-foreground">{metric.period.from} — {metric.period.to} · حتى {metric.asOf}</p>
     <p className="text-xs">المعادلة: {metric.formulaId}@{metric.formulaVersion}</p>
     <p className="text-xs">الإثبات: <EvidenceReferences ids={metric.evidenceIds}/></p></div>;
+}
+
+function decisionPolicyObservationLine(observation:DecisionPolicyReviewSuggestion["observations"][number]){
+  return <div key={observation.decisionId} className="rounded-md bg-muted/40 p-2">
+    <p className="text-xs">القرار {observation.decisionId.slice(0,8)} · {observation.createdAt}</p>
+    <div className="grid gap-2 sm:grid-cols-2">
+      {metricLine("المتوقع",observation.expected)}
+      {metricLine("الفعلي",observation.actual)}
+    </div>
+    <p className="text-xs">الفارق المرصود: {number(observation.difference)} · التغير: {observation.differencePercent===null?"النسبة غير معرفة لخط أساس صفري":number(observation.differencePercent)+"%"}</p>
+    <p className="text-xs">الدروس: {observation.lessons.join("؛ ")}</p>
+  </div>;
 }
 const lines=(value:string)=>value.split(/\r?\n/).map(item=>item.trim()).filter(Boolean);
 function addDays(day:string,count:number){
@@ -449,12 +462,11 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
     (currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
   )??[];
   const selectedTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??null;
-  const referenceOptions=selectedTarget&&!pageRecords.some(record=>record.decisionId===selectedTarget.decisionId)
-    ?[selectedTarget,...pageRecords]:pageRecords;
-  const searchTarget=selectedTarget??pageRecords[0]??null;
+  const referenceOptions=result?.records??[];
+  const searchTarget=selectedTarget??result?.records[0]??null;
   const policyReviewSuggestions=result?buildDecisionPolicyReviewSuggestions(result.records):[];
   const precedentMatches=searchTarget&&result
-    ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:8})
+    ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:20})
     :[];
   const precedentSummary=summarizeDecisionMemoryPrecedents(precedentMatches);
   const visiblePrecedentMatches=filterDecisionMemoryPrecedents(precedentMatches,precedentComparisonFilter);
@@ -468,7 +480,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
     <p className="text-sm text-muted-foreground">يوثق المشكلة والبدائل والافتراضات والإجراء والمراجعة على إصدارات غير قابلة للاستبدال. لا تتحول الوقائع إلى أدلة إلا بعد تحقق الخادم من مصدرها داخل المؤسسة؛ ولا تتغير القواعد أو الأسعار أو الصلاحيات تلقائياً.</p>
     {result.records.length?<section className="space-y-3 rounded-xl border p-3" aria-label="البحث في القرارات السابقة المشابهة">
       <div><h3 className="font-semibold">البحث في القرارات السابقة المشابهة</h3>
-        <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف الفترة والعملة والمعادلة. لا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
+        <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف قاعدة القرار وإصدارها وفترة القياس والعملة والمعادلة. يتيح البحث حتى 20 سابقة من كامل السجلات المحمّلة؛ ولا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
         <label className="block space-y-1 text-sm">القرار المرجعي
@@ -487,6 +499,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             onChange={event=>setPrecedentComparisonFilter(event.target.value as DecisionMemoryPrecedentFilter)}
           >
             <option value="ALL">كل السوابق المطابقة</option>
+            <option value="SAME_RULE">قاعدة القرار نفسها فقط</option>
             <option value="COMPARABLE">سياق متوافق بالكامل</option>
             <option value="NOT_COMPARABLE">اختلاف في سياق القياس</option>
             <option value="OUTCOME_UNVERIFIED">قياس أو خط أساس غير مثبت</option>
@@ -494,12 +507,12 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         </label>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="ملخص قابلية مقارنة السوابق">
-        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">أفضل السوابق المطابقة</p><strong className="text-lg tabular-nums">{precedentSummary.total}</strong></article>
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">السوابق المطابقة (حتى 20)</p><strong className="text-lg tabular-nums">{precedentSummary.total}</strong></article>
         <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">سياق متوافق</p><strong className="text-lg tabular-nums">{precedentSummary.comparable}</strong></article>
         <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">سياق مختلف</p><strong className="text-lg tabular-nums">{precedentSummary.notComparable}</strong></article>
         <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">غير مثبت</p><strong className="text-lg tabular-nums">{precedentSummary.outcomeUnverified}</strong></article>
       </div>
-      <p className="text-xs text-muted-foreground">التصنيف يعتمد على توافق خط الأساس والنتيجة الفعلية معاً: المؤشر، الوحدة، العملة، الفترة، والمعادلة. العدّادات تخص أفضل 8 سوابق محملة فقط، ولا تعني اكتمال تاريخ المؤسسة.</p>
+      <p className="text-xs text-muted-foreground">التصنيف يعتمد على تطابق قاعدة القرار وإصدارها، ثم توافق خط الأساس والنتيجة الفعلية: المؤشر، الوحدة، العملة، الفترة، والمعادلة. العدّادات تخص أفضل 20 سابقة محملة فقط، ولا تعني اكتمال تاريخ المؤسسة.</p>
       {searchTarget?<div className="rounded-lg bg-muted/40 p-2 text-xs">
         <p><strong>السياق المرجعي:</strong> {searchTarget.proposedResult} · {searchTarget.ruleId}@{searchTarget.ruleVersion}</p>
         {searchTarget.problem?<p className="mt-1">المشكلة: {searchTarget.problem}</p>:null}
@@ -522,7 +535,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
               <p className="text-xs text-muted-foreground" dir="ltr">{match.record.ruleId}@{match.record.ruleVersion} · {match.record.decisionId.slice(0,8)}</p>
               <p className="text-xs">الحالة: {states[match.record.state]} · تاريخ القرار: {match.record.createdAt}</p>
             </div>
-            <span className="text-xs">{match.comparisonStatus==="COMPARABLE"?"الخط الأساس والنتيجة متوافقان":match.comparisonStatus==="NOT_COMPARABLE"?"سياق خط الأساس أو النتيجة مختلف":"خط الأساس أو النتيجة غير مثبتة"}</span>
+            <span className="text-xs">{match.comparisonStatus==="COMPARABLE"?"الخط الأساس والنتيجة متوافقان":match.comparisonStatus==="NOT_COMPARABLE"?"سياق القياس أو قاعدة القرار مختلف":"خط الأساس أو النتيجة غير مثبتة"}</span>
           </div>
           <p className="text-xs"><strong>أساس التشابه:</strong> {match.matchReasons.join("، ")}{match.matchedTerms.length?" · المصطلحات: "+match.matchedTerms.join("، "):""}</p>
           {match.record.problem?<p className="text-sm"><strong>المشكلة المسجلة:</strong> {match.record.problem}</p>:null}
@@ -682,15 +695,11 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             هذه أوصاف للفروق فقط؛ لا تعني أن الارتفاع أفضل أو أن القرار تسبب في النتيجة.
           </p>
           <div className="space-y-2">
-            {suggestion.observations.slice(0,5).map(observation=><div key={observation.decisionId} className="rounded-md bg-muted/40 p-2">
-              <p className="text-xs">القرار {observation.decisionId.slice(0,8)} · {observation.createdAt}</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {metricLine("المتوقع",observation.expected)}
-                {metricLine("الفعلي",observation.actual)}
-              </div>
-              <p className="text-xs">الفارق المرصود: {number(observation.difference)} · التغير: {observation.differencePercent===null?"النسبة غير معرفة لخط أساس صفري":number(observation.differencePercent)+"%"}</p>
-              <p className="text-xs">الدروس: {observation.lessons.join("؛ ")}</p>
-            </div>)}
+            {suggestion.observations.slice(0,5).map(decisionPolicyObservationLine)}
+            {suggestion.observations.length>5?<details className="rounded-md border p-2">
+              <summary className="cursor-pointer text-xs font-medium">فتح بقية القياسات الموثقة ({suggestion.observations.length-5})</summary>
+              <div className="mt-2 space-y-2">{suggestion.observations.slice(5).map(decisionPolicyObservationLine)}</div>
+            </details>:null}
           </div>
           <p className="text-xs"><strong>الإجراء المقترح للمراجعة:</strong> {suggestion.reviewInstruction}</p>
           <p className="text-xs text-muted-foreground">الأدلة المحفوظة: <EvidenceReferences ids={suggestion.evidenceIds}/></p>
