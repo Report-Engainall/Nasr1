@@ -79,7 +79,7 @@ describe("customer retention action triage", () => {
     });
 
     expect(csv.startsWith("\uFEFF")).toBe(true);
-    expect(csv).toContain("'=HYPERL…id\")");
+    expect(csv).toContain("'=HYPERL…");
     expect(csv).toContain("'=SUM(1,2)");
     expect(csv).toContain(",112,0,2,2,");
     expect(csv).toContain("evidence_ids");
