@@ -220,8 +220,8 @@ describe("daily decision queue search and filters", () => {
       decision({ decisionId: "today", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-28T12:00:00.000Z" }),
       decision({ decisionId: "week", reviewDisposition: "SCHEDULED", reviewAt: "2026-12-02T00:00:00.000Z" }),
       decision({ decisionId: "unscheduled", reviewDisposition: "NOT_SCHEDULED", reviewAt: null }),
-      decision({ decisionId: "review", state: "IN_REVIEW" }),
-      decision({ decisionId: "measurement", state: "EXECUTED" }),
+      decision({ decisionId: "review", state: "IN_REVIEW", reviewDisposition: "NOT_REQUIRED" }),
+      decision({ decisionId: "measurement", state: "EXECUTED", reviewDisposition: "NOT_REQUIRED" }),
       decision({ decisionId: "rejected", state: "REJECTED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" }),
       decision({ decisionId: "measured", state: "MEASURED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" }),
     ];
