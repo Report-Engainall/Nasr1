@@ -1305,6 +1305,14 @@ async function main(){
  assert.equal(excessReleased.allocations.length,1);
  assert.equal(excessReleased.allocations[0].batch_id,excessLateBatch.batch_id,
   "excess release must remove the latest-expiry lot first and preserve the earlier FEFO reservation");
+ await assert.rejects(
+  () => rpc(
+   "select public.reconcile_incomplete_order_reservations($1::uuid,$2::text,$3::text) result",
+   [excessOrder,excessReleaseKey,excessReleaseReason],
+  ),
+  error => String(error?.code)==="22023" && String(error?.message).includes("idempotency payload conflict"),
+  "the shared reservation-repair ledger must reject reuse of an excess-release key by the shortage-reconcile action",
+ );
  const excessAudit=await db.unsafe(
   "select count(*)::integer count from public.audit_logs where action='inventory.order_reservation.excess_released' "+
   "and entity_type='order_reservation_reconciliation' and entity_id=$1::uuid",
