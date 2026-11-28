@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
 
 describe('getVisibleAdminNavigationGroups', () => {
-  it('shows the six canonical groups to an administrator without changing their membership', () => {
+  it('shows the seven canonical groups to an administrator without changing their membership', () => {
     const groups = getVisibleAdminNavigationGroups(['admin']);
     expect(groups.map(({ id }) => id)).toEqual([
-      'executive', 'sales', 'catalog', 'supply', 'operations', 'administration',
+      'executive', 'sales', 'catalog', 'supply', 'operations', 'finance', 'administration',
     ]);
+    expect(groups.find(({ id }) => id === 'finance')?.views).toEqual(['finance']);
+    expect(groups.find(({ id }) => id === 'administration')?.views).not.toContain('finance');
     expect(groups.find(({ id }) => id === 'catalog')?.views).toEqual(['products', 'categories', 'pricing', 'offers']);
     expect(groups.find(({ id }) => id === 'executive')?.views).toContain('system-health');
     expect(groups.find(({ id }) => id === 'executive')?.views).toContain('error-log');
@@ -26,7 +28,7 @@ describe('getVisibleAdminNavigationGroups', () => {
     const groups = getVisibleAdminNavigationGroups(['accountant']);
     expect(groups.map(({ id, views }) => [id, [...views]])).toEqual([
       ['operations', ['tasks']],
-      ['administration', ['finance']],
+      ['finance', ['finance']],
     ]);
   });
 

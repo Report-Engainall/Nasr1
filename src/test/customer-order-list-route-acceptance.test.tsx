@@ -214,6 +214,48 @@ describe("customer order-list real route acceptance", () => {
     expect(mocks.from).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes the visible order status automatically without a manual reload", async () => {
+    mocks.user = CUSTOMER;
+    mocks.rows = [makeOrder(1)];
+    const refresh: { current: (() => void) | null } = { current: null };
+    const originalSetInterval = window.setInterval.bind(window);
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    const originalOnline = Object.getOwnPropertyDescriptor(navigator, "onLine");
+    const setIntervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler, timeout, ...args) => {
+      if (timeout === 45_000 && typeof handler === "function") {
+        refresh.current = handler as () => void;
+        return 77;
+      }
+      return originalSetInterval(handler, timeout, ...args);
+    });
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    try {
+      await mountOrdersRoute();
+
+      expect(host?.textContent).toContain("بانتظار المراجعة");
+      expect(refresh.current).toBeTypeOf("function");
+      expect(mocks.from).toHaveBeenCalledTimes(1);
+
+      mocks.rows = [{ ...mocks.rows[0], status: "confirmed" }];
+      await act(async () => {
+        refresh.current?.();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(mocks.from).toHaveBeenCalledTimes(2);
+      expect(host?.textContent).toContain("مؤكد");
+      expect(host?.textContent).not.toContain("777777");
+    } finally {
+      setIntervalSpy.mockRestore();
+      if (originalVisibility) Object.defineProperty(document, "visibilityState", originalVisibility);
+      else Reflect.deleteProperty(document, "visibilityState");
+      if (originalOnline) Object.defineProperty(navigator, "onLine", originalOnline);
+      else Reflect.deleteProperty(navigator, "onLine");
+    }
+  });
+
   it("does not misreport unknown exact counts as an empty list", async () => {
     mocks.user = CUSTOMER;
     mocks.rows = [];

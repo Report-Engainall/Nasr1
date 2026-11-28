@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ChevronDown, MessageSquareText, Send, ShieldCheck, Star } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -37,28 +37,38 @@ export function StorefrontProductReviews({ productId }: { productId: string }) {
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: "success" | "error" } | null>(null);
+  // A request may outlive the product or authenticated account that started it.
+  // Only the current product/account generation is allowed to update this UI.
+  const requestGenerationRef = useRef(0);
+  const isCurrentGeneration = (generation: number) => requestGenerationRef.current === generation;
 
-  async function loadSummary(isActive: () => boolean = () => true) {
+  async function loadSummary(generation = requestGenerationRef.current) {
     setLoading(true);
     setError("");
     try {
       const result = await fetchStorefrontProductReviews(productId);
-      if (isActive()) setSummary(result);
+      if (isCurrentGeneration(generation)) setSummary(result);
     } catch (cause) {
-      if (isActive()) setError(cause instanceof Error ? cause.message : "تعذر تحميل تقييمات المنتج.");
+      if (isCurrentGeneration(generation)) {
+        setError(cause instanceof Error ? cause.message : "تعذر تحميل تقييمات المنتج.");
+      }
     } finally {
-      if (isActive()) setLoading(false);
+      if (isCurrentGeneration(generation)) setLoading(false);
     }
   }
 
   async function loadMoreReviews() {
     if (!summary || !summary.hasMore || loadingMore || summary.items.length > 10000) return;
+    const generation = requestGenerationRef.current;
+    const requestedProductId = productId;
+    const offset = summary.items.length;
     setLoadingMore(true);
     setError("");
     try {
-      const next = await fetchStorefrontProductReviews(productId, 8, summary.items.length);
+      const next = await fetchStorefrontProductReviews(requestedProductId, 8, offset);
+      if (!isCurrentGeneration(generation)) return;
       setSummary((current) => {
-        if (!current) return next;
+        if (!current) return current;
         const seen = new Set(current.items.map((item) => item.id));
         return {
           ...current,
@@ -67,24 +77,28 @@ export function StorefrontProductReviews({ productId }: { productId: string }) {
         };
       });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل بقية التقييمات.");
+      if (isCurrentGeneration(generation)) {
+        setError(cause instanceof Error ? cause.message : "تعذر تحميل بقية التقييمات.");
+      }
     } finally {
-      setLoadingMore(false);
+      if (isCurrentGeneration(generation)) setLoadingMore(false);
     }
   }
 
-  async function loadCustomerContext(isActive: () => boolean = () => true) {
+  async function loadCustomerContext(generation = requestGenerationRef.current) {
     if (!isCustomer) {
-      setContext(null);
-      setContextError("");
-      setContextLoading(false);
+      if (isCurrentGeneration(generation)) {
+        setContext(null);
+        setContextError("");
+        setContextLoading(false);
+      }
       return;
     }
     setContextLoading(true);
     setContextError("");
     try {
       const result = await fetchCustomerProductReviewContext(productId);
-      if (isActive()) {
+      if (isCurrentGeneration(generation)) {
         setContext(result);
         if (result.review) {
           setRating(result.review.rating);
@@ -97,41 +111,60 @@ export function StorefrontProductReviews({ productId }: { productId: string }) {
         }
       }
     } catch (cause) {
-      if (isActive()) setContextError(cause instanceof Error ? cause.message : "تعذر التحقق من أهلية التقييم.");
+      if (isCurrentGeneration(generation)) {
+        setContextError(cause instanceof Error ? cause.message : "تعذر التحقق من أهلية التقييم.");
+      }
     } finally {
-      if (isActive()) setContextLoading(false);
+      if (isCurrentGeneration(generation)) setContextLoading(false);
     }
   }
 
   useEffect(() => {
-    let active = true;
+    const generation = ++requestGenerationRef.current;
     setSummary(null);
     setContext(null);
     setMessage(null);
-    void loadSummary(() => active);
-    void loadCustomerContext(() => active);
-    return () => { active = false; };
+    setError("");
+    setContextError("");
+    setLoading(true);
+    setContextLoading(isCustomer);
+    setLoadingMore(false);
+    setSaving(false);
+    setRating(5);
+    setTitle("");
+    setBody("");
+    void loadSummary(generation);
+    void loadCustomerContext(generation);
+    return () => {
+      if (requestGenerationRef.current === generation) requestGenerationRef.current += 1;
+    };
   }, [productId, user?.id, user?.profileId, isCustomer]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isCustomer || !context?.eligible || !context.orderItemId || saving) return;
+    const generation = requestGenerationRef.current;
+    const submittedProductId = productId;
+    const submittedOrderItemId = context.orderItemId;
     setSaving(true);
     setMessage(null);
     try {
       const result = await submitStorefrontProductReview({
-        productId,
-        orderItemId: context.orderItemId,
+        productId: submittedProductId,
+        orderItemId: submittedOrderItemId,
         rating,
         title,
         body,
       });
+      if (!isCurrentGeneration(generation)) return;
       setMessage({ text: result.message, kind: "success" });
-      await Promise.all([loadSummary(), loadCustomerContext()]);
+      await Promise.all([loadSummary(generation), loadCustomerContext(generation)]);
     } catch (cause) {
-      setMessage({ text: cause instanceof Error ? cause.message : "تعذر حفظ التقييم.", kind: "error" });
+      if (isCurrentGeneration(generation)) {
+        setMessage({ text: cause instanceof Error ? cause.message : "تعذر حفظ التقييم.", kind: "error" });
+      }
     } finally {
-      setSaving(false);
+      if (isCurrentGeneration(generation)) setSaving(false);
     }
   }
 

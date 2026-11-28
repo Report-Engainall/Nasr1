@@ -4,8 +4,12 @@ import { cancelStockCount, completeStockCount, fetchActiveInventoryWarehouses, f
 import type { ActiveInventoryWarehouse, InventoryStockCountLine, InventoryStockCountSession } from '@/lib/api';
 import { downloadStockCountWorkbookXlsx } from '@/lib/stock-count-xlsx';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { projectStockCountPrintDocument } from '@/lib/stock-count-print';
+import { parseLocalizedQuantityInput } from '@/lib/localized-number-input';
+import { filterStockCountLines, type StockCountLineFilter } from '@/lib/stock-count-filters';
 import { InventoryBalanceAdjustmentPanel } from '@/components/InventoryBalanceAdjustmentPanel';
+import { InventoryBatchTracePanel } from '@/components/InventoryBatchTracePanel';
 import { OpeningInventoryBaselineApprovalPanel } from '@/components/OpeningInventoryBaselineApprovalPanel';
 const q = (v: number | null | undefined) => v == null || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(Number(v));
 const idempotencyKey = () => 'stock-count-' + crypto.randomUUID().replace(/-/g, '');
@@ -26,7 +30,7 @@ function StockCountLineRow({
   onDraftChange: (productId: string, value: string) => void;
   onSave: (line: InventoryStockCountLine) => void;
 }) {
-  const parsed = draft.trim() === "" ? null : Number(draft);
+  const parsed = parseLocalizedQuantityInput(draft);
   const delta = parsed === null || !Number.isFinite(parsed) ? line.variance : parsed - line.expected_quantity;
   const formattedDelta = delta == null || !Number.isFinite(delta) ? "—" : (delta > 0 ? "+" : "") + q(delta);
   const saveLabel = saving ? "جار الحفظ…" : line.counted_quantity === null ? "حفظ العد" : "تحديث العد";
@@ -40,12 +44,13 @@ function StockCountLineRow({
       <td>{q(line.expected_reserved_quantity)}</td>
       <td>
         <input
-          type="number"
-          min="0"
-          max="999999999999.999"
-          step="0.001"
+          type="text"
+          inputMode="decimal"
+          dir="ltr"
+          autoComplete="off"
           value={draft}
           aria-label={"الكمية المعدودة " + line.product_name}
+          aria-describedby="stock-count-quantity-input-hint"
           onChange={(event) => onDraftChange(line.product_id, event.target.value)}
           disabled={busy}
         />
@@ -71,6 +76,7 @@ function renderStockCountWarehouseOptions(warehouses: ActiveInventoryWarehouse[]
 export function InventoryStockCountPage() {
   const { user } = useAuth();
   const canFinalize = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const [adjustmentAccess, setAdjustmentAccess] = useState<'loading' | 'allowed' | 'denied' | 'unavailable'>('loading');
   const [warehouses, setWarehouses] = useState<ActiveInventoryWarehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
   const [session, setSession] = useState<InventoryStockCountSession | null>(null);
@@ -84,7 +90,40 @@ export function InventoryStockCountPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [lineSearch, setLineSearch] = useState('');
+  const [lineFilter, setLineFilter] = useState<StockCountLineFilter>('all');
+  const [linePage, setLinePage] = useState(1);
+  const [linePageSize, setLinePageSize] = useState(10);
   const beginRequestRef = useRef<{ signature: string; key: string } | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!canFinalize || !warehouseId) {
+      setAdjustmentAccess('denied');
+      return () => { active = false; };
+    }
+    setAdjustmentAccess('loading');
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('current_authorization_decision', {
+          p_capability_key: 'inventory.balance.adjust',
+          p_resource_id: warehouseId,
+        });
+        if (!active) return;
+        if (error) {
+          setAdjustmentAccess('unavailable');
+          return;
+        }
+        const decision = data && typeof data === 'object' && 'decision' in data
+          ? data.decision
+          : null;
+        setAdjustmentAccess(decision === 'PERMIT' ? 'allowed' : 'denied');
+      } catch {
+        if (active) setAdjustmentAccess('unavailable');
+      }
+    })();
+    return () => { active = false; };
+  }, [canFinalize, warehouseId, user?.profileId]);
+
   useEffect(() => {
     let active = true;
     fetchActiveInventoryWarehouses().then((items) => {
@@ -110,6 +149,24 @@ export function InventoryStockCountPage() {
   }, [warehouseId, refreshKey]);
   const counted = useMemo(() => lines.filter((line) => line.counted_quantity !== null).length, [lines]);
   const netVariance = useMemo(() => lines.reduce((sum, line) => sum + (line.variance ?? 0), 0), [lines]);
+  const filteredLines = useMemo(
+    () => filterStockCountLines(lines, { search: lineSearch, status: lineFilter }),
+    [lines, lineSearch, lineFilter],
+  );
+  const linePageCount = Math.max(1, Math.ceil(filteredLines.length / linePageSize));
+  const visibleLines = useMemo(
+    () => filteredLines.slice((linePage - 1) * linePageSize, linePage * linePageSize),
+    [filteredLines, linePage, linePageSize],
+  );
+  useEffect(() => {
+    setLinePage((current) => Math.min(current, linePageCount));
+  }, [linePageCount]);
+  useEffect(() => {
+    setLineSearch('');
+    setLineFilter('all');
+    setLinePage(1);
+    setLinePageSize(10);
+  }, [session?.id]);
   const printDocument = useMemo(() => {
     if (!session) return null;
     const warehouse = warehouses.find((item) => item.id === session.warehouse_id);
@@ -138,8 +195,8 @@ export function InventoryStockCountPage() {
   async function save(line: InventoryStockCountLine) {
     const raw = drafts[line.product_id];
     if (raw === undefined || raw.trim() === '') { setError('أدخل العد الفعلي للصنف؛ الصفر قيمة صالحة.'); return; }
-    const value = Number(raw);
-    if (!Number.isFinite(value) || value < 0 || value > 999999999999.999 || !Number.isSafeInteger(Math.round(value * 1000)) || Math.round(value * 1000) !== value * 1000) { setError('الكمية يجب أن تكون غير سالبة وبحد أقصى ثلاث منازل عشرية.'); return; }
+    const value = parseLocalizedQuantityInput(raw);
+    if (value === null) { setError('الكمية يجب أن تكون غير سالبة وبحد أقصى ثلاث منازل عشرية، وبفواصل آلاف صحيحة.'); return; }
     if (!session || savingLine) return;
     setSavingLine(line.product_id); setError(''); setNotice('');
     try {
@@ -191,6 +248,13 @@ export function InventoryStockCountPage() {
   return <section className="stock-count-page" dir="rtl">
     <style>{`
       .stock-count-print-document { display:none; }
+      .stock-count-filters { display:grid; grid-template-columns:minmax(220px,2fr) repeat(2,minmax(150px,1fr)) auto; align-items:end; gap:10px; margin:14px 0; }
+      .stock-count-filters label { display:grid; gap:5px; font-size:12px; font-weight:600; }
+      .stock-count-filters input,.stock-count-filters select { width:100%; min-width:0; }
+      .stock-count-filters [role="status"] { grid-column:1/-1; color:var(--muted-foreground,#64748b); font-size:12px; font-weight:400; }
+      .stock-count-pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
+      @media(max-width:780px) { .stock-count-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+      @media(max-width:480px) { .stock-count-filters { grid-template-columns:1fr; } }
       @media print {
         @page { size:A4 landscape; margin:10mm; }
         body * { visibility:hidden !important; }
@@ -232,8 +296,24 @@ export function InventoryStockCountPage() {
       </div>
       <p className="text-muted">لا تُنشأ أصناف أو أرصدة أو عمليات تاريخية تلقائيًا؛ تبدأ الجلسة من الأرصدة الموجودة في المستودع المحدد فقط.</p>
     </section>
-    {canFinalize && warehouseId && <InventoryBalanceAdjustmentPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />}
+    {canFinalize && warehouseId && (
+      adjustmentAccess === 'allowed' ? (
+        <InventoryBalanceAdjustmentPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />
+      ) : (
+        <section className="panel" aria-label="صلاحية تسوية رصيد الصنف">
+          <h2>تسوية رصيد صنف</h2>
+          {adjustmentAccess === 'loading' ? (
+            <p role="status">جار التحقق من نطاق صلاحية التسوية لهذا المستودع…</p>
+          ) : adjustmentAccess === 'denied' ? (
+            <p role="status">لا تتوفر لهذه العضوية صلاحية تسوية أرصدة هذا المستودع. اطلب من مسؤول المؤسسة مراجعة الصلاحية ونطاق المستودع.</p>
+          ) : (
+            <p role="alert">تعذر التحقق من صلاحية التسوية من الخادم؛ لم تُحمّل بيانات الأرصدة.</p>
+          )}
+        </section>
+      )
+    )}
     {user?.roles.includes('admin') && warehouseId && <OpeningInventoryBaselineApprovalPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />}
+    {warehouseId && <InventoryBatchTracePanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />}
     {error && <div className="form-error" role="alert"><AlertTriangle size={16} /> {error}</div>}
     {notice && <div className="data-status success" role="status"><Check size={16} /> {notice}</div>}
     {loading && <section className="panel">جار تحميل بيانات الجرد المحفوظة…</section>}
@@ -243,8 +323,36 @@ export function InventoryStockCountPage() {
       <div className="panel-head"><div><h2>جلسة الجرد المفتوحة</h2><p className="text-muted">بدأت: {new Date(session.started_at).toLocaleString('ar-YE')}</p></div><span className="badge warning">بانتظار الاعتماد</span></div>
       <div className="report-grid"><article className="report-metric"><span>أصناف اللقطة</span><strong>{q(session.total_lines)}</strong></article><article className="report-metric"><span>تم حفظ عدها</span><strong>{q(counted)} / {q(lines.length)}</strong></article><article className="report-metric"><span>صافي الفروقات المسجلة</span><strong>{q(netVariance)}</strong></article></div>
       <p className="text-muted">رصيد اللقطة يمثل كمية النظام عند البداية. إذا تغيرت الأرصدة أو الحجوزات بعد اللقطة، سيرفض الخادم الإقفال بدل الكتابة فوق حركة أحدث.</p>
-      <div style={{ overflowX: 'auto' }}><table><thead><tr><th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>رصيد اللقطة</th><th>محجوز</th><th>العد الفعلي</th><th>الفرق</th><th className="stock-count-no-print">حفظ</th></tr></thead><tbody>
-        {lines.map((line) => (
+      <p id="stock-count-quantity-input-hint" className="text-muted">يمكن إدخال الكميات بالأرقام العربية أو الإنجليزية؛ الفاصل العشري ٫ أو النقطة، وفواصل الآلاف المقبولة فقط عند تجميع ثلاث خانات.</p>
+      <div className="stock-count-filters stock-count-no-print">
+        <label>بحث في أصناف الجرد
+          <input type="search" aria-label="بحث في أصناف الجرد" value={lineSearch}
+            onChange={(event) => { setLineSearch(event.target.value); setLinePage(1); }}
+            placeholder="رمز الصنف أو اسمه أو الوحدة" autoComplete="off" />
+        </label>
+        <label>حالة العد
+          <select aria-label="تصفية حالة العد" value={lineFilter}
+            onChange={(event) => { setLineFilter(event.target.value as StockCountLineFilter); setLinePage(1); }}>
+            <option value="all">كل الأصناف</option><option value="uncounted">غير معدودة</option>
+            <option value="counted">تم عدها</option><option value="variance">بها فروقات</option>
+          </select>
+        </label>
+        <label>عدد الأصناف في الصفحة
+          <select aria-label="عدد الأصناف في الصفحة" value={linePageSize}
+            onChange={(event) => { setLinePageSize(Number(event.target.value)); setLinePage(1); }}>
+            <option value={10}>10</option><option value={25}>25</option><option value={50}>50</option>
+          </select>
+        </label>
+        <button type="button" className="btn outline" onClick={() => { setLineSearch(''); setLineFilter('all'); setLinePage(1); }}
+          disabled={!lineSearch && lineFilter === 'all'}>مسح الفلاتر</button>
+        <span role="status" aria-live="polite">{filteredLines.length === 0
+          ? 'لا توجد أصناف مطابقة.'
+          : 'عرض ' + ((linePage - 1) * linePageSize + 1).toLocaleString('ar-YE') + '–' +
+            Math.min(linePage * linePageSize, filteredLines.length).toLocaleString('ar-YE') + ' من ' +
+            filteredLines.length.toLocaleString('ar-YE') + ' صنف'}</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}><table aria-label="جدول أصناف الجرد"><thead><tr><th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>رصيد اللقطة</th><th>محجوز</th><th>العد الفعلي</th><th>الفرق</th><th className="stock-count-no-print">حفظ</th></tr></thead><tbody>
+        {visibleLines.map((line) => (
           <StockCountLineRow
             key={line.product_id}
             line={line}
@@ -258,6 +366,14 @@ export function InventoryStockCountPage() {
         ))}
       </tbody></table></div>
       {!lines.length && <p className="text-muted">لا توجد أصناف في لقطة الجرد؛ لا تُستخدم بيانات تجريبية.</p>}
+      {lines.length > 0 && filteredLines.length === 0 && <p className="text-muted" role="status">لا توجد أصناف تطابق البحث أو حالة العد الحالية.</p>}
+      {filteredLines.length > 0 && <nav className="stock-count-pagination stock-count-no-print" aria-label="ترقيم صفحات أصناف الجرد">
+        <span>صفحة {linePage} من {linePageCount}</span>
+        <div className="toolbar-actions">
+          <button type="button" className="btn outline" onClick={() => setLinePage((current) => Math.max(1, current - 1))} disabled={linePage <= 1 || busy || savingLine !== null}>السابق</button>
+          <button type="button" className="btn outline" onClick={() => setLinePage((current) => Math.min(linePageCount, current + 1))} disabled={linePage >= linePageCount || busy || savingLine !== null}>التالي</button>
+        </div>
+      </nav>}
       <div className="toolbar-actions stock-count-no-print" style={{ marginTop: 16 }}><button className="btn primary" onClick={() => void finalize()} disabled={busy || !canFinalize || !lines.length || counted !== lines.length}><ShieldCheck size={16} /> {canFinalize ? 'اعتماد الجرد وتطبيق الفروقات' : 'بانتظار اعتماد المدير'}</button>{!canFinalize && <span className="text-muted">يمكنك إدخال العد؛ الإقفال النهائي محصور بالمدير أو مدير النظام.</span>}</div>
       {canFinalize && <div className="form-grid stock-count-no-print" style={{ marginTop: 12 }}><label>سبب إلغاء الجلسة<input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} maxLength={1000} placeholder="سبب موثق؛ مطلوب للإلغاء" disabled={busy} /></label><button className="btn outline" onClick={() => void cancel()} disabled={busy || cancelReason.trim().length < 3}>إلغاء الجلسة دون تعديل الرصيد</button></div>}
     </section>}

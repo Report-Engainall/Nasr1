@@ -9,11 +9,12 @@ import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './cu
 import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
 import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
-import { buildProductAdminSearchFilter, isValidProductAdminCategoryId } from './product-admin-pagination';
+import { buildProductAdminSearchFilter, normalizeProductAdminSearchTerm, isValidProductAdminCategoryId, isValidProductAdminStatusFilter, type ProductAdminStatusFilter } from './product-admin-pagination';
 import { getImportJobsPageBounds } from './import-job-pagination';
 import { calculateBusinessInventoryValue } from './business-inventory-valuation';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
+import { isStorefrontArtworkKey } from './storefront-artwork';
 import { resolveOnyxSnapshotImportKind, type OnyxSnapshotImportKind } from './onyx-snapshot-import-kind';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { extractOwnedProductImageObjectPath } from './product-image-security';
@@ -38,6 +39,27 @@ export async function ensureCustomerImportProfile(): Promise<string> {
   }
   return data;
 }
+
+export async function ensureOnyxStockBalanceImportProfile(): Promise<string> {
+  const { data, error } = await supabase.rpc("ensure_onyx_stock_balance_import_profile");
+  if (error) throw new Error(error.message || "تعذر تهيئة ملف استيراد أرصدة أونكس.");
+  if (typeof data !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+    throw new Error("لم يؤكد الخادم ملف استيراد أرصدة أونكس.");
+  }
+  return data;
+}
+
+export async function ensureOnyxProductUnitImportProfile(): Promise<string> {
+  const { data, error } = await supabase.rpc("ensure_onyx_product_unit_import_profile");
+  if (error) throw new Error(error.message || "تعذر تهيئة ملف وحدات أصناف أونكس.");
+  if (typeof data !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+    throw new Error("لم يؤكد الخادم ملف وحدات أصناف أونكس.");
+  }
+  return data;
+}
+
 
 type SupabaseReadOutcome<T> = { data: T | null; error: unknown | null };
 
@@ -227,7 +249,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
 
   const scope = await getStorefrontDataScope();
   const { organizationId: orgId, warehouseId, isStaff, canViewInternalProductPrices } = scope;
-  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
+  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,updated_at,min_order_quantity,order_quantity_multiple';
   let products: Product[];
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
@@ -286,7 +308,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     retryRead(async () => {
       let query = supabase
         .from('categories')
-        .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
+        .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active,icon')
         .eq('organization_id', orgId);
       // Categories can contain internal descriptions; expose only storefront fields and active
       // categories to non-staff clients. Keep the full scoped projection for staff maintenance.
@@ -346,6 +368,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     const staffProduct = p as Product & {
       status?: string;
       created_at?: string;
+      updated_at?: string;
       min_stock?: number | string | null;
     };
     const productFields: Record<string, unknown> = canViewInternalProductPrices
@@ -370,6 +393,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
             status: staffProduct.status,
             image_url: p.image_url,
             created_at: staffProduct.created_at,
+            updated_at: staffProduct.updated_at,
             min_order_quantity: Number(p.min_order_quantity ?? 1),
             order_quantity_multiple: Number(p.order_quantity_multiple ?? 1),
             min_stock: staffProduct.min_stock,
@@ -393,6 +417,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
           image_url: p.image_url,
           image_gallery_urls: galleryByProduct.get(p.id) ?? [],
           created_at: staffProduct.created_at,
+          updated_at: staffProduct.updated_at,
         };
 
     return {
@@ -518,10 +543,6 @@ export type AdminProductPage = {
 
 const ADMIN_PRODUCT_PAGE_SIZE = 40;
 const ADMIN_PRODUCT_MAX_PAGE = 2500;
-const PRODUCT_ADMIN_PAGE_COLUMNS =
-  'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,base_price,min_stock,created_at,min_order_quantity,order_quantity_multiple,is_featured,sort_order';
-const STAFF_PRODUCT_ADMIN_PAGE_COLUMNS =
-  'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,min_stock,created_at,min_order_quantity,order_quantity_multiple,is_featured,sort_order';
 
 /**
  * Bounded, tenant-scoped staff catalog read for the product-management table.
@@ -532,6 +553,7 @@ export async function fetchAdminProductsPage(input: {
   page: number;
   search?: string;
   activeOnly?: boolean;
+  status?: ProductAdminStatusFilter;
   categoryId?: string;
 }): Promise<AdminProductPage> {
   const page = input.page;
@@ -542,43 +564,63 @@ export async function fetchAdminProductsPage(input: {
   if (input.categoryId !== undefined && !isValidProductAdminCategoryId(input.categoryId)) {
     throw new Error('معرّف التصنيف غير صالح لعرض الكتالوج.');
   }
+  const status: ProductAdminStatusFilter = input.status ?? (input.activeOnly === true ? 'active' : 'all');
+  if (!isValidProductAdminStatusFilter(status)) {
+    throw new Error('حالة المنتج المطلوبة غير صالحة لعرض الكتالوج.');
+  }
 
   const scope = await getStorefrontDataScope();
   if (!scope.isStaff) {
     throw new Error('لا تملك صلاحية قراءة كتالوج الإدارة.');
   }
 
-  const rawSearch = (input.search ?? '').trim();
-  const searchFilter = buildProductAdminSearchFilter(rawSearch);
-  if (rawSearch && !searchFilter) {
+  const rawSearch = input.search ?? '';
+  const search = normalizeProductAdminSearchTerm(rawSearch);
+  if (rawSearch.trim() && !search) {
     return { items: [], page, pageSize, hasNextPage: false };
   }
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize; // inclusive: one extra row proves whether another page exists.
 
-  let productQuery = readStaffProducts(scope, null)
-    .select(scope.canViewInternalProductPrices ? PRODUCT_ADMIN_PAGE_COLUMNS : STAFF_PRODUCT_ADMIN_PAGE_COLUMNS)
-    .order('name', { ascending: true })
-    .order('id', { ascending: true });
-
-  if (input.categoryId) productQuery = productQuery.eq('category_id', input.categoryId);
-  if (input.activeOnly) productQuery = productQuery.eq('status', 'active');
-  const filteredProductQuery = searchFilter
-    ? productQuery.or(searchFilter)
-    : productQuery;
-
-  const rawProducts = await readWithRetry(() => filteredProductQuery.range(from, to));
-  if (!Array.isArray(rawProducts) || rawProducts.length > pageSize + 1) {
-    throw new Error('أعاد الخادم صفحة منتجات غير صالحة؛ لم يتم عرض بيانات جزئية.');
+  const response = await readWithRetry(() => supabase.rpc('get_admin_products_page_v2', {
+    p_page: page,
+    p_page_size: pageSize,
+    p_search: search,
+    p_status: status,
+    p_category_id: input.categoryId ?? null,
+  }));
+  if (response === null || typeof response !== 'object' || Array.isArray(response)) {
+    throw new Error('لم يؤكد الخادم صفحة منتجات الإدارة.');
   }
-
-  const hasNextPage = rawProducts.length > pageSize;
-  const pageRows: Array<Record<string, unknown>> = rawProducts.slice(0, pageSize).map((row) => {
-    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+  const pagePayload = response as Record<string, unknown>;
+  const rawItems = pagePayload.items;
+  if (
+    !Array.isArray(rawItems) ||
+    rawItems.length > pageSize ||
+    pagePayload.page !== page ||
+    pagePayload.page_size !== pageSize ||
+    typeof pagePayload.has_next_page !== 'boolean'
+  ) {
+    throw new Error('أعاد الخادم صفحة منتجات إدارة غير مكتملة أو خارج حدود الصفحة.');
+  }
+  const hasNextPage = pagePayload.has_next_page;
+  const pageRows: Array<Record<string, unknown>> = rawItems.map((value) => {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('أعاد الخادم صف منتج غير صالح؛ أُوقف العرض لمنع قراءة بيانات غير موثوقة.');
     }
-    return Object.fromEntries(Object.entries(row));
+    const row = Object.fromEntries(Object.entries(value as Record<string, unknown>));
+    const forbiddenFields = [
+      'cost_price', 'purchase_cost', 'unit_cost', 'retail_price', 'wholesale_price',
+      'price_retail', 'price_wholesale', 'price_wholesale_of_wholesale', 'margin', 'margin_amount',
+    ];
+    if (forbiddenFields.some((field) => Object.prototype.hasOwnProperty.call(row, field))) {
+      throw new Error('أعاد الخادم حقولًا مالية خارج إسقاط صفحة المنتجات المسموح.');
+    }
+    const hasBasePrice = Object.prototype.hasOwnProperty.call(row, 'base_price');
+    if (scope.canViewInternalProductPrices ? !hasBasePrice : hasBasePrice) {
+      throw new Error('إسقاط السعر الأساسي لا يطابق صلاحية الدور الحالية؛ أُوقف عرض الصفحة.');
+    }
+    return row;
   });
+
   const productIds = pageRows.map((row) => {
     if (
       typeof row.id !== 'string' ||
@@ -1113,7 +1155,7 @@ export async function fetchCategories(): Promise<Category[]> {
   const data = await retryRead(async () => {
     let query = supabase
       .from('categories')
-      .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
+      .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active,icon')
       .eq('organization_id', orgId);
     if (!isStaff) query = query.eq('is_active', true);
     const { data, error } = await query.order('sort_order');
@@ -1332,11 +1374,43 @@ const ADMIN_ORDER_PAGE_SIZE = 40;
 const ADMIN_ORDER_MAX_PAGE = 2500;
 
 /** Bounded staff order list. The unpaged fetchOrders() remains for analytics and detail workflows. */
-export async function fetchAdminOrdersPage(input: { page: number }): Promise<AdminOrderPage> {
+const ADMIN_ORDER_FILTERABLE_STATUSES = new Set([
+  'new', 'draft', 'pending', 'received', 'reviewing', 'returned',
+  'needs_customer_amendment', 'returned_for_adjustment', 'confirmed', 'approved',
+  'processing', 'preparing', 'prepared', 'shipped', 'dispatched', 'delivered',
+  'cancelled', 'rejected', 'invoiced',
+]);
+
+/** Bounded staff order list with tenant-scoped filters applied by PostgreSQL before pagination. */
+export async function fetchAdminOrdersPage(input: {
+  page: number;
+  search?: string;
+  status?: string;
+  sort?: string;
+}): Promise<AdminOrderPage> {
   const page = input.page;
   const pageSize = ADMIN_ORDER_PAGE_SIZE;
   if (!Number.isSafeInteger(page) || page < 1 || page > ADMIN_ORDER_MAX_PAGE) {
     throw new Error('رقم صفحة الطلبات غير صالح.');
+  }
+
+  const status = input.status ?? 'all';
+  if (status !== 'all' && !ADMIN_ORDER_FILTERABLE_STATUSES.has(status)) {
+    throw new Error('حالة تصفية الطلبات غير معتمدة.');
+  }
+  const search = typeof input.search === 'string' ? input.search.normalize('NFKC').trim() : '';
+  const hasControlCharacter = [...search].some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127;
+  });
+  if (search.length > 80 || hasControlCharacter || search.includes('%') || search.includes('_') || search.includes('\\')) {
+    throw new Error('عبارة البحث في رقم الطلب غير صالحة أو تحتوي رموزًا غير مسموحة أو تتجاوز 80 حرفًا.');
+  }
+  const searchPattern = search ? '%' + search + '%' : null;
+  const sort = input.sort ?? 'newest';
+  const allowedSorts = new Set<string>(['newest', 'oldest', 'amount_high', 'amount_low']);
+  if (!allowedSorts.has(sort)) {
+    throw new Error('ترتيب الطلبات غير معتمد.');
   }
 
   const { organizationId, isStaff } = await getCurrentTenantScope();
@@ -1344,12 +1418,24 @@ export async function fetchAdminOrdersPage(input: { page: number }): Promise<Adm
 
   const from = (page - 1) * pageSize;
   const to = from + pageSize;
-  const rawOrders = await readWithRetry(() => supabase
-    .rpc('fetch_staff_orders')
-    .select('id,order_number,customer_id,created_at,total_items,total_amount,status')
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: true })
-    .range(from, to));
+  const rawOrders = await readWithRetry(() => {
+    let query = supabase
+      .rpc('fetch_staff_orders')
+      .select('id,order_number,customer_id,created_at,total_items,total_amount,status');
+    if (status !== 'all') query = query.eq('status', status);
+    if (searchPattern) query = query.ilike('order_number', searchPattern);
+    if (sort === 'amount_high' || sort === 'amount_low') {
+      return query
+        .order('total_amount', { ascending: sort === 'amount_low' })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to);
+    }
+    return query
+      .order('created_at', { ascending: sort === 'oldest' })
+      .order('id', { ascending: true })
+      .range(from, to);
+  });
 
   if (!Array.isArray(rawOrders) || rawOrders.length > pageSize + 1) {
     throw new Error('أعاد الخادم صفحة طلبات غير صالحة؛ لم تُعرض بيانات جزئية.');
@@ -2333,6 +2419,7 @@ function parseStorefrontAnnouncementRows(data: unknown, management: boolean): St
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('أعاد الخادم سجل إعلان غير صالح.');
     const row = value as Record<string, unknown>;
     const audience = row.audience, content = row.content, href = row.href;
+    const visualKey = row.visual_key == null ? "general" : row.visual_key;
     const timestamp = (value: unknown): string | null => {
       if (value == null) return null;
       if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw new Error('تاريخ إعلان غير صالح.');
@@ -2345,6 +2432,7 @@ function parseStorefrontAnnouncementRows(data: unknown, management: boolean): St
       !(href == null || typeof href === 'string') ||
       (typeof href === 'string' && (!safeHref(href) || href.length > 500)) ||
       typeof row.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(row.color) ||
+      !isStorefrontArtworkKey(visualKey) ||
       typeof row.priority !== 'number' || !Number.isInteger(row.priority) ||
       !['all', 'customers', 'staff'].includes(String(audience)) ||
       (management && typeof row.is_active !== 'boolean')) {
@@ -2352,7 +2440,7 @@ function parseStorefrontAnnouncementRows(data: unknown, management: boolean): St
     }
     return {
       id: row.id, title: row.title, content: content as string | null, href: (href ?? null) as string | null,
-      color: row.color, priority: row.priority, starts_at: timestamp(row.starts_at), ends_at: timestamp(row.ends_at),
+      color: row.color, priority: row.priority, visual_key: visualKey, starts_at: timestamp(row.starts_at), ends_at: timestamp(row.ends_at),
       audience: audience as StorefrontAnnouncement['audience'],
       is_active: management ? row.is_active as boolean : true,
       created_at: typeof row.created_at === 'string' ? row.created_at : undefined,
@@ -2376,6 +2464,7 @@ export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementIn
     p_announcement_id: input.id, p_title: input.title, p_content: input.content, p_href: input.href,
     p_color: input.color, p_priority: input.priority, p_is_active: input.is_active,
     p_starts_at: input.starts_at, p_ends_at: input.ends_at, p_audience: input.audience,
+    p_visual_key: input.visual_key ?? 'general',
   });
   if (result.error) throw new Error('تعذر حفظ إعلان المتجر: ' + result.error.message);
   if (typeof result.data !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.data)) {
@@ -2388,13 +2477,14 @@ export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementIn
 // ─── Server-resolved, role-authorized price grid read model ───
 export interface ProductPriceGridRow {
   id: string; name: string; item_code: string; unit: string; is_active: boolean;
+  category_id: string | null; category_name: string | null;
   base_price: number; price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number;
   quantity_on_hand_total: number | null; quantity_reserved_total: number | null;
   quantity_available_total: number | null; reorder_point_total: number | null;
   inventory_warehouse_count: number;
 }
 export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[]> {
-  const { data, error } = await supabase.rpc('get_admin_product_price_grid_with_inventory');
+  const { data, error } = await supabase.rpc('get_admin_product_price_grid_v2');
   if (error) throw new Error('تعذر تحميل شبكة الأسعار والمخزون: ' + error.message);
   if (!Array.isArray(data)) throw new Error('أعاد الخادم شبكة أسعار غير صالحة.');
   return data.map((value) => {
@@ -2428,12 +2518,21 @@ export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[
     if (!Number.isInteger(warehouseCount) || warehouseCount < 0 || warehouseCount > 100000) {
       throw new Error('أعاد الخادم عدد مخازن غير صالح لشبكة الأسعار.');
     };
+    const categoryId = row.category_id;
+    const categoryName = row.category_name;
+    const categoryIdValid = categoryId === null ||
+      (typeof categoryId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId));
+    const categoryNameValid = categoryName === null ||
+      (typeof categoryName === 'string' && categoryName.trim().length > 0 && categoryName.length <= 100);
     if (typeof row.id !== 'string' || typeof row.name !== 'string' ||
-      typeof row.item_code !== 'string' || typeof row.unit !== 'string' || typeof row.is_active !== 'boolean') {
-      throw new Error('أعاد الخادم هوية منتج غير صالحة لشبكة الأسعار.');
+      typeof row.item_code !== 'string' || typeof row.unit !== 'string' || typeof row.is_active !== 'boolean' ||
+      !categoryIdValid || !categoryNameValid || ((categoryId === null) !== (categoryName === null))) {
+      throw new Error('أعاد الخادم هوية منتج أو تصنيفًا غير صالح لشبكة الأسعار.');
     }
     return {
       id: row.id, name: row.name, item_code: row.item_code, unit: row.unit, is_active: row.is_active,
+      category_id: categoryId as string | null,
+      category_name: categoryName as string | null,
       base_price: money('base_price'),
       price_wholesale_of_wholesale: money('price_wholesale_of_wholesale'),
       price_wholesale: money('price_wholesale'),
@@ -3484,6 +3583,54 @@ export async function applyAdminImportSnapshot(
   return row as unknown as AdminImportApplicationResult;
 }
 
+export type OnyxProductUnitApplicationResult = {
+  snapshot_id: string;
+  status: "applied";
+  source_rows: number;
+  product_count: number;
+  unit_rows_applied: number;
+  units_created: number;
+  units_updated: number;
+  units_unchanged: number;
+  base_unit_rows_skipped: number;
+  metadata_rows_pending_review: number;
+  rejected: number;
+  row_errors_truncated: boolean;
+  row_errors: Array<{ row_number: number; reason: string }>;
+  idempotent_replay: boolean;
+};
+
+export async function applyOnyxProductUnitSnapshot(snapshotId: string): Promise<OnyxProductUnitApplicationResult> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+    throw new Error("معرّف لقطة وحدات الأصناف غير صالح.");
+  }
+  const { data, error } = await supabase.rpc("apply_onyx_product_unit_snapshot", {
+    p_snapshot_id: snapshotId,
+  });
+  if (error) throw new Error(error.message || "تعذر اعتماد تحويلات وحدات الأصناف.");
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("لم يؤكد الخادم نتيجة اعتماد وحدات الأصناف.");
+  }
+  const row = data as Record<string, unknown>;
+  const numbers = [
+    "source_rows", "product_count", "unit_rows_applied", "units_created",
+    "units_updated", "units_unchanged", "base_unit_rows_skipped", "metadata_rows_pending_review", "rejected",
+  ] as const;
+  const rowErrors = Array.isArray(row.row_errors) && row.row_errors.every((item) =>
+    !!item && typeof item === "object" && !Array.isArray(item) &&
+    Number.isInteger((item as Record<string, unknown>).row_number) &&
+    typeof (item as Record<string, unknown>).reason === "string"
+  );
+  if (row.snapshot_id !== snapshotId || row.status !== "applied" ||
+      numbers.some((field) => typeof row[field] !== "number" || !Number.isInteger(row[field]) || (row[field] as number) < 0) ||
+      typeof row.row_errors_truncated !== "boolean" || !rowErrors ||
+      typeof row.idempotent_replay !== "boolean") {
+    throw new Error("أعاد الخادم نتيجة وحدات غير مكتملة؛ لم يُعرض نجاح غير مؤكد.");
+  }
+  return row as unknown as OnyxProductUnitApplicationResult;
+}
+
+
 export async function runInventoryReconciliation(snapshotId: string) {
   const { data, error } = await supabase.rpc('run_inventory_reconciliation', { p_snapshot_id: snapshotId });
   if (error) throw error;
@@ -4168,4 +4315,74 @@ export async function manageCustomerInteractionFollowUp(input: {
     createdAt: row.created_at,
     replayed: row.replayed,
   };
+}
+
+
+// ─── Warehouse-scoped inventory batch traceability ────────────────────────
+export type InventoryBatchProductOption = { product_id: string; item_code: string; product_name: string; unit: string | null };
+export type InventoryBatchLot = {
+  id: string; batch_number: string | null; expiry_date: string | null; received_at: string;
+  quantity_on_hand: number; quantity_reserved: number; quantity_available: number;
+  source_type: 'legacy_unattributed' | 'purchase_receipt' | 'unattributed_balance_increase' | 'inventory_transfer';
+  expired: boolean;
+};
+export type InventoryBatchStockSnapshot = {
+  product_id: string; warehouse_id: string; quantity_on_hand: number; quantity_reserved: number;
+  quantity_available: number; lots: InventoryBatchLot[]; as_of: string;
+};
+function isInventoryBatchRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function parseInventoryBatchAmount(value: unknown): number {
+  const amount = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN;
+  if (!Number.isFinite(amount) || amount < 0 || amount > 999999999999.999) throw new Error('أعاد الخادم كمية دفعة غير صالحة.');
+  return amount;
+}
+export async function fetchInventoryBatchProducts(warehouseId: string): Promise<InventoryBatchProductOption[]> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('list_inventory_batch_products', { p_warehouse_id: warehouseId });
+  if (error) throw error;
+  if (!isInventoryBatchRecord(data) || !Array.isArray(data.items)) throw new Error('قائمة أصناف تتبع الدفعات غير صالحة.');
+  return data.items.map((row): InventoryBatchProductOption => {
+    if (!isInventoryBatchRecord(row) || typeof row.product_id !== 'string' || !stockCountUuid.test(row.product_id)
+        || typeof row.item_code !== 'string' || typeof row.product_name !== 'string'
+        || !(row.unit === null || typeof row.unit === 'string')) throw new Error('هوية صنف الدفعة غير صالحة.');
+    return { product_id: row.product_id, item_code: row.item_code, product_name: row.product_name, unit: row.unit };
+  });
+}
+export async function fetchInventoryBatchStock(productId: string, warehouseId: string): Promise<InventoryBatchStockSnapshot> {
+  assertStockCountId(productId, 'معرّف الصنف'); assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('list_inventory_batch_stock', { p_product_id: productId, p_warehouse_id: warehouseId });
+  if (error) throw error;
+  if (!isInventoryBatchRecord(data) || data.product_id !== productId || data.warehouse_id !== warehouseId
+      || !Array.isArray(data.lots) || typeof data.as_of !== 'string' || Number.isNaN(Date.parse(data.as_of))) {
+    throw new Error('لم يؤكد الخادم هوية لقطة تتبع الدفعات.');
+  }
+  const allowedSources = ['legacy_unattributed','purchase_receipt','unattributed_balance_increase','inventory_transfer'] as const;
+  const lots = data.lots.map((row): InventoryBatchLot => {
+    if (!isInventoryBatchRecord(row) || typeof row.id !== 'string' || !stockCountUuid.test(row.id)
+        || typeof row.received_at !== 'string' || Number.isNaN(Date.parse(row.received_at))
+        || !allowedSources.includes(row.source_type as typeof allowedSources[number]) || typeof row.expired !== 'boolean'
+        || !(row.batch_number === null || typeof row.batch_number === 'string')
+        || !(row.expiry_date === null || (typeof row.expiry_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.expiry_date)))) {
+      throw new Error('أعاد الخادم بيانات دفعة أو صلاحية غير صالحة.');
+    }
+    return {
+      id: row.id, batch_number: row.batch_number as string | null, expiry_date: row.expiry_date as string | null,
+      received_at: row.received_at, quantity_on_hand: parseInventoryBatchAmount(row.quantity_on_hand),
+      quantity_reserved: parseInventoryBatchAmount(row.quantity_reserved),
+      quantity_available: parseInventoryBatchAmount(row.quantity_available),
+      source_type: row.source_type as InventoryBatchLot['source_type'], expired: row.expired,
+    };
+  });
+  const quantity_on_hand = parseInventoryBatchAmount(data.quantity_on_hand);
+  const quantity_reserved = parseInventoryBatchAmount(data.quantity_reserved);
+  const quantity_available = parseInventoryBatchAmount(data.quantity_available);
+  const lotsOnHand = lots.reduce((sum, lot) => sum + lot.quantity_on_hand, 0);
+  const lotsReserved = lots.reduce((sum, lot) => sum + lot.quantity_reserved, 0);
+  if (Math.abs(lotsOnHand-quantity_on_hand)>0.001 || Math.abs(lotsReserved-quantity_reserved)>0.001
+      || Math.abs(quantity_on_hand-quantity_reserved-quantity_available)>0.001) {
+    throw new Error('لا يتطابق مجموع الدفعات مع رصيد المستودع؛ أوقف عرض التتبع وراجع سلامة المخزون.');
+  }
+  return { product_id: productId, warehouse_id: warehouseId, quantity_on_hand, quantity_reserved, quantity_available, lots, as_of: data.as_of };
 }

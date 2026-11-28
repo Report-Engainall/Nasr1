@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import type { StorefrontAnnouncement } from '@/lib/types';
+import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 
 function safeAnnouncementHref(href: string | null): string | null {
   if (!href) return null;
@@ -40,6 +41,10 @@ export function StorefrontAnnouncementSlider({ announcements }: { announcements:
     <section className={'sf-announcement-slider' + (reducedMotion ? ' is-reduced-motion' : '')}
       role="region" aria-label="إعلانات المتجر" aria-live={reducedMotion ? 'polite' : 'off'}
       style={{ '--sf-announcement-color': /^#[0-9a-f]{6}$/i.test(announcement.color) ? announcement.color : '#B99347' } as CSSProperties}>
+      <div className="sf-announcement-art" style={{ width: "min(28%, 180px)", minWidth: 104, height: 112, flex: "0 0 auto", overflow: "hidden", borderRadius: 12 }}>
+        <ProductPlaceholderArtwork productName={announcement.title} description={announcement.content}
+          variantOverride={announcement.visual_key} compact caption="رسم توضيحي" accessibleLabel={"رسم توضيحي لإعلان " + announcement.title} />
+      </div>
       <div className="sf-announcement-copy">
         <span className="sf-announcement-eyebrow">إعلان المتجر</span>
         <h2>{announcement.title}</h2>

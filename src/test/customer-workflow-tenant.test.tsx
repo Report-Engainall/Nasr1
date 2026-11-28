@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
     columns?: string;
     filters: Array<{ column: string; value: unknown }>;
     orderBy?: string;
+    range?: { from: number; to: number };
   }>,
 }));
 
@@ -90,6 +91,10 @@ function makeQuery(table: string) {
       return query;
     },
     limit(_limit: number) {
+      return query;
+    },
+    range(from: number, to: number) {
+      record.range = { from, to };
       return query;
     },
     maybeSingle() {
@@ -219,6 +224,7 @@ describe("customer quote workspace tenant boundary", () => {
       await Promise.resolve();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    return router;
   }
 
   it("requires an authenticated user before loading customer quote or catalog data", async () => {
@@ -248,6 +254,7 @@ describe("customer quote workspace tenant boundary", () => {
 
     const productQuery = queryFor("products");
     expect(productQuery.columns).toBe("id,name,item_code,barcode,unit,status");
+    expect(productQuery.range).toEqual({ from: 0, to: 99 });
     expect(productQuery.columns).not.toMatch(/base_price|cost_price|retail_price|wholesale_price|purchase_cost/i);
     expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
     expect(productQuery.filters).toContainEqual({
@@ -269,11 +276,21 @@ describe("customer quote workspace tenant boundary", () => {
       roles: ["customer"], isStaff: false,
     };
     await mountQuoteWorkspace("/reorder");
+    expect(host?.textContent).toContain("قوائم المشتريات والدورات");
+    const templatesTab = Array.from(host?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])
+      .find((tab) => tab.textContent?.includes("قوالب إعادة الطلب السابقة"));
+    expect(templatesTab).toBeDefined();
+    await act(async () => {
+      templatesTab?.click();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(host?.textContent).toContain("إعادة الطلب");
     expect(host?.textContent).toContain("Rice");
     expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
-    const products = queryFor("products");
-    expect(products.columns).toBe("id,name,item_code,barcode,unit,status");
+    const expectedProductColumns = "id,name,item_code,barcode,unit,status,min_order_quantity,order_quantity_multiple";
+    const products = mocks.queries.find((entry) => entry.table === "products" && entry.columns === expectedProductColumns);
+    expect(products).toBeDefined();
     expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
     expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
     expect(products.filters).toContainEqual({ column: "status", value: "active" });
@@ -302,7 +319,7 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("Rice");
     expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
     const products = queryFor("products");
-    expect(products.columns).toBe("id,name,item_code,barcode,unit,status");
+    expect(products.columns).toBe("id,name,item_code,barcode,sku,unit,min_order_quantity,order_quantity_multiple,status");
     expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
     expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
     expect(products.filters).toContainEqual({ column: "status", value: "active" });
@@ -529,6 +546,98 @@ describe("customer quote workspace tenant boundary", () => {
     expect(syncedSafe[0]).not.toHaveProperty("wholesale_price");
     expect(syncedSafe[0].inventory).not.toHaveProperty("quantity_reserved");
     expect(syncedSafe[0].inventory).not.toHaveProperty("reorder_point");
+  });
+
+  it("browses the scoped offline catalog and adds localized quantities to the profile draft without prices", async () => {
+    const sugarId = "f2222222-2222-4222-8222-222222222222";
+    const riceId = "f3333333-3333-4333-8333-333333333333";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    const keys = offlineCatalogCacheKeys(PROFILE_ID)!;
+    const serverScope = {
+      profileId: PROFILE_ID,
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
+    };
+    window.localStorage.setItem(keys.scopeKey, offlineCatalogScopeFingerprint(serverScope));
+    window.localStorage.setItem(keys.lastServerSyncKey, new Date().toISOString());
+    window.localStorage.setItem(keys.catalogKey, JSON.stringify([
+      {
+        id: sugarId,
+        name: "مواد تموينية",
+        item_code: "000125",
+        barcode: "628000125",
+        unit: "كرتون",
+        status: "active",
+        min_order_quantity: 1,
+        order_quantity_multiple: 1,
+        base_price: 1200,
+        cost_price: 800,
+        category: { id: "c1111111-1111-4111-8111-111111111111", name: "السكر" },
+      },
+      {
+        id: riceId,
+        name: "أرز بسمتي",
+        item_code: "000126",
+        unit: "كيس",
+        status: "active",
+        min_order_quantity: 2,
+        order_quantity_multiple: 2,
+        retail_price: 900,
+        category: { id: "c2222222-2222-4222-8222-222222222222", name: "الأرز" },
+      },
+    ]));
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+
+    await mountQuoteWorkspace("/offline");
+
+    expect(host?.textContent).toContain("الكتالوج المحفوظ");
+    expect(host?.textContent).toContain("مواد تموينية");
+    expect(host?.textContent).toContain("أرز بسمتي");
+    expect(host?.textContent).not.toContain("1200");
+    expect(host?.textContent).not.toContain("900");
+
+    const search = host?.querySelector<HTMLInputElement>('[aria-label="البحث في الكتالوج المحفوظ"]');
+    expect(search).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(search, "سكر");
+      search?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(host?.textContent).toContain("مواد تموينية");
+    expect(host?.textContent).not.toContain("أرز بسمتي");
+
+    const quantity = host?.querySelector<HTMLInputElement>('[aria-label="الكمية لمسودة السلة: مواد تموينية"]');
+    expect(quantity).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(quantity, "٢");
+      quantity?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const addButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("إضافة إلى مسودة السلة"),
+    );
+    expect(addButton).toBeDefined();
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const cartKey = "aghbari:cart:v2:customer:" + encodeURIComponent(PROFILE_ID);
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: sugarId, quantity: 2 },
+    ]);
+    expect(host?.textContent).toContain("أُضيف مواد تموينية");
+    expect(host?.textContent).toContain("لم يُرسل طلب ولم يُعتمد سعر أو مخزون");
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(mocks.fetchResolvedProductPrices).not.toHaveBeenCalled();
   });
 
   it("shows invoice prices in the customer preview only from the scoped invoice RPC", async () => {
@@ -789,4 +898,113 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("تعذر تحميل نطاق المؤسسة من الخادم.");
     expect(mocks.from).not.toHaveBeenCalled();
   });
+
+  it("keeps barcode scanning open for multiple products and merges repeat scans by each product's order multiple", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+
+    const firstProductId = "f4444444-4444-4444-8444-444444444444";
+    const secondProductId = "f5555555-5555-4555-8555-555555555555";
+    const firstProduct = {
+      id: firstProductId,
+      name: "سكر أبيض",
+      item_code: "000125",
+      barcode: "628000125",
+      sku: "SUGAR-125",
+      unit: "كرتون",
+      min_order_quantity: 2,
+      order_quantity_multiple: 2,
+      status: "active",
+    };
+    const secondProduct = {
+      id: secondProductId,
+      name: "أرز بسمتي",
+      item_code: "RICE-126",
+      barcode: "628000126",
+      sku: "RICE-126",
+      unit: "كيس",
+      min_order_quantity: 1,
+      order_quantity_multiple: 1,
+      status: "active",
+    };
+    mocks.responses.products = [firstProduct];
+
+    const router = await mountQuoteWorkspace("/barcode");
+    const barcodeInput = host?.querySelector<HTMLInputElement>('[aria-label="رقم الباركود"]');
+    expect(barcodeInput).not.toBeNull();
+
+    const searchBarcode = async (barcode: string) => {
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(barcodeInput, barcode);
+        barcodeInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const searchButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("بحث"),
+      );
+      expect(searchButton).toBeDefined();
+      await act(async () => {
+        searchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+
+    const addScannedProduct = async (name: string) => {
+      expect(host?.textContent).toContain(name);
+      const addButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("أضف إلى السلة"),
+      );
+      expect(addButton).toBeDefined();
+      await act(async () => {
+        addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(router.state.location.pathname).toBe("/barcode");
+      expect(host?.textContent).toContain("مسح صنف آخر");
+    };
+
+    await searchBarcode("٦٢٨٠٠٠١٢٥");
+    await addScannedProduct("سكر أبيض");
+
+    const cartKey = "aghbari:cart:v2:customer:" + encodeURIComponent(PROFILE_ID);
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 2 },
+    ]);
+
+    mocks.responses.products = [secondProduct];
+    await searchBarcode("٦٢٨٠٠٠١٢٦");
+    await addScannedProduct("أرز بسمتي");
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 2 },
+      { product_id: secondProductId, quantity: 1 },
+    ]);
+
+    // Re-scanning the first product adds its own server-defined multiple; units are never aggregated.
+    mocks.responses.products = [firstProduct];
+    await searchBarcode("٦٢٨٠٠٠١٢٥");
+    await addScannedProduct("سكر أبيض");
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 4 },
+      { product_id: secondProductId, quantity: 1 },
+    ]);
+    expect(host?.textContent).toMatch(/[2٢] أصناف/);
+    expect(host?.textContent).not.toContain("إجمالي 5 وحدة");
+
+    const openCartButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("فتح سلة المشتريات"),
+    );
+    expect(openCartButton).toBeDefined();
+    await act(async () => {
+      openCartButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(router.state.location.pathname).toBe("/cart");
+  });
+
 });

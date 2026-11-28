@@ -1,11 +1,22 @@
 import type {DataCompleteness,EvidencePassport,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 export interface BuildEvidencePassportInput {id:string;generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[]}
-const validTime=(v:string)=>typeof v==="string"&&v.length>0&&Number.isFinite(Date.parse(v));
+const validTime=(value:unknown):value is string=>{
+ if(typeof value!=="string"||
+  !/^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/i.test(value))return false;
+ const year=Number(value.slice(0,4)),month=Number(value.slice(5,7)),day=Number(value.slice(8,10));
+ const leap=year%4===0&&(year%100!==0||year%400===0);
+ const monthDays=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
+ return day<=monthDays[month-1]&&Number.isFinite(Date.parse(value));
+};
 const unique=(v:string[])=>[...new Set(v.filter(Boolean))];
 function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>,expectedAsOf:string):MetricSnapshot {
- if(metric.status!=="VERIFIED") return metric;
  const ids=metric.lineage?.evidenceIds??[], warnings=[...(metric.warnings??[])];
  const downgrade=(status:EvidenceStatus,warning:string,completeness=metric.completeness):MetricSnapshot=>({...metric,status,completeness,warnings:unique([...warnings,warning])});
+ if(!validTime(metric.lineage?.calculatedAt)){
+  if(metric.status==="VERIFIED")return downgrade("NEEDS_REVIEW","METRIC_CALCULATION_TIMESTAMP_INVALID","PARTIAL");
+  return {...metric,warnings:unique([...warnings,"METRIC_CALCULATION_TIMESTAMP_INVALID"])};
+ }
+ if(metric.status!=="VERIFIED") return metric;
  if(!ids.length)return downgrade("UNVERIFIED","NO_SOURCE_LINEAGE");
  if(ids.some(id=>duplicates.has(id)))return downgrade("UNVERIFIED","AMBIGUOUS_EVIDENCE_ID");
  const sources=ids.map(id=>records.get(id));
@@ -24,8 +35,10 @@ function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,dupl
  if(rs.some(s=>s.quality!=="ACCEPTABLE"))return downgrade(rs.some(s=>s.quality==="INVALID")?"UNVERIFIED":"NEEDS_REVIEW","SOURCE_QUALITY_NOT_ACCEPTABLE","PARTIAL");
  if(metric.completeness!=="COMPLETE")return downgrade("NEEDS_REVIEW","METRIC_INCOMPLETE","PARTIAL");
  if(metric.quality!=="ACCEPTABLE")return downgrade(metric.quality==="INVALID"?"UNVERIFIED":"NEEDS_REVIEW","METRIC_QUALITY_NOT_ACCEPTABLE","PARTIAL");
- if(metric.value===null||!validTime(metric.asOf)||!validTime(metric.lineage.calculatedAt)||!metric.lineage.formulaId.trim()||!metric.lineage.formulaVersion.trim())
+ if(metric.value===null||!validTime(metric.asOf)||!metric.lineage.formulaId.trim()||!metric.lineage.formulaVersion.trim())
   return downgrade("NEEDS_REVIEW","METRIC_METADATA_INCOMPLETE","PARTIAL");
+ // Domain engines own the comparison against their business snapshot. Keep the
+ // shared passport responsible for timestamp syntax, not snapshot semantics.
  if(metric.unit==="CURRENCY"||metric.unit==="CURRENCY_PER_UNIT"){
   if(!metric.currency?.trim())return downgrade("NEEDS_REVIEW","CURRENCY_NOT_IDENTIFIED","PARTIAL");
   if(rs.some(s=>!s.currency?.trim()))return downgrade("NEEDS_REVIEW","SOURCE_CURRENCY_MISSING","PARTIAL");
@@ -51,7 +64,10 @@ function completenessRollup(metrics:MetricSnapshot[]):DataCompleteness {
 export function buildEvidencePassport(input:BuildEvidencePassportInput):EvidencePassport {
  const records=new Map<string,EvidenceRecord>(),duplicates=new Set<string>();
  for(const record of input.evidenceRecords){if(records.has(record.id))duplicates.add(record.id);else records.set(record.id,record)}
- if(!validTime(input.generatedAt)||!validTime(input.asOf))throw new Error("generatedAt and asOf must be valid timestamps");
+ if(!validTime(input.generatedAt)||!validTime(input.asOf))
+  throw new Error("generatedAt and asOf must be valid timezone-qualified timestamps");
+ if(Date.parse(input.asOf)>Date.parse(input.generatedAt))
+  throw new Error("asOf cannot be after generatedAt");
  const metrics=input.metrics.map(m=>normalize(m,records,duplicates,input.asOf));
  const warnings=unique([...input.evidenceRecords.flatMap(r=>r.warnings??[]),...metrics.flatMap(m=>m.warnings??[]),...(duplicates.size?["DUPLICATE_EVIDENCE_RECORD_ID"]:[])]);
  return {id:input.id,generatedAt:input.generatedAt,asOf:input.asOf,status:statusRollup(metrics.map(m=>m.status)),completeness:completenessRollup(metrics),evidenceRecords:input.evidenceRecords,metrics,warnings};

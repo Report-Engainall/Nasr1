@@ -17,6 +17,8 @@ export type RecentlyViewedProductInput = {
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
+const PROFILE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function canRecordRecentlyViewedProducts(input: {
   authReady: boolean;
   profileId?: string | null;
@@ -25,7 +27,7 @@ export function canRecordRecentlyViewedProducts(input: {
 }): boolean {
   return input.authReady
     && typeof input.profileId === "string"
-    && input.profileId.trim().length > 0
+    && PROFILE_ID_PATTERN.test(input.profileId.trim())
     && input.isStaff !== true
     && Array.isArray(input.roles)
     && input.roles.includes("customer");
@@ -33,7 +35,9 @@ export function canRecordRecentlyViewedProducts(input: {
 
 export function recentlyViewedProductsStorageKey(profileId: string): string {
   const normalizedProfileId = profileId.trim();
-  return normalizedProfileId ? `aghbari:recently-viewed:v1:${normalizedProfileId}` : "";
+  return PROFILE_ID_PATTERN.test(normalizedProfileId)
+    ? `aghbari:recently-viewed:v1:${normalizedProfileId}`
+    : "";
 }
 
 const SENSITIVE_IMAGE_QUERY_KEYS = new Set([

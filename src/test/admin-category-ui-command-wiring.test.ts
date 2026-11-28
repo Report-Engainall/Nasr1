@@ -65,7 +65,7 @@ describe("admin category workspace wiring", () => {
     expect(categoryScreen).toContain("canViewPrices");
     expect(categoryScreen).toContain("projectAdminCategoryCatalogMetrics");
     expect(productApi).toContain("input.categoryId");
-    expect(productApi).toContain(".eq('category_id', input.categoryId)");
+    expect(productApi).toContain("p_category_id: input.categoryId ?? null");
     expect(categoryCatalog).toContain("getInventoryAvailabilityStatus");
     expect(categoryCatalog).toContain("access.canViewPrice ? nonNegativeFinite(product.base_price) : null");
   });

@@ -25,9 +25,11 @@ const formatQty = (value: number) => new Intl.NumberFormat("ar-YE", { maximumFra
 
 export function ReplenishmentPurchaseDraft({
   recommendations,
+  idempotencyKeys,
   onClose,
 }: {
   recommendations: ReplenishmentRecommendation[];
+  idempotencyKeys: Map<string, string>;
   onClose: () => void;
 }) {
   const { user } = useAuth();
@@ -133,23 +135,51 @@ export function ReplenishmentPurchaseDraft({
       purchaseLines.push({ product_id: line.productId, quantity, unit_cost: null });
     }
     const summary = lines.map((line) => line.productName + ": " + formatQty(Number(line.quantity)) + " " + line.unit).join("\n");
+    const purchaseNotes = [
+      "مسودة من توصيات إعادة التوريد المثبتة.",
+      "مصدر الكمية: المحرك الحتمي inventory.replenishment-target@1.0.0.",
+      notes.trim(),
+    ].filter(Boolean).join("\n").slice(0, 2000);
     if (!window.confirm(
       "سيُنشأ أمر شراء مسودة بهذه البنود:\n" + summary +
       "\n\nالمورد والمخزن المحددان سيحفظان في الأمر. التكلفة ستبقى غير مسجلة حتى ورود عرض/فاتورة موثقة. لن يُعتمد الأمر ولن يتغير المخزون. متابعة؟"
     )) return;
+
+    // A timeout can happen after the server committed. Reuse the key for the same
+    // normalized supplier/warehouse/lines/notes payload; issue a new key only for edits.
+    const fingerprint = JSON.stringify({
+      supplierId,
+      warehouseId,
+      lines: purchaseLines
+        .map((line) => ({ product_id: line.product_id, quantity: line.quantity, unit_cost: line.unit_cost }))
+        .sort((left, right) => left.product_id.localeCompare(right.product_id)),
+      notes: purchaseNotes,
+    });
+    let idempotencyKey = idempotencyKeys.get(fingerprint);
+    if (!idempotencyKey) {
+      try {
+        const cryptoApi = globalThis.crypto;
+        if (!cryptoApi || typeof cryptoApi.randomUUID !== "function") {
+          throw new Error("Secure random UUID generation is unavailable.");
+        }
+        idempotencyKey = "replenishment-" + cryptoApi.randomUUID().replace(/-/g, "");
+      } catch {
+        setError("تعذر إنشاء مفتاح آمن لمنع تكرار مسودة الشراء. تحقق من الاتصال الآمن ثم أعد المحاولة.");
+        return;
+      }
+      idempotencyKeys.set(fingerprint, idempotencyKey);
+    }
+
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await createPurchaseOrder({
         supplierId,
         warehouseId,
         lines: purchaseLines,
-        notes: [
-          "مسودة من توصيات إعادة التوريد المثبتة.",
-          "مصدر الكمية: المحرك الحتمي inventory.replenishment-target@1.0.0.",
-          notes.trim(),
-        ].filter(Boolean).join("\n").slice(0, 2000),
-        idempotencyKey: "replenishment-" + globalThis.crypto.randomUUID().replace(/-/g, ""),
+        notes: purchaseNotes,
+        idempotencyKey,
       });
+      idempotencyKeys.delete(fingerprint);
       setCreatedOrder(result.purchase_order);
       setNotice(result.idempotent_replay
         ? "استُعيد أمر الشراء نفسه بمفتاح منع التكرار؛ لم يُنشأ أمر مكرر."

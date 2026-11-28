@@ -23,6 +23,30 @@ export function savedProductCacheKey(profileId: string): string {
   return `${SAVED_CACHE_PREFIX}${profileId}`;
 }
 
+const GUEST_WISHLIST_CACHE_KEY = "aghbari:wishlist:v1";
+const AUTH_USER_WISHLIST_CACHE_PREFIX = "aghbari:wishlist:auth:v1:";
+
+/**
+ * Resolve a browser cache namespace without ever falling back to shared guest
+ * storage for a known authenticated identity. The profile namespace remains
+ * stable for correctly mapped customers; auth.uid() is the safe local fallback
+ * while profile mapping is unavailable. Server RPCs remain authoritative.
+ */
+export function storefrontWishlistStorageKey(
+  profileId?: string | null,
+  authUserId?: string | null,
+): string {
+  const normalizedProfileId = typeof profileId === "string" ? profileId.trim() : "";
+  if (UUID_PATTERN.test(normalizedProfileId)) return savedProductCacheKey(normalizedProfileId);
+
+  const normalizedAuthUserId = typeof authUserId === "string" ? authUserId.trim() : "";
+  if (normalizedAuthUserId) {
+    return `${AUTH_USER_WISHLIST_CACHE_PREFIX}${encodeURIComponent(normalizedAuthUserId)}`;
+  }
+
+  return GUEST_WISHLIST_CACHE_KEY;
+}
+
 function pendingStorageKey(profileId: string): string {
   return `${PENDING_PREFIX}${profileId}`;
 }

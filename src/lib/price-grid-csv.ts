@@ -1,11 +1,17 @@
 import type { ProductPriceGridRow } from '@/lib/api';
 
+/**
+ * Stable spreadsheet contract shared by CSV and XLSX:
+ * A = sequence, B = item code, C = name, D = unit, E = reserved blank,
+ * F onward = saved prices, then read-only stock and category values.
+ * Never export the internal database ID as a customer-facing spreadsheet column.
+ */
 export const PRICE_GRID_EXPORT_HEADERS = [
-  'معرف الصنف',
+  'م',
   'كود الصنف',
   'اسم الصنف',
   'الوحدة',
-  'الحالة',
+  '',
   'السعر الأساسي',
   'جملة الجملة',
   'الجملة',
@@ -15,6 +21,7 @@ export const PRICE_GRID_EXPORT_HEADERS = [
   'إجمالي المتاح',
   'إجمالي حد إعادة الطلب',
   'عدد المخازن ذات الرصيد',
+  'التصنيف',
 ] as const;
 
 function spreadsheetSafeText(value: string): string {
@@ -54,13 +61,13 @@ function csvCell(value: string | number | boolean | null | CsvFormattedNumber): 
  */
 export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string {
   const output = [PRICE_GRID_EXPORT_HEADERS.map(csvCell).join(',')];
-  for (const row of rows) {
+  for (const [rowIndex, row] of rows.entries()) {
     const values: (string | number | boolean | null | CsvFormattedNumber)[] = [
-      row.id,
+      rowIndex + 1,
       row.item_code,
       row.name,
       row.unit,
-      row.is_active ? 'نشط' : 'موقوف',
+      '',
       formattedNumber(row.base_price, 2, 'base_price'),
       formattedNumber(row.price_wholesale_of_wholesale, 2, 'price_wholesale_of_wholesale'),
       formattedNumber(row.price_wholesale, 2, 'price_wholesale'),
@@ -70,6 +77,7 @@ export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string 
       row.quantity_available_total === null ? null : formattedNumber(row.quantity_available_total, 3, 'quantity_available_total', true),
       row.reorder_point_total === null ? null : formattedNumber(row.reorder_point_total, 0, 'reorder_point_total'),
       formattedNumber(row.inventory_warehouse_count, 0, 'inventory_warehouse_count'),
+      row.category_name,
     ];
     output.push(values.map(csvCell).join(','));
   }

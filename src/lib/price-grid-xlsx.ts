@@ -86,17 +86,18 @@ export function buildPriceGridXlsx(rows: readonly ProductPriceGridRow[]): Blob {
   if(rows.length>100000) throw new Error('عدد الأصناف أكبر من حد ملف Excel الآمن.');
   const headers=[...PRICE_GRID_EXPORT_HEADERS];
   const table:(string|number|null)[][]=[headers];
-  for(const row of rows) table.push([
-    row.id,row.item_code,row.name,row.unit,row.is_active?'نشط':'موقوف',
+  for(const [rowIndex,row] of rows.entries()) table.push([
+    rowIndex + 1,row.item_code,row.name,row.unit,'',
     Number(row.base_price),Number(row.price_wholesale_of_wholesale),Number(row.price_wholesale),Number(row.price_retail),
     row.quantity_on_hand_total,row.quantity_reserved_total,row.quantity_available_total,row.reorder_point_total,row.inventory_warehouse_count,
+    row.category_name,
   ]);
   const sheetRows=table.map((values,rowIndex)=>{
     const cells=values.map((value,colIndex)=>{
       const ref=columnName(colIndex)+(rowIndex+1);
       if (value === null) return textCell(ref,'');
       if (typeof value !== 'number') return textCell(ref,value);
-      const decimals = colIndex >= 9 && colIndex <= 11 ? 3 : colIndex >= 12 ? 0 : 2;
+      const decimals = colIndex === 0 || colIndex >= 12 ? 0 : colIndex >= 9 ? 3 : 2;
       const allowNegativeStock = colIndex >= 9 && colIndex <= 11;
       return numberCell(ref,value,decimals,allowNegativeStock);
     }).join('');

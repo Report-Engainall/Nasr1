@@ -1,3 +1,5 @@
+import type { StorefrontArtworkKey } from "./storefront-artwork";
+
 export interface Category {
   id: string;
   name: string;
@@ -16,6 +18,8 @@ export interface Product {
   /** Additional same-tenant WebP gallery images; image_url remains the primary image. */
   image_gallery_urls?: string[];
   is_active: boolean; is_featured: boolean; sort_order: number;
+  /** Persisted source timestamp; all customer and staff projections preserve the database value. */
+  updated_at?: string;
   /** Database lifecycle status; public reads expose only active records. */
   status?: string;
   price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number; base_price: number;
@@ -122,7 +126,7 @@ export interface PromotionInput {
 }
 export interface Banner { id: string; title: string; content: string | null; link: string | null; color: string; priority: number; is_active: boolean; start_date: string | null; end_date: string | null; audience: string }
 export type StorefrontAnnouncementAudience = 'all' | 'customers' | 'staff'
-export interface StorefrontAnnouncement { id: string; title: string; content: string | null; href: string | null; color: string; priority: number; starts_at: string | null; ends_at: string | null; audience: StorefrontAnnouncementAudience; is_active: boolean; created_at?: string; updated_at?: string }
+export interface StorefrontAnnouncement { id: string; title: string; content: string | null; href: string | null; color: string; priority: number; visual_key?: StorefrontArtworkKey; starts_at: string | null; ends_at: string | null; audience: StorefrontAnnouncementAudience; is_active: boolean; created_at?: string; updated_at?: string }
 export type StorefrontAnnouncementInput = Omit<StorefrontAnnouncement, 'id' | 'created_at' | 'updated_at'> & { id: string | null }
 export interface Setting { key: string; value: string; category: string }
 

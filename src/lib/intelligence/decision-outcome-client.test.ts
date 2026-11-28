@@ -154,17 +154,38 @@ describe("persisted decision outcome client", () => {
     expect(result).toMatchObject({ ok: true, collection: { total: 101, loaded: 100, complete: false, reason: "DUPLICATE_RECORD" } });
   });
 
-  it("creates a proposal with a server-generated idempotency key and no tenant selector", async () => {
-    rpc.mockResolvedValue({ data: { ok: true, duplicate: false, outcome }, error: null });
+  it("rejects proposal creation when its immutable candidate snapshot is absent", async () => {
     const result = await createDecisionOutcomeProposal({
-      candidateId: outcome.candidateId, ruleId: outcome.ruleId, ruleVersion: outcome.ruleVersion,
+      candidateId: outcome.candidateId,
+      ruleId: outcome.ruleId,
+      ruleVersion: outcome.ruleVersion,
       ownerProfileId: "22222222-2222-4222-8222-222222222222",
-      expectedOutcome: outcome.expectedOutcome, reason: "مطلوب متابعة",
+      expectedOutcome: outcome.expectedOutcome,
+      reason: "مطلوب متابعة",
+    } as unknown as Parameters<typeof createDecisionOutcomeProposal>[0]);
+    expect(result).toMatchObject({ ok: false, status: "ERROR" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("creates every proposal through the snapshot RPC with idempotency and no client tenant selector", async () => {
+    rpc.mockResolvedValueOnce({
+      data: { ok: true, duplicate: false, outcome: { ...outcome, candidateSnapshot: rankedCandidateSnapshot } },
+      error: null,
     });
-    expect(rpc).toHaveBeenCalledWith("create_decision_outcome_proposal", expect.objectContaining({
+    const result = await createDecisionOutcomeProposal({
+      candidateId: outcome.candidateId,
+      ruleId: outcome.ruleId,
+      ruleVersion: outcome.ruleVersion,
+      ownerProfileId: "22222222-2222-4222-8222-222222222222",
+      expectedOutcome: outcome.expectedOutcome,
+      reason: "مطلوب متابعة",
+      candidateSnapshot: rankedCandidateSnapshot,
+    });
+    expect(rpc).toHaveBeenCalledWith("create_decision_outcome_proposal_with_snapshot", expect.objectContaining({
       p_candidate_id: outcome.candidateId,
       p_owner_profile_id: "22222222-2222-4222-8222-222222222222",
       p_expected_outcome: outcome.expectedOutcome,
+      p_candidate_snapshot: rankedCandidateSnapshot,
     }));
     expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_organization_id");
     expect(rpc.mock.calls[0][1].p_idempotency_key).toEqual(expect.any(String));

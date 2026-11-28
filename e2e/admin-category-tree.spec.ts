@@ -12,13 +12,17 @@ function requiredEnv(name: string): string {
 }
 
 function normalizeQuantityDigits(value: string): string {
-  return value
+  const normalized = value
     .replace(/[٠-٩۰-۹]/g, (digit) => {
       const code = digit.charCodeAt(0);
       return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
     })
     .replace(/[٬,]/g, "")
     .trim();
+  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return normalized;
+  const [whole, fraction = ""] = normalized.split(".");
+  const significantFraction = fraction.replace(/0+$/, "");
+  return significantFraction ? whole + "." + significantFraction : whole;
 }
 
 async function localAuthenticatedRpc(page: Page, rpcName: string, body: Record<string, unknown>): Promise<{ status: number; payload: unknown }> {
@@ -153,13 +157,13 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     expect(assignedProductRows, "The local fixture product must be attached to the UI-created child.").toHaveLength(1);
     fixtureProductCategoryChanged = true;
 
-    await expect(manager.locator(".admin-category-details__header p")).toHaveText(rootName + " / " + childName);
+    await expect(manager.getByRole("navigation", { name: "مسار التصنيف" })).toHaveText(new RegExp(rootName + "\\s*/\\s*" + childName));
     await expect(manager.locator(".admin-category-meta > div").nth(1).locator("strong")).toHaveText(rootName);
 
     // A full reload forces the category tree to rebuild from fetchCategories(), not React state.
     await manager.reload();
     await expect(manager.getByRole("heading", { name: childName, exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(manager.locator(".admin-category-details__header p")).toHaveText(rootName + " / " + childName);
+    await expect(manager.getByRole("navigation", { name: "مسار التصنيف" })).toHaveText(new RegExp(rootName + "\\s*/\\s*" + childName));
     await expect(manager.locator(".admin-category-meta > div").nth(1).locator("strong")).toHaveText(rootName);
     await expect(categoryTree.getByRole("button", { name: childName, exact: true })).toBeVisible();
     expect(new URL(manager.url()).searchParams.get("category")).toBe(childId);

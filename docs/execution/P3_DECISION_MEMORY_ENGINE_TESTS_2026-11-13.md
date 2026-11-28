@@ -90,3 +90,8 @@ For source SHA `880788208fabeb840a6639b38dc133a75f85603d`:
 - Authenticated Chromium: order persistence and cross-tenant denial SUCCESS; warehouse and purchase-order XLSX downloads SUCCESS; checkout replay after a committed response loss SUCCESS; return/review/receipt/credit memo SUCCESS; audited Onyx order XLSX export SUCCESS.
 - Current active P2 step when updated: finance-document and operational-task printing. Customer-manager financial privacy/audit and final proof/cleanup/artifact steps remain pending. Do not call P2 complete yet.
 - These operations ran only against ephemeral local PostgreSQL 17 and test users/tenants. No hosted Supabase project, production data or Vercel deployment was used.
+
+
+## Follow-up — mandatory snapshot for new DecisionOutcome proposals — 17 November 2026
+
+Implementation SHA: `b5b9a313eb020d65e867acd4f70b0a7f035bfe47` (implementation commit `0038476178ea15274f0b7cfce73cd177f5fad313`). New proposal creation now requires a validated immutable candidate snapshot, routes only through the existing snapshot-bearing RPC, and blocks direct authenticated access to the legacy no-snapshot RPC via migration `20261117140000_decision_outcome_snapshot_required.sql`. The manual collection follow-up uses source IDs, metric/formula version and P3 priority while keeping numeric impact WITHHELD. P1 run `43983285125` and P2 run `43983285142` were QUEUED on exact SHA `b5b9a313...` at checkpoint capture; no CI or PostgreSQL runtime PASS is claimed. Full acceptance is recorded in `P3_DECISION_OUTCOME_SNAPSHOT_REQUIRED_2026-11-17.md`.

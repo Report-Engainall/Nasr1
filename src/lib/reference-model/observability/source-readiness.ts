@@ -38,7 +38,7 @@ export const REFERENCE_SOURCE_READINESS: readonly ReferenceSourceReadiness[] = [
     title: "سجل أخطاء دائم",
     status: "PERSISTENT_SOURCE_ADMIN_MANAGER_TRIAGE",
     source: "public.runtime_error_events · public.list_runtime_error_events() · public.transition_runtime_error_event()",
-    detail: "تُحفظ بيانات أخطاء المتصفح المنقحة ضمن المؤسسة المشتقة من الجلسة، مع قراءة وإقرار وحل للمشرف والمدير فقط وسجل انتقالات append-only. لا تُحفظ الرسائل أو المكدسات أو الروابط أو بيانات العملاء أو الأسرار؛ توجد حدود إزالة تكرار ومعدل تسجيل.",
+    detail: "تُحفظ بيانات أخطاء المتصفح المنقحة ضمن المؤسسة المشتقة من الجلسة، مع قراءة وإقرار وحل للمشرف والمدير فقط وسجل انتقالات append-only. لا تُحفظ الرسائل أو المكدسات أو الروابط أو بيانات العملاء أو الأسرار؛ توجد حدود إزالة تكرار ومعدل تسجيل."
   },
   {
     id: "developer_tools",

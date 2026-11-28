@@ -302,17 +302,16 @@ function parseCommandResult(value: unknown): DecisionOutcomeCommandResult {
 }
 function validateProposal(input: {
   candidateId: string; ruleId: string; ruleVersion: string; ownerProfileId: string;
-  expectedOutcome: string; reason: string; candidateSnapshot?: DecisionCandidateSnapshot;
+  expectedOutcome: string; reason: string; candidateSnapshot: DecisionCandidateSnapshot;
 }): string | null {
+  const snapshot = parseCandidateSnapshot(input.candidateSnapshot);
   if (!str(input.candidateId, 150) || !str(input.ruleId, 150) ||
       !str(input.ruleVersion, 80) || !UUID.test(input.ownerProfileId) ||
-      !str(input.expectedOutcome, 2000) || input.reason.length > 2000 ||
-      (input.candidateSnapshot !== undefined &&
-        (input.candidateSnapshot.candidateId !== input.candidateId ||
-         input.candidateSnapshot.ruleId !== input.ruleId ||
-         input.candidateSnapshot.ruleVersion !== input.ruleVersion ||
-         input.candidateSnapshot.expectedOutcome !== input.expectedOutcome))) {
-    return "أكمل وصف النتيجة المتوقعة، وتأكد من صلاحية مالك القرار.";
+      !str(input.expectedOutcome, 2000) || typeof input.reason !== "string" || input.reason.length > 2000 ||
+      !snapshot || snapshot.candidateId !== input.candidateId ||
+      snapshot.ruleId !== input.ruleId || snapshot.ruleVersion !== input.ruleVersion ||
+      snapshot.expectedOutcome !== input.expectedOutcome) {
+    return "تعذر حفظ القرار: لقطة الأولوية والأثر والأدلة مطلوبة ويجب أن تطابق هوية المقترح.";
   }
   return null;
 }
@@ -449,7 +448,7 @@ export async function createDecisionOutcomeProposal(input: {
   ownerProfileId: string;
   expectedOutcome: string;
   reason: string;
-  candidateSnapshot?: DecisionCandidateSnapshot;
+  candidateSnapshot: DecisionCandidateSnapshot;
 }): Promise<DecisionOutcomeCommandResult> {
   const invalid = validateProposal(input);
   if (invalid) return { ok: false, status: "ERROR", message: invalid };
@@ -463,11 +462,10 @@ export async function createDecisionOutcomeProposal(input: {
       p_reason: input.reason.trim() || null,
       p_idempotency_key: crypto.randomUUID(),
     };
-    const { data, error } = input.candidateSnapshot
-      ? await supabase.rpc("create_decision_outcome_proposal_with_snapshot", {
-          ...command, p_candidate_snapshot: input.candidateSnapshot,
-        })
-      : await supabase.rpc("create_decision_outcome_proposal", command);
+    const { data, error } = await supabase.rpc("create_decision_outcome_proposal_with_snapshot", {
+      ...command,
+      p_candidate_snapshot: input.candidateSnapshot,
+    });
     if (error) return { ok: false, ...safeFailure(error) };
     return parseCommandResult(data);
   } catch {

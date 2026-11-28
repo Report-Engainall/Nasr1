@@ -250,8 +250,16 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     <p className="mt-2">{response.result.answer}</p>
     <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs">
      <article className="rounded-md border p-2"><strong>المخزون</strong><p>{count(response.result.sources.inventory.returnedProducts)} من {count(response.result.sources.inventory.totalProducts)} منتج</p><p>{response.result.sources.inventory.period.from} — {response.result.sources.inventory.period.to}</p></article>
-     <article className="rounded-md border p-2"><strong>التدفق النقدي</strong><p>{response.result.sources.cashflow.status==="READY"?"تم تحميل المصدر":"غير متاح"}</p><p>{response.result.sources.cashflow.status==="READY"?response.result.sources.cashflow.period.from+" — "+response.result.sources.cashflow.period.to:response.result.sources.cashflow.message}</p></article>
-     <article className="rounded-md border p-2"><strong>الاحتفاظ بالعملاء</strong><p>{response.result.sources.retention.status==="READY"?(response.result.sources.retention.populationComplete?"مجتمع كامل":"تغطية غير مكتملة"):"غير متاح"}</p><p>{response.result.sources.retention.status==="READY"?response.result.sources.retention.period.from+" — "+response.result.sources.retention.period.to:response.result.sources.retention.message}</p></article>
+     <article className="rounded-md border p-2"><strong>التدفق النقدي</strong>
+      <p>{response.result.sources.cashflow.status==="READY"?"مكتمل":response.result.sources.cashflow.status==="PARTIAL"?"جزئي — لا يعتمد كلياً":"غير متاح"}</p>
+      <p>{response.result.sources.cashflow.status==="UNAVAILABLE"?response.result.sources.cashflow.message:response.result.sources.cashflow.period.from+" — "+response.result.sources.cashflow.period.to}</p>
+      {response.result.sources.cashflow.status==="PARTIAL"?<p className="mt-1">{response.result.sources.cashflow.message}</p>:null}
+     </article>
+     <article className="rounded-md border p-2"><strong>الاحتفاظ بالعملاء</strong>
+      <p>{response.result.sources.retention.status==="READY"?"مجتمع كامل":response.result.sources.retention.status==="PARTIAL"?"تغطية جزئية — لا تعتمد كلياً":"غير متاح"}</p>
+      <p>{response.result.sources.retention.status==="UNAVAILABLE"?response.result.sources.retention.message:response.result.sources.retention.period.from+" — "+response.result.sources.retention.period.to}</p>
+      {response.result.sources.retention.status==="PARTIAL"?<p className="mt-1">{response.result.sources.retention.message}</p>:null}
+     </article>
     </div>
    </div>
    <BusinessHealthMap result={response.result.map} state="ready"/>

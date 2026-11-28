@@ -10,6 +10,10 @@ describe("Onyx snapshot source-kind binding", () => {
     expect(resolveOnyxSnapshotImportKind("unified_import_products")).toBe("products");
   });
 
+  it("binds ProductUnits snapshots only to their dedicated import job", () => {
+    expect(resolveOnyxSnapshotImportKind("product_units")).toBe("product_units");
+  });
+
   it("keeps legacy unified product jobs on the product path", () => {
     expect(resolveOnyxSnapshotImportKind("unified_import")).toBe("products");
   });

@@ -8,7 +8,7 @@ export type CustomerReturnReviewXlsxRequest = {
   created_at:string; order_id:string; order_number:string; customer_name:string; customer_code:string;
   items:CustomerReturnReviewXlsxLine[];
 };
-export type CustomerReturnReviewXlsxInput = { rows:readonly CustomerReturnReviewXlsxRequest[]; roles:readonly string[]; exportedAt?:string };
+export type CustomerReturnReviewXlsxInput = { rows:readonly CustomerReturnReviewXlsxRequest[]; roles:readonly string[]; search?:string; status?:""|"submitted"|"under_review"; exportedAt?:string };
 
 const REVIEW_ROLES = new Set(["admin","manager"]);
 const REASONS:Record<CustomerReturnReviewXlsxRequest["reason"],string> = {
@@ -40,8 +40,8 @@ function validate(input:CustomerReturnReviewXlsxInput) {
   if(!input||!Array.isArray(input.roles)||!input.roles.some(role=>REVIEW_ROLES.has(role))) {
     throw new Error("تصدير مراجعة المرتجعات متاح للمدير والمسؤول فقط.");
   }
-  if(!Array.isArray(input.rows)||input.rows.length<1||input.rows.length>50) {
-    throw new Error("قائمة المراجعة يجب أن تحتوي من طلب واحد إلى 50 طلباً أعادها الخادم.");
+  if(!Array.isArray(input.rows)||input.rows.length<1||input.rows.length>1000) {
+    throw new Error("تصدير مراجعة المرتجعات يقبل من طلب واحد إلى 1000 طلب مطابق كحد أقصى.");
   }
   const ids=new Set<string>(),numbers=new Set<string>();
   const requests=input.rows.map((request: CustomerReturnReviewXlsxRequest)=>{
@@ -67,7 +67,9 @@ function validate(input:CustomerReturnReviewXlsxInput) {
     });
     return { ...request, items };
   });
-  return { requests, lines:requests.flatMap((request: CustomerReturnReviewXlsxRequest)=>request.items.map((line: CustomerReturnReviewXlsxLine)=>({request,line}))) };
+  const lines=requests.flatMap((request: CustomerReturnReviewXlsxRequest)=>request.items.map((line: CustomerReturnReviewXlsxLine)=>({request,line})));
+  if(lines.length>25000) throw new Error("تجاوز ملف المرتجعات 25000 سطر صنف؛ لم يُنشأ ملف جزئي. قسّم التصدير باستخدام البحث أو الحالة.");
+  return { requests, lines };
 }
 function workbookXml(summaryRows:readonly (readonly CellValue[])[],detailRows:readonly (readonly CellValue[])[],createdAt:string):Uint8Array {
   const contentTypes='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
@@ -86,17 +88,19 @@ function workbookXml(summaryRows:readonly (readonly CellValue[])[],detailRows:re
     {name:"xl/worksheets/sheet2.xml",content:worksheetXml(detailRows,true)},
   ]);
 }
-/** Current open manager queue only (server limit 50), never a full historical return export. */
+/** Complete filtered open manager queue snapshot, bounded to 1,000 requests and 25,000 item lines. */
 export function buildCustomerReturnReviewWorkbookXlsx(input:CustomerReturnReviewXlsxInput):Uint8Array {
   if(!input||!Array.isArray(input.roles)||!input.roles.some(role=>REVIEW_ROLES.has(role))) throw new Error("تصدير مراجعة المرتجعات متاح للمدير والمسؤول فقط.");
   const createdAt=input.exportedAt??new Date().toISOString();
   if(typeof createdAt!=="string"||!createdAt.includes("T")||!Number.isFinite(Date.parse(createdAt))) throw new Error("وقت إنشاء ملف مراجعة المرتجعات غير صالح.");
   const {requests,lines}=validate(input);
+  const statusLabel=input.status==="submitted"?"مرسل للمراجعة":input.status==="under_review"?"قيد المراجعة":"كل الحالات المفتوحة";
+  const searchLabel=typeof input.search==="string"&&input.search.trim()?input.search.trim():"بدون بحث";
   const summary:CellValue[][]=[
     ["المؤشر","القيمة"],["اسم التقرير",BUSINESS_BRAND_NAME+" — مراجعة طلبات المرتجعات"],
-    ["وقت إنشاء الملف UTC",createdAt],["نطاق التقرير","طلبات المراجعة المفتوحة التي أعادها الخادم في القراءة الحالية فقط"],
-    ["الحد الأقصى لقراءة الخادم",50],["عدد الطلبات المصدرة",requests.length],["عدد تفاصيل الأصناف",lines.length],
-    ["حدود التقرير","لقطة لقائمة المراجعة الحالية (حتى 50 طلباً)، وليست سجلاً تاريخياً كاملاً. ملاحظات العميل والمعرفات التقنية غير مضمنة."],[],
+    ["وقت إنشاء الملف UTC",createdAt],["حالة الطابور",statusLabel],["عبارة البحث",searchLabel],
+    ["عدد الطلبات المصدرة",requests.length],["عدد تفاصيل الأصناف",lines.length],
+    ["حدود التقرير","جميع طلبات المراجعة المفتوحة المطابقة للمرشحات وقت القراءة. الحد الآمن 1000 طلب و25000 سطر صنف؛ يتوقف التصدير دون ملف جزئي عند تجاوز الحد أو تغيّر مصدر القراءة. ملاحظات العميل والمعرفات التقنية غير مضمنة."],[],
     ["رقم المرتجع","رقم الطلب","اسم العميل","رمز العميل","الحالة","سبب المرتجع","وقت إنشاء الطلب","عدد الأصناف"],
     ...requests.map(request=>[request.request_number,request.order_number,request.customer_name,request.customer_code,STATUSES[request.status],REASONS[request.reason],request.created_at,request.items.length]),
   ];

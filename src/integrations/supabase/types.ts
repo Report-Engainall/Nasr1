@@ -12088,6 +12088,16 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: Json
       }
+      get_admin_products_page: {
+        Args: {
+          p_active_only?: boolean
+          p_category_id?: string | null
+          p_page?: number
+          p_page_size?: number
+          p_search?: string | null
+        }
+        Returns: Json
+      }
       get_current_tenant_context: { Args: never; Returns: Json }
       get_customer_account_statement: { Args: never; Returns: Json }
       get_customer_cart: { Args: never; Returns: Json }
@@ -12263,6 +12273,10 @@ export type Database = {
           p_page_size?: number
           p_search?: string
         }
+        Returns: Json
+      }
+      get_storefront_cart_product_details: {
+        Args: { p_product_ids: string[] }
         Returns: Json
       }
       get_storefront_product_prices: {
@@ -13338,7 +13352,6 @@ export type Database = {
         Args: { p_payment_id: string; p_reason: string }
         Returns: Json
       }
-    }
       list_runtime_error_events: {
         Args: { p_limit?: number; p_offset?: number; p_status?: string | null }
         Returns: Json
@@ -13351,6 +13364,7 @@ export type Database = {
         Args: { p_event_id: string; p_status: string }
         Returns: Json
       }
+    }
     Enums: {
       [_ in never]: never
     }

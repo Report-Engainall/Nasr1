@@ -15,8 +15,8 @@ vi.mock("@/components/SupplierPaymentWorkspace", () => ({
   SupplierPaymentWorkspace: () => <div>supplier-payment-workspace-mounted</div>,
 }));
 vi.mock("@/components/SupplierInvoiceWorkspace", () => ({
-  SupplierInvoiceWorkspace: ({ mode }: { mode: string }) =>
-    <div>{mode === "capture" ? "supplier-invoice-capture-mounted" : "supplier-invoice-review-mounted"}</div>,
+  SupplierInvoiceWorkspace: ({ mode, initialInvoiceId }: { mode: string; initialInvoiceId?: string }) =>
+    <div>{mode === "capture" ? "supplier-invoice-capture-mounted" : "supplier-invoice-review-mounted"}{initialInvoiceId ? `:${initialInvoiceId}` : ""}</div>,
 }));
 vi.mock("@/components/SupplierAccountActivityWorkspace", () => ({
   SupplierAccountActivityWorkspace: () => <div>supplier-account-activity-mounted</div>,
@@ -74,6 +74,16 @@ describe("supplier financial workspace hub", () => {
     expect(await screen.findByText("supplier-account-activity-mounted")).toBeInTheDocument();
   });
 
+  it("opens supplier invoice review and forwards an intelligence invoice reference", async () => {
+    const invoiceId = "11111111-1111-4111-8111-111111111111";
+    const { rerender } = render(createElement(SupplierFinancialWorkspaceHub));
+    expect(await screen.findByText("supplier-payment-workspace-mounted")).toBeInTheDocument();
+
+    rerender(createElement(SupplierFinancialWorkspaceHub, { initialSupplierInvoiceId: invoiceId }));
+    expect(await screen.findByText("supplier-invoice-review-mounted:" + invoiceId)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "مراجعة فروقات الأسعار" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("reloads ledger account options after an authenticated session change", async () => {
     const { rerender } = render(createElement(SupplierFinancialWorkspaceHub));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(1));
@@ -84,6 +94,33 @@ describe("supplier financial workspace hub", () => {
     });
     rerender(createElement(SupplierFinancialWorkspaceHub));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2));
+  });
+
+
+  it("allows retrying the General Ledger account lookup after an initial read failure", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: null, error: new Error("temporary ledger read failure") })
+      .mockResolvedValueOnce({
+        data: {
+          accounts: [{
+            id: "account-1",
+            code: "1101",
+            name: "الصندوق الرئيسي",
+            account_type: "asset",
+            is_active: true,
+          }],
+        },
+        error: null,
+      });
+
+    render(createElement(SupplierFinancialWorkspaceHub));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("temporary ledger read failure");
+    fireEvent.click(screen.getByRole("button", { name: "إعادة تحميل دليل حسابات الأستاذ" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByText("supplier-payment-workspace-mounted")).toBeInTheDocument();
   });
 
   it("does not request or expose financial workspaces to a non-finance role", () => {

@@ -24,7 +24,18 @@ type ProductRow = {
   barcode: string | null;
   unit: string;
   status: string;
+  min_order_quantity: number;
+  order_quantity_multiple: number;
 };
+
+type ReorderTemplateRow = {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  source_order_id: string | null;
+};
+type ReorderTemplateItemRow = { product_id: string | null; quantity: number | string };
 
 type QueryResult = { data: unknown[] | null; error: { message: string } | null };
 
@@ -39,6 +50,11 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   getCurrentTenantScope: vi.fn(),
   failProductReads: 0,
+  productRows: [] as ProductRow[],
+  templateRows: [] as ReorderTemplateRow[],
+  templateItemRows: [] as ReorderTemplateItemRow[],
+  offlineCartLines: [] as Array<{ product_id: string; quantity: number }>,
+  mergeOfflineCartDraft: vi.fn(),
   priceRows: [] as Array<{ product_id: string; unit_price: number }>,
   saveFailures: 0,
   saveCalls: [] as Array<{ name: string; args: Record<string, unknown> }>,
@@ -59,6 +75,10 @@ vi.mock("@/components/Login", () => ({
   Login: () => <div data-testid="login-required">تسجيل الدخول مطلوب</div>,
 }));
 
+vi.mock("@/components/CustomerShoppingListsWorkspace", () => ({
+  CustomerShoppingListsWorkspace: () => <div data-testid="shopping-lists-workspace">قوائم المشتريات والدورات</div>,
+}));
+
 vi.mock("@/components/CustomerReturnRequest", () => ({
   CustomerReturnRequest: () => null,
 }));
@@ -66,6 +86,12 @@ vi.mock("@/components/CustomerReturnRequest", () => ({
 vi.mock("@/lib/supabase", () => ({
   supabase: { from: mocks.from, rpc: mocks.rpc, auth: { getSession: vi.fn() } },
   getCurrentTenantScope: mocks.getCurrentTenantScope,
+}));
+
+vi.mock("@/lib/offline-cart", () => ({
+  loadOfflineCartDraft: vi.fn(() => mocks.offlineCartLines),
+  mergeOfflineCartDraft: mocks.mergeOfflineCartDraft,
+  saveOfflineCartDraft: vi.fn(),
 }));
 
 const CUSTOMER: TestUser = {
@@ -86,6 +112,8 @@ const PRODUCT: ProductRow = {
   barcode: "000012345678",
   unit: "كرتون",
   status: "active",
+  min_order_quantity: 1,
+  order_quantity_multiple: 1,
 };
 
 function resolveReorderQueryResult(table: string): QueryResult {
@@ -93,10 +121,9 @@ function resolveReorderQueryResult(table: string): QueryResult {
     mocks.failProductReads -= 1;
     return PRODUCT_READ_FAILURE;
   }
-  if (table === "products") return { data: [PRODUCT], error: null };
-  if (table === "reorder_templates" || table === "reorder_template_items") {
-    return { data: [], error: null };
-  }
+  if (table === "products") return { data: mocks.productRows, error: null };
+  if (table === "reorder_templates") return { data: mocks.templateRows, error: null };
+  if (table === "reorder_template_items") return { data: mocks.templateItemRows, error: null };
   return { data: null, error: { message: "Unexpected query table: " + table } };
 }
 
@@ -123,6 +150,29 @@ describe("customer reorder real route acceptance", () => {
     vi.clearAllMocks();
     mocks.user = null;
     mocks.failProductReads = 0;
+    mocks.productRows = [{ ...PRODUCT }];
+    mocks.templateRows = [];
+    mocks.templateItemRows = [];
+    mocks.offlineCartLines = [];
+    mocks.mergeOfflineCartDraft.mockReset().mockImplementation(
+      (_storage: Storage, _profileId: string | null | undefined, additions: unknown) => {
+        const quantities = new Map<string, number>(
+          mocks.offlineCartLines.map((line) => [line.product_id, line.quantity]),
+        );
+        if (Array.isArray(additions)) {
+          for (const candidate of additions) {
+            if (!candidate || typeof candidate !== "object") continue;
+            const line = candidate as { product_id?: unknown; quantity?: unknown };
+            if (typeof line.product_id !== "string" || typeof line.quantity !== "number") continue;
+            quantities.set(
+              line.product_id,
+              Math.min(10000, (quantities.get(line.product_id) ?? 0) + line.quantity),
+            );
+          }
+        }
+        return [...quantities.entries()].map(([product_id, quantity]) => ({ product_id, quantity }));
+      },
+    );
     mocks.priceRows = [{ product_id: PRODUCT_ID, unit_price: 150 }];
     mocks.saveFailures = 0;
     mocks.saveCalls = [];
@@ -166,7 +216,7 @@ describe("customer reorder real route acceptance", () => {
     });
   }
 
-  async function mountReorderRoute() {
+  async function mountReorderRoute(startInTemplates = true) {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
@@ -181,7 +231,19 @@ describe("customer reorder real route acceptance", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await flush();
+    if (startInTemplates) {
+      const templatesTab = Array.from(host.querySelectorAll<HTMLButtonElement>('button[role="tab"]')).find((button) =>
+        button.textContent?.includes("قوالب إعادة الطلب السابقة"),
+      );
+      expect(templatesTab).toBeTruthy();
+      await act(async () => {
+        fireEvent.click(templatesTab!);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await flush();
+    }
     expect(router.state.location.pathname).toBe("/reorder");
+    return router;
   }
 
   async function fillField(element: HTMLInputElement, value: string) {
@@ -201,6 +263,41 @@ describe("customer reorder real route acceptance", () => {
     });
     await flush();
   }
+
+  async function applyTemplate() {
+    const button = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((item) =>
+      item.textContent?.includes("تحميل إلى السلة"),
+    );
+    expect(button).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(button!);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+  }
+
+  it("opens customer shopping lists first and keeps legacy reorder templates available", async () => {
+    mocks.user = CUSTOMER;
+
+    await mountReorderRoute(false);
+
+    const tabs = Array.from(host?.querySelectorAll<HTMLButtonElement>('button[role="tab"]') ?? []);
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0].textContent).toContain("قوائم المشتريات والدورات");
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(host?.querySelector('[data-testid="shopping-lists-workspace"]')).toBeTruthy();
+    expect(tabs[1].getAttribute("aria-selected")).toBe("false");
+
+    await act(async () => {
+      fireEvent.click(tabs[1]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+
+    expect(host?.querySelector('[data-testid="shopping-lists-workspace"]')).toBeNull();
+    expect(host?.querySelector('input[value="طلب متكرر"]')).toBeTruthy();
+    expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+  });
 
   it("gates guests before resolving tenant scope, querying reorder data or calling RPCs", async () => {
     await mountReorderRoute();
@@ -290,4 +387,84 @@ describe("customer reorder real route acceptance", () => {
     expect(mocks.saveCalls).toHaveLength(2);
     expect(mocks.saveCalls[1].args).toEqual(mocks.saveCalls[0].args);
   });
+  it("enforces the current product minimum and pack multiple before saving, including Arabic digits", async () => {
+    mocks.user = CUSTOMER;
+    mocks.productRows = [{
+      ...PRODUCT,
+      min_order_quantity: 5,
+      order_quantity_multiple: 5,
+    }];
+
+    await mountReorderRoute();
+    const name = host?.querySelector<HTMLInputElement>('input[value="طلب متكرر"]');
+    const quantity = host?.querySelector<HTMLInputElement>('input[aria-label="كمية صنف اختبار"]');
+    expect(name).toBeTruthy();
+    expect(quantity).toBeTruthy();
+    expect(host?.textContent).toContain("الحد الأدنى: 5 كرتون");
+    await fillField(name!, "قالب التعبئة");
+    await fillField(quantity!, "٦");
+    await saveTemplate();
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تبدأ من 5 وتزيد بمضاعف 5");
+    expect(mocks.saveCalls).toHaveLength(0);
+
+    await fillField(quantity!, "١٠");
+    await saveTemplate();
+
+    expect(host?.querySelector('[role="alert"]')).toBeNull();
+    expect(mocks.saveCalls).toHaveLength(1);
+    expect(mocks.saveCalls[0].args).toEqual({
+      p_name: "قالب التعبئة",
+      p_lines: [{ product_id: PRODUCT_ID, quantity: 10 }],
+      p_source_order_id: null,
+    });
+  });
+
+  it("rejects a previously saved template when its product quantity policy has changed", async () => {
+    mocks.user = CUSTOMER;
+    mocks.productRows = [{
+      ...PRODUCT,
+      min_order_quantity: 5,
+      order_quantity_multiple: 5,
+    }];
+    mocks.templateRows = [{
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "قالب قديم",
+      created_at: "2026-11-16T10:00:00.000Z",
+      updated_at: "2026-11-16T10:00:00.000Z",
+      source_order_id: null,
+    }];
+    mocks.templateItemRows = [{ product_id: PRODUCT_ID, quantity: "6" }];
+
+    await mountReorderRoute();
+    await applyTemplate();
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تبدأ من 5 وتزيد بمضاعف 5");
+    expect(mocks.mergeOfflineCartDraft).not.toHaveBeenCalled();
+  });
+
+  it("validates the combined cart quantity before applying a valid reorder template", async () => {
+    mocks.user = CUSTOMER;
+    mocks.productRows = [{
+      ...PRODUCT,
+      min_order_quantity: 5,
+      order_quantity_multiple: 5,
+    }];
+    mocks.templateRows = [{
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "قالب توريد",
+      created_at: "2026-11-16T10:00:00.000Z",
+      updated_at: "2026-11-16T10:00:00.000Z",
+      source_order_id: null,
+    }];
+    mocks.templateItemRows = [{ product_id: PRODUCT_ID, quantity: 5 }];
+    mocks.offlineCartLines = [{ product_id: PRODUCT_ID, quantity: 4 }];
+
+    await mountReorderRoute();
+    await applyTemplate();
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تبدأ من 5 وتزيد بمضاعف 5");
+    expect(mocks.mergeOfflineCartDraft).not.toHaveBeenCalled();
+  });
+
 });

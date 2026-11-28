@@ -20,6 +20,7 @@ import {
   type AiGatewayBudget,
 } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
+import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { formatCurrency, formatDateShort, formatNumber, timeAgo } from '@/lib/format';
 import { ORDER_STATUS_LABELS } from '@/lib/types';
 import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem, StorefrontAnnouncement, StorefrontAnnouncementAudience, StorefrontAnnouncementInput } from '@/lib/types';
@@ -30,8 +31,11 @@ import { downloadAdminSalesOrderWorkbookXlsx } from '@/lib/admin-sales-order-xls
 import type { LucideIcon } from 'lucide-react';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { StorefrontArtworkPicker } from '@/components/StorefrontArtworkPicker';
+import { normalizeStorefrontArtworkKey, type StorefrontArtworkKey } from '@/lib/storefront-artwork';
 import { MemberAuthorizationAccessControls } from '@/components/CustomerManagerRoleAssignment';
 import { AdminAccessMatrix } from '@/components/AdminAccessMatrix';
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 import { AiGatewayOperationsPanel } from '@/components/intelligence';
 import {
@@ -125,6 +129,7 @@ function NotificationsContent({
 
 export function Notifications({ onNotice, onOpenTask }: { onNotice: (m: string) => void; onOpenTask: (taskId: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchNotifications);
+  useRefreshWhileActive({ refresh: refetch, busy: loading });
   const unread = data?.filter((n) => !n.is_read).length ?? 0;
 
   async function readAll() {
@@ -266,6 +271,10 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const canManageGateway = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const { data: alerts, loading: aLoading, error: aError, refetch: rAlerts } = useFetch(fetchAiAlerts);
   const { data: tasks, loading: tLoading, error: tError, refetch: rTasks } = useFetch(fetchAiTasks);
+  const refreshAiOperations = useCallback(async () => {
+    await Promise.all([rAlerts(), rTasks()]);
+  }, [rAlerts, rTasks]);
+  useRefreshWhileActive({ refresh: refreshAiOperations, busy: aLoading || tLoading });
   const [tab, setTab] = useState<'alerts' | 'tasks'>('alerts');
   const [gateway, setGateway] = useState<AiGatewayBudget | null>(null);
   const [draft, setDraft] = useState<AiGatewayDraft>(defaultAiGatewayDraft);
@@ -1079,7 +1088,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   </AdminPage>;
 }
 
-export function Suppliers({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
+export function Suppliers({ onNotice, initialSearch, initialSupplierInvoiceId }: { onNotice: (m: string) => void; initialSearch?: string; initialSupplierInvoiceId?: string }) {
   const { data, loading, error, refetch } = useFetch(fetchSuppliers);
   const [modal, setModal] = useState(false);
   const [query, setQuery] = useState(initialSearch ?? '');
@@ -1139,7 +1148,7 @@ export function Suppliers({ onNotice, initialSearch }: { onNotice: (m: string) =
       </>
     }
     <Suspense fallback={<div role="status" style={{ marginBlock: 16, color: 'var(--muted-foreground, #64748b)' }}>جار تحميل المساحات المالية للموردين...</div>}>
-      <SupplierFinancialWorkspaceHub />
+      <SupplierFinancialWorkspaceHub initialSupplierInvoiceId={initialSupplierInvoiceId} />
     </Suspense>
     {modal && <SupplierModal onClose={() => setModal(false)} onSaved={() => { setModal(false); void refetch(); onNotice('تمت إضافة المورد'); }} />}
   </AdminPage>;
@@ -1258,6 +1267,9 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
         <SettingsPanel title="إعدادات المتجر">
           <SettingInput label="عنوان البانر" value={(map.hero_title as string) ?? ''} onSave={(v) => save('hero_title', v, 'storefront')} saving={saving} />
           <SettingInput label="نص البانر الفرعي" value={(map.hero_subtitle as string) ?? ''} onSave={(v) => save('hero_subtitle', v, 'storefront')} saving={saving} />
+          {canManageStorefrontContent && <StorefrontArtworkPicker label="الرسم التوضيحي لبانر المتجر"
+            value={normalizeStorefrontArtworkKey(map.hero_artwork)} previewName="بانر متجر الأغبري" disabled={saving}
+            onChange={(value) => void save('hero_artwork', value, 'storefront')} />}
           <SettingToggle label="شريط العرض المتحرك" value={(map.ticker_enabled as boolean) ?? true} onSave={(v) => save('ticker_enabled', v, 'storefront')} saving={saving} />
           <SettingToggle label="إظهار المنتجات النافدة" value={(map.show_out_of_stock as boolean) ?? true} onSave={(v) => save('show_out_of_stock', v, 'storefront')} saving={saving} />
         </SettingsPanel>
@@ -1337,10 +1349,11 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
 
 type AnnouncementDraft = {
   id: string | null; title: string; content: string; href: string; color: string; priority: string;
+  visualKey: StorefrontArtworkKey;
   isActive: boolean; startsAt: string; endsAt: string; audience: StorefrontAnnouncementAudience;
 };
 function newAnnouncementDraft(): AnnouncementDraft {
-  return { id: null, title: '', content: '', href: '', color: '#B99347', priority: '100', isActive: true, startsAt: '', endsAt: '', audience: 'all' };
+  return { id: null, title: '', content: '', href: '', color: '#B99347', priority: '100', visualKey: 'general', isActive: true, startsAt: '', endsAt: '', audience: 'all' };
 }
 function announcementDateInput(value: string | null | undefined): string {
   if (!value) return '';
@@ -1364,7 +1377,8 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
 
   function editAnnouncement(row: StorefrontAnnouncement) {
     setDraft({ id: row.id, title: row.title, content: row.content ?? '', href: row.href ?? '', color: row.color,
-      priority: String(row.priority), isActive: row.is_active, startsAt: announcementDateInput(row.starts_at),
+      priority: String(row.priority), visualKey: normalizeStorefrontArtworkKey(row.visual_key),
+      isActive: row.is_active, startsAt: announcementDateInput(row.starts_at),
       endsAt: announcementDateInput(row.ends_at), audience: row.audience });
     setFormError('');
     setFormOpen(true);
@@ -1386,7 +1400,7 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
       setSaving(true);
       await persist({ id: draft.id, title: draft.title.trim(), content: draft.content.trim() || null,
         href: draft.href.trim() || null, color: draft.color, priority, is_active: draft.isActive,
-        starts_at: startsAt, ends_at: endsAt, audience: draft.audience });
+        starts_at: startsAt, ends_at: endsAt, audience: draft.audience, visual_key: draft.visualKey });
       cancelForm(); onNotice('تم حفظ الإعلان وتسجيل التغيير في سجل التدقيق.');
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'تعذر حفظ الإعلان.');
@@ -1396,7 +1410,8 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
     setBusyId(row.id);
     try {
       await persist({ id: row.id, title: row.title, content: row.content, href: row.href, color: row.color,
-        priority: row.priority, is_active: !row.is_active, starts_at: row.starts_at, ends_at: row.ends_at, audience: row.audience });
+        priority: row.priority, is_active: !row.is_active, starts_at: row.starts_at, ends_at: row.ends_at,
+        audience: row.audience, visual_key: row.visual_key });
       onNotice(row.is_active ? 'تم تعطيل الإعلان.' : 'تم تفعيل الإعلان وفق فترة النشر المحددة.');
     } catch (cause) { onNotice(cause instanceof Error ? cause.message : 'تعذر تغيير حالة الإعلان.'); }
     finally { setBusyId(null); }
@@ -1416,6 +1431,9 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
         <label>عنوان الإعلان <input required maxLength={120} value={draft.title} onChange={(event) => setDraft((p) => ({ ...p, title: event.target.value }))} /></label>
         <label>النص المختصر <textarea maxLength={600} rows={3} value={draft.content} onChange={(event) => setDraft((p) => ({ ...p, content: event.target.value }))} /></label>
         <label>الرابط الداخلي أو HTTPS <input maxLength={500} placeholder="/products أو https://example.com" value={draft.href} onChange={(event) => setDraft((p) => ({ ...p, href: event.target.value }))} /></label>
+        <StorefrontArtworkPicker label="الرسم التوضيحي للإعلان" value={draft.visualKey}
+          onChange={(value) => setDraft((p) => ({ ...p, visualKey: value }))}
+          previewName={draft.title || "إعلان متجر الأغبري"} disabled={saving} />
         <div className="sf-announcement-form-grid">
           <label>لون التمييز <input type="color" value={draft.color} onChange={(event) => setDraft((p) => ({ ...p, color: event.target.value }))} /></label>
           <label>الأولوية <input type="number" min={0} max={10000} step={1} required value={draft.priority} onChange={(event) => setDraft((p) => ({ ...p, priority: event.target.value }))} /></label>
@@ -1652,14 +1670,16 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
   </SettingsPanel>;
 }
 
-function SettingsPanel({ title, children }: { title: string; children: React.ReactNode }) { return <section className="panel settings-panel"><div className="panel-head"><div><h2>{title}</h2></div></div><div className="settings-body">{children}</div></section>; }
+function SettingsPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <WorkspaceSectionGroup icon={Settings} title={title} className="settings-panel" contentClassName="settings-body">{children}</WorkspaceSectionGroup>;
+}
 function SettingInput({ label, value, onSave, saving }: { label: string; value: string; onSave: (v: string) => void; saving: boolean }) { const [v, setV] = useState(value); useEffect(() => setV(value), [value]); return <div className="setting-row"><label><span>{label}</span><input value={v} onChange={(e) => setV(e.target.value)} /></label><Button variant="outline" onClick={() => onSave(v)} disabled={saving}>حفظ</Button></div>; }
 function SettingToggle({ label, value, onSave, saving }: { label: string; value: boolean; onSave: (v: boolean) => void; saving: boolean }) { return <div className="setting-row"><div className="setting-label"><span>{label}</span><label className="switch"><input type="checkbox" checked={value} onChange={(e) => onSave(e.target.checked)} disabled={saving} /><span /></label></div></div>; }
 function SettingColor({ label, value, onSave, saving }: { label: string; value: string; onSave: (v: string) => void; saving: boolean }) { return <div className="setting-row"><label><span>{label}</span><input type="color" value={value} onChange={(e) => onSave(e.target.value)} disabled={saving} /></label></div>; }
 
 // ─── Shared components ───
 export function AdminPage({ eyebrow, title, description, icon: Icon, note, toolbar, children }: { eyebrow: string; title: string; description: string; icon: IconType; note: string; toolbar?: React.ReactNode; children: React.ReactNode }) {
-  return <><div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>{(note || toolbar) && <div className="toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
+  return <><WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />{(note || toolbar) && <div className="toolbar workspace-section-toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
 }
 export function Loading() { return <div className="loading"><RefreshCw size={20} className="spin" /> جار تحميل البيانات...</div>; }
 export function ErrorBox({ message }: { message: string }) { return <div className="error-box" role="alert"><AlertTriangle size={19} /> تعذر تحميل البيانات. {message}</div>; }

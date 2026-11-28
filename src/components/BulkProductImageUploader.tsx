@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadProductGalleryImage, uploadProductImage } from "@/lib/api";
 import { toWebp, validateProductImageFile } from "@/lib/product-image";
-import { matchProductImagesByCode, type ProductImageBatchEntry } from "@/lib/product-image-batch-match";
+import { hasSafePrimaryProductImageUrl, matchProductImagesByCode, type ProductImageBatchEntry } from "@/lib/product-image-batch-match";
 import type { ProductWithInventory } from "@/lib/types";
 
 type UploadResult = {
@@ -61,8 +61,8 @@ function imagePlacementLabel(value: "primary" | "gallery"): string {
   return value === "primary" ? "الصورة الرئيسية" : "صورة إضافية";
 }
 
-function hasPrimaryProductImage(product: ProductWithInventory): boolean {
-  return typeof product.image_url === "string" && /^https:\/\//i.test(product.image_url.trim());
+function hasPrimaryProductImage(product: { image_url?: string | null }): boolean {
+  return hasSafePrimaryProductImageUrl(product.image_url);
 }
 
 export function getProductsMissingPrimaryImage(
@@ -151,6 +151,19 @@ export function BulkProductImageUploader({
     () => files.map((file) => ({ file, issue: validateProductImageFile(file) })),
     [files],
   );
+  const directPreviewUrls = useMemo(() => {
+    const urls = new Map<string, string>();
+    if (typeof URL.createObjectURL !== "function") return urls;
+    for (const [productId, file] of Object.entries(directImageFiles)) {
+      urls.set(productId, URL.createObjectURL(file));
+    }
+    return urls;
+  }, [directImageFiles]);
+  useEffect(() => () => {
+    if (typeof URL.revokeObjectURL === "function") {
+      for (const url of directPreviewUrls.values()) URL.revokeObjectURL(url);
+    }
+  }, [directPreviewUrls]);
   const invalidFiles = fileChecks.filter((item) => item.issue);
   const validFiles = fileChecks.filter((item) => !item.issue).map((item) => item.file);
   const previewUrls = useMemo(() => {
@@ -285,7 +298,7 @@ export function BulkProductImageUploader({
     setDirectUploadBusyId(product.id);
     setDirectImageErrors((current) => ({ ...current, [product.id]: "" }));
     try {
-      const publicUrl = await uploadProductImage(product.id, await toWebp(file), null);
+      const publicUrl = await uploadProductImage(product.id, await toWebp(file), product.image_url ?? null);
       if (typeof publicUrl !== "string" || !/^https:\/\//i.test(publicUrl)) {
         throw new Error("لم يرجع الخادم رابط صورة رئيسية آمناً.");
       }
@@ -391,7 +404,7 @@ export function BulkProductImageUploader({
 
         const hasPrimary = primaryLinked.has(product.id)
           ? primaryLinked.get(product.id) === true
-          : Boolean(product.image_url?.trim());
+          : hasPrimaryProductImage(product);
         const placement: "primary" | "gallery" = hasPrimary ? "gallery" : "primary";
 
         try {
@@ -457,6 +470,11 @@ export function BulkProductImageUploader({
           يطابق المحرك الكود الدقيق أولًا ويحافظ على الأصفار في بداية الكود. لا يستبدل صورة رئيسية موجودة؛
           يضيف الصور الجديدة إلى المعرض، ويحوّلها إلى WebP بمقاس لا يتجاوز 1600 بكسل.
         </p>
+        <div className="privacy-note" role="note" style={{ lineHeight: 1.8 }}>
+          الرسومات التي تظهر في المتجر عند غياب الصورة هي توضيحات مؤقتة فقط؛ لا تُحفظ كصور للمنتجات ولا تدخل في نسبة تغطية الصور الأصلية.
+          لاستبدالها، ارفع الصورة الرئيسية من هذه القائمة، أو افتح تحرير الصنف لتغيير صورة مسجلة مسبقًا. يمكنك تكرار ذلك في أي وقت،
+          وتظل الصورة المسجلة في التخزين هي المعروضة بعد نجاح الربط.
+        </div>
 
         {catalogReady && (
           <section aria-label="اكتمال صور الكتالوج" className="panel" style={{ display: "grid", gap: 12, padding: 14 }}>
@@ -525,6 +543,33 @@ export function BulkProductImageUploader({
                           </button>
                         )}
                       </div>
+                      {directImageFiles[product.id] && (
+                        <div className="privacy-note" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          {directPreviewUrls.has(product.id) ? (
+                            <img
+                              src={directPreviewUrls.get(product.id)}
+                              alt={"معاينة الصورة المختارة للصنف " + product.name}
+                              width={88}
+                              height={88}
+                              decoding="async"
+                              style={{ width: 88, height: 88, objectFit: "contain", borderRadius: 8, border: "1px solid var(--border, #dbe3e8)", background: "var(--surface, #fff)" }}
+                            />
+                          ) : (
+                            <span role="img" aria-label={"معاينة غير متاحة للصنف " + product.name}>معاينة غير متاحة</span>
+                          )}
+                          <span style={{ display: "grid", gap: 4, minWidth: 0 }}>
+                            <strong>معاينة الصورة قبل الرفع</strong>
+                            <small dir="auto" style={{ overflowWrap: "anywhere" }}>
+                              {directImageFiles[product.id].name} · {formatProductImageFileSize(directImageFiles[product.id].size)}
+                            </small>
+                          </span>
+                          <button type="button" className="btn ghost"
+                            disabled={busy || directUploadBusyId === product.id}
+                            onClick={() => chooseMissingPrimaryImage(product.id, null)}>
+                            إلغاء اختيار الصورة
+                          </button>
+                        </div>
+                      )}
                       {directImageErrors[product.id] && <div className="form-error" role="alert">{directImageErrors[product.id]}</div>}
                     </article>
                   ))}
@@ -618,7 +663,7 @@ export function BulkProductImageUploader({
                 aria-valuenow={progress}
                 aria-valuetext={"تمت معالجة " + progress + " من " + (progressTotal || readyEntries.length) + " صورة"}
               >
-                <i aria-hidden="true" style={{ width: Math.round((progress / Math.max(1, readyEntries.length)) * 100) + "%" }} />
+                <i aria-hidden="true" style={{ width: Math.round((progress / Math.max(1, progressTotal || readyEntries.length)) * 100) + "%" }} />
               </div>
             )}
           </>

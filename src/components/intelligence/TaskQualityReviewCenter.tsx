@@ -11,15 +11,26 @@ export interface TaskQualityReviewCenterProps {
 export function TaskQualityReviewCenter({ refreshToken = 0 }: TaskQualityReviewCenterProps) {
   const [quality, setQuality] = useState<TaskQualityMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
     const generation = ++requestGeneration.current;
     setLoading(true);
-    const result = await fetchOperationalTaskQualityMetrics();
-    if (generation !== requestGeneration.current) return;
-    setQuality(result);
-    setLoading(false);
+    setLoadError(null);
+
+    try {
+      const result = await fetchOperationalTaskQualityMetrics();
+      if (generation !== requestGeneration.current) return;
+      setQuality(result);
+    } catch {
+      if (generation !== requestGeneration.current) return;
+      setLoadError("تعذر قراءة مؤشرات الجودة من المصدر المعتمد؛ أعد المحاولة.");
+    } finally {
+      if (generation === requestGeneration.current) {
+        setLoading(false);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -30,7 +41,12 @@ export function TaskQualityReviewCenter({ refreshToken = 0 }: TaskQualityReviewC
   }, [load, refreshToken]);
 
   return (
-    <section className="panel space-y-3" dir="rtl" aria-labelledby="task-quality-center-heading">
+    <section
+      className="panel space-y-3"
+      dir="rtl"
+      aria-labelledby="task-quality-center-heading"
+      aria-busy={loading}
+    >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="task-quality-center-heading" className="text-lg font-semibold">مركز مراجعة جودة المهام</h2>
@@ -52,6 +68,11 @@ export function TaskQualityReviewCenter({ refreshToken = 0 }: TaskQualityReviewC
       {loading && quality === null ? (
         <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
           جارٍ تحميل مؤشرات الجودة من المصدر المعتمد…
+        </p>
+      ) : null}
+      {loadError ? (
+        <p className="text-sm" role="alert">
+          {loadError}
         </p>
       ) : null}
       {quality ? <TaskQualityReviewMetrics quality={quality} /> : null}

@@ -84,7 +84,15 @@ describe("ProductMediaGallery", () => {
     render(
       <ProductMediaGallery
         productName="هاتف"
-        imageUrls={[images[0], images[0], "javascript:alert(1)", "http://images.example.test/unsafe.png"]}
+        imageUrls={[
+          images[0],
+          images[0],
+          "javascript:alert(1)",
+          "http://images.example.test/unsafe.png",
+          "https://user:password@images.example.test/private.webp",
+          "https://images.example.test/private.webp?token=private-token",
+          "https://images.example.test/private.webp?X-Amz-Signature=private-signature",
+        ]}
       />,
     );
 
@@ -95,5 +103,23 @@ describe("ProductMediaGallery", () => {
     const dialog = screen.getByRole("dialog", { name: "معرض صور هاتف" });
     expect(within(dialog).getByText("الصورة 1 من 1")).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "الصورة التالية" })).not.toBeInTheDocument();
+  });
+});
+
+
+describe("ProductMediaGallery missing-image fallback", () => {
+  it("shows a clearly labelled product illustration when no original image is linked", () => {
+    render(
+      <ProductMediaGallery
+        productName="رز بسمتي"
+        productDescription="كيس أرز"
+        categoryName="المواد الغذائية"
+        productCode="RICE-01"
+        imageUrls={[]}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "رسم توضيحي مؤقت للمنتج رز بسمتي" })).toBeInTheDocument();
+    expect(screen.getByText("صورة توضيحية مؤقتة")).toBeInTheDocument();
+    expect(screen.getByText(/رمز الصنف: RICE-01/)).toBeInTheDocument();
   });
 });

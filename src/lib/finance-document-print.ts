@@ -409,7 +409,7 @@ function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, text?:
   if (className) node.className = className;
   return node;
 }
-function addBase(doc: Document, title: string): HTMLElement {
+function addBase(doc: Document, title: string, createdAt?: string): HTMLElement {
   doc.title = `${title} | ${BUSINESS_BRAND_NAME}`;
   doc.documentElement.lang = "ar";
   doc.documentElement.dir = "rtl";
@@ -423,7 +423,8 @@ function addBase(doc: Document, title: string): HTMLElement {
   brandBox.setAttribute("aria-label", BUSINESS_BRAND_NAME);
   brandBox.append(el(doc, "div", BUSINESS_BRAND_NAME_AR, "brand"), el(doc, "small", BUSINESS_BRAND_NAME_EN_UPPER));
   const titleBox = el(doc, "div");
-  titleBox.append(el(doc, "h1", title), el(doc, "p", "تاريخ إنشاء المستند: " + fmtDateTime(new Date().toISOString())));
+  const documentCreatedAt = createdAt === undefined ? new Date().toISOString() : isoDate(createdAt, "document.created_at");
+  titleBox.append(el(doc, "h1", title), el(doc, "p", "تاريخ إنشاء المستند: " + fmtDateTime(documentCreatedAt)));
   header.append(brandBox, titleBox);
   main.appendChild(header);
   doc.body.appendChild(main);
@@ -747,7 +748,7 @@ export function renderCustomerPaymentReceiptDocument(
     credit_adjustment: "تسوية دائنة",
     other: "أخرى",
   };
-  const main = addBase(doc, "سند قبض العميل " + receiptNumber);
+  const main = addBase(doc, "سند قبض العميل " + receiptNumber, payload.receipt.paid_at);
   addMeta(doc, main, [
     ["المؤسسة المستلمة", issuerName],
     ["العميل", customerLabel(payload.customer)],

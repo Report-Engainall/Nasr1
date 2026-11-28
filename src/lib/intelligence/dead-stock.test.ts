@@ -119,3 +119,141 @@ describe("dead-stock engine",()=>{
  });
 
 });
+
+
+describe("dead-stock metric calculation clock",()=>{
+ const pWith=(changes:{quantity?:MetricSnapshot;cost?:MetricSnapshot}={})=>({
+  productRef:"P-CLOCK",lastMovementAt:null,
+  movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-clock"]},
+  availableQuantity:changes.quantity??{...metric("qty-clock","QUANTITY",10),period:null},
+  quantityUnit:"EA",
+  unitCost:changes.cost??metric("cost-clock","CURRENCY_PER_UNIT",4,"YER"),
+  costQuantityUnit:"EA",
+  soldQuantityWindow:metric("sold-clock","QUANTITY",1),
+  averageInventoryWindow:metric("avg-clock","QUANTITY",20),
+ });
+ const buildClock=(product:ReturnType<typeof pWith>,records:EvidenceRecord[])=>buildDeadStockReport({
+  id:"clock",asOf,period,evidenceRecords:records,products:[product],rule,
+ });
+ const records=()=>[evidence("mv-clock"),{...evidence("qty-clock"),period:null},evidence("cost-clock","YER"),evidence("sold-clock"),evidence("avg-clock")];
+
+ it("withholds exposure when the unit-cost metric was calculated after as-of",()=>{
+  const base=metric("cost-clock","CURRENCY_PER_UNIT",4,"YER");
+  const item=pWith({cost:{...base,lineage:{...base.lineage,calculatedAt:"2026-10-30T07:00:00.001Z"}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW",unitCost:null});
+  expect(result.items[0].warnings).toContain("METRIC_CALCULATED_AFTER_SNAPSHOT");
+ });
+
+ it("withholds exposure when available quantity was calculated after as-of",()=>{
+  const base=metric("qty-clock","QUANTITY",10);
+  const item=pWith({quantity:{...base,period:null,lineage:{...base.lineage,calculatedAt:"2026-10-30T07:00:00.001Z"}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW"});
+  expect(result.items[0].warnings).toContain("METRIC_CALCULATED_AFTER_SNAPSHOT");
+ });
+
+ it("withholds a metric whose calculation clock lacks an explicit timezone",()=>{
+  const base=metric("cost-clock","CURRENCY_PER_UNIT",4,"YER");
+  const item=pWith({cost:{...base,lineage:{...base.lineage,calculatedAt:"2026-10-30T07:00:00"}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW"});
+  expect(result.items[0].warnings).toContain("METRIC_CALCULATION_TIMESTAMP_INVALID");
+ });
+
+ it("accepts calculation exactly at the as-of boundary",()=>{
+  const base=metric("cost-clock","CURRENCY_PER_UNIT",4,"YER");
+  const item=pWith({cost:{...base,lineage:{...base.lineage,calculatedAt:asOf}}});
+  const result=buildClock(item,records());
+  expect(result.items[0]).toMatchObject({financialExposure:40,exposureStatus:"VERIFIED"});
+ });
+});
+
+describe("dead stock ISO timestamp offset contract", () => {
+  it.each([
+    ["+14:00", "2026-10-30T21:00:00.000+14:00"],
+    ["-14:00", "2026-10-29T17:00:00.000-14:00"],
+  ])("accepts the ISO maximum UTC offset %s", (_label, reportAsOf) => {
+    const result = buildDeadStockReport({
+      id: "dead-stock-clock", asOf: reportAsOf, period,
+      evidenceRecords: [], products: [], rule,
+    });
+    expect(result.asOf).toBe(reportAsOf);
+  });
+
+  it.each([
+    "2026-10-30T21:00:00.000+14:01",
+    "2026-10-29T17:00:00.000-14:01",
+    "2026-10-30T23:59:00.000+23:59",
+  ])("rejects an unsupported dead-stock report clock: %s", reportAsOf => {
+    expect(() => buildDeadStockReport({
+      id: "dead-stock-clock", asOf: reportAsOf, period,
+      evidenceRecords: [], products: [], rule,
+    })).toThrow("asOf must be a valid timestamp");
+  });
+});
+
+
+describe("dead-stock source timestamp boundaries", () => {
+  const buildWithClocks = (lastMovementAt: string, sourceTimestamp: string) => {
+    const item = {
+      productRef: "P-STRICT-CLOCK",
+      lastMovementAt,
+      movementCoverage: {
+        status: "VERIFIED" as const,
+        period,
+        completeness: "COMPLETE" as const,
+        quality: "ACCEPTABLE" as const,
+        evidenceIds: ["mv-strict-clock"],
+      },
+      availableQuantity: metric("qty-strict-clock", "QUANTITY", 2),
+      quantityUnit: "EA",
+      unitCost: null,
+      soldQuantityWindow: null,
+      averageInventoryWindow: null,
+    };
+    return buildDeadStockReport({
+      id: "dead-stock-strict-clock",
+      asOf,
+      period,
+      evidenceRecords: [
+        { ...evidence("mv-strict-clock"), sourceTimestamp },
+        evidence("qty-strict-clock"),
+      ],
+      products: [item],
+      rule,
+    });
+  };
+
+  it.each([
+    "2026-06-01T00:00:00.000",
+    "2026-06-01T00:00:00.000+14:01",
+    "2026-06-01T00:00:00.000-14:01",
+    "2026-06-01T00:00:00.000+23:59",
+    "2026-02-30T00:00:00.000Z",
+  ])("withholds movement classification for a non-strict last-movement clock: %s", invalidMovementAt => {
+    const result = buildWithClocks(invalidMovementAt, asOf);
+    expect(result.items[0]).toMatchObject({ classification: "UNKNOWN", movementStatus: "UNVERIFIED" });
+    expect(result.items[0].warnings).toContain("LAST_MOVEMENT_TIMESTAMP_INVALID");
+  });
+
+  it.each([
+    "2026-10-30T06:00:00.000",
+    "2026-10-30T06:00:00.000+14:01",
+    "2026-10-30T06:00:00.000-14:01",
+    "2026-10-30T06:00:00.000+23:59",
+    "2026-02-30T06:00:00.000Z",
+  ])("rejects movement coverage whose source clock is not a strict instant: %s", invalidSourceAt => {
+    const result = buildWithClocks("2026-06-01T00:00:00.000Z", invalidSourceAt);
+    expect(result.items[0]).toMatchObject({ classification: "UNKNOWN", movementStatus: "NEEDS_REVIEW" });
+    expect(result.items[0].warnings).toContain("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
+  });
+
+  it.each([
+    ["+14:00", "2026-06-01T00:00:00.000+14:00", "2026-10-30T20:00:00.000+14:00"],
+    ["-14:00", "2026-06-01T00:00:00.000-14:00", "2026-10-29T17:00:00.000-14:00"],
+  ])("accepts a valid movement and source clock at the ISO offset boundary %s", (_label, movementAt, sourceAt) => {
+    const result = buildWithClocks(movementAt, sourceAt);
+    expect(result.items[0]).toMatchObject({ classification: "STAGNANT", movementStatus: "VERIFIED" });
+  });
+});

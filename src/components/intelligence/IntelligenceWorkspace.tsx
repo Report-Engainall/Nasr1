@@ -3,17 +3,23 @@ import { BrainCircuit, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchCashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
 import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
+import { CustomerRetentionActionQueuePanel } from "@/components/intelligence/CustomerRetentionActionQueuePanel";
+import { buildCustomerRetentionDecisionCandidates } from "@/lib/intelligence/customer-retention";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
+import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/replenishment-decisions";
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
-import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
+import { buildDailyDecisions, selectTopDailyDecisionActions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
+import { buildClaimEvidencePassports } from "@/lib/intelligence/claim-evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
+import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
+import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -38,6 +44,7 @@ import {
   createDecisionOutcomeProposal,
   fetchDecisionOutcomes,
   fetchDecisionOutcomeCollection,
+  type DecisionCandidateSnapshot,
   type DecisionOutcomeEventType,
   type DecisionOutcomeView,
   type DecisionOutcomeListResult,
@@ -47,12 +54,15 @@ import {
   CommercePolicyGovernancePanel,
   BusinessHealthMap,
   DecisionMemoryBook,
+  DailyDecisionBoard,
   ExecutiveLiquidityCommandCenter,
   CashflowForecastCard,
   DeadStockCard,
   EvidencePassport,
   EvidenceSourceComparisonPanel,
   GrowthOpportunityRadar,
+  DemandForecastCard,
+  ProductGrossMarginCard,
   LiquiditySummary,
   ReplenishmentCard,
   ShiftOperationsCenter,
@@ -147,7 +157,7 @@ const collectionFollowupRules: DecisionRule[] = [{
   expectedOutcome: "تسجيل المتابعة ونتيجة التحصيل من مستندات المؤسسة.",
 }];
 
-type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof | null; candidateId: string };
+type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof | null; candidateId: string; metricIds: string[] };
 
 type DecisionTransitionOptions = {
   reason?: string;
@@ -409,6 +419,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [retentionResult, setRetentionResult] = useState<CustomerRetentionAggregateResult | null>(null);
   const [retentionLoading, setRetentionLoading] = useState(true);
   const [growthRadarResult, setGrowthRadarResult] = useState<GrowthOpportunityRadarResult | null>(null);
+  const [demandForecastResult, setDemandForecastResult] = useState<DemandForecastResult | null>(null);
+  const [productGrossMarginResult, setProductGrossMarginResult] = useState<ProductGrossMarginFetchResult | null>(null);
+  const [productGrossMarginLoading, setProductGrossMarginLoading] = useState(true);
+  const productGrossMarginRequestGeneration = useRef(0);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
@@ -509,6 +523,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     if (!canManage) {
       setRetentionResult({ ok: false, status: "DENIED", message: "تتطلب قراءة مجتمع العملاء صلاحية موظف نشط داخل المؤسسة." });
       setGrowthRadarResult(null);
+      setDemandForecastResult(null);
       setRetentionLoading(false);
       return;
     }
@@ -518,14 +533,37 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       if (active()) {
         setRetentionResult(response.retentionResult);
         setGrowthRadarResult(response.growthRadar);
+        setDemandForecastResult(response.demandForecast);
       }
     } catch {
       if (active()) {
         setRetentionResult({ ok: false, status: "ERROR", message: "تعذر إنشاء لقطة الاحتفاظ بالعملاء." });
         setGrowthRadarResult(null);
+        setDemandForecastResult(null);
       }
     } finally {
       if (active()) setRetentionLoading(false);
+    }
+  }, [canManage]);
+
+  const loadProductGrossMargin = useCallback(async (active: () => boolean) => {
+    if (!canManage) {
+      setProductGrossMarginResult({ ok: false, status: "DENIED", message: "تتطلب قراءة ربحية المنتجات صلاحية المدير المالي." });
+      setProductGrossMarginLoading(false);
+      return;
+    }
+    setProductGrossMarginLoading(true);
+    try {
+      const requestTime = new Date();
+      const asOf = requestTime.toISOString();
+      const to = utcDay(requestTime);
+      const from = shiftUtcDay(to, -89);
+      const response = await fetchProductGrossMargin({ from, to, asOf });
+      if (active()) setProductGrossMarginResult(response);
+    } catch {
+      if (active()) setProductGrossMarginResult({ ok: false, status: "ERROR", message: "تعذر إعداد طلب ربحية المنتجات." });
+    } finally {
+      if (active()) setProductGrossMarginLoading(false);
     }
   }, [canManage]);
 
@@ -606,6 +644,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       supplierPerformanceRequestGeneration.current += 1;
     };
   }, [canManage, processFrom, processTo, supplierPerformanceRefreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    const generation = ++productGrossMarginRequestGeneration.current;
+    void loadProductGrossMargin(() => mounted && generation === productGrossMarginRequestGeneration.current);
+    return () => {
+      mounted = false;
+      productGrossMarginRequestGeneration.current += 1;
+    };
+  }, [loadProductGrossMargin, refreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -966,6 +1014,43 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       metrics: [...cashflowMetrics, ...cashOpeningForSnapshot.metrics],
     });
   }, [data, cashflowMetrics, cashOpeningForSnapshot]);
+  const claimEvidenceSourcePassport = useMemo<EvidencePassportData | null>(() => {
+    if (!evidencePassport) return null;
+    if (!inventoryData && !retentionResult?.ok) return evidencePassport;
+    const candidateMetrics: MetricSnapshot[] = [
+      ...(inventoryData ? [
+        ...inventoryData.deadStockProducts.flatMap((product) => [
+          product.availableQuantity, product.unitCost, product.soldQuantityWindow, product.averageInventoryWindow,
+        ].filter((metric): metric is MetricSnapshot => metric !== null)),
+        ...inventoryData.replenishmentProducts.flatMap((product) => [
+          product.availableToPromise, product.reorderPoint, product.soldQuantityWindow,
+          product.supplierLeadTimeDays, product.incomingPurchaseQuantity,
+          product.minimumOrderQuantity ?? null, product.orderMultiple ?? null,
+        ].filter((metric): metric is MetricSnapshot => metric !== null)),
+      ] : []),
+      ...(retentionResult?.ok && retentionResult.data.asOf === evidencePassport.asOf &&
+          retentionResult.growthInputs.sourceSnapshotVerified
+        ? retentionResult.growthInputs.metrics : []),
+    ];
+    const metricsById = new Map<string, MetricSnapshot>();
+    const conflictingMetrics: MetricSnapshot[] = [];
+    for (const metric of candidateMetrics) {
+      const previous = metricsById.get(metric.id);
+      if (!previous) metricsById.set(metric.id, metric);
+      else if (JSON.stringify(previous) !== JSON.stringify(metric)) conflictingMetrics.push(metric);
+    }
+    const retentionEvidence = retentionResult?.ok && retentionResult.data.asOf === evidencePassport.asOf &&
+        retentionResult.growthInputs.sourceSnapshotVerified
+      ? retentionResult.growthInputs.evidenceRecords : [];
+    return buildEvidencePassport({
+      id: "intelligence-claim-evidence:" + evidencePassport.asOf,
+      generatedAt: evidencePassport.generatedAt,
+      asOf: evidencePassport.asOf,
+      evidenceRecords: [...evidencePassport.evidenceRecords, ...(inventoryData?.evidenceRecords ?? []), ...retentionEvidence],
+      metrics: [...evidencePassport.metrics, ...metricsById.values(), ...conflictingMetrics],
+    });
+  }, [evidencePassport, inventoryData, retentionResult]);
+
   const cashflowForecast = useMemo(() => {
     if (!data) return null;
     const metricsById = new Map(cashflowMetrics.map((metric) => [metric.id, metric]));
@@ -1002,7 +1087,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         metrics: [metric],
         rules: collectionFollowupRules,
       });
-      return decisions.candidates.map((decision) => ({ decision, proof, candidateId: candidateIdFor(proof.currency, proof.period) }));
+      return decisions.candidates.map((decision) => ({ decision, proof, candidateId: candidateIdFor(proof.currency, proof.period), metricIds: [metric.id] }));
     });
   }, [data, evidencePassport]);
   const liquiditySnapshot = useMemo(() => {
@@ -1098,17 +1183,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         expectedOutcome:"خفض المخزون الراكد ومنع شراء مكرر حتى مراجعة الطلب والاستهلاك.",
         createdAt:deadStockReport.asOf,expiresAt:null,
       };
-      return [{ decision, proof:null, candidateId:id }];
+      return [{ decision, proof:null, candidateId:id, metricIds: sourceMetricIds }];
     });
   }, [inventoryData, deadStockReport]);
-
-  const dailyDecisionActions = useMemo(() => [...evidenceBackedActions, ...stockDecisionActions]
-    .sort((left,right) => right.decision.priorityScore-left.decision.priorityScore ||
-      (left.decision.impact && right.decision.impact &&
-       left.decision.impact.currency===right.decision.impact.currency
-        ? Math.abs(right.decision.impact.value)-Math.abs(left.decision.impact.value) : 0) ||
-      left.candidateId.localeCompare(right.candidateId)).slice(0,10),
-  [evidenceBackedActions, stockDecisionActions]);
 
   const replenishmentReport = useMemo(() => {
     if (!inventoryData) return null;
@@ -1120,6 +1197,109 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       products: inventoryData.replenishmentProducts,
     });
   }, [inventoryData]);
+  const replenishmentDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
+    if (!inventoryData || !replenishmentReport) return [];
+    const candidates = buildReplenishmentDecisionCandidates({
+      asOf: inventoryData.asOf,
+      products: inventoryData.replenishmentProducts,
+      recommendations: replenishmentReport.recommendations,
+    });
+    return candidates.flatMap((decision) => {
+      const source = inventoryData.replenishmentProducts.find((product) =>
+        decision.id.startsWith("inventory.replenishment:" + product.productRef.slice(0, 90) + ":"),
+      );
+      if (!source) return [];
+      return [{
+        decision,
+        proof: null,
+        candidateId: decision.id,
+        metricIds: [
+          source.availableToPromise.id,
+          source.reorderPoint.id,
+          source.soldQuantityWindow.id,
+          source.supplierLeadTimeDays.id,
+          source.incomingPurchaseQuantity.id,
+          ...(source.minimumOrderQuantity ? [source.minimumOrderQuantity.id] : []),
+          ...(source.orderMultiple ? [source.orderMultiple.id] : []),
+        ],
+      }];
+    });
+  }, [inventoryData, replenishmentReport]);
+
+  const customerRetentionDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
+    if (!retentionResult?.ok || !evidencePassport ||
+        retentionResult.data.asOf !== evidencePassport.asOf ||
+        !retentionResult.growthInputs.sourceSnapshotVerified) return [];
+    const candidates = buildCustomerRetentionDecisionCandidates({ asOf: evidencePassport.asOf, queue: retentionResult.actionQueue });
+    return candidates.map(decision => {
+      const sourceAction = retentionResult.actionQueue.actions.find(action =>
+        action.evidenceIds.length === decision.proof.evidenceIds.length &&
+        action.evidenceIds.every(id => decision.proof.evidenceIds.includes(id)) &&
+        action.metricKeys.length === decision.proof.metricKeys.length &&
+        action.metricKeys.every(key => decision.proof.metricKeys.includes(key))
+      );
+      return { decision, proof: null, candidateId: decision.id, metricIds: sourceAction?.metricIds ?? [] };
+    });
+  }, [retentionResult, evidencePassport]);
+
+  const claimEvidencePassports = useMemo(() => {
+    if (!claimEvidenceSourcePassport) return [];
+    const observations = claimEvidenceSourcePassport.metrics.map((metric) => ({
+      id: "observation:" + metric.id,
+      statement: metric.value === null
+        ? "المؤشر " + metric.key + ": القيمة غير متاحة"
+        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unitOfMeasure ?? metric.unit),
+      kind: "OBSERVATION" as const,
+      metricIds: [metric.id],
+      boundaries: metric.warnings,
+    }));
+    const actions = [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions];
+    const drivers = actions.flatMap(({ decision, metricIds }) => {
+      const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
+      return linkedMetricIds.length ? [{
+        id: "driver:" + decision.id,
+        statement: decision.what + ": " + decision.why,
+        kind: "DRIVER" as const,
+        metricIds: linkedMetricIds,
+        boundaries: ["المحرك يشرح إشارة تشغيلية أو شرط تفعيل قرار؛ لا يثبت وحده سبب النتيجة."],
+      }] : [];
+    });
+    const financeMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
+      metric.key === "cashflow.expected_collections" && metric.status !== "UNAVAILABLE",
+    );
+    const inventoryMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
+      metric.key === "inventory.available_to_promise" && metric.status !== "UNAVAILABLE",
+    );
+    const crossDomainObservation = financeMetric && inventoryMetric ? [{
+      id: "cross-domain-observation:" + claimEvidenceSourcePassport.asOf,
+      statement: "قراءة مشتركة لمؤشر التحصيلات المجدولة ومؤشر توفر المخزون في لقطة واحدة؛ تزامن المؤشرين لا يثبت علاقة سببية بينهما.",
+      kind: "OBSERVATION" as const,
+      metricIds: [financeMetric.id, inventoryMetric.id],
+      boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
+    }] : [];
+    return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
+
+  const dailyDecisionActionSelection = useMemo(() => {
+    const selection = selectTopDailyDecisionActions(
+      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
+        .map(action => ({ decision: action.decision, payload: action })),
+      10,
+    );
+    const omittedRetentionActions = retentionResult?.ok && evidencePassport &&
+        retentionResult.data.asOf === evidencePassport.asOf &&
+        retentionResult.growthInputs.sourceSnapshotVerified &&
+        retentionResult.actionQueue.status === "VERIFIED" &&
+        retentionResult.actionQueue.withheldCustomerCount === 0
+      ? retentionResult.actionQueue.omittedCount : 0;
+    return {
+      ...selection,
+      totalCandidates: selection.totalCandidates + omittedRetentionActions,
+      omittedCount: selection.omittedCount + omittedRetentionActions,
+    };
+  }, [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
+    customerRetentionDecisionActions, retentionResult, evidencePassport]);
+  const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -1216,13 +1396,43 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     }
     setOutcomeBusyId("new");
     setOutcomeMessage(null);
+    const candidateId = candidateIdFor(proof.currency, proof.period);
+    const candidateSnapshot: DecisionCandidateSnapshot = {
+      schemaVersion: "1.0.0",
+      candidateId,
+      ruleId: "cashflow.collection.followup",
+      ruleVersion: "1.0.0",
+      priority: "P3",
+      priorityScore: 100,
+      what: "متابعة التحصيل للفترة المحددة بعملة " + proof.currency,
+      why: "يعرض المصدر تحصيلات مستحقة متوقعة بقيمة " + proof.value + " " + proof.currency +
+        " للفترة " + proof.period.from + " إلى " + proof.period.to +
+        "؛ هذا المؤشر لا يثبت بمفرده سبب التأخر أو درجة تعثر العميل.",
+      risk: "قد يتأخر التحصيل؛ لم يثبت سبب التأخر من هذا المؤشر وحده.",
+      soWhat: "تتطلب المتابعة مراجعة المستندات وتسجيل نتيجة التواصل والسداد دون افتراض سبب التعثر.",
+      whatNext: "راجع الفواتير والمستندات المرتبطة وسجل نتيجة المتابعة على مصدرها.",
+      owner: "مسؤول التحصيل",
+      expectedOutcome: proposalExpected.trim(),
+      impact: null,
+      impactStatus: "WITHHELD",
+      impactReason: "FOLLOW_UP_IMPACT_NOT_ESTABLISHED",
+      proof: {
+        evidenceIds: [...proof.evidenceIds],
+        metricKeys: [proof.metricKey],
+        asOf: proof.asOf,
+        formulaVersions: [proof.formulaId + "@" + proof.formulaVersion],
+      },
+      createdAt: proof.asOf,
+      expiresAt: null,
+    };
     const created = await createDecisionOutcomeProposal({
-      candidateId: candidateIdFor(proof.currency, proof.period),
+      candidateId,
       ruleId: "cashflow.collection.followup",
       ruleVersion: "1.0.0",
       ownerProfileId: user.profileId,
       expectedOutcome: proposalExpected.trim(),
       reason: proposalReason.trim(),
+      candidateSnapshot,
     });
     setOutcomeBusyId(null);
     if (!created.ok) {
@@ -1237,7 +1447,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   };
 
   const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string) => {
-    if (!data || !user?.profileId || outcomeBusyId !== null) return;
+    if (!user?.profileId || outcomeBusyId !== null) return;
     setOutcomeBusyId("candidate:" + candidateId.slice(0,60));
     setOutcomeMessage(null);
     const candidateSnapshot = {
@@ -1612,15 +1822,33 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                   ))}
                 </div>
                 <p className="report-note">الفترة الحالية: {customerRetention.period.from} — {customerRetention.period.to} · السابقة: {customerRetention.previousPeriod.from} — {customerRetention.previousPeriod.to} · اللقطة: {customerRetention.asOf}. لم يرسل مصدر الاحتفاظ مبيعات أو أرصدة أو أسعاراً؛ لذلك يظل تركيز المبيعات حسب العميل خارج الحساب.</p>
+                <CustomerRetentionActionQueuePanel
+                  queue={retentionResult?.ok ? retentionResult.actionQueue : null}
+                  loading={retentionLoading}
+                />
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </>
             ) : null}
+            <DemandForecastCard
+              result={demandForecastResult}
+              state={retentionLoading ? "loading" : demandForecastResult ? "ready"
+                : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
+              onRetry={() => setRefreshKey((value) => value + 1)}
+            />
             <GrowthOpportunityRadar
               result={growthRadarResult}
               state={retentionLoading ? "loading" : growthRadarResult ? "ready"
                 : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
               onRetry={() => setRefreshKey((value) => value + 1)}
               onOpenRecord={onOpenRecord}
+            />
+            <ProductGrossMarginCard
+              result={productGrossMarginResult}
+              state={productGrossMarginLoading ? "loading"
+                : productGrossMarginResult && !productGrossMarginResult.ok &&
+                  (productGrossMarginResult.status === "DENIED" || productGrossMarginResult.status === "ERROR")
+                  ? "error" : productGrossMarginResult ? "ready" : "unavailable"}
+              onRetry={() => setRefreshKey((value) => value + 1)}
             />
           </section>
 
@@ -1711,6 +1939,12 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
             onTransition={runTransition}
           />
+          {decisionMemoryBook ? (
+            <DailyDecisionBoard
+              result={decisionMemoryBook}
+              onRetry={() => { void loadOutcomes(); void loadDecisionMemoryCollection(); }}
+            />
+          ) : null}
           <DecisionMemoryBook
             result={decisionMemoryBook}
             state={decisionMemoryState}
@@ -1736,7 +1970,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             ) : null}
             <div className="grid gap-4 lg:grid-cols-2">
               <DeadStockCard report={deadStockReport} state={inventoryViewState} onRetry={() => setRefreshKey((value) => value + 1)} />
-              <ReplenishmentCard recommendations={replenishmentReport?.recommendations ?? null} state={inventoryViewState} canManagePurchases={canManage} onRetry={() => setRefreshKey((value) => value + 1)} />
+              <ReplenishmentCard recommendations={replenishmentReport?.recommendations ?? null} demandForecasts={demandForecastResult?.forecasts ?? null} state={inventoryViewState} canManagePurchases={canManage} onRetry={() => setRefreshKey((value) => value + 1)} />
             </div>
             <p className="report-note">التعرض المالي للمخزون غير متاح لأن سجلات تكلفة الشراء لا تحتوي رمز عملة موثقاً، ومتوسط المخزون التاريخي غير متاح لعدم وجود لقطات أرصدة يومية. مهلة التوريد لا تُحسب إلا من تواريخ أوامر الشراء والاستلام الفعلية؛ لا ينشئ النظام أمراً تلقائياً.</p>
           </section>
@@ -1748,11 +1982,12 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
           <ExecutiveLiquidityCommandCenter refreshKey={refreshKey} onDecisionSaved={() => setRefreshKey(value => value + 1)} />
           <section className="panel space-y-3">
             <h2>التحصيلات المجدولة والتوقع النقدي</h2>
-            <p className="report-note">تعرض لوحة القيادة أعلاه الحركات الفعلية والالتزامات المثبتة والذمم كلّاً حسب عملته. تعرض هذه البطاقة التحصيلات المدينة المجدولة فقط؛ لا يوجد رصيد افتتاحي موثق أو جدول مكتمل لمواعيد دفع التزامات الموردين والمصروفات المستقبلية، ولذلك تبقى الأرصدة المتوقعة وصافي السيولة محجوبة. لا تُستبدل الذمم برصيد نقدي، ولا يُفترض أن غياب الحركة يساوي صفراً.</p>
+            <p className="report-note">تعرض لوحة القيادة أعلاه الحركات الفعلية والالتزامات والذمم كلّاً حسب عملته. ويحسب التوقع أدناه لكل عملة على حدة من الرصيد الافتتاحي المعتمد، والتحصيلات المستحقة بعد احتساب الدفعات، والتزامات الموردين المطابقة، والمصروفات التشغيلية المعتمدة. تعرض النتائج نوافذ 7 و30 و90 يوماً؛ وأي مصدر ناقص أو غير محسوم يحجب الرصيد المتوقع للفترة المتأثرة ويعرض سبب الحجب. الذمم المستحقة ليست مقبوضات بنكية، ولا تُجمع العملات دون سعر صرف معتمد، ولا يُفسر غياب الحركة بأنه صفر.</p>
             <div className="grid gap-3 lg:grid-cols-2">
               <EvidencePassport
-                passport={evidencePassport}
-                state={loading ? "loading" : evidencePassport ? (evidencePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
+                passport={claimEvidenceSourcePassport}
+                claims={claimEvidencePassports}
+                state={loading ? "loading" : claimEvidenceSourcePassport ? (claimEvidenceSourcePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
                 errorMessage={result && !result.ok ? result.message : undefined}
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
@@ -1781,6 +2016,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
               <div className="space-y-3">
+                {dailyDecisionActionSelection.totalCandidates > 0 ? (
+                  <p role="status" aria-live="polite" className="report-note">
+                    يعرض المركز {dailyDecisionActions.length} من {dailyDecisionActionSelection.totalCandidates} إجراءً مرتباً حسب الأولوية.
+                    {dailyDecisionActionSelection.omittedCount > 0
+                      ? " تم إرجاء " + dailyDecisionActionSelection.omittedCount + " إجراءً خارج القائمة المختصرة."
+                      : " جميع الإجراءات المستحقة ظاهرة."}
+                  </p>
+                ) : null}
                 {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
                   <ActionCard
                     key={candidateId}

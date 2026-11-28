@@ -92,9 +92,17 @@ async function createManualJournal(client,key,description,debitAccountId,creditA
     {account_id:debitAccountId,debit:amount,credit:0,memo:"اختبار قيد يدوي مستقل"},
     {account_id:creditAccountId,debit:0,credit:amount,memo:"اختبار قيد يدوي مستقل"},
   ];
+  // Use Postgres.js's JSON parameter encoder. A JSON-looking text argument can otherwise
+  // be treated as plain text by the wire serializer rather than the JSON value this RPC expects.
+  const jsonShape = await client.unsafe(
+    "select jsonb_typeof($1::jsonb) as value_type,jsonb_array_length($1::jsonb) as line_count",
+    [client.json(lines)],
+  );
+  assert.equal(jsonShape[0]?.value_type, "array", "manual journal payload reaches PostgreSQL as a JSON array");
+  assert.equal(Number(jsonShape[0]?.line_count), 2, "manual journal payload reaches PostgreSQL with both balanced lines");
   return asJson((await client.unsafe(
     "select public.create_general_journal_draft($1::uuid,current_date,$2::text,$3::jsonb,NULL::text) as result",
-    [key,description,JSON.stringify(lines)],
+    [key,description,client.json(lines)],
   ))[0].result);
 }
 
@@ -461,17 +469,56 @@ async function main() {
       assert.equal(original.length, 1);
       if (original[0].status === "posted") {
         assert.equal(postOutcome.status, "fulfilled", "a journal that posted first must report success");
-        const reversals = await db.unsafe("select sp.journal_entry_id,je.status,sp.source_amount::text,sp.reversal_reason from public.accounting_source_postings sp join public.accounting_journal_entries je on je.id=sp.journal_entry_id and je.organization_id=sp.organization_id where sp.organization_id=$1::uuid and sp.source_id=$2::uuid and sp.posting_kind='reversal'", [organizationId, raceExpense.expense_id]);
-        assert.equal(reversals.length, 1, "void after journal posting must create exactly one counter-entry");
-        assert.equal(reversals[0].status, "posted");
+        const reversals = await db.unsafe(
+          "select sp.journal_entry_id,je.status,sp.source_amount::text,sp.reversal_reason,je.created_by_profile_id::text as reversal_creator,je.posted_by_profile_id::text as reversal_poster "+
+            "from public.accounting_source_postings sp join public.accounting_journal_entries je on je.id=sp.journal_entry_id and je.organization_id=sp.organization_id "+
+            "where sp.organization_id=$1::uuid and sp.source_id=$2::uuid and sp.posting_kind='reversal'",
+          [organizationId,raceExpense.expense_id],
+        );
+        assert.equal(reversals.length, 1, "source void after posting creates one reversal draft");
+        assert.equal(reversals[0].status, "draft");
         assert.equal(reversals[0].source_amount, source.amount);
         assert.equal(reversals[0].reversal_reason, "P2 concurrent source cancellation");
+        assert.equal(reversals[0].reversal_creator,manager.id);
+        assert.equal(reversals[0].reversal_poster,null);
+        const preMakerPost=await snapshotExpenseVoidBoundary(raceExpense.expense_id);
+        const makerPost=await expectFailure(
+          "cash expense reversal maker cannot post their own counter-entry",
+          ()=>postJournal(managerDb,reversals[0].journal_entry_id),
+          /(?:independent checker different from the journal creator|reviewer different from the reversal creator, original creator and original poster)/i,
+        );
+        assert.equal(makerPost.code,"42501");
+        assert.equal((await snapshotExpenseVoidBoundary(raceExpense.expense_id)).completeState,preMakerPost.completeState);
+        const originalPosterPost=await expectFailure(
+          "original journal poster cannot post the source reversal",
+          ()=>postJournal(adminDb,reversals[0].journal_entry_id),
+          /reviewer different from the reversal creator, original creator and original poster/i,
+        );
+        assert.equal(originalPosterPost.code,"42501");
+        assert.equal((await snapshotExpenseVoidBoundary(raceExpense.expense_id)).completeState,preMakerPost.completeState);
+        const independentPost=await postJournal(accountantDb,reversals[0].journal_entry_id);
+        assert.equal(independentPost.status,"posted");
+        assert.equal(independentPost.replayed,false);
+        const postedReversal=await db.unsafe(
+          "select status,created_by_profile_id::text as creator,posted_by_profile_id::text as poster from public.accounting_journal_entries "+
+            "where organization_id=$1::uuid and id=$2::uuid",
+          [organizationId,reversals[0].journal_entry_id],
+        );
+        assert.equal(postedReversal[0].status,"posted");
+        assert.equal(postedReversal[0].creator,manager.id);
+        assert.equal(postedReversal[0].poster,accountant.id);
         const reversalLines = await db.unsafe("select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid order by line_number", [organizationId, reversals[0].journal_entry_id]);
         assert.equal(reversalLines.length, 2);
         assert.equal(reversalLines[0].account_id, settlementAccount);
         assert.equal(reversalLines[0].debit, source.amount);
         assert.equal(reversalLines[1].account_id, expenseAccount);
         assert.equal(reversalLines[1].credit, source.amount);
+        const sourceReversalAudit=await db.unsafe(
+          "select action,actor_id from public.audit_logs where organization_id=$1::uuid and entity_type='cash_expense' and entity_id=$2::uuid",
+          [organizationId,raceExpense.expense_id],
+        );
+        assert.ok(sourceReversalAudit.some(row=>row.action==="accounting.cash_expense_journal_reversal_draft_created" && row.actor_id===manager.id));
+        assert.ok(sourceReversalAudit.some(row=>row.action==="accounting.cash_expense_journal_reversal_posted" && row.actor_id===accountant.id));
       } else {
         assert.equal(original[0].status, "void", "cancellation-first race must preserve a void original draft");
         assert.equal(postOutcome.status, "rejected", "posting must not win over a completed source cancellation");
@@ -619,4 +666,17 @@ async function main() {
     await db.end({ timeout: 5 }).catch(() => {});
   }
 }
-main().catch((error) => { process.stderr.write("FAIL cash-expense source posting acceptance: " + String(error?.stack ?? error) + "\n"); process.exitCode = 1; });
+main().catch((error) => {
+  const diagnostic = error && typeof error === "object" ? {
+    code: error.code,
+    routine: error.routine,
+    line: error.line,
+    where: error.where,
+    constraint: error.constraint_name,
+  } : undefined;
+  process.stderr.write(
+    "FAIL cash-expense source posting acceptance: " + String(error?.stack ?? error) +
+    (diagnostic ? "\nDatabase diagnostic: " + JSON.stringify(diagnostic) : "") + "\n",
+  );
+  process.exitCode = 1;
+});

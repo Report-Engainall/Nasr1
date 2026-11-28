@@ -134,6 +134,9 @@ async function main() {
   const clientB=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const customer=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const ids=[randomUUID(),randomUUID()];
+  const categoryId=randomUUID();
+  const categoryName="P2 Price Grid Category "+categoryId.replaceAll("-","").slice(-8).toUpperCase();
+  const categoryCode="P2CAT-"+categoryId.replaceAll("-","").slice(-8).toUpperCase();
   const original=new Map();
 
   try {
@@ -150,13 +153,17 @@ async function main() {
     assert.equal(customerRows.length,1,"the local fixture must provide one same-tenant customer");
     const cust=customerRows[0];
 
+    await db.unsafe(
+      "insert into public.categories(id,organization_id,name,code,is_active) values($1::uuid,$2::uuid,$3,$4,true)",
+      [categoryId,orgId,categoryName,categoryCode],
+    );
     for (let i=0;i<ids.length;i++) {
       const id=ids[i], suffix=id.replaceAll("-","").slice(-12).toUpperCase();
       const base=i===0?100:50, vip=i===0?90:45, wholesale=i===0?95:48, retail=i===0?110:60;
       await db.unsafe(
-        "insert into public.products(id,organization_id,name,item_code,unit,base_price,wholesale_price,retail_price,status) " +
-        "values($1::uuid,$2::uuid,$3,$4,'piece',$5,$6,$7,'inactive')",
-        [id,orgId,"P2 Price Grid Acceptance "+suffix,"P2-PRICE-"+suffix,base,wholesale,retail],
+        "insert into public.products(id,organization_id,category_id,name,item_code,unit,base_price,wholesale_price,retail_price,status) " +
+        "values($1::uuid,$2::uuid,$3::uuid,$4,$5,'piece',$6,$7,$8,'inactive')",
+        [id,orgId,categoryId,"P2 Price Grid Acceptance "+suffix,"P2-PRICE-"+suffix,base,wholesale,retail],
       );
       await db.unsafe(
         "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values " +
@@ -275,6 +282,68 @@ async function main() {
     ) {
       throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify(managerContext));
     }
+    // Inspect the live database catalog before the first price-grid RPC read.
+    // This identifies stale function/view/trigger SQL instead of masking the underlying migration defect.
+    const priceGridCatalog = await db.unsafe(
+      "select p.proname as function_name, pg_catalog.pg_get_function_identity_arguments(p.oid) as arguments, " +
+      "pg_catalog.pg_get_functiondef(p.oid) as definition " +
+      "from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace " +
+      "where n.nspname='public' and p.prokind in ('f','p') " +
+      "and (p.proname in ('get_admin_product_price_grid','save_product_price_grid') " +
+      "or p.prosrc ilike '%price_wholesale_of_wholesale%' " +
+      "or p.prosrc ilike '%price_wholesale%') order by p.proname,arguments",
+    );
+    const priceGridColumns = await db.unsafe(
+      "select table_name,column_name from information_schema.columns " +
+      "where table_schema='public' and table_name in ('products','product_prices') " +
+      "and column_name ilike '%price%' order by table_name,ordinal_position",
+    );
+    const priceGridViews = await db.unsafe(
+      "select schemaname,viewname,definition from pg_catalog.pg_views " +
+      "where schemaname='public' and (definition ilike '%price_wholesale_of_wholesale%' " +
+      "or definition ilike '%price_wholesale%') order by viewname",
+    );
+    const priceGridTriggers = await db.unsafe(
+      "select c.relname as table_name,t.tgname as trigger_name," +
+      "pg_catalog.pg_get_triggerdef(t.oid) as trigger_definition," +
+      "p.proname as function_name,pg_catalog.pg_get_functiondef(p.oid) as function_definition " +
+      "from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid=t.tgrelid " +
+      "join pg_catalog.pg_namespace n on n.oid=c.relnamespace " +
+      "join pg_catalog.pg_proc p on p.oid=t.tgfoid " +
+      "where n.nspname='public' and c.relname in ('products','product_prices') and not t.tgisinternal " +
+      "order by c.relname,t.tgname",
+    );
+    const priceGridWriterRows = await db.unsafe(
+      "select pg_catalog.pg_get_functiondef('public.save_product_price_grid(jsonb)'::regprocedure) as definition",
+    );
+    const priceGridWriterDefinition = String(priceGridWriterRows[0]?.definition ?? "");
+    assert.ok(priceGridWriterDefinition.includes("public.product_prices"),
+      "price-grid writer must use the actual product_prices tier table");
+    assert.doesNotMatch(priceGridWriterDefinition,
+      /\\bp\\.price_wholesale_of_wholesale\\b|\\bp\\.price_wholesale\\b|\\bp\\.price_retail\\b/,
+      "price-grid writer must not read retired tier columns from products");
+    assert.ok(priceGridWriterDefinition.includes("pricing.edit_draft"),
+      "price-grid writer must retain the active pricing.edit_draft capability guard");
+    process.stdout.write("P2_PRICE_GRID_RUNTIME_CATALOG=" + JSON.stringify({
+      functions: priceGridCatalog,
+      columns: priceGridColumns,
+      views: priceGridViews,
+      triggers: priceGridTriggers,
+    }) + "\\n");
+    const categoryProjection = await manager.unsafe(
+      "select id::text,category_id::text,category_name from public.get_admin_product_price_grid_v2() where id=any($1::uuid[])",
+      [ids],
+    );
+    assert.equal(categoryProjection.length,2,"category projection must return the two same-tenant test products");
+    for (const row of categoryProjection) {
+      assert.equal(row.category_id,categoryId,"category id must match the persisted product category");
+      assert.equal(row.category_name,categoryName,"category name must come from the same-tenant categories table");
+    }
+    await expectFailure(
+      "ordinary customer must not read the administrative category/price grid",
+      () => customer.unsafe("select count(*) from public.get_admin_product_price_grid_v2()"),
+      /requires an active admin or manager/i,
+    );
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
@@ -333,7 +402,7 @@ async function main() {
     const customerTarget=await readGrid(manager,ids[0]);
     await expectFailure("ordinary customer must not write administrative prices",()=>save(customer,[
       payload(ids[0],customerTarget,shift(customerTarget,1)),
-    ]),/active admin or manager/i);
+    ]),/pricing\.edit_draft capability/i);
 
     // Restore the test-only products to their starting values before the ephemeral DB is destroyed.
     const restore=[];
@@ -342,7 +411,7 @@ async function main() {
       if (JSON.stringify(prices(now))!==JSON.stringify(prices(before))) restore.push(payload(id,now,prices(before)));
     }
     if (restore.length) await save(manager,restore);
-    process.stdout.write("PASS price-grid acceptance: atomic two-row commit, committed row identifiers, actor audit, all-or-nothing rollback, duplicate-row rejection, stale-writer concurrency and customer-role denial\n");
+    process.stdout.write("PASS price-grid acceptance: tenant-scoped category projection, customer read denial, atomic two-row commit, committed row identifiers, actor audit, all-or-nothing rollback, duplicate-row rejection, stale-writer concurrency and customer-role write denial\n");
   } finally {
     await customer.end({timeout:5}).catch(()=>{});
     await clientB.end({timeout:5}).catch(()=>{});

@@ -1,3 +1,343 @@
+# LIVE EXECUTION RESUME — 2026-11-28 (RESULT-FIRST FOUR-WORKSTREAM COMMAND)
+
+> **The only live execution cursor.** Read this top section and execute it. The long content below the history boundary is retained evidence, not a checklist to repeat. Fetch live `main` once at the next launch.
+
+## Verified repository state
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Latest observed `main` HEAD before this cursor rewrite: `0ebc613b190367cbeb14548e94231893fe925aa9` (documentation-only exact-head status refresh).
+- Latest code-bearing main commit: `9c51f65f16aad1be300444cc37f5a0457b3dccb1` — PR #679 merge. This execution directive does not change product code.
+- PR #679 is **MERGED** at `9c51f65f16aad1be300444cc37f5a0457b3dccb1`: payment chronology and immutable receipt reprint. This is accepted work; do not rebuild it.
+- Baseline P1 Vitest/strict TypeScript and P2 critical-path Playwright were SUCCESS on the code-bearing SHA above. They are historical baseline evidence, not acceptance for later PR heads. Hosted customer/order/tenant E2E remained SKIPPED.
+- **PR #697 has a confirmed exact-head PostgreSQL 17 migration syntax failure** in `record_customer_financial_source_reconciliation_evidence`, SQLSTATE `42601`, at migration statement 30. This is a code defect to fix, not a reason to run repeated scans. Exact PR head: `e378f4d3e3a08db8d57669f029a037040c5a1494`.
+- Release remains **NO-GO**. This directive does not authorize production Supabase writes, remote migrations, ERP writes, deployment, paid AI, Vercel quota use, Bolt New or Lovable.
+
+## Live open-PR queue — GitHub snapshot 2026-11-28
+
+`mergeable` is GitHub mergeability metadata, not a CI result. Only exact-head workflow results count for acceptance.
+
+| Owner | Existing work | Current head | State | Required business outcome |
+|---|---|---|---|---|
+| P1 | #699 — customer financial-source UI | `8447a3848bd51506233af8b949f093ba092810af` | Open, non-draft, mergeable; 6 files | Complete the customer financial workspace using the server-selected source; show only the customer's own invoices, statements, receipts and confirmed payments; connect real print/reprint flow. Fix a reproduced exact-head failure at root. |
+| P2 | #697 — financial-source routing | `e378f4d3e3a08db8d57669f029a037040c5a1494` | Open, draft, mergeable; 12 files | Fix the confirmed migration syntax error by restructuring the long validation into clear, parser-safe statements; prove APP_ONLY/ONYX/MUTAKAMEL source isolation and atomic/idempotent reads on isolated PG17. Supply P4's canonical staging/checkpoint contract. |
+| P3 | #700 — intelligence evidence integrity | `3d10287a5b829d66b2a1972f66b82671a6439bac` | Open, non-draft, mergeable; 47 files | Finish one integrated source-backed intelligence delivery on existing engines and command-center surfaces; preserve timestamp, currency and provenance evidence. Exact-head P1 was IN_PROGRESS and P2 QUEUED at the last recorded workflow refresh. |
+| P4 | #686 — read-only incremental ERP connector | `3cbea0faa71981b616a0752ddd0766a2fe07d9a2` | Open, draft, mergeable; 4 files | Complete local adapter, read-transport boundary, safe incremental cursor, durable checkpoint/staging handoff with P2, replay protection, retries, receipts and truthful connector health. Exact-head P1/P2 were QUEUED at the last recorded workflow refresh. |
+
+### Other open requests — preserve unique work, do not create a review loop
+
+- #602 and #605 are inventory/Onyx PostgreSQL acceptance guards; GitHub reports both non-mergeable. Preserve their unique data-integrity assertions, synchronize once to current `main`, then run them on the resulting exact SHA. They do not replace product implementation.
+- #680 and #698 are P3 currency/evidence fixes; GitHub reports both non-mergeable. Compare their changed paths with #700 once and consolidate only unique, needed behavior. Do not keep competing fixes to the same engine or contract.
+- #679 is merged and excluded from the backlog.
+- No new PR for a capability already covered by #686/#697/#699/#700 or existing customer finance, Onyx import/export, Integration Hub, DLV-009, returns, liquidity, replenishment and analytics modules.
+
+## Immediate execution — all four owners in parallel
+
+1. **P2:** fix the confirmed #697 SQL syntax failure in source, not by retrying unchanged migration text. Complete source isolation, idempotency and the PG17 acceptance for the changed head.
+2. **P4 + P2:** use the P2 canonical contract to finish durable staging/checkpoint persistence and incremental connector behavior in #686. Vendor transport remains disabled until actual version, licence, official interface contract, credentials and sandbox are verified; local code must still be completed.
+3. **P1 + P2:** finish #699 end-to-end against the server-selected financial-source contract. Do not wait idle for P2: complete the UI, data states, print behavior and typed integration against the agreed contract, then connect the accepted server implementation.
+4. **P3:** complete #700 as one real intelligence outcome, mount it in the existing command center, and fold #680/#698 only when the diff proves they are unique dependencies or duplicate fragments.
+5. **P1:** integrate and merge each accepted slice immediately; do not wait for a different owner's independent outcome.
+
+## Hard rules for every new launch
+
+- Every unblocked owner must deliver working code and one usable business/operational result. Plans, scans, test runs, comments, branches and reports alone are not delivery.
+- Work from the existing PR and existing implementation first. No re-journaling, full repository scans, architecture inventories or rebuilding accepted features.
+- One large coherent vertical slice per owner; no chain of micro-PRs for a single feature and no duplicate screen/service/engine/route.
+- Implement first. Run focused tests for changed behavior plus required security/finance/inventory invariants. Fix failures at the root in the same workstream. Do not rerun unchanged code or successful unaffected suites.
+- External ERP access blockers do not stop local adapter, mapping, incremental cursor, staging, retry, receipts, reconciliation or UI work.
+- Do not invent live sync, API availability, balances, stock, payment or AI success. Keep unverified external capabilities disabled and label the precise missing prerequisite.
+- Merge immediately when the relevant exact-SHA checks pass and the diff is conflict-free. No force-push, lost unique work or bypassed safety gates.
+- Keep production, secrets, remote database, hosting quotas and paid providers untouched without explicit authorization.
+
+## Four-line handoff — no activity reports
+
+`OUTCOME:` what is now usable.
+`CODE:` PR/commit and exact SHA.
+`ACCEPTANCE:` focused commands/checks actually run and result.
+`NEXT:` the next implementation change.
+
+A blocker must identify one precise missing prerequisite and the local work already completed. No owner ends a launch with a report alone while executable work remains.
+
+---
+
+## Merged during this execution
+
+| PR | Merge commit | Implemented / accepted scope | Exact-SHA evidence and remaining boundary |
+|---|---|---|---|
+| #678 | `4444d0d54ce4d2ec2f2d8f80dde3d5ff3060a594` | Corrected the shared customer-order Playwright pagination fixture from obsolete `Range` headers to the actual PostgREST `offset/limit` contract; preserved lowercase Latin `ilike` order-number search coverage. | Exact PR head `7fc49f01774eed984895c2cc21970d3dee4a827b`: P1, infrastructure, Chromium and local Supabase/PostgreSQL 17 acceptance SUCCESS (69/69 local steps, zero failures). #677 closed as superseded; its unique lowercase-search assertion was retained in #678. |
+| #683 | `f0c911923b785cdaaf6e823b271f538c56fd7cd3` | Added truthful connector-readiness states inside the existing `OnyxProExchangeWorkspace`; corrected the export label to show it exports Aghbari data, not a live Onyx database; no fake sync or ERP-write button. | Exact PR head `c1b2490f2e9096b2a0d15cebdee10e83d8291879`: Vitest/strict TypeScript, production build, infrastructure, public Chromium and local Supabase acceptance SUCCESS. Customer/tenant hosted E2E SKIPPED. |
+| #687 | `8605561aaba9fb501f264677abcbf0ccc2b085ad` | Consolidated P3 customer-retention, daily-decision lifecycle/evidence, dead-stock and system-health engine/UI work (11 unique source/test files); did not create parallel engines or add backend/schema writes. #682 intentionally closed by repository owner as superseded by #687. | Exact PR head `329b762d148488b812ede4c67c274bf6bad8ce42`: Vitest/strict TypeScript, infrastructure and public Chromium SUCCESS. Local Supabase/PostgreSQL 17 acceptance is still running on the merged main SHA (job `140736582170`); do not call P3 fully post-merge accepted until it finishes. Hosted customer/tenant E2E SKIPPED. |
+
+## Current exact-SHA gates — re-fetch before every merge
+
+1. **PR #602 — inventory transfer replay / PostgreSQL 17 acceptance.**
+   - Current branch head after safe two-parent sync with main: `3af4b250295a87b302fcf7bda839df0d7573f998`; GitHub reports mergeable.
+   - Unique paths only: PG17 acceptance workflow, its execution checkpoint, and `supabase/tests/inventory_transfer_replay_endpoint_guard.sql`. No application migration or production mutation.
+   - Prior head `0eed9faec12d67283f886c394005526708575109` passed PG17, public Chromium, infrastructure and local Supabase acceptance (69 successful steps, no failed steps). Those results do **not** transfer to the synchronized head.
+   - New-head Vitest/strict TypeScript is IN_PROGRESS; public Chromium and PostgreSQL 17 acceptance are QUEUED; local Supabase job has started (43/70 steps at last observation). Merge only after exact new-head required checks become terminal SUCCESS.
+
+2. **PR #605 — Onyx inventory snapshot mutation-window acceptance.**
+   - Current branch head after safe two-parent sync with main: `393baeb850cb22b1d814374997104a8789b31feb`; GitHub reports mergeable.
+   - Unique paths only: PG17 acceptance workflow, its execution checkpoint, and `supabase/tests/onyx_inventory_reconciliation_as_of_guard.sql`. It proves stale snapshot apply is rejected after inventory mutation and rollback is rejected after later stock movement; the guard preserves quantities, movements and audit evidence.
+   - Previous head `a2b758468f9942a38affb0053f5b29dd79c9a929` passed its dedicated PostgreSQL 17 test, public Chromium, infrastructure and local Supabase acceptance (69 successful steps, no failed steps). Those results do **not** transfer to the synchronized head.
+   - New-head P1/P2/PG17 checks are QUEUED at last observation. Wait for and review all exact-new-head checks before merge.
+
+3. **PR #679 — customer statement strict timestamps and immutable receipt reprints.**
+   - Current branch head after safe two-parent sync with main: `62014c7f189f983aed296543ae32b7793d2dc892`; GitHub reports mergeable.
+   - Five unique paths: strict timestamp parser/tests, finance receipt renderer/unit test, and the finance task-print E2E. The parser rejects impossible Gregorian dates, invalid 24-hour times and timezone offsets beyond ISO ±14:00.
+   - Root cause fixed: a saved receipt's print header now uses immutable server `paid_at`, not the wall clock on each reprint. The Playwright retry now reuses its one saved fixture receipt instead of posting the same split receipt twice into the same disposable local database.
+   - Prior head `3e878e44c5b4bb554e91456b0fb51b3897dcbd69` passed 246 Vitest files / 1,957 tests, P1/P4 strict TypeScript and production build; public Chromium and infrastructure also passed. These results do **not** transfer to the synchronized head.
+   - New-head Vitest is IN_PROGRESS (4/10 steps at last observation); P2 and public Chromium are QUEUED. Merge only after new-head Vitest, TypeScript/build, Chromium and local database/print acceptance are successful.
+
+4. **PR #680 — canonical currency identity in anomaly detection.**
+   - Old head `e4a6d49c4a3d9f5ff29b6fcd3da3c94244f26605` passed P1, TypeScript and public Chromium but failed the full local P2 print acceptance because the shared customer-receipt print test was not stable across reprints/retries. The failure was isolated to receipt-print chronology and repeated test-fixture posting, not to the currency-identity engine.
+   - Keep this PR open and do not merge its failed head. After #679 is merged, synchronize #680 with latest main, preserve only its two unique anomaly-detection source/test files, take the fixed shared finance/E2E files from main, and rerun every required check on the new exact SHA.
+
+## P4 — vendor capability evidence and integration boundary
+
+- **Onyx Pro — official inbound financial import is documented.** Onyx's `Import Financial Data` solution accepts transactions from external applications through text files, Excel or an intermediate database; its published functions include mapping accounts, currencies, cash, banks, customers and vendors, defining external document types, and importing into journal entries or journal vouchers. This is a supported file/intermediate-data integration candidate, subject to the company's installed version, licensed module, approved templates, posting controls and test environment. It is not proof of an available public REST API. Official source: https://onyxproerp.com/en/import-financial-data-solutions/
+- **Al-Mutakamel Plus — external integration and first-party apps are documented at product level.** YemenSoft describes configurable integration with external POS/CRM systems; its Operations app is described as online-connected to Al-Mutakamel Plus for receipts and sales invoices; its Ultimate Store claims direct integration with Onyx or Al-Mutakamel Plus for sales and inventory. These statements identify official vendor channels worth evaluating, but do not expose an API schema, protocol, licence status or third-party credentials. Official source: https://yemensoft.com/ar-motakamel-plus-erp-solutions/
+- The current Aghbari XLSX/CSV Onyx export reads Aghbari's own database. It is **not** a live Onyx read or automatic two-way sync. The current Onyx workspace says so explicitly.
+- **External connector prerequisites still UNKNOWN:** actual Onyx/Al-Mutakamel edition/version at the company, licensed modules, official web-service/API/interface contract, template samples and versioning, endpoint/network access, service account and a vendor-approved sandbox. No endpoint, protocol or credential may be invented. P4 must continue local adapter/mapping/reconciliation work that is already grounded in existing supported file contracts, while keeping real ERP transport disabled until these prerequisites are provided.
+
+## Safety and release boundary
+
+- Keep production database identity/runtime unverified until the exact running application's target is proven. No remote migrations, data writes, RPC deployment or Edge deployment without explicit owner authorization.
+- Never expose supplier cost, margins, ledger details or another customer's account through the client.
+- `APP_ONLY`, `ONYX`, and `MUTAKAMEL` balances must remain distinct; only the server chooses the source.
+- Hosted customer/order/tenant E2E marked SKIPPED is not PASS. QUEUED/IN_PROGRESS tests remain open gates.
+- Release remains NO-GO until required business paths, exact-SHA security/financial/inventory checks, post-merge checks and authorized runtime verification are complete.
+
+## Four owners — exact boundaries
+
+- **P1 — Product, customer/admin UX, cross-workstream integration and sole main merger.** Owns customer storefront and workflows, admin screen composition/navigation, the Integration Hub/ERP Sync Console presentation, mounting P2/P3/P4 contracts in existing screens, route/state/accessibility/responsive acceptance, deduplication and final merges to `main`.
+- **P2 — Data, database, transactions and security.** Owns PostgreSQL 17 schema/migrations, RPC/Edge contracts, RLS/RBAC enforcement, tenant/branch/warehouse scope, idempotency, canonical ERP staging/mapping persistence contracts, inventory/finance/order mutation safety, reconciliation and local database acceptance. P2 must not build a second connector scheduler or duplicate P4 transport logic.
+- **P3 — Intelligence and decision systems.** Owns existing deterministic engines, source-backed metrics, forecasts, decision lifecycle, customer/supplier/inventory analytics, AI privacy/provider governance and focused tests. P3 consumes authorized P2/P4 read models and must not create a parallel ERP connector or invent source data.
+- **P4 — Onyx Pro / Al-Mutakamel connector and automated-sync owner.** Owns vendor capability/version discovery, official connection adapters, server-side transport, event/webhook or scheduled incremental reads, sync jobs/checkpoints/watermarks, retry/backoff/dead-letter, mapping execution, external IDs, source receipts, sync health and reconciliation workflow. P4 starts by reconciling #538/#605 and all existing Onyx modules, then implements only the verified missing slice. P4 must not touch P2-owned schema/authorization without an agreed contract and must not build a second admin route or client-facing page.
+
+## Mandatory work in every launch — no report-only sessions
+
+1. Each of P1, P2, P3 and P4 takes one substantial, bounded vertical slice from the currently open backlog. A launch is not complete because commits, files, comments or plans were produced.
+2. Choose a group of related outcomes that can be brought from source to use: correct data/contract → server authorization → service/connector behavior → existing screen/visible result → focused acceptance tests.
+3. Parallelize disjoint ownership immediately. If a dependency is blocked, complete the independent parts of that same slice and continue the rest; record the exact blocker without stalling the other three.
+4. Do not inflate batch size with unrelated changes, nor split one usable workflow into a chain of tiny PRs. Merge each independently verified/conflict-free vertical slice promptly; do not hold a passed slice for the other owners.
+5. A programmer who has no safe large slice available must first reconcile current open work and then close the largest missing acceptance leaf on current `main`; no repository-wide audit, rewrite of history or cosmetic-only diversion.
+
+## Highest-priority admin initiative — automatic ERP synchronization
+
+The application must stop depending on staff re-entering product, customer, stock and finance data by hand whenever the source ERP can provide an approved integration. The target is automatic synchronization, not just a manual Excel upload.
+
+### P4 first slice — connector capability and current-work reconciliation
+
+1. Inspect existing `/admin/onyx`, `/admin/import`, `/admin/import-logs`, `/admin/ai/sync`, `/admin/finance-data`, Integration Hub, `supabase/functions`, Onyx import/export services, API-OPS contracts and related migrations/tests.
+2. Reconcile open #538 and #605 by exact branch head, changed paths, owner, CI and unique delta. Preserve and finish their useful work; do not create a replacement importer or duplicate inventory-mutation guard.
+3. Establish the actual Onyx Pro and Al-Mutakamel product/version/edition and the company's enabled modules, licensed integration capability, network topology, official API/web service/webhook/SDK/connector options, credentials availability and vendor-supported rate limits. Do not infer any of these from marketing pages or a file template.
+4. Build one evidence-backed connector capability map: source object, supported read/write direction, official interface, fields, stable external key, branch/warehouse/currency scope, latency/update mode, permissions/license prerequisite, rate limit, error semantics and test environment.
+5. Onyx Pro is the first ERP target. Evaluate Al-Mutakamel through the same provider contract in parallel only where the existing source/credentials make it independent. Do not assume both products expose equivalent APIs.
+
+### Required automated data flows
+
+- **ERP → Aghbari, source-authoritative reads:** product masters/SKUs/barcodes; categories/brands; descriptions/specifications and UOM/conversions; active/inactive status; warehouse stock/available balances and reservations where exposed; approved customer-safe prices, price lists/discounts/units; customer/account mapping and permitted customer contacts; customer credit/receivable read models; posted invoices, receipts/payments, due dates and statement lines where licensed and authorized; branches, warehouses, currencies, tax metadata and other reference data required to interpret the above.
+- **Aghbari → ERP, controlled writes:** approved customer sales orders/quotes and subsequent status references where the official connector supports them; confirmed invoices/payment receipts only where the accounting workflow explicitly authorizes source posting; returns/credit notes only through the ERP-supported approval and reversal semantics. Never push drafts or simulated transactions as posted documents.
+- **Never sync blindly:** supplier cost, purchase prices, gross margins, internal ledger details or another customer's financial data into customer-facing projections. Internal procurement/supplier data remains admin-only and must follow its own role controls.
+- **No feedback loops:** record provider, tenant/company, branch, object, external ID, source revision/updated timestamp and idempotency key. A change written by Aghbari and echoed from ERP must be recognized as the same business event, not imported as a second order/invoice/payment.
+- **Preferred transport:** official webhook/event subscription for low latency where truly supported; otherwise bounded incremental polling using an authoritative modified-since cursor/watermark with overlap protection. Full snapshot is for initial bootstrap/reconciliation only, not routine repeated full imports.
+- **Fallback:** when the provider has no supported API/event channel but has an officially supported export interface, retain the existing controlled import as a clearly labeled manual/assisted fallback. Never claim real-time or automatic sync in this state.
+
+### Onyx Pro capabilities to inventory and exploit — merchant value scope
+
+Onyx's published solution catalogue and mobile-app descriptions identify the following capability groups. This is a **discovery/requirements inventory**, not proof that the Aghbari installation has each module, licence, endpoint or API enabled. P4 must mark every capability AVAILABLE_AND_LICENSED / AVAILABLE_REQUIRES_ENABLEMENT / LICENSE_REQUIRED / NOT_SUPPORTED_IN_INSTALLED_VERSION / UNKNOWN, attach official vendor evidence, and identify its supported integration route before coding against it.
+
+1. **Customer-facing commerce and account self-service**
+   - Customer Self Service app: direct online connection to the Onyx server, configurable work-screen names and supported languages; investigate actual customer account, statement, invoice and bill-payment services in the installed release. Onyx states invoice payment requires API activation.
+   - Onyx Shopping: product/store browsing, basket/cart and online synchronization so the merchant receives the customer's order.
+   - Customer Orders: customer/product/account balance and credit-limit lookup; order lines, prices, tax, discounts and free goods as configured in Onyx; region/representative/salesperson assignment; dated stock reservation and approved payment method.
+   - Map the same data into Aghbari's existing catalog, cart, customer account, sales quote/order and financial screens rather than sending customers to a second store.
+2. **Sales, customer management and after-sales**
+   - Customer master/classification/contacts, sales representatives and territories, credit/receivable exposure and collections.
+   - Sales quotations/offers, orders, sales invoices, returns/credit notes, order status, price lists, customer-specific prices, quantity discounts, tax and free quantities—only where the installed sales module provides them and the role is entitled.
+   - Sales history and reports by customer/product/representative/region/time; show only customer-safe fields in customer UI and wider metrics only in authorized admin views.
+3. **Inventory and warehouse execution**
+   - Item/product master, groups/categories, SKU/barcode, warehouse-specific on-hand/available balances, stock movements and permitted reservation states.
+   - Warehouse counts (periodic/annual and document-level), barcode-assisted picking/preparation, partial fulfilment, goods-received/receiving workflows and transfer/issue records where supported.
+   - Synchronize quantity and fulfilment evidence; never equate physical on-hand with available-to-promise without reservations/holds and the ERP's own availability rule.
+4. **Collections, receivables and finance**
+   - Customer balances, receivable aging/duedates, receipts/collection history and cheque states when accessible; Collection Mobile documents cash/cheque receipts and reflects them in linked accounts, so Aghbari must never independently post a second receipt for the same collection.
+   - Authorized customer statement (summary/analytic), invoices, posted receipts/payments, per-currency balances and due amounts.
+   - Internal-only finance dashboards: cash/bank account balances, ledger/posted-document references, financial statements and approved management indicators. Keep general ledger, margins, supplier balances and internal cash details out of the customer account.
+5. **Purchasing and supplier operations**
+   - Supplier master and balances; purchase requests, vendor quotations and comparisons, purchase orders, delivery dates, partial goods receipt, purchase invoices/returns, supplier discounts/free quantities and cost allocation/landed expenses where present.
+   - Keep supplier costs and liabilities admin-only; connect purchase/receipt/invoice references to current Aghbari procurement workflows without duplicating purchase or payable documents.
+6. **Distribution, delivery and field operations**
+   - Sales/distribution plans, customer visits, assigned representatives, regions/routes, route/visit tracking where enabled, sales/returns/collections by representative, and warehouse preparation-to-delivery handoff.
+   - Link ERP order/route/collection references to Aghbari's delivery workflow. Location tracking requires explicit business/legal authorization and must not be exposed to customers or unauthorized staff.
+7. **Executive reporting, BI/MIS, approvals and controls**
+   - Authorized indicators/reports for net sales, gross margin, customer/supplier performance, inventory balances, cash, purchases, expenses and financial position/cash flow; slice by branch/activity/project/cost centre/warehouse/time only when the source returns a valid scope.
+   - Document review/approval queues, user privileges, period closing/locks and audit references.
+   - Optional licensed modules to assess for management value: budgets and sales/purchase/collection plans, BI/MIS, fixed assets and maintenance, fleet, projects/settlements, HR/payroll and attendance. These remain admin-only, are not part of customer self-service, and must not displace the core commerce/ERP connector work.
+
+**Critical connector distinction:** Onyx advertises online mobile applications and services that connect to its own server, including Customer Self Service and Onyx Shopping. This does not by itself establish a public third-party API or grant Aghbari permission to call those internal interfaces. P4 must obtain the official API/web-service/connector documentation, enabled endpoint list, licence and credentials from the company/vendor. Do not reverse-engineer private endpoints, scrape the ERP database, or claim automatic integration merely because a separate Onyx mobile app exists. If only file exchange is licensed, label it assisted/manual and use the existing 27-column/snapshot workflow.
+
+### Integration Hub / Admin Sync Console
+
+P1 must expose the existing integration capability in the current admin experience, reusing the current `/admin/onyx` and Integration Hub rather than creating parallel navigation. P4 supplies real connector states/actions; P2 supplies secure contracts.
+
+Required functions and real controls:
+- connection profile/provider/version, company and authorized branch/warehouse mappings;
+- server-only credential setup/rotation state (never reveal stored secrets), permission scopes and connection test;
+- choose supported sync direction and objects; separate read-only inbound from approved outbound commands;
+- initial bootstrap preview/dry run, field mapping and conflict policy, duplicate detection, missing reference handling and explicit approval for risky mapping;
+- schedule/frequency or event subscription status, last successful sync, next run, last source watermark, source freshness and records in/out;
+- per-object and per-record created/updated/unchanged/rejected/conflict totals;
+- job history, duration, correlation ID, source receipt and safe error summary;
+- retry failed records only, replay idempotently, pause/resume connector, pause one object, reconcile source-to-app counts and drill down to a source record;
+- stale connection/quota/permission/clock drift/queue backlog warnings and a health state derived from actual probes;
+- audit actor, time, reason, action and resulting job ID.
+
+No decorative buttons. Every control must invoke a real protected command or be disabled with the precise missing prerequisite. A dry run never writes. A read-only sync cannot create ledger postings.
+
+## Unified customer financial source — three non-mixable modes
+
+The server determines the customer's configured financial source. The customer cannot select or override it:
+- `APP_ONLY`: invoices/orders/payments created and confirmed inside Aghbari only. Show the app's own ledger with a clear scope label; no invented opening balance and no implication that this is the company's full ERP statement.
+- `ONYX`: customer account, posted invoices, receipts, due amounts and statement are read from the authorized Onyx account/branch/currency scope.
+- `MUTAKAMEL`: same customer-facing contract from the actual supported Al-Mutakamel read interface.
+- Do not auto-merge or sum APP_ONLY, ONYX and MUTAKAMEL values. Source changes require finance approval, external customer-account matching and opening/closing reconciliation before cutover.
+- The account statement must disclose source, branch, currency, period, as-of time and last successful synchronization. On connector failure, show unavailable/stale with its last checked time; never label cached balance as current.
+- Customer UI provides only the customer's own balance, statements, invoices, receipt/payment history, due dates and authorized payment-review actions. Staff-only costs, supplier ledgers, general ledger, margins and other customer records remain hidden and blocked server-side.
+- An unapproved transfer proof is a pending review request, not a receipt/payment. No customer action may create or post a journal directly.
+
+## Delivery and acceptance gates for the ERP initiative
+
+1. **Capability proof:** actual installed ERP version/modules and enabled official interface evidenced; if absent, record precise vendor/license/network blocker.
+2. **Security proof:** secrets are server-only; company/customer/branch/warehouse scope is server-derived; unauthorized and cross-tenant access denied with no side effects.
+3. **Bootstrap proof:** dry-run preview/counts, stable key mapping, field-level rejects and conflict list; no direct production import.
+4. **Incremental sync proof:** initial snapshot then delta sync; restart/retry and replay do not duplicate; out-of-order/stale updates are rejected or reconciled; cursor resumes after process restart.
+5. **Operational proof:** sync status/last success/latency/errors/queue state appear in existing admin UI; pause/resume/retry-failed-only controls work.
+6. **Parity proof:** sampled product/customer/stock/prices/statements match the ERP source for exact branch/warehouse/currency/as-of; stock and money are never aggregated across incompatible scopes.
+7. **Outbound proof:** only an approved sales order/document is transmitted; external acknowledgement/reference is stored; retry does not create duplicates; financial posting remains on approved ERP workflow.
+8. **Customer proof:** APP_ONLY, ONYX and MUTAKAMEL customers each see only their own source-backed records and printable statement; foreign account access is denied; multi-currency remains separate.
+9. **Degraded-mode proof:** disconnect, 401/403, rate limit, timeout, malformed response and clock drift show accurate status; no stale/current misrepresentation, retry storm or fabricated success.
+10. **Exact-SHA proof:** required focused P1 UI, P2 PostgreSQL/RLS/RPC and P4 connector contract/transport tests pass on the same tested head; merge and then run required post-merge checks on the resulting merge SHA. External/live-provider tests remain BLOCKED_EXTERNAL until the vendor-approved sandbox/credentials are available.
+
+## Immediate next actions by owner
+
+- **P1:** reconcile current customer/cart/auth PRs and current admin navigation; then mount the Admin Integration Hub/Sync Console into the existing Onyx screen with accurate disabled/ready/error states; keep customer finance pages role/source scoped.
+- **P2:** finish its current exact-SHA order/pagination/finance/inventory blockers; define the single canonical ERP sync staging/read contract, customer financial source resolver, idempotency/audit/tenant boundaries and local PostgreSQL 17 tests with P4.
+- **P3:** finish current exact-SHA intelligence/decision/system-health work; add only source-backed ERP freshness/completeness anomalies and inventory/receivable analysis after the canonical read model exists.
+- **P4:** reconcile #538/#605 and inspect the current Onyx Integration Hub/import/export paths; establish actual provider/version/API capability; implement the first complete read-only incremental Onyx connector slice with checkpoint, safe mapping, retry/idempotency and admin-visible receipts. Do not wait for ERP write credentials to finish the read-only local adapter and tests.
+- Every owner updates only the existing matrix row(s) for the acceptance leaf closed and this pointer's next action; no parallel checklist or status document.
+
+## Merged during the current execution
+
+| PR | Merge commit | Accepted result / remaining boundary |
+|---|---|---|
+| #654 | `40bb1a53ec6686cfae45a09bb273962387010fab` | Category filter UUID validation; exact-head P1 and local P2/PG17/Chromium SUCCESS |
+| #652 | `7934282d09f3a0cff79eb4e5fc06046090eaaf92` | Real customer Auth A→B profile-session isolation; P1/P2 and PG17 feedback SUCCESS |
+| #660 | `83a5a3df5e800f19b3e3b49fb0b51823c39d0ad4` | Strict evidence-passport timestamps and calculation-clock lineage; P1/P2 SUCCESS |
+| #662 | `11487fda71c1ba145f468ba55ed4250d3542588b` | Demand forecast rejects UTC offsets outside ISO ±14:00; P1/P2 SUCCESS |
+| #661 | `c94e8eb67c962e9e265d50f25606ef0b4d283a68` | Anomaly detection rejects invalid UTC offsets; P1/P2 SUCCESS |
+| #663 | `63cd257e842cc930552b1d519076482f31072cb5` | Process bottleneck analytics strict timestamps; P1/P2 SUCCESS |
+| #653 | `b6fc95431014df101fbfc05a0dcac07281e647da` | Server-side customer-role guard for account-profile RPCs; P1/P2/PG17 SUCCESS |
+| #666 | `668e576afba21c311b5657899eef7cb8e25b64cc` | Strict UTC timestamps for task-intelligence reports; exact-head P1/P2 SUCCESS |
+| #664 | `3b25afb70b5cf6760b4b52745b152e296378b344` | Unified safe public image URL policy across catalog cards/gallery/product facts; P1 and local PG17/Storage/Chromium P2 SUCCESS |
+| #667 | `c8a4a63b448ed53e10b968aa903dea7983d8e500` | Corrected page-two task count; exact-head P1/P2 SUCCESS |
+| #633 | `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa` | Task-quality review PostgreSQL 17 acceptance; exact-head P1/P2 SUCCESS, local PG17 authorization/idempotency/tenant/append-only and local Chromium SUCCESS. Hosted authenticated E2E SKIPPED. |
+| #641 | `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9` | Supplier-invoice three-way accounting PG17 acceptance runner/workflow; exact PR-head P1 `46053429683` and P2 `46053429870` SUCCESS; no production schema/data write. |
+| #674 | `7c20412c77a9c2ef01d99e16a304aaa9e773be37` | Shared desktop/mobile predictive-search image URL privacy guard; exact PR-head P1 `46055085674` SUCCESS and P2 `46055085516` SUCCESS (public Chromium job `140695500765`, local Supabase/PG17/Chromium job `140696553618`). Hosted customer/order/tenant E2E SKIPPED; post-merge exact-SHA push run not independently verified. |
+| #673 | `88b74f5259c975f377dab84321867ebbc6d9c173` | Storefront product-facts RPC errors sanitized into safe Arabic permission/validation/duplicate/transport messages; exact PR-head P1 `46055661824` SUCCESS and P2 `46055661904` SUCCESS (P2 public Chromium job `140697407976` 20/20; local Supabase/PG17/Chromium job `140698750095` 69/69, zero failures, cleanup and artifact upload SUCCESS). Hosted authenticated customer/order/tenant E2E SKIPPED; no post-merge run/status surfaced. No SQL/RPC/RLS/schema or production data mutation. |
+
+## Next active gates — do not skip
+
+1. **PR #671 — dead-stock source clock integrity.**
+   - Latest P3 head: `de8f0ffc90709de140b5651778e21af11efd1c4a`; only `src/lib/intelligence/dead-stock.ts` and its test are changed. PR base is `85ecac38eb982b68688c48c40fc1cd44e1a7a9d1`; current main is ahead and GitHub reports **NOT_MERGEABLE**. P3 must synchronize safely with current main before review/merge.
+   - New exact-head P1 run `46056464557`: **IN_PROGRESS** (6/10 steps; P4 observability strict TypeScript active; no failures). New exact-head P2 run `46056464556`: **IN_PROGRESS** (authenticated infrastructure gate SUCCESS; public UI smoke active at 11/20 steps; hosted customer/order/tenant E2E **SKIPPED**). Local PostgreSQL/Chromium acceptance job is not yet present in the current run snapshot; do not count it as tested. Earlier-head results do not transfer.
+   - Current P2 gate remains active; no merge until exact-head P1/P2 become terminal SUCCESS and the branch is synchronized with `main`. P3 retains ownership.
+
+2. **PR #668 — system-health evidence integrity.**
+   - Latest P3 head: `ac1cabfca26412af3e291235687808f4cfc4909d`; changed paths are only `SystemHealthEngine.test.ts`, `P4AdminOperationsScreens.test.tsx`, and `system-health.ts`. PR base is `85ecac38eb982b68688c48c40fc1cd44e1a7a9d1`; current main is ahead and GitHub reports **NOT_MERGEABLE**. P3 must synchronize safely with current main before review/merge.
+   - New exact-head P1 run `46056452923`: **IN_PROGRESS** (5/10 steps; P1 strict TypeScript active; no failures). New exact-head P2 run `46056452904`: **IN_PROGRESS** (authenticated infrastructure gate SUCCESS; public UI smoke active at 11/20 steps; hosted customer/order/tenant E2E **SKIPPED**). Local PostgreSQL/Chromium acceptance job is not yet present in the current run snapshot; do not count it as tested. Earlier-head results do not transfer.
+   - Current P2 gate remains active; no merge until exact-head P1/P2 become terminal SUCCESS and the branch is synchronized with `main`. P3 retains ownership.
+
+3. **PR #670 — verified customer-retention decisions integrated into daily decisions.**
+   - Latest P3 head: `fe6f7e42778dbce705f2f11d9efe142ca639ded5`; the PR diff contains only six IntelligenceWorkspace/customer-retention/daily-decisions source and test paths. No canonical pointer, matrix, or workflow checkpoint files are in this head's diff.
+   - Exact-head P1 run `46055852281`: **SUCCESS**. Exact-head P2 run `46055852208`: **IN_PROGRESS**; public UI smoke **SUCCESS**, authenticated infrastructure gate **SUCCESS**, local Supabase/PostgreSQL 17 job `140699345199` active at 14/70 steps during isolated service startup, no failed steps; hosted customer/order/tenant E2E **SKIPPED**.
+   - PR base is `6647a8cab4805d647c82448f66b7aa2cb16ee59a`; current main has advanced and GitHub reports **NOT_MERGEABLE**. P3 must synchronize safely with current main and repeat exact-head acceptance before merge.
+
+4. **PR #585 — reconciled; do not merge wholesale or rebuild its accepted work.**
+   - Main already contains the product-facts server contract, Authorization V2, and relevant PG17 tests/workflow. Its focused database proof is not full DLV-003 acceptance.
+   - Preserve the branch as history; isolate only any confirmed missing catalogue workflow against current main with exact-SHA proof.
+
+5. Keep stale PRs #637, #605 and #602 with their owners for scoped synchronization and fresh acceptance; do not merge old-head results or overwrite newer work.
+
+## Verified acceptance boundaries
+
+- #633 merged at `a8847fbb3fe8f5c69c861725d1c99d21da0c01aa`. Exact tested head `c812e8a3a64d9ddcfe21537e2828160f73051467`: P1 run [46047121342](https://github.com/Report-Engainall/Nasr1/actions/runs/46047121342) SUCCESS; P2 run [46047121257](https://github.com/Report-Engainall/Nasr1/actions/runs/46047121257) SUCCESS. Local PostgreSQL 17/Supabase task-quality authorization, idempotency, tenant isolation, stale snapshot, raw-table denial, append-only audit and Chromium acceptance passed. Hosted authenticated customer/order/tenant E2E SKIPPED.
+- #641 merged at `41e6deea00ea2a3e6691ae3bb5a47e7025f990b9`. Exact PR head `106f9862517087c6d700197af941ebf3745b8e6a`: P1 `46053429683` SUCCESS and P2 `46053429870` SUCCESS. Supplier invoice acceptance proved exact/concurrent idempotency, physical received quantity ceiling, maker/checker variance approval, balanced journal handoff and tenant/direct-write denial on isolated PostgreSQL 17. No production schema/data changes.
+- #674 merged at `7c20412c77a9c2ef01d99e16a304aaa9e773be37`. Exact PR head `fbe332cd195188238c45c2662191610e452dd232`: P1 run [46055085674](https://github.com/Report-Engainall/Nasr1/actions/runs/46055085674) SUCCESS (Vitest, P1 TypeScript, P4 TypeScript, production build); P2 workflow [46055085516](https://github.com/Report-Engainall/Nasr1/actions/runs/46055085516) SUCCESS, including public UI Chromium job `140695500765` and local Supabase/PostgreSQL 17 job `140696553618` (68/70 steps, zero failures). Hosted customer/order/tenant E2E SKIPPED. Main's three changed file blobs match the tested PR head; no exact merge-SHA push-run is claimed.
+- #673 merged at `88b74f5259c975f377dab84321867ebbc6d9c173`. Exact tested PR head `ca4259537557932dd3e3db9263994abb4527e1d6`: P1 run [46055661824](https://github.com/Report-Engainall/Nasr1/actions/runs/46055661824) SUCCESS (Vitest, P1 strict TypeScript, P4 strict TypeScript, production build); P2 workflow [46055661904](https://github.com/Report-Engainall/Nasr1/actions/runs/46055661904) SUCCESS. Public Chromium job `140697407976` passed 20/20 steps; local Supabase/PostgreSQL 17/Chromium job `140698750095` passed 69 steps with zero failures, including all repository migrations, authorization/tenant/idempotency, product image Storage lifecycle, price persistence, responsive admin access, category/price/stock privacy, AI four-eyes, exact-SHA proof, cleanup and artifact upload. Hosted customer/order/tenant E2E job `140697446192` was SKIPPED, not PASS. Main helper/test blobs match PR head (`41cc2eac4f09ad6ccf84466ca06feb8abf1246a6` / `3157f46c63a7fb033f34868b5bc29625315e9d64`). Post-merge commit `88b74f...` exposed no separate workflow run or combined status in the available query; do not claim post-merge CI. No SQL/RPC/RLS/schema change, production write, deployment or hosted migration.
+- #671's prior head `bcff1a8320b0c4b105162fb5d125bee09ac86544`, #668's prior head `2bcafea26e10e522696a025b43e2cce773781129`, and #670's head `81f39f76ef7040b5ec5e243dc9fd3768e042b327` had P1/P2 SUCCESS after the previous checkpoint. Those results do not transfer to newer or rebased heads.
+- DLV-001 requirement-to-route/action/service/RPC/Edge/tenant-scope/migration/exact-SHA crosswalk remains OPEN.
+- DLV-002 full route/state acceptance beyond the Auth A→B profile path remains OPEN; preserve its local proof and do not claim hosted tenant isolation.
+- DLV-003 original product-image associations remain 0/114 until owner-provided originals are mapped by SKU. Do not fabricate/hotlink. Existing image upload lifecycle, ProductFacts contract and brand/unit/price-display facets are already on main; predictive-search public image policy now has a separate exact PR-head test leaf. Wider catalogue/discovery/detail/admin role-specific acceptance remains OPEN. Hosted Edge/auth acceptance is separate.
+- Production Supabase project identity/runtime, hosted Auth/customer tests and hosted Edge deployment/runtime remain unverified. Release remains NO-GO.
+- Never equate IN_PROGRESS, QUEUED, SKIPPED, BLOCKED or unavailable evidence with PASS.
+
+## Delivery discipline
+
+- Continue from this cursor and live main; do not repeat accepted work.
+- P1 owns product integration and main merges; P2 owns schema/RPC/RLS and financial/inventory operations; P3 owns intelligence and its merge/checkpoint ownership.
+- Keep the canonical acceptance matrix and this single execution pointer current; do not create parallel ledgers.
+- No production writes, remote migrations, Edge deployment, paid service, Vercel, Bolt or Lovable. Hosted external work remains blocked until its target and authorization are proven.
+
+
+## HISTORICAL CHECKPOINTS — REFERENCE ONLY
+
+# ACTIVE EXECUTION CONTROL — DATABASE TARGET DISPUTED — 2026-11-17
+
+## IMMEDIATE SAFETY CORRECTION
+
+- Current repository: `Report-Engainall/Nasr1`, branch `main`.
+- Current observed main HEAD at checkpoint refresh: `bf9e595149418e75deeed0864bed7b09e2594566`.
+- The owner has explicitly rejected the assumption that Supabase ref `tfdwtuwkdddnzgyhcoyy` is the database used by the running Aghbari Commerce application.
+- **All prior remote-database findings obtained by querying ref `tfdwtuwkdddnzgyhcoyy` are RETRACTED / NOT APPLICABLE UNTIL TARGET IDENTITY IS PROVEN.** This includes the claimed live tenant RPC field gap, missing publication-readiness RPC, 60 missing migrations, two live-only migration entries, and any conclusions drawn from the queried project schema.
+- Supabase account listing showed `tfdwtuwkdddnzgyhcoyy` as an active project called `aghbari-commerce-nasr1`; that proves only that the project exists and is active, not that the application uses it. The retired `mrcyqezbhpncuvaehwgf` listed in older documentation is inactive, and it must not be assumed to be the correct target either.
+- No remote database DDL, data write, migration, function deployment, reset, or production mutation was performed in this investigation. The Supabase calls against `tfdwtuwkdddnzgyhcoyy` were read-only metadata/SQL reads.
+- Local GitHub Actions acceptance used isolated ephemeral PostgreSQL/Supabase only; its results do not identify or prove the hosted application database.
+- Earlier P1 pass on `e92393dd1392c09994b0b29c108754ec13d112a7` and partial local P2 acceptance are exact-SHA source/local evidence only. Do not transfer them to current HEAD `bf9e595149418e75deeed0864bed7b09e2594566` or use them to claim the live screens are fixed.
+- The backward-compatible tenant parser and inventory replay guard remain source changes on main; their value for the affected running application is unverified until the actual DB target is confirmed.
+
+## NEXT_ACTION — VERIFY THE REAL APPLICATION DATABASE BEFORE ANY REMOTE DB WORK
+
+1. Establish the effective `VITE_SUPABASE_URL` / Supabase project ref used by the running Aghbari Commerce deployment or the exact preview/runtime exhibiting the errors. Use a trustworthy read-only runtime/configuration source; do not guess from Supabase project names or the repository's former hard-coded ref.
+2. Compare that exact ref with Supabase project metadata. If effective runtime configuration cannot be read without a prohibited/paid host operation, ask the owner for the project ref; do not inspect or modify a substitute project.
+3. Only after ref equality is proven, re-run a minimal read-only identity check: project ref/URL, migration ledger head, `get_current_tenant_context()` definition and the exact RPCs called by the four failing screens. Do not perform a broad migration inventory first.
+4. Then trace each screen's actual failing request and fix the real contract mismatch on the current main SHA. Keep production unchanged absent explicit authorization.
+
+---
+
+
+## CURRENT CHECKPOINT — TENANT SCOPE / DATABASE CONTRACT DRIFT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`; code-bearing SHA: `e92393dd1392c09994b0b29c108754ec13d112a7`.
+- P1 exact-SHA run [44016200343](https://github.com/Report-Engainall/Nasr1/actions/runs/44016200343) **SUCCESS**: 176/176 test files, 7/7 tenant-scope parser regressions, strict TypeScript and production build all passed.
+- P2 exact-SHA run [44016200168](https://github.com/Report-Engainall/Nasr1/actions/runs/44016200168) **FAILURE overall**: public UI smoke **PASS**; isolated PostgreSQL 17 migrations **PASS**; claim-evidence drill-down **PASS**; order amendment replay **PASS**; Authorization V2 six-role parity and both-warehouse transfer replay guard **PASS** in job `133815585680`; the later immutable decision snapshot acceptance **FAIL** with ranked-snapshot validation. Hosted authenticated tenant E2E is **SKIPPED**, not PASS.
+- Shared tenant-scope failure root cause confirmed by read-only SQL: live `get_current_tenant_context()` returns profile/organization/warehouse plus `is_staff` and `can_manage_customers`, but omits `can_view_internal_product_prices`. The client now accepts this older contract and defaults the missing sensitive capability to DENY; malformed identity/scope or malformed supplied capability data still fails closed.
+- Source change: parser isolated in `src/lib/tenant-scope.ts`; regression tests in `src/lib/tenant-scope.test.ts`; no client-supplied tenant fallback and no role-derived price grant.
+- Independent publication-readiness blocker confirmed: `get_admin_storefront_publication_status()` is absent from the live database; source migration `20261110183000_admin_storefront_publication_readiness.sql` is unapplied. `current_actor_has_capability(text)`, `current_authorization_decision(text)`, `fetch_staff_catalog_products(uuid)`, and `assert_inventory_transfer_scope_v2(uuid,uuid)` are also absent.
+- Migration comparison after the current source change: 345 migration files in main; 287 versions in the live ledger; **60 source migrations absent** and **2 live-only versions** (`20261117031723`, `20261117032026`, both named `storefront_cart_product_details`). Do not blanket-apply or replay; reconcile the two live-only entries and validate all pending migrations on isolated PostgreSQL 17 first.
+- Added forward migration `20261117240000_inventory_transfer_replay_scope_guard.sql` and strengthened `scripts/test-authorization-capability-registry.mjs` to require both transfer RPCs to validate both warehouse assignments before idempotency locking. The exact-SHA local PostgreSQL 17 Authorization V2 acceptance now **PASSes**, proving six-role parity, deny-by-default, tenant scope and the transfer guard. A separate decision-outcome snapshot acceptance remains **FAIL** and must be repaired independently.
+- No production database DDL/write, no Vercel deployment/build/preview, and no hosted integration mutation was performed.
+
+## NEXT_ACTION
+
+1. Repair the decision snapshot validator or its acceptance fixture so the ranked snapshot acceptance passes on isolated PostgreSQL 17; preserve immutable snapshot, append-only event, idempotency and legacy-RPC denial invariants.
+2. Reconcile the 60 pending source migrations against the live ledger and the two live-only migration records. Validate dependencies/order on isolated PostgreSQL 17; do not apply them as one blind batch.
+3. Obtain explicit owner authorization before any production migration. Until then, keep production untouched and continue source/local work only.
+4. After authorized schema synchronization, recheck settings, dashboard metrics, executive analytics, publication readiness and product/catalog RPCs against the live server contracts. Do not claim the screens are live-fixed before an authorized deployment.
+
+---
+
 # ACTIVE EXECUTION CONTROL — SINGLE OWNER / NO BOLT — 2026-11-14
 
 > **Current governing instruction.** Historical P1/P2/P3 labels describe technical work only; ChatGPT is the single accountable programmer for all domains.
@@ -6099,3 +6439,82 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Updated `e2e/admin-category-tree.spec.ts` to validate manager and staff raw `get_storefront_catalog_page` RPC JSON. Staff tests verify price resolver denial and raw key absence, not DOM-only hiding.
 - Prior P1 workflow run `43783321699` succeeded on SHA `9e52a4f55e639db5ce16ded2dbaedc34dc025627`; current P2 run `43783469993` is on parent SHA `a31b08a89159447453ca6290721064a496b85389` and will be superseded by the new exact-SHA run. Do not reuse its evidence for this migration.
 - No production DB/Auth/Storage/Edge or live integration was touched.
+
+
+---
+
+## ADMIN CONTROL PANEL — finance navigation and shared frame checkpoint — 2026-11-17
+
+- Implementation base SHA: `05d59d00b59a84775014afc19103b88c05f7213b`.
+- Exact implementation SHA: `23a395cca9b61d1d7225f736b1fe1d1112f6c464` (direct fast-forward on `main`; no branch or PR).
+- Updated the canonical `ADMIN_NAV_GROUPS` registry: `finance` is now a dedicated `المالية والذمم` group; system administration is now `إدارة النظام والحوكمة`. The page IDs, all 28 paths, role grants, route guards, backend contracts and RLS boundaries remain unchanged.
+- Updated administrator and accountant navigation tests so the dashboard cards, grouped sidebar and group landing pages are verified against the new canonical grouping; accountant remains restricted to the finance and tasks destinations already granted by `ROLE_PAGE_ACCESS`.
+- Added an accessible `عرض المتجر` action to the common administration top bar. It delegates to the existing `setMode('storefront')` guard, so an unapproved order draft still blocks navigation; at mobile widths the action becomes icon-only with its accessible label retained.
+- Exact-SHA checks were started automatically:
+  - P1 Admin Context Verification: run `43966256219`, checked out exact SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`; dependency installation succeeded; Vitest was in progress at checkpoint capture; TypeScript and production bundle steps were pending.
+  - P2 Playwright Critical Paths: run `43966256168`, checked out exact SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`; dependency installation, Chromium environment check, exact-SHA production build and local no-write server startup succeeded; read-only storefront browser assertions were in progress.
+  - The authenticated customer-order/tenant-isolation job was `SKIPPED` because the workflow's isolated non-production Supabase/test-account confirmation gate was not configured. This remains `BLOCKED_EXTERNAL`, not a pass.
+- No database migration, production database write, financial posting, inventory movement, live integration, Vercel build or deployment was performed.
+- Do not reuse historical test results for this change. The P1 and P2 results above must be resolved against this exact implementation SHA before marking the code `TESTED_EXACT_SHA`.
+- NEXT_ACTION_ID: `ADMIN-PANEL-FRAME-EXACT-SHA-VERIFICATION-001` — close P1 and read-only P2 results for SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`; retain the authenticated E2E gate as `BLOCKED_EXTERNAL` unless dedicated non-production credentials and explicit write confirmation are available.
+
+
+---
+
+## ADMIN-PANEL EXACT-SHA VERIFICATION RESULT — 2026-11-17
+
+- Exact implementation SHA verified: `23a395cca9b61d1d7225f736b1fe1d1112f6c464`.
+- P1 Admin Context Verification run `43966256219`: **SUCCESS** on that exact SHA.
+  - Vitest: **140/140 files, 1,006/1,006 tests passed**.
+  - Strict P1 TypeScript check: **SUCCESS**.
+  - Production application build: **SUCCESS**.
+  - Vitest emitted a post-test Vite shutdown-timeout warning after the suite had passed; the step closed successfully and did not fail.
+- P2 Playwright Critical Paths run `43966256168`: the exact-SHA build and both local server-start steps succeeded. The read-only public storefront Chromium assertions remained **IN_PROGRESS** at checkpoint capture; not yet counted as a completed browser acceptance.
+- P2 authenticated order/tenant-isolation job: **SKIPPED / BLOCKED_EXTERNAL** because the isolated non-production Supabase endpoint, separate accounts and explicit test-write confirmation were not configured. This is not an authorization, customer-order, or cross-tenant acceptance pass.
+- No production database, live customer, financial posting, inventory balance, Auth/Storage, integration endpoint or deployment was written.
+- The implementation can be marked `TESTED_EXACT_SHA` for Vitest, strict TypeScript and production build only. It is **not** `BROWSER_PROVEN` for the admin frame, and no production-readiness claim is made.
+- Main now contains the implementation commit, then the checkpoint commits `e308dcacea9fc676146eeeca90e939c13ddb8d0f` and this result update; all code checks above remain explicitly tied to implementation SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`.
+- NEXT_ACTION_ID: `ADMIN-PANEL-P2-PUBLIC-SMOKE-AND-AUTH-GATE-001` — record the terminal P2 read-only smoke result when available; keep order and tenant-isolation proof open until a dedicated non-production E2E environment is explicitly approved and configured.
+
+
+---
+
+## P3 ADMIN ORDERS BOARD + PRICE/INVENTORY GRID — 2026-11-17
+
+- Code SHA: `276e9612cb509c0979cf458faa225705f148548c`.
+- Orders list now uses responsive lifecycle cards with server-filtered order-number search, server status filtering, stable server sorting, existing review/detail route, and truthful handling of returned/stopped/unknown states.
+- Price grid now supports search by item name/code, product active-state and stock-state filters, stable price/stock sorting, result count and real refresh. Save/import/export/preview remain bound to the full loaded grid, not only visible filtered rows.
+- Inventory quantities remain read-only in the price grid. Actual quantity changes stay inside source-backed inventory adjustment, transfer and stock-count flows; no direct balance mutation was added.
+- Added `admin-order-progress` and `price-grid-filters` pure modules with regression tests. Added `20261117113000_stock_count_line_authorization_precedes_payload.sql` so an actor must pass tenant identity, base count-entry capability and exact session-warehouse scope before product/quantity validation and line update.
+- P1 run [43975356771](https://github.com/Report-Engainall/Nasr1/actions/runs/43975356771): **SUCCESS on exact code SHA**; 145/145 Vitest files, 1,042/1,042 tests, strict TypeScript and production build all passed.
+- P2 run [43975356738](https://github.com/Report-Engainall/Nasr1/actions/runs/43975356738): public Chromium smoke **IN_PROGRESS** at checkpoint time; authenticated customer-order/tenant job **SKIPPED** by the non-production credential/write-confirmation gate. Local Supabase order/tenant job had not yet started because it depends on public smoke. Separate Storefront feedback PostgreSQL 17 run [43975356833](https://github.com/Report-Engainall/Nasr1/actions/runs/43975356833) succeeded; it is not order/tenant proof.
+- Earlier failed candidate SHAs are superseded and not counted. No production DB write, financial posting, inventory movement, live provider integration, Vercel usage or deployment occurred.
+- Remaining acceptance: P2 public browser result and local PostgreSQL 17 run on this exact SHA; hosted customer/order/tenant E2E remains external/blocked. Current price-grid source RPC does not return category name, so category is not fabricated into the price grid.
+- Release remains **NO-GO** pending independent finance, inventory, authenticated tenant, category-route and full-screen acceptance gates.
+
+
+---
+
+## P3 CHECKPOINT — IMMUTABLE DECISION SNAPSHOT REQUIRED — 2026-11-17
+
+- Implementation commit: `0038476178ea15274f0b7cfce73cd177f5fad313`; follow-up test fix and tested source SHA: `b5b9a313eb020d65e867acd4f70b0a7f035bfe47`.
+- Current main later advanced through four unrelated inventory/barcode commits; compare confirms no changed decision snapshot files. Exact acceptance remains attached to `b5b9a313...`, not the newer head.
+- All new DecisionOutcome proposals now require a valid immutable P0-P3/evidence candidate snapshot and route only through `create_decision_outcome_proposal_with_snapshot`. The authenticated legacy no-snapshot RPC is revoked. Manual cashflow follow-up persists exact evidence IDs/formula/metric and WITHHELD numeric impact; no causal claim is fabricated.
+- Added `20261117140000_decision_outcome_snapshot_required.sql`, client/component regression tests and a PostgreSQL 17/Auth-local rollback-only acceptance script in the P2 local job. It tests snapshot, append-only CREATE/audit, idempotency, conflicting payload, legacy RPC denial, snapshot immutability and zero persistent fixture rows.
+- P1 run `43983285125` and P2 run `43983285142`: both QUEUED at retrieval on exact SHA `b5b9a313...`; **no PASS yet**. No production/hosted migration, data write, live integration or deployment.
+- Historical outcomes with NULL snapshots remain unchanged/unverified; no backfill. The entire decision lifecycle still requires role/tenant/state/side-effect acceptance.
+- Remaining finance gap: no separate approved future operating-expense commitments feed in 7/30/90 cash forecast. Posted/void actual expenses are not future commitments and must not be counted twice.
+- Next: resolve the exact-SHA P1/P2 runs, then build/test the operating-expense commitment lifecycle and cashflow link. Keep opening estimate 3,235 excluded from confirmed ATP until physical count; original product imagery still required for 114 real product links (0/114 currently).
+
+
+---
+
+## P3 — BUSINESS HEALTH SOURCE COMPLETENESS / SUPPLIER PAYABLE ACCEPTANCE — 2026-11-17
+
+- Exact source SHA covered by latest P1/P2 submissions: `5fbfff6822d8c2215523829b880d9a4e94ee7576`; main at checkpoint update: `b132db8e5fed2b41317f83823729e3f2716ebf82` (later commits are P3 checkpoint documentation only).
+- Partial cashflow and incomplete customer retention are not READY; deterministic Arabic business-health execution preserves DENIED and unsupported historical queries. Supplier concentration trend fails closed on malformed population/financial contracts and withholds non-comparable currency samples.
+- P2 local PostgreSQL 17 now posts a source-linked receipt through a separate admin reviewer, proves its inclusion in supplier payable aggregate, and asserts no read-side journal/audit/source writes.
+- P1 run `43998504100` and P2 run `43998503343` are QUEUED, not PASS. No production writes, hosted migration, deployment, Vercel use or paid AI.
+
+
+- P3 exact-SHA acceptance refresh 2026-11-17: latest source/test SHA `d80631544a0dcf55e6200cf07d8d45a14e9f54f8`; P1 run `43998807622` and P2 run `43998807525` are QUEUED on that same SHA. Added baseline-side trend population/financial contract negative tests. Prior P1/P2 run IDs on `5fbfff68...` are superseded for this P3 acceptance; no PASS yet.

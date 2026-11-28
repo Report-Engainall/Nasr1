@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
   from: vi.fn(),
   results: {} as Record<string, QueryResult>,
+  rpc: vi.fn(),
   signOut: vi.fn(),
 }));
 
@@ -45,7 +46,7 @@ vi.mock("@/components/CustomerReturnRequest", () => ({
 }));
 
 vi.mock("@/lib/supabase", () => ({
-  supabase: { from: mocks.from },
+  supabase: { from: mocks.from, rpc: mocks.rpc },
 }));
 
 const CUSTOMER: TestUser = {
@@ -98,6 +99,7 @@ describe("customer order detail real route acceptance", () => {
     vi.clearAllMocks();
     mocks.user = null;
     mocks.results = {};
+    mocks.rpc.mockReset();
     mocks.from.mockReset().mockImplementation((table: string) => makeQuery(table));
   });
 
@@ -108,6 +110,7 @@ describe("customer order detail real route acceptance", () => {
     }
     host?.remove();
     host = undefined;
+    vi.unstubAllGlobals();
   });
 
   async function mountOrderRoute() {
@@ -128,6 +131,7 @@ describe("customer order detail real route acceptance", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(router.state.location.pathname).toBe("/orders/33333333-3333-4333-8333-333333333333");
+    return router;
   }
 
   it("gates a guest before reading any order, item, history or customer record", async () => {
@@ -206,8 +210,31 @@ describe("customer order detail real route acceptance", () => {
         phone: "PRIVATE-ACCOUNT-PHONE", notes: "PRIVATE-CUSTOMER-NOTE",
       }], error: null },
     };
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    const clipboardNavigator = Object.create(navigator) as Navigator;
+    Object.defineProperty(clipboardNavigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+    vi.stubGlobal("navigator", clipboardNavigator);
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
     await mountOrderRoute();
+    const copyButton = host?.querySelector<HTMLButtonElement>('button[aria-label="نسخ الرقم المرجعي للطلب"]');
+    expect(copyButton?.textContent).toContain("نسخ الرقم المرجعي");
+    await act(async () => {
+      copyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith("SO-PRINT-001");
+    expect(host?.textContent).toContain("تم نسخ الرقم المرجعي للطلب.");
+
+    clipboardWriteText.mockRejectedValueOnce(new Error("clipboard permission denied"));
+    await act(async () => {
+      copyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(host?.textContent).toContain("تعذر النسخ التلقائي؛ حدّد الرقم المرجعي الظاهر في المستند وانسخه يدويًا.");
+
     const printButton = host?.querySelector<HTMLButtonElement>('button.sf-btn-primary');
     expect(printButton?.textContent).toContain("طباعة / حفظ PDF");
     await act(async () => { printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
@@ -226,6 +253,246 @@ describe("customer order detail real route acceptance", () => {
       "PRIVATE-CUSTOMER-ROW-ID", "PRIVATE-ACCOUNT-PHONE", "PRIVATE-CUSTOMER-NOTE",
       "987654", "2962962", "12345",
     ]) expect(printable?.textContent).not.toContain(privateValue);
+  });
+
+  it("does not announce a status transition when a different order is opened by deep link", async () => {
+    mocks.user = CUSTOMER;
+    const firstOrderId = "33333333-3333-4333-8333-333333333333";
+    const nextOrderId = "66666666-6666-4666-8666-666666666666";
+    mocks.results = {
+      orders: { data: [{
+        id: firstOrderId, order_number: "SO-FIRST-001", customer_id: CUSTOMER.profileId,
+        status: "pending", total_items: 0, notes: null,
+        created_at: "2026-11-20T05:00:00.000Z", delivery_address_snapshot: null,
+      }], error: null },
+      order_items: { data: [], error: null },
+      order_status_history: { data: [], error: null },
+      customers: { data: [{ customer_code: "C-NEXT-01", business_name: "شركة الاختبار", contact_name: null }], error: null },
+    };
+    const router = await mountOrderRoute();
+    mocks.results.orders = { data: [{
+      id: nextOrderId, order_number: "SO-NEXT-001", customer_id: CUSTOMER.profileId,
+      status: "confirmed", total_items: 0, notes: null,
+      created_at: "2026-11-20T05:05:00.000Z", delivery_address_snapshot: null,
+    }], error: null };
+
+    await act(async () => {
+      await router.navigate({ to: "/orders/$id", params: { id: nextOrderId } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(router.state.location.pathname).toBe("/orders/" + nextOrderId);
+    expect(host?.textContent).toContain("SO-NEXT-001");
+    expect(host?.querySelector('[aria-label="إشعار تحديث حالة الطلب"]')).toBeNull();
+  });
+
+  it("automatically shows management approval without polling while hidden or offline", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: {
+        data: [{
+          id: orderId,
+          order_number: "SO-AUTO-001",
+          customer_id: CUSTOMER.profileId,
+          status: "pending",
+          total_items: 1,
+          notes: null,
+          created_at: "2026-10-28T00:00:00.000Z",
+          quantity_review_required: false,
+          customer_adjustment_note: null,
+          customer_payment_requested_at: null,
+          customer_confirmed_at: null,
+          payment_request_status: "none",
+          delivery_address_snapshot: null,
+        }],
+        error: null,
+      },
+      order_items: {
+        data: [{
+          id: "44444444-4444-4444-8444-444444444444",
+          product_id: "55555555-5555-4555-8555-555555555555",
+          item_code: "SKU-AUTO-001",
+          product_name_snapshot: "صنف الاختبار",
+          unit_snapshot: "علبة",
+          quantity: 1,
+          requested_quantity: 1,
+          approved_quantity: 1,
+        }],
+        error: null,
+      },
+      order_status_history: {
+        data: [{ id: "hist-1", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null }],
+        error: null,
+      },
+      customers: {
+        data: [{ customer_code: "C-AUTO-01", business_name: "شركة الاختبار", contact_name: null }],
+        error: null,
+      },
+    };
+
+    const poller: { callback?: () => void } = {};
+    const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler, delay) => {
+      if (delay === 45_000 && typeof handler === "function") {
+        poller.callback = handler as () => void;
+      }
+      return 901;
+    });
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    const originalOnline = Object.getOwnPropertyDescriptor(navigator, "onLine");
+
+    try {
+      await mountOrderRoute();
+      expect(host?.textContent).toContain("الحالة: بانتظار المراجعة");
+      expect(poller.callback).toBeTypeOf("function");
+
+      const existingOrder = mocks.results.orders.data[0] as Record<string, unknown>;
+      mocks.results.orders.data[0] = { ...existingOrder, status: "confirmed" };
+      mocks.results.order_status_history = {
+        data: [
+          { id: "hist-1", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null },
+          { id: "hist-2", to_status: "confirmed", created_at: "2026-10-28T00:01:00.000Z", notes: null },
+        ],
+        error: null,
+      };
+
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(host?.textContent).toContain("الحالة: بانتظار المراجعة");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(1);
+
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(1);
+
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+      mocks.results.order_items.error = { message: "temporary read failure" };
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(host?.textContent).toContain("الحالة: بانتظار المراجعة");
+      expect(host?.textContent).toContain("تعذر تحديث حالة الطلب تلقائيًا");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(2);
+
+      mocks.results.order_items.error = null;
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+      expect(host?.textContent).toContain("الحالة: مؤكد");
+      expect(host?.querySelector('[aria-label="إشعار تحديث حالة الطلب"]')?.textContent)
+        .toContain("تغيّرت حالة الطلب SO-AUTO-001 من بانتظار المراجعة إلى مؤكد");
+      expect(host?.querySelector('a[href="/notifications"]')).not.toBeNull();
+      expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[0]?.querySelector('[aria-label="مكتمل"]')).not.toBeNull();
+      expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[1]?.querySelector('[aria-label="الحالة الحالية"]')).not.toBeNull();
+      expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[2]?.querySelector('[aria-label="لم يكتمل"]')).not.toBeNull();
+      expect(host?.textContent).not.toContain("تعذر تحديث حالة الطلب تلقائيًا");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(3);
+    } finally {
+      if (originalVisibility) Object.defineProperty(document, "visibilityState", originalVisibility);
+      else Reflect.deleteProperty(document, "visibilityState");
+      if (originalOnline) Object.defineProperty(navigator, "onLine", originalOnline);
+      else Reflect.deleteProperty(navigator, "onLine");
+      intervalSpy.mockRestore();
+    }
+  });
+
+  it("does not overwrite an unsent customer amendment draft during status polling", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: {
+        data: [{
+          id: orderId,
+          order_number: "SO-DRAFT-001",
+          customer_id: CUSTOMER.profileId,
+          status: "needs_customer_amendment",
+          total_items: 1,
+          notes: null,
+          created_at: "2026-10-28T00:00:00.000Z",
+          quantity_review_required: false,
+          customer_adjustment_note: "يرجى مراجعة الكمية",
+          customer_payment_requested_at: null,
+          customer_confirmed_at: null,
+          payment_request_status: "none",
+          delivery_address_snapshot: null,
+        }],
+        error: null,
+      },
+      order_items: {
+        data: [{
+          id: "44444444-4444-4444-8444-444444444444",
+          product_id: "55555555-5555-4555-8555-555555555555",
+          item_code: "SKU-DRAFT-001",
+          product_name_snapshot: "صنف الاختبار",
+          unit_snapshot: "علبة",
+          quantity: 1,
+          requested_quantity: 1,
+          approved_quantity: 1,
+        }],
+        error: null,
+      },
+      order_status_history: {
+        data: [{ id: "hist-1", to_status: "needs_customer_amendment", created_at: "2026-10-28T00:00:00.000Z", notes: null }],
+        error: null,
+      },
+      customers: {
+        data: [{ customer_code: "C-DRAFT-01", business_name: "شركة الاختبار", contact_name: null }],
+        error: null,
+      },
+    };
+    mocks.rpc.mockResolvedValue({
+      data: {
+        order_id: orderId,
+        order_status: "needs_customer_amendment",
+        return_events: [],
+        amendments: [],
+      },
+      error: null,
+    });
+
+    const poller: { callback?: () => void } = {};
+    const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler, delay) => {
+      if (delay === 45_000 && typeof handler === "function") {
+        poller.callback = handler as () => void;
+      }
+      return 902;
+    });
+
+    try {
+      await mountOrderRoute();
+      const quantityInput = host?.querySelector<HTMLInputElement>(
+        'input[aria-label="الكمية المعدلة صنف الاختبار"]',
+      );
+      expect(quantityInput).not.toBeNull();
+      expect(quantityInput?.value).toBe("1");
+      expect(poller.callback).toBeTypeOf("function");
+
+      const nativeValueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      await act(async () => {
+        nativeValueSetter?.call(quantityInput, "2");
+        quantityInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(quantityInput?.value).toBe("2");
+
+      const currentOrder = mocks.results.orders.data[0] as Record<string, unknown>;
+      mocks.results.orders.data[0] = { ...currentOrder, status: "confirmed" };
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+      expect(quantityInput?.value).toBe("2");
+      expect(host?.textContent).toContain("بانتظار تعديل العميل");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(1);
+    } finally {
+      intervalSpy.mockRestore();
+    }
   });
 
   it("re-reads persisted order status when the customer refreshes order details", async () => {
@@ -302,4 +569,120 @@ describe("customer order detail real route acceptance", () => {
     expect(host?.textContent).toContain("الحالة: مؤكد");
     expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(2);
   });
+
+  it("submits a pre-approval customer cancellation through the real route with a bound idempotency key", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: { data: [{
+        id: orderId, order_number: "SO-CANCEL-001", customer_id: CUSTOMER.profileId,
+        status: "pending", total_items: 1, notes: null, created_at: "2026-10-28T00:00:00.000Z",
+        quantity_review_required: false, customer_adjustment_note: null,
+        customer_payment_requested_at: null, customer_confirmed_at: null,
+        payment_request_status: "none", delivery_address_snapshot: null,
+      }], error: null },
+      order_items: { data: [{
+        id: "44444444-4444-4444-8444-444444444444",
+        product_id: "55555555-5555-4555-8555-555555555555",
+        item_code: "SKU-CANCEL-001", product_name_snapshot: "صنف الإلغاء",
+        unit_snapshot: "علبة", quantity: 1, requested_quantity: 1, approved_quantity: 1,
+      }], error: null },
+      order_status_history: { data: [{ id: "hist-cancel", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null }], error: null },
+      customers: { data: [{ customer_code: "C-CANCEL-01", business_name: "شركة الاختبار", contact_name: null }], error: null },
+      customer_order_amendments: { data: [], error: null },
+      customer_order_cancellations: { data: [], error: null },
+    };
+    mocks.rpc.mockResolvedValue({
+      data: { order_id: orderId, status: "cancelled", cancelled_at: "2026-10-28T00:05:00.000Z", replayed: false },
+      error: null,
+    });
+
+    await mountOrderRoute();
+    expect(host?.textContent).toContain("إلغاء الطلب قبل اعتماده");
+    const reason = host?.querySelector<HTMLTextAreaElement>('textarea[placeholder*="إدخال كمية غير صحيحة"]');
+    expect(reason).not.toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    await act(async () => {
+      setter?.call(reason, "أدخلت كمية غير صحيحة");
+      reason?.dispatchEvent(new Event("input", { bubbles: true }));
+      reason?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const cancelButton = [...(host?.querySelectorAll("button") ?? [])]
+      .find((button) => button.textContent?.includes("تأكيد إلغاء الطلب"));
+    expect(cancelButton).toBeDefined();
+
+    await act(async () => {
+      cancelButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("cancel_customer_order", expect.objectContaining({
+      p_order_id: orderId,
+      p_reason: "أدخلت كمية غير صحيحة",
+    }));
+    const cancelArgs = mocks.rpc.mock.calls.find(([name]) => name === "cancel_customer_order")?.[1] as Record<string, unknown>;
+    expect(Object.keys(cancelArgs).sort()).toEqual(["p_idempotency_key", "p_order_id", "p_reason"]);
+    expect(String(cancelArgs.p_idempotency_key)).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+    expect(host?.textContent).toContain("أُلغي الطلب قبل اعتماده من الإدارة");
+  });
+
+  it("submits only changed customer quantities for a returned order without exposing financial fields", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    const itemId = "44444444-4444-4444-8444-444444444444";
+    mocks.results = {
+      orders: { data: [{
+        id: orderId, order_number: "SO-AMEND-001", customer_id: CUSTOMER.profileId,
+        status: "needs_customer_amendment", total_items: 1, notes: null,
+        created_at: "2026-10-28T00:00:00.000Z", quantity_review_required: false,
+        customer_adjustment_note: "يرجى تصحيح الكمية", customer_payment_requested_at: null,
+        customer_confirmed_at: null, payment_request_status: "none", delivery_address_snapshot: null,
+      }], error: null },
+      order_items: { data: [{
+        id: itemId, product_id: "55555555-5555-4555-8555-555555555555",
+        item_code: "SKU-AMEND-001", product_name_snapshot: "صنف التعديل",
+        unit_snapshot: "علبة", quantity: 1, requested_quantity: 1, approved_quantity: 1,
+      }], error: null },
+      order_status_history: { data: [{ id: "hist-amend", to_status: "needs_customer_amendment", created_at: "2026-10-28T00:00:00.000Z", notes: null }], error: null },
+      customers: { data: [{ customer_code: "C-AMEND-01", business_name: "شركة الاختبار", contact_name: null }], error: null },
+      customer_order_amendments: { data: [], error: null },
+      customer_order_cancellations: { data: [], error: null },
+    };
+    mocks.rpc.mockResolvedValue({
+      data: { amendment_id: "66666666-6666-4666-8666-666666666666", order_id: orderId, status: "pending_review", line_count: 1, replayed: false },
+      error: null,
+    });
+
+    await mountOrderRoute();
+    const quantity = host?.querySelector<HTMLInputElement>('input[aria-label="الكمية المعدلة صنف التعديل"]');
+    expect(quantity).not.toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    await act(async () => {
+      setter?.call(quantity, "2");
+      quantity?.dispatchEvent(new Event("input", { bubbles: true }));
+      quantity?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(quantity?.value).toBe("2");
+    const submitButton = [...(host?.querySelectorAll("button") ?? [])]
+      .find((button) => button.textContent?.includes("إرسال التعديل إلى الإدارة"));
+    expect(submitButton).toBeDefined();
+
+    await act(async () => {
+      submitButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_customer_order_amendment", expect.objectContaining({
+      p_order_id: orderId,
+      p_lines: [{ item_id: itemId, quantity: 2 }],
+      p_note: null,
+    }));
+    const amendmentArgs = mocks.rpc.mock.calls.find(([name]) => name === "submit_customer_order_amendment")?.[1] as Record<string, unknown>;
+    expect(Object.keys(amendmentArgs).sort()).toEqual(["p_idempotency_key", "p_lines", "p_note", "p_order_id"]);
+    expect(String(amendmentArgs.p_idempotency_key)).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+    expect(host?.textContent).toContain("تم إرسال الكميات المقترحة إلى الإدارة");
+  });
+
 });

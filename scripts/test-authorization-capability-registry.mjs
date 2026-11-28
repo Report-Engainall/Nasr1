@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import postgres from "postgres";
 
 function requiredEnv(name) {
@@ -39,6 +41,269 @@ async function withActor(db,actor,callback) {
   return callback(tx);
  });
 }
+async function withServiceRole(db,callback) {
+  return db.begin(async(tx)=>{
+   await tx.unsafe("select set_config('request.jwt.claim.role','service_role',true)");
+   await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({role:"service_role"})]);
+   await tx.unsafe("set local role service_role");
+   return callback(tx);
+  });
+}
+
+async function withActorAsServiceRole(db,actor,callback) {
+ if(!actor.jwtClaims?.session_id) throw new Error("A live Auth session is required for the role-bound trigger check.");
+ return db.begin(async(tx)=>{
+  await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[actor.auth_user_id]);
+  await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({...actor.jwtClaims,role:"authenticated"})]);
+  await tx.unsafe("set local role service_role");
+  return callback(tx);
+ });
+}
+async function resourceDecision(db,actor,key,resourceId) {
+ return withActor(db,actor,async(tx)=>{
+  const rows=await tx.unsafe("select public.current_authorization_decision($1::text,$2::uuid) as decision,public.current_actor_has_capability($1::text,$2::uuid) as allowed",[key,resourceId]);
+  const value=typeof rows[0].decision==="string"?JSON.parse(rows[0].decision):rows[0].decision;
+  return {...value,allowed:rows[0].allowed};
+ });
+}
+async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
+ const migrationUrl=new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url);
+ const migrationSource=await readFile(migrationUrl,"utf8");
+ const migrationSql=migrationSource.replace(/^\s*BEGIN;\s*$/im,"").replace(/^\s*COMMIT;\s*$/im,"");
+ if(/^\s*BEGIN;\s*$/im.test(migrationSql)||/^\s*COMMIT;\s*$/im.test(migrationSql)) throw new Error("Could not strip standalone migration transaction wrappers for the rollback-only upgrade fixture.");
+ if(migrationSql===migrationSource) throw new Error("Could not isolate authorization prerequisite migration body for rollback-only upgrade fixture.");
+ const canonicalUrl=new URL("../supabase/migrations/20261117050202_authorization_capability_registry_v2.sql",import.meta.url);
+ const canonicalSource=await readFile(canonicalUrl,"utf8");
+ const canonicalSeed=canonicalSource.match(/INSERT INTO public\.authorization_capabilities[\s\S]*?ON CONFLICT\(capability_key\) DO NOTHING;/);
+ if(!canonicalSeed) throw new Error("The canonical capability migration must preserve existing catalog rows with ON CONFLICT DO NOTHING.");
+ assert.doesNotMatch(canonicalSource,/INSERT INTO public\.authorization_role_capabilities/i,
+  "the canonical function migration must not reseed role grants after initial registry creation");
+ const rollbackMarker="ROLLBACK_AUTHORIZATION_PREREQUISITE_UPGRADE_FIXTURE";
+ const preFixtureCapabilities=await db.unsafe(
+  "select capability_key,domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active "+
+  "from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key"
+ );
+ const preFixtureGrant=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at from public.authorization_role_capabilities "+
+  "where role='manager' and capability_key='inventory.reorder_point.write'"
+ );
+ let rollbackFailure;
+ let rollbackPhase="starting rollback-only upgrade fixture";
+ try {
+  await db.begin(async(tx)=>{
+   rollbackPhase="checking pre-existing capability rows";
+   const initial=await tx.unsafe("select capability_key from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key");
+   assert.equal(initial.length,2,"upgrade fixture requires both existing capability rows");
+   const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+   assert.equal(grant.length,1,"upgrade fixture requires a manager grant to remove");
+   await tx.unsafe("update public.authorization_capabilities set scope_kind='warehouse',is_active=true where capability_key='inventory.balance.adjust'");
+   // Use an existing, catalog-valid policy key while making its value deliberately
+   // different from the canonical seed. This tests upgrade preservation without
+   // manufacturing metadata that the production registry constraint rejects.
+   const preservedPolicy={requires_reason:false};
+   await tx.unsafe(
+    "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
+    "separation_of_duties=true,state_requirements=pg_catalog.jsonb_build_object('requires_reason',false),is_active=false "+
+    "where capability_key='inventory.reorder_point.write'"
+   );
+   rollbackPhase="removing a deliberately revoked manager grant";
+   await tx.unsafe("delete from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+   rollbackPhase="replaying the authorization prerequisites migration";
+   await tx.unsafe(migrationSql);
+   rollbackPhase="replaying the canonical capability catalog seed";
+   await tx.unsafe(canonicalSeed[0]);
+   rollbackPhase="asserting existing warehouse capability preservation";
+   const scope=await tx.unsafe("select scope_kind,is_active from public.authorization_capabilities where capability_key='inventory.balance.adjust'");
+   assert.deepEqual(scope[0],{scope_kind:'warehouse',is_active:true},"prerequisite backfill must not widen or alter an existing warehouse capability");
+   rollbackPhase="asserting disabled capability policy preservation";
+   const disabled=await tx.unsafe(
+    "select scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
+    "from public.authorization_capabilities where capability_key='inventory.reorder_point.write'"
+   );
+   assert.deepEqual(disabled[0],{
+    scope_kind:'warehouse',approval_mode:'maker_checker',separation_of_duties:true,
+    state_requirements:preservedPolicy,is_active:false
+   },"both prerequisite and canonical capability seeds must preserve existing scope, approval policy, metadata and disabled state");
+   rollbackPhase="asserting removed role grant stays removed";
+   const restored=await tx.unsafe("select count(*)::integer as count from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+   assert.equal(restored[0].count,0,"prerequisite backfill must not recreate a deliberately removed role grant");
+   rollbackPhase="asserting the pre-existing role-table upgrade branch";
+   const flag=await tx.unsafe("select current_setting('nasr.authorization_role_capabilities_preexisting',true) as existed");
+   assert.equal(flag[0].existed,"true","fixture must prove the pre-existing-role-table upgrade branch");
+   rollbackPhase="triggering the expected full rollback";
+   throw new Error(rollbackMarker);
+  });
+ } catch(cause) {
+  rollbackFailure=cause;
+ }
+ if(rollbackFailure?.message!==rollbackMarker) {
+  throw new Error(
+   "upgrade-safety fixture failed during \""+rollbackPhase+"\" before the planned rollback: "+
+   String(rollbackFailure?.message??rollbackFailure??"transaction unexpectedly committed")+
+   (rollbackFailure?.code?" [SQLSTATE "+rollbackFailure.code+"]":"")+
+   (rollbackFailure?.detail?" — "+rollbackFailure.detail:""),
+   {cause:rollbackFailure}
+  );
+ }
+ const postFixtureCapabilities=await db.unsafe(
+  "select capability_key,domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active "+
+  "from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key"
+ );
+ const postFixtureGrant=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at from public.authorization_role_capabilities "+
+  "where role='manager' and capability_key='inventory.reorder_point.write'"
+ );
+ assert.deepEqual(postFixtureCapabilities,preFixtureCapabilities,
+  "rollback-only upgrade fixture must restore every original capability field after the transaction aborts");
+ assert.deepEqual(postFixtureGrant,preFixtureGrant,
+  "rollback-only upgrade fixture must restore the original role grant after the transaction aborts");
+}
+
+async function assertInventoryCountGrantSeedOrdering(db) {
+ const prerequisiteSource=await readFile(
+  new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url),
+  "utf8"
+ );
+ const prerequisiteSql=prerequisiteSource.replace(/^\s*BEGIN;\s*$/im,"").replace(/^\s*COMMIT;\s*$/im,"");
+ const backfillSource=await readFile(
+  new URL("../supabase/migrations/20261126100000_inventory_count_start_role_parity_upgrade.sql",import.meta.url),
+  "utf8"
+ );
+ const backfillSql=backfillSource.replace(/^\s*BEGIN;\s*$/im,"").replace(/^\s*COMMIT;\s*$/im,"");
+ if(prerequisiteSql===prerequisiteSource||backfillSql===backfillSource) {
+  throw new Error("Could not isolate the stock-count grant compatibility migration bodies.");
+ }
+ const expectedRoles=["admin","manager","staff"];
+ const migrationVersion="20261117050202";
+ const appliedGrantSnapshot=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at "+
+  "from public.authorization_role_capabilities where capability_key in ('inventory.count.enter','inventory.count.start') "+
+  "order by role,capability_key"
+ );
+ async function rollbackFixture(label,callback) {
+  const sentinel="ROLLBACK_COUNT_START_SEED_"+label;
+  let failure;
+  try {
+   await db.begin(async(tx)=>{
+    await callback(tx);
+    throw new Error(sentinel);
+   });
+  } catch(cause) {
+   failure=cause;
+  }
+  if(failure?.message!==sentinel) {
+   throw new Error(
+    label+" failed before its planned rollback: "+
+    String(failure?.message??failure??"transaction unexpectedly committed")+
+    (failure?.code?" [SQLSTATE "+failure.code+"]":""),
+    {cause:failure}
+   );
+  }
+ }
+ // An initialized canonical registry with an empty grant table is an intentional
+ // deny-all state. Replaying the prerequisite must not repopulate it.
+ await rollbackFixture("PRESERVE_EMPTY_INITIALIZED_REGISTRY",async(tx)=>{
+  const history=await tx.unsafe(
+   "select version from supabase_migrations.schema_migrations where version=$1::text",
+   [migrationVersion]
+  );
+  assert.equal(history.length,1,"the initialized-registry fixture requires the canonical migration history row");
+  await tx.unsafe("delete from public.authorization_role_capabilities");
+  await tx.unsafe(prerequisiteSql);
+  const marker=await tx.unsafe(
+   "select current_setting('nasr.authorization_role_capabilities_preexisting',true) as value"
+  );
+  assert.equal(marker[0]?.value,"true",
+   "an applied canonical migration must preserve an intentionally empty role-grant table");
+  const remaining=await tx.unsafe(
+   "select count(*)::integer as count from public.authorization_role_capabilities"
+  );
+  assert.equal(remaining[0]?.count,0,
+   "the prerequisite must never reseed all grants after the canonical registry migration was applied");
+ });
+ // Simulate the combined main history: the earlier main bootstrap created an
+ // empty grants table, but the canonical registry migration is not yet applied.
+ // The prerequisite must seed the source count-entry matrix before the already-
+ // applied inventory-scope migration's missing count-start parity is repaired.
+ await rollbackFixture("SEED_EMPTY_PRECANONICAL_REGISTRY",async(tx)=>{
+  const history=await tx.unsafe(
+   "select version from supabase_migrations.schema_migrations where version=$1::text",
+   [migrationVersion]
+  );
+  assert.equal(history.length,1,"the clean-history fixture requires the canonical migration row before simulation");
+  await tx.unsafe("delete from public.authorization_role_capabilities");
+  await tx.unsafe(
+   "delete from supabase_migrations.schema_migrations where version=$1::text",
+   [migrationVersion]
+  );
+  await tx.unsafe(prerequisiteSql);
+  const marker=await tx.unsafe(
+   "select current_setting('nasr.authorization_role_capabilities_preexisting',true) as value"
+  );
+  assert.equal(marker[0]?.value,"false",
+   "an empty bootstrap table with no canonical migration history must trigger the initial grant seed");
+  const countEntry=await tx.unsafe(
+   "select role from public.authorization_role_capabilities where capability_key='inventory.count.enter' "+
+   "and valid_from<=statement_timestamp() and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(countEntry.map(row=>row.role),expectedRoles,
+   "the prerequisite must seed only the canonical admin/manager/staff count-entry parity");
+  const beforeBackfill=await tx.unsafe(
+   "select role from public.authorization_role_capabilities where capability_key='inventory.count.start' order by role"
+  );
+  assert.equal(beforeBackfill.length,0,
+   "the prerequisite must not manufacture count-start grants before source-role derivation");
+  await tx.unsafe(backfillSql);
+  const countStart=await tx.unsafe(
+   "select role from public.authorization_role_capabilities where capability_key='inventory.count.start' "+
+   "and valid_from<=statement_timestamp() and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(countStart.map(row=>row.role),expectedRoles,
+   "the upgrade backfill must derive count-start grants from the persisted count-entry roles");
+  assert.deepEqual(countStart.map(row=>row.role),countEntry.map(row=>row.role),
+   "count-start and count-entry role parity must match exactly after backfill");
+  const scopes=await tx.unsafe(
+   "select capability_key,scope_kind,is_active from public.authorization_capabilities "+
+   "where capability_key in ('inventory.count.enter','inventory.count.start') order by capability_key"
+  );
+  assert.deepEqual(scopes.map(row=>row.scope_kind),["warehouse","warehouse"],
+   "both count capabilities must remain warehouse-scoped throughout grant compatibility");
+  assert.equal(scopes.every(row=>row.is_active===true),true,
+   "grant compatibility must not reactivate a disabled stock-count capability");
+ });
+ // A partially present target matrix may contain an intentional role revocation.
+ // Never fill its missing role from source-role parity during an upgrade.
+ await rollbackFixture("PRESERVE_PARTIAL_COUNT_START_REVOCATION",async(tx)=>{
+  await tx.unsafe(
+   "delete from public.authorization_role_capabilities "+
+   "where capability_key in ('inventory.count.enter','inventory.count.start')"
+  );
+  await tx.unsafe(
+   "insert into public.authorization_role_capabilities(role,capability_key,grant_source,valid_from,expires_at) values "+
+   "('admin','inventory.count.enter','fixture:count-entry',statement_timestamp(),NULL),"+
+   "('manager','inventory.count.enter','fixture:count-entry',statement_timestamp(),NULL),"+
+   "('staff','inventory.count.enter','fixture:count-entry',statement_timestamp(),NULL),"+
+   "('admin','inventory.count.start','fixture:count-start',statement_timestamp(),NULL),"+
+   "('staff','inventory.count.start','fixture:count-start',statement_timestamp(),NULL)"
+  );
+  await tx.unsafe(backfillSql);
+  const preserved=await tx.unsafe(
+   "select role from public.authorization_role_capabilities "+
+   "where capability_key='inventory.count.start' and valid_from<=statement_timestamp() "+
+   "and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(preserved.map(row=>row.role),["admin","staff"],
+   "an already-present target matrix must not restore the deliberately missing manager count-start grant");
+ });
+ const restoredGrantSnapshot=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at "+
+  "from public.authorization_role_capabilities where capability_key in ('inventory.count.enter','inventory.count.start') "+
+  "order by role,capability_key"
+ );
+ assert.deepEqual(restoredGrantSnapshot,appliedGrantSnapshot,
+  "both stock-count compatibility simulations must roll back every temporary grant mutation");
+}
+
 async function decision(db,actor,key) {
  return withActor(db,actor,async(tx)=>{
   const rows=await tx.unsafe("select public.current_authorization_decision($1::text) as decision,public.current_actor_has_capability($1::text) as allowed",[key]);
@@ -53,6 +318,8 @@ async function main() {
  const publishableKey=requiredEnv("SUPABASE_PUBLISHABLE_KEY");
  const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
  try {
+  await assertAuthorizationPrerequisiteUpgradeSafety(db);
+  await assertInventoryCountGrantSeedOrdering(db);
   const profiles=await db.unsafe(
    "select p.id::text as profile_id,p.auth_user_id::text as auth_user_id,p.organization_id::text as organization_id,"+
    "p.email,array_agg(r.role order by r.role) as roles from public.profiles p "+
@@ -92,6 +359,152 @@ async function main() {
     );
     assert.equal(liveSession.length,1,role+" must have a real live session in auth.sessions");
   }
+
+  const ownerAdmin=actors.get("admin");
+  const ownerManager=actors.get("manager");
+  for(const role of ["admin","manager","staff","accountant","customer_manager"]) {
+    assert.equal(actors.get(role).roles.includes("customer"),false,
+      "the seeded "+role+" identity must not retain the default customer role");
+  }
+  const targetWarehouse=(await db.unsafe(
+    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code=$2::text order by created_at,id limit 1",
+    [org,"P2-LOCAL-E2E"]
+  ))[0]?.id;
+  assert.ok(targetWarehouse,"owner-boundary acceptance requires an active local test warehouse");
+
+  const ownerPrivileges=await db.unsafe(
+    "select has_table_privilege('authenticated','public.organization_owner_bindings','SELECT') as authenticated_read,"+
+    "has_table_privilege('service_role','public.organization_owner_bindings','SELECT') as service_role_direct_read,"+
+    "has_function_privilege('authenticated','public.bind_organization_owner(uuid,uuid,text)','EXECUTE') as authenticated_bind,"+
+    "has_function_privilege('service_role','public.bind_organization_owner(uuid,uuid,text)','EXECUTE') as service_role_bind,"+
+    "has_function_privilege('authenticated','public.current_actor_is_organization_owner()','EXECUTE') as authenticated_owner_check"
+  );
+  assert.deepEqual(ownerPrivileges[0],{
+    authenticated_read:false,
+    service_role_direct_read:false,
+    authenticated_bind:false,
+    service_role_bind:true,
+    authenticated_owner_check:true
+  },"owner records must be hidden; only service-role RPC can bind while authenticated users can read only their boolean identity result");
+
+  const baselineAdminDecision=await decision(db,ownerAdmin,"inventory.opening_balance.approve");
+  assert.equal(baselineAdminDecision.decision,"PERMIT",
+    "the existing baseline capability must remain explicit and distinct from owner identity");
+  const ownerBefore=await withActor(db,ownerAdmin,tx=>
+    tx.unsafe("select public.current_actor_is_organization_owner() as is_owner"));
+  assert.equal(ownerBefore[0].is_owner,false,
+    "an admin role alone must never imply organization ownership");
+
+  await assert.rejects(
+    ()=>withActor(db,ownerAdmin,tx=>tx.unsafe(
+      "select public.bind_organization_owner($1::uuid,$2::uuid,$3::text)",
+      [org,ownerAdmin.profile_id,"P2 authenticated self-claim attempt"]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "authenticated administrators cannot self-assign owner identity"
+  );
+  await assert.rejects(
+    ()=>withServiceRole(db,tx=>tx.unsafe(
+      "select public.bind_organization_owner($1::uuid,$2::uuid,$3::text)",
+      [org,ownerManager.profile_id,"P2 manager must not become the legal owner"]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "service provisioning must reject non-admin owner candidates"
+  );
+  await assert.rejects(
+    ()=>withActor(db,ownerAdmin,tx=>tx.unsafe(
+      "select public.get_opening_inventory_baseline_preview($1::uuid)",
+      [targetWarehouse]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "an administrator without a verified owner binding cannot preview owner-only approval"
+  );
+  await assert.rejects(
+    ()=>withActor(db,ownerAdmin,tx=>tx.unsafe(
+      "select public.approve_opening_inventory_baseline($1::uuid)",
+      [targetWarehouse]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "an administrator without a verified owner binding cannot approve the opening baseline"
+  );
+
+  const bound=await withServiceRole(db,tx=>tx.unsafe(
+    "select public.bind_organization_owner($1::uuid,$2::uuid,$3::text) as result",
+    [org,ownerAdmin.profile_id,"P2 isolated local authorization acceptance owner binding"]
+  ));
+  const boundResult=typeof bound[0].result==="string"?JSON.parse(bound[0].result):bound[0].result;
+  assert.equal(boundResult.idempotent_replay,false);
+  const replay=await withServiceRole(db,tx=>tx.unsafe(
+    "select public.bind_organization_owner($1::uuid,$2::uuid,$3::text) as result",
+    [org,ownerAdmin.profile_id,"P2 isolated local authorization acceptance owner binding"]
+  ));
+  const replayResult=typeof replay[0].result==="string"?JSON.parse(replay[0].result):replay[0].result;
+  assert.equal(replayResult.idempotent_replay,true,
+    "repeating the same owner binding must be idempotent");
+
+  const ownerAfter=await withActor(db,ownerAdmin,tx=>
+    tx.unsafe("select public.current_actor_is_organization_owner() as is_owner"));
+  assert.equal(ownerAfter[0].is_owner,true,
+    "only the exact service-bound profile is the active organization owner");
+  const managerOwner=await withActor(db,ownerManager,tx=>
+    tx.unsafe("select public.current_actor_is_organization_owner() as is_owner"));
+  assert.equal(managerOwner[0].is_owner,false,
+    "other organization members remain non-owners");
+  const previewAfterBinding=await withActor(db,ownerAdmin,tx=>
+    tx.unsafe("select public.get_opening_inventory_baseline_preview($1::uuid) as preview",[targetWarehouse]));
+  const previewPayload=typeof previewAfterBinding[0].preview==="string"
+    ? JSON.parse(previewAfterBinding[0].preview) : previewAfterBinding[0].preview;
+  assert.equal(previewPayload.warehouse_id,targetWarehouse,
+    "the provisioned owner can read the exact tenant-scoped baseline preview");
+
+  const revoked=await withServiceRole(db,tx=>tx.unsafe(
+    "select public.revoke_organization_owner_binding($1::uuid,$2::text) as result",
+    [org,"P2 local owner binding revocation acceptance"]
+  ));
+  const revokePayload=typeof revoked[0].result==="string"?JSON.parse(revoked[0].result):revoked[0].result;
+  assert.equal(revokePayload.revoked,true);
+  const ownerAfterRevoke=await withActor(db,ownerAdmin,tx=>
+    tx.unsafe("select public.current_actor_is_organization_owner() as is_owner"));
+  assert.equal(ownerAfterRevoke[0].is_owner,false,
+    "revocation immediately removes owner authority");
+  await assert.rejects(
+    ()=>withActor(db,ownerAdmin,tx=>tx.unsafe(
+      "select public.get_opening_inventory_baseline_preview($1::uuid)",[targetWarehouse]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "a revoked owner cannot preview or approve the baseline"
+  );
+  await assert.rejects(
+    ()=>withActor(db,ownerAdmin,tx=>tx.unsafe(
+      "select public.approve_opening_inventory_baseline($1::uuid)",[targetWarehouse]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "a revoked owner cannot execute the baseline approval command"
+  );
+  const rebound=await withServiceRole(db,tx=>tx.unsafe(
+    "select public.bind_organization_owner($1::uuid,$2::uuid,$3::text) as result",
+    [org,ownerAdmin.profile_id,"P2 isolated local owner re-provisioning after revocation"]
+  ));
+  const reboundResult=typeof rebound[0].result==="string"?JSON.parse(rebound[0].result):rebound[0].result;
+  assert.equal(reboundResult.idempotent_replay,false,
+    "a revoked ownership history is retained and a new binding receives a new identity");
+
+  const ownerHistory=await db.unsafe(
+    "select count(*)::integer as total,count(*) filter(where revoked_at is null)::integer as active "+
+    "from public.organization_owner_bindings where organization_id=$1::uuid",[org]
+  );
+  assert.deepEqual(ownerHistory[0],{total:2,active:1},
+    "owner changes must preserve a single active binding and immutable historical rows");
+  const ownerAudit=await db.unsafe(
+    "select action,count(*)::integer as count from public.audit_logs "+
+    "where organization_id=$1::uuid and entity_type='organization_owner_binding' "+
+    "and action in ('organization.owner.bound','organization.owner.revoked') group by action order by action",
+    [org]
+  );
+  assert.deepEqual(ownerAudit.map(row=>[row.action,row.count]),[
+    ["organization.owner.bound",2],
+    ["organization.owner.revoked",1]
+  ],"service-role owner binding and revocation must be independently audited");
 
   const expectedPairs=[
    ["admin","pricing.edit_draft"],["manager","pricing.edit_draft"],
@@ -160,7 +573,8 @@ async function main() {
    "select domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active from public.authorization_capabilities where capability_key='inventory.count.cancel'"
   );
   assert.equal(cancelCapability.length,1,"stock-count cancellation must have a real V2 capability definition");
-  assert.deepEqual(cancelCapability[0],{
+  const {state_requirements:cancelRequirements,...cancelMetadata}=cancelCapability[0];
+  assert.deepEqual(cancelMetadata,{
    domain:"inventory",
    resource:"stock_count",
    action:"cancel",
@@ -168,10 +582,17 @@ async function main() {
    scope_kind:"warehouse",
    approval_mode:"none",
    separation_of_duties:false,
-   state_requirements:{requires_reason:true,required_status:"open"},
    legacy_operation_id:null,
    is_active:true
   });
+  assert.equal(cancelRequirements.requires_reason,true,
+   "stock-count cancellation must record an explicit reason");
+  assert.equal(cancelRequirements.required_status,"open",
+   "only an open stock-count draft may be cancelled");
+  assert.equal(cancelRequirements.requires_active_warehouse_assignment,true,
+   "cancellation must require assignment to the exact active warehouse");
+  assert.equal(cancelRequirements.does_not_move_stock,true,
+   "cancelling an unfinalized stock count must never move canonical inventory");
   const cancelGrantRows=await db.unsafe(
    "select role from public.authorization_role_capabilities where capability_key='inventory.count.cancel' order by role"
   );
@@ -184,7 +605,9 @@ async function main() {
   assert.equal(guardedTransferFunctions.length,2,
    "single and batch transfer RPCs must both exist after V2 scope migration");
   for(const fn of guardedTransferFunctions) {
-   assert.match(fn.definition,/PERFORM public\.assert_inventory_transfer_scope_v2\(/,
+   const guardPosition=fn.definition.indexOf("PERFORM public.assert_inventory_transfer_scope_v2(");
+   const replayLockPosition=fn.definition.indexOf("pg_advisory_xact_lock");
+   assert.ok(guardPosition>=0 && replayLockPosition>guardPosition,
     fn.proname+" must check both assigned warehouses before any idempotency replay");
   }
 
@@ -202,11 +625,808 @@ async function main() {
    "ordinary staff must be denied the full financial product row and internal price RPC"
   );
 
-  const manager=actors.get("manager"),admin=actors.get("admin");
-
-  // P2 acceptance: approval-gated pricing proposals and the guarded manager edit path.
+  
+const manager=actors.get("manager"),admin=actors.get("admin");
   const staff=actors.get("staff");
   const accountant=actors.get("accountant");
+  const customer=actors.get("customer");
+
+  // /profile reads and writes are self-service only for an active customer identity.
+  // Keep the owner row unchanged across temporary role-reassignment fixtures.
+  const customerProfileFixtureRows=await db.unsafe(
+    "select c.id::text as customer_id,c.profile_id::text as profile_id,c.organization_id::text as organization_id,"+
+    "c.customer_code,c.business_name,c.contact_name,c.phone,c.email,c.updated_at::text as updated_at "+
+    "from public.customers c where c.profile_id=$1::uuid and c.organization_id=$2::uuid order by c.created_at,c.id",
+    [customer.profile_id,customer.organization_id]
+  );
+  assert.equal(customerProfileFixtureRows.length,1,
+    "the local customer Auth actor must own exactly one direct customer-account profile fixture");
+  const customerProfileFixture=customerProfileFixtureRows[0];
+  const customerProfileOriginalAudit=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and actor_id=$2::uuid and action='customer.account_profile.updated' "+
+    "and entity_type='customer' and entity_id=$3::uuid",
+    [customer.organization_id,customer.profile_id,customerProfileFixture.customer_id]
+  );
+  const profileGuardExecute=await db.unsafe(
+    "select has_function_privilege('authenticated','public.assert_customer_account_profile_actor()','EXECUTE') as allowed"
+  );
+  assert.equal(profileGuardExecute[0].allowed,false,
+    "the internal customer-profile role assertion must not be directly executable by authenticated clients");
+
+  const profileRollbackMarker="ROLLBACK_P2_CUSTOMER_PROFILE_ROLE_FIXTURE";
+  async function withCustomerProfileRoles(roles,exercise) {
+    let failure;
+    try {
+      await db.begin(async(tx)=>{
+        await tx.unsafe("delete from public.user_roles where profile_id=$1::uuid",[customer.profile_id]);
+        for(const role of roles) {
+          await tx.unsafe("insert into public.user_roles(profile_id,role) values($1::uuid,$2::text)",[customer.profile_id,role]);
+        }
+        await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[customer.auth_user_id]);
+        await tx.unsafe(
+          "select set_config('request.jwt.claims',$1,true)",
+          [JSON.stringify({...customer.jwtClaims,role:"authenticated"})]
+        );
+        await tx.unsafe("set local role authenticated");
+        await exercise(tx);
+        throw new Error(profileRollbackMarker);
+      });
+    } catch(cause) {
+      failure=cause;
+    }
+    if(failure?.message!==profileRollbackMarker) {
+      throw new Error(
+        "customer-profile role fixture failed before its planned rollback: "+
+        String(failure?.message??failure??"transaction unexpectedly committed")+
+        (failure?.code?" [SQLSTATE "+failure.code+"]":"")+
+        (failure?.detail?" — "+failure.detail:""),
+        {cause:failure}
+      );
+    }
+  }
+  async function assertProfileRpcDenied(tx,label,sql,params=[]) {
+    let denied;
+    try {
+      await tx.unsafe(sql,params);
+    } catch(cause) {
+      denied=cause;
+    }
+    assert.ok(denied,label+" must be denied by the PostgreSQL function");
+    assert.equal(String(denied.code),"42501",label+" must fail with SQLSTATE 42501");
+  }
+
+  const validProfileRpc=await withActor(db,customer,async(tx)=>{
+    const rows=await tx.unsafe("select public.get_my_customer_account_profile() as profile");
+    const profile=typeof rows[0]?.profile==="string"?JSON.parse(rows[0].profile):rows[0]?.profile;
+    assert.ok(profile&&typeof profile==="object","the customer profile read RPC must return its owner-bound profile");
+    assert.equal(profile.customer_code,customerProfileFixture.customer_code);
+    assert.equal(profile.business_name,customerProfileFixture.business_name);
+    assert.deepEqual(
+      Object.keys(profile).sort(),
+      ["business_name","contact_name","customer_code","email","phone","status","updated_at"].sort(),
+      "the self-service profile projection must not expose balances, credit limits, price tiers or internal finance fields"
+    );
+    return profile;
+  });
+  assert.equal(validProfileRpc.customer_code,customerProfileFixture.customer_code);
+
+  const rollbackBusinessName=customerProfileFixture.business_name.slice(0,145)+" P2 rollback "+randomUUID().slice(0,8);
+  await withCustomerProfileRoles(["customer"],async(tx)=>{
+    // Read and consume the optimistic revision inside PostgreSQL in the same statement.
+    // Do not round-trip timestamptz through JavaScript Date (millisecond precision only).
+    const rows=await tx.unsafe(
+      "WITH current_profile AS MATERIALIZED ("+
+      " SELECT public.get_my_customer_account_profile() AS profile"+
+      ") SELECT current_profile.profile->>'customer_code' AS source_customer_code,"+
+      " public.update_my_customer_account_profile($1::text,$2::text,$3::text,$4::text,"+
+      " (current_profile.profile->>'updated_at')::timestamptz) AS profile"+
+      " FROM current_profile",
+      [rollbackBusinessName,customerProfileFixture.contact_name,customerProfileFixture.phone,
+       customerProfileFixture.email]
+    );
+    assert.equal(rows[0]?.source_customer_code,customerProfileFixture.customer_code,
+      "the write revision must be read from the same owner-bound customer profile");
+    const updated=typeof rows[0]?.profile==="string"?JSON.parse(rows[0].profile):rows[0]?.profile;
+    assert.equal(updated?.business_name,rollbackBusinessName,
+      "a valid customer-role identity must retain the real server-side profile update path");
+    assert.equal(updated?.customer_code,customerProfileFixture.customer_code);
+
+    await assert.rejects(
+      ()=>tx.unsafe(
+        "WITH current_profile AS MATERIALIZED ("+
+        " SELECT public.get_my_customer_account_profile() AS profile"+
+        ") SELECT public.update_my_customer_account_profile($1::text,$2::text,$3::text,$4::text,"+
+        " ((current_profile.profile->>'updated_at')::timestamptz - interval '1 second')) AS profile"+
+        " FROM current_profile",
+        [rollbackBusinessName+" stale",customerProfileFixture.contact_name,customerProfileFixture.phone,
+         customerProfileFixture.email]
+      ),
+      error=>error&&String(error.code)==="40001",
+      "the owner-bound profile RPC must reject a stale revision with SQLSTATE 40001"
+    );
+  });
+
+  const profileRoleDenialCases=[
+    {label:"admin",roles:["admin"]},
+    {label:"manager",roles:["manager"]},
+    {label:"staff",roles:["staff"]},
+    {label:"accountant",roles:["accountant"]},
+    {label:"customer_manager",roles:["customer_manager"]},
+    {label:"legacy mixed customer+staff",roles:["customer","staff"]},
+    {label:"restricted/no role",roles:[]}
+  ];
+  for(const roleCase of profileRoleDenialCases) {
+    await withCustomerProfileRoles(roleCase.roles,async(tx)=>{
+      await assertProfileRpcDenied(
+        tx,"get_my_customer_account_profile for "+roleCase.label,
+        "select public.get_my_customer_account_profile()"
+      );
+    });
+    await withCustomerProfileRoles(roleCase.roles,async(tx)=>{
+      await assertProfileRpcDenied(
+        tx,"update_my_customer_account_profile for "+roleCase.label,
+        "select public.update_my_customer_account_profile($1::text,$2::text,$3::text,$4::text,$5::timestamptz)",
+        [customerProfileFixture.business_name.slice(0,145)+" forbidden "+roleCase.label,
+         customerProfileFixture.contact_name,customerProfileFixture.phone,
+         customerProfileFixture.email,customerProfileFixture.updated_at]
+      );
+    });
+  }
+
+  const customerProfileAfter=await db.unsafe(
+    "select c.business_name,c.contact_name,c.phone,c.email,c.updated_at::text as updated_at "+
+    "from public.customers c where c.id=$1::uuid and c.organization_id=$2::uuid and c.profile_id=$3::uuid",
+    [customerProfileFixture.customer_id,customer.organization_id,customer.profile_id]
+  );
+  assert.equal(customerProfileAfter.length,1,"the owner-bound customer profile row must remain present");
+  assert.deepEqual(customerProfileAfter[0],{
+    business_name:customerProfileFixture.business_name,
+    contact_name:customerProfileFixture.contact_name,
+    phone:customerProfileFixture.phone,
+    email:customerProfileFixture.email,
+    updated_at:customerProfileFixture.updated_at
+  },"authorized rollback and denied former-customer requests must leave every profile field unchanged");
+  const customerProfileAuditAfter=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and actor_id=$2::uuid and action='customer.account_profile.updated' "+
+    "and entity_type='customer' and entity_id=$3::uuid",
+    [customer.organization_id,customer.profile_id,customerProfileFixture.customer_id]
+  );
+  assert.equal(customerProfileAuditAfter[0].count,customerProfileOriginalAudit[0].count,
+    "rollback-only allowed write and all rejected writes must leave no profile audit side effect");
+  process.stdout.write(
+    "P2 customer account profile role boundary PASS: customer read/write allowed, stale revision rejected; admin, manager, staff, accountant, customer_manager and restricted identities denied both RPCs; no data or audit side effects.\\n"
+  );
+
+
+  // Same-tenant warehouse A/B authorization, real stock-count RPC writes, and row-trigger denial.
+  const unassignedWarehouseRows=await db.unsafe(
+    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code='P2-LOCAL-RLS-A'",
+    [org]
+  );
+  assert.equal(unassignedWarehouseRows.length,1,"the same-tenant unassigned warehouse B fixture must exist");
+  const unassignedWarehouse=unassignedWarehouseRows[0].id;
+  const managerScopeRows=await db.unsafe(
+    "select id::text from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid and is_active=true",
+    [org,manager.profile_id,targetWarehouse]
+  );
+  assert.equal(managerScopeRows.length,1,"the manager must be assigned to warehouse A");
+  assert.equal((await resourceDecision(db,manager,"inventory.count.enter",unassignedWarehouse)).decision,"DENY",
+    "a manager assigned to A must be denied the same-tenant unassigned warehouse B");
+  assert.equal((await resourceDecision(db,manager,"inventory.count.start",unassignedWarehouse)).decision,"DENY",
+    "stock-count session start must also deny the manager on unassigned warehouse B");
+
+  async function ensureWarehouseAssignment(actor,warehouseId,reason) {
+    const existing=await db.unsafe(
+      "select id::text,is_active from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+      [org,actor.profile_id,warehouseId]
+    );
+    if(existing.length===0) {
+      const saved=await withActor(db,admin,tx=>tx.unsafe(
+        "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+        [actor.profile_id,warehouseId,reason]
+      ));
+      const value=typeof saved[0].result==="string"?JSON.parse(saved[0].result):saved[0].result;
+      assert.equal(value.changed,true,"test-only warehouse assignment must be persisted by the authorized scope command");
+      assert.equal(value.is_active,true);
+    } else {
+      assert.equal(existing[0].is_active,true,"isolated fixture must not contain stale inactive warehouse assignments");
+    }
+  }
+  await ensureWarehouseAssignment(staff,targetWarehouse,"P2 stock-count role-grant proof for staff on warehouse A");
+  await ensureWarehouseAssignment(staff,unassignedWarehouse,"P2 stock-count trigger proof for staff on warehouse B");
+  await ensureWarehouseAssignment(accountant,targetWarehouse,"P2 stock-count non-granted accountant proof");
+  const customerWarehouseScopeBefore=await db.unsafe(
+    "select id::text,is_active from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+    [org,customer.profile_id,targetWarehouse]
+  );
+  assert.equal(customerWarehouseScopeBefore.length,0,
+    "customer identity must not begin with an internal warehouse assignment");
+  await assert.rejects(
+    withActor(db,admin,tx=>tx.unsafe(
+      "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+      [customer.profile_id,targetWarehouse,"P2 customer must be denied internal warehouse scope"]
+    )),
+    (error)=>{
+      assert.equal(String(error?.code),"42501",
+        "the database scope boundary must reject warehouse assignment to a customer identity");
+      assert.match(String(error?.message??error),/customer accounts cannot receive internal warehouse or assigned-customer staff scopes/,
+        "the independent customer/staff account boundary must be the rejection source");
+      return true;
+    }
+  );
+  const customerWarehouseScopeAfter=await db.unsafe(
+    "select id::text,is_active from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+    [org,customer.profile_id,targetWarehouse]
+  );
+  assert.deepEqual(customerWarehouseScopeAfter,customerWarehouseScopeBefore,
+    "a rejected customer assignment must not create or alter any internal warehouse scope");
+  for(const actor of [accountant,customer]) {
+    assert.equal(actor.roles.some(role=>["admin","manager","staff"].includes(role)),false,
+      "accountant/customer test identity must not contain an operational stock-count role");
+  }
+
+  const countEntryGrants=await db.unsafe(
+    "select role from public.authorization_role_capabilities where capability_key='inventory.count.enter' and valid_from<=statement_timestamp() and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(countEntryGrants.map(row=>row.role),["admin","manager","staff"],
+    "count entry grants must remain limited to the explicit admin/manager/staff parity");
+  const countStartGrants=await db.unsafe(
+    "select role from public.authorization_role_capabilities where capability_key='inventory.count.start' and valid_from<=statement_timestamp() and (expires_at is null or expires_at>statement_timestamp()) order by role"
+  );
+  assert.deepEqual(countStartGrants.map(row=>row.role),countEntryGrants.map(row=>row.role),
+    "warehouse count-start grants must preserve only the currently persisted count-entry role parity");
+  for(const [actor,expected] of [[manager,"PERMIT"],[staff,"PERMIT"],[accountant,"DENY"],[customer,"DENY"]]) {
+    const result=await resourceDecision(db,actor,"inventory.count.enter",targetWarehouse);
+    assert.equal(result.decision,expected,"warehouse A count.enter decision for roles "+actor.roles.join(","));
+    assert.equal(result.allowed,expected==="PERMIT");
+  }
+  for(const actor of [manager,staff]) {
+    assert.equal((await resourceDecision(db,actor,"inventory.count.start",targetWarehouse)).decision,"PERMIT",
+      "assigned admin/manager/staff role must start a count only on an assigned warehouse");
+  }
+
+  const scopedDenial=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_denial($1::uuid,'inventory.count.enter',$2::text,NULL::timestamptz,true) as result",
+    [manager.profile_id,"P2 explicit count-entry denial overrides the warehouse grant"]
+  ));
+  assert.equal(scopedDenial[0].result.changed,true);
+  assert.equal((await resourceDecision(db,manager,"inventory.count.enter",targetWarehouse)).decision,"DENY",
+    "explicit profile denial must override the manager's active role and warehouse assignment");
+  await withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_denial($1::uuid,'inventory.count.enter',NULL,NULL::timestamptz,false)",
+    [manager.profile_id]
+  ));
+  assert.equal((await resourceDecision(db,manager,"inventory.count.enter",targetWarehouse)).decision,"PERMIT",
+    "revoking the explicit denial restores the manager's original warehouse-scoped grant");
+
+  const countEntryPolicy=await db.unsafe(
+    "select scope_kind,approval_mode,separation_of_duties,state_requirements from public.authorization_capabilities where capability_key='inventory.count.enter'"
+  );
+  assert.equal(countEntryPolicy[0]?.scope_kind,"warehouse");
+  assert.equal(countEntryPolicy[0]?.approval_mode,"none");
+  assert.equal(countEntryPolicy[0]?.separation_of_duties,false);
+  assert.equal(countEntryPolicy[0]?.state_requirements?.writes_draft_only,true);
+  assert.equal(countEntryPolicy[0]?.state_requirements?.requires_active_warehouse_assignment,true);
+  const finalizePolicy=await db.unsafe(
+    "select scope_kind,approval_mode,separation_of_duties,state_requirements from public.authorization_capabilities where capability_key='inventory.count.finalize'"
+  );
+  assert.equal(finalizePolicy[0]?.scope_kind,"warehouse");
+  assert.equal(finalizePolicy[0]?.approval_mode,"maker_checker");
+  assert.equal(finalizePolicy[0]?.separation_of_duties,true);
+  assert.equal(finalizePolicy[0]?.state_requirements?.reviewer_must_differ_from_counter,true);
+  assert.equal(finalizePolicy[0]?.state_requirements?.requires_active_warehouse_assignment,true);
+  const finalizeDecision=await resourceDecision(db,manager,"inventory.count.finalize",targetWarehouse);
+  assert.equal(finalizeDecision.decision,"REQUIRES_APPROVAL");
+  assert.equal(finalizeDecision.separation_of_duties,true);
+
+  const managerCountKey="AUTHZ-MANAGER-A-"+randomUUID().replace(/-/g,"");
+  const managerStart=await withActor(db,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,'P2 assigned warehouse A acceptance') as result",
+    [targetWarehouse,managerCountKey]
+  ));
+  const managerSession=typeof managerStart[0].result==="string"?JSON.parse(managerStart[0].result):managerStart[0].result;
+  assert.equal(managerSession.warehouse_id,targetWarehouse,"the manager session must bind to assigned warehouse A");
+  const managerLines=await db.unsafe(
+    "select id::text,product_id::text,counted_quantity::text,expected_quantity::text from public.stock_count_lines where session_id=$1::uuid order by id",
+    [managerSession.id]
+  );
+  assert.ok(managerLines.length>0,"manager start must create real snapshot rows on warehouse A");
+  assert.equal(managerLines[0].counted_quantity,null);
+  const entered=await withActor(db,manager,tx=>tx.unsafe(
+    "select public.set_stock_count_line($1::uuid,$2::uuid,77.125::numeric) as result",
+    [managerSession.id,managerLines[0].product_id]
+  ));
+  const enteredLine=typeof entered[0].result==="string"?JSON.parse(entered[0].result):entered[0].result;
+  assert.equal(enteredLine.counted_by,manager.profile_id,
+    "authorized draft quantity entry must attribute the line to the authenticated manager");
+  const persistedManagerLine=await db.unsafe(
+    "select counted_quantity::text as counted_quantity,counted_by::text as counted_by from public.stock_count_lines where id=$1::uuid",
+    [managerLines[0].id]
+  );
+  assert.deepEqual(persistedManagerLine[0],{counted_quantity:"77.125",counted_by:manager.profile_id},
+    "the authorized stock-count line UPDATE must persist the draft quantity and maker identity");
+
+  // A disabled assignment must revoke both the decision and real write paths.
+  const activeManagerAssignment = await db.unsafe(
+    "select id::text from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid and is_active=true",
+    [org,manager.profile_id,targetWarehouse]
+  );
+  assert.equal(activeManagerAssignment.length,1,"manager must have exactly one active warehouse A assignment before the revocation proof");
+  const managerAssignmentId=activeManagerAssignment[0].id;
+  const managerCountsBeforeDisabledWrite=await db.unsafe(
+    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+    [org]
+  );
+  await db.unsafe("update public.authorization_profile_scopes set is_active=false where id=$1::uuid",[managerAssignmentId]);
+  try {
+    assert.equal((await resourceDecision(db,manager,"inventory.count.enter",targetWarehouse)).decision,"DENY",
+      "disabled warehouse assignment must deny count entry immediately");
+    await assert.rejects(
+      ()=>withActor(db,manager,tx=>tx.unsafe(
+        "select public.set_stock_count_line($1::uuid,$2::uuid,79.5::numeric)",
+        [managerSession.id,managerLines[0].product_id]
+      )),
+      error=>error&&String(error.code)==="42501",
+      "set_stock_count_line RPC must reject a disabled warehouse assignment"
+    );
+    await assert.rejects(
+      ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
+        "update public.stock_count_lines set counted_quantity=79.5::numeric where id=$1::uuid returning id",
+        [managerLines[0].id]
+      )),
+      error=>error&&String(error.code)==="42501",
+      "the independent stock-count row trigger must reject a disabled warehouse assignment"
+    );
+    const managerCountsAfterDisabledWrite=await db.unsafe(
+      "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+      "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+      [org]
+    );
+    assert.deepEqual(managerCountsAfterDisabledWrite[0],managerCountsBeforeDisabledWrite[0],
+      "disabled-assignment denials must leave stock-count session and line row counts unchanged");
+    const managerLineAfterDisabledWrite=await db.unsafe(
+      "select counted_quantity::text as counted_quantity,counted_by::text as counted_by from public.stock_count_lines where id=$1::uuid",
+      [managerLines[0].id]
+    );
+    assert.deepEqual(managerLineAfterDisabledWrite[0],{counted_quantity:"77.125",counted_by:manager.profile_id},
+      "disabled-assignment denial must preserve the previously written warehouse A line");
+  } finally {
+    const restoredAssignment=await db.unsafe(
+      "update public.authorization_profile_scopes set is_active=true where id=$1::uuid returning id::text",
+      [managerAssignmentId]
+    );
+    assert.equal(restoredAssignment.length,1,"isolated acceptance must restore the exact manager warehouse A assignment");
+  }
+
+  // Create a real B-session through a staff profile assigned to B, then attack its line as manager A.
+  const staffCountKey="AUTHZ-STAFF-B-"+randomUUID().replace(/-/g,"");
+  const staffStart=await withActor(db,staff,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,'P2 warehouse B trigger acceptance') as result",
+    [unassignedWarehouse,staffCountKey]
+  ));
+  const staffSession=typeof staffStart[0].result==="string"?JSON.parse(staffStart[0].result):staffStart[0].result;
+  assert.equal(staffSession.warehouse_id,unassignedWarehouse);
+  const staffLines=await db.unsafe(
+    "select id::text,product_id::text,counted_quantity::text from public.stock_count_lines where session_id=$1::uuid order by id",
+    [staffSession.id]
+  );
+  assert.ok(staffLines.length>0,"warehouse B must contain real stock-count snapshot lines");
+  assert.equal(staffLines[0].counted_quantity,null);
+  const warehouseBCountsBeforeDeniedWrites=await db.unsafe(
+    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+    [org]
+  );
+
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,88::numeric)",
+      [staffSession.id,staffLines[0].product_id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "the manager RPC must reject a same-tenant stock-count session on unassigned warehouse B"
+  );
+  await assert.rejects(
+    ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
+      "update public.stock_count_lines set counted_quantity=88::numeric where id=$1::uuid returning id",
+      [staffLines[0].id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "guard_stock_count_line_authorization_v2 must itself reject the manager's direct row UPDATE on warehouse B"
+  );
+  const unchangedBLine=await db.unsafe(
+    "select counted_quantity::text as counted_quantity,counted_by::text as counted_by from public.stock_count_lines where id=$1::uuid",
+    [staffLines[0].id]
+  );
+  assert.deepEqual(unchangedBLine[0],{counted_quantity:null,counted_by:null},
+    "the denied warehouse B row write must leave the snapshot line unchanged");
+  const warehouseBCountsAfterDeniedWrites=await db.unsafe(
+    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+    [org]
+  );
+  assert.deepEqual(warehouseBCountsAfterDeniedWrites[0],warehouseBCountsBeforeDeniedWrites[0],
+    "denied warehouse B RPC/trigger writes must leave count-session and count-line row counts unchanged");
+  // A manager assigned to warehouse A must not review/finalize a B-session.
+  const warehouseBFinalizeBefore=await db.unsafe(
+    "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  const warehouseBMovementsBefore=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  const warehouseBAuditBefore=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [staffSession.id]
+  );
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.complete_stock_count($1::uuid)",[staffSession.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "the actual stock-count completion RPC must deny a reviewer assigned only to warehouse A from warehouse B"
+  );
+  const warehouseBFinalizeAfter=await db.unsafe(
+    "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(warehouseBFinalizeAfter[0],warehouseBFinalizeBefore[0],
+    "cross-warehouse completion denial must preserve the B session state");
+  const warehouseBMovementsAfter=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  const warehouseBAuditAfter=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [staffSession.id]
+  );
+  assert.deepEqual(warehouseBMovementsAfter[0],warehouseBMovementsBefore[0],
+    "cross-warehouse completion denial must not post inventory movements");
+  assert.deepEqual(warehouseBAuditAfter[0],warehouseBAuditBefore[0],
+    "cross-warehouse completion denial must not add a completion audit");
+
+  // Cancellation has its own warehouse capability. A manager assigned only
+  // to warehouse A must not cancel a real open session in warehouse B, and the
+  // denial must leave the open session, cancellation audit and stock ledger unchanged.
+  const cancellationBeforeDeniedAttempt=await db.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(cancellationBeforeDeniedAttempt[0],{
+    status:"open",cancelled_by:null,cancellation_reason:null
+  },"the B-session must still be open before the independent cancellation denial proof");
+  const cancellationAuditBeforeDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [org,staffSession.id]
+  );
+  const cancellationMovementsBeforeDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.cancel_stock_count($1::uuid,$2::text)",
+      [staffSession.id,"Rejected cross-warehouse cancellation"]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "a manager assigned only to warehouse A must be denied cancellation of a warehouse B session"
+  );
+  const cancellationAfterDeniedAttempt=await db.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(cancellationAfterDeniedAttempt[0],cancellationBeforeDeniedAttempt[0],
+    "cross-warehouse cancellation denial must preserve the immutable session state");
+  const cancellationAuditAfterDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [org,staffSession.id]
+  );
+  assert.deepEqual(cancellationAuditAfterDeniedAttempt[0],cancellationAuditBeforeDeniedAttempt[0],
+    "cross-warehouse cancellation denial must not append a cancellation audit");
+  const cancellationMovementsAfterDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(cancellationMovementsAfterDeniedAttempt[0],cancellationMovementsBeforeDeniedAttempt[0],
+    "cross-warehouse cancellation denial must not move stock");
+
+  // A stock-count snapshot is immutable history. Close the isolated fixture
+  // through the real authorized cancellation RPC instead of deleting its
+  // session/lines and violating the append-only history boundary.
+  // First prove the manager without B assignment was denied above. The admin
+  // now grants only a temporary B assignment to that manager so the same real
+  // cancellation RPC can close the immutable fixture, then revokes that grant.
+  await ensureWarehouseAssignment(manager,unassignedWarehouse,
+    "Temporary P2 fixture scope for testing authorized stock-count cancellation");
+  const cancellationRows=await withActor(db,manager,tx=>tx.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text) as result",
+    [staffSession.id,"Accepted isolated P2 cross-warehouse fixture cleanup"]
+  ));
+  const cancellationResult=typeof cancellationRows[0].result==="string"
+    ? JSON.parse(cancellationRows[0].result) : cancellationRows[0].result;
+  assert.equal(cancellationResult.status,"cancelled",
+    "the manager with an explicit warehouse assignment must close the snapshot through the real cancellation RPC");
+  const cancelledFixture=await db.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(cancelledFixture[0],{
+    status:"cancelled",cancelled_by:manager.profile_id,
+    cancellation_reason:"Accepted isolated P2 cross-warehouse fixture cleanup"
+  },"cancellation must preserve a permanent, attributed session history");
+  const retainedFixtureLines=await db.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines where session_id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.equal(retainedFixtureLines[0].count,staffLines.length,
+    "cancelling a stock count must retain its immutable snapshot lines");
+  const cancellationAudits=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [org,staffSession.id]
+  );
+  assert.equal(cancellationAudits[0].count,1,
+    "the authorized cancellation must write exactly one audit event");
+  const cancellationMovements=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.equal(cancellationMovements[0].count,0,
+    "cancelling an unfinished draft must not create stock movements");
+  const managerWarehouseScope=await db.unsafe(
+    "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+    "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid and is_active=true",
+    [org,manager.profile_id,unassignedWarehouse]
+  );
+  assert.equal(managerWarehouseScope.length,1,
+    "the temporary manager B assignment must exist only for the authorized cancellation proof");
+  const revokedManagerScope=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer) as result",
+    [manager.profile_id,unassignedWarehouse,"Revoke temporary P2 cancellation fixture assignment",
+      Number(managerWarehouseScope[0].revision)]
+  ));
+  const revokedManagerScopeResult=typeof revokedManagerScope[0].result==="string"
+    ? JSON.parse(revokedManagerScope[0].result) : revokedManagerScope[0].result;
+  assert.equal(revokedManagerScopeResult.changed,true);
+  assert.equal(revokedManagerScopeResult.is_active,false,
+    "the temporary cancellation scope must be revoked after the acceptance proof");
+
+  await assert.rejects(
+    ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
+      "update public.stock_count_sessions set status='completed' where id=$1::uuid returning id",
+      [managerSession.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "the maker must not finalize their own stock-count session"
+  );
+  const unchangedSession=await db.unsafe(
+    "select status from public.stock_count_sessions where id=$1::uuid",
+    [managerSession.id]
+  );
+  assert.equal(unchangedSession[0]?.status,"open",
+    "a rejected maker finalization must leave the stock-count session open");
+
+  // Fill every count line as the maker, then prove the actual completion RPC
+  // rejects that maker before inventory or audit writes.
+  for(const line of managerLines.slice(1)) {
+    const lineWrite=await withActor(db,manager,tx=>tx.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
+      [managerSession.id,line.product_id,line.expected_quantity]
+    ));
+    const lineResult=typeof lineWrite[0].result==="string"?JSON.parse(lineWrite[0].result):lineWrite[0].result;
+    assert.equal(lineResult.counted_by,manager.profile_id,
+      "every stock-count quantity must be attributed to its maker");
+  }
+  const completedDraftLines=await db.unsafe(
+    "select count(*)::integer as total,count(*) filter(where counted_quantity is not null)::integer as counted,"+
+    "count(*) filter(where counted_by=$2::uuid)::integer as maker_lines "+
+    "from public.stock_count_lines where session_id=$1::uuid",
+    [managerSession.id,manager.profile_id]
+  );
+  assert.equal(completedDraftLines[0].counted,completedDraftLines[0].total);
+  assert.equal(completedDraftLines[0].maker_lines,completedDraftLines[0].total,
+    "all snapshot quantities must be entered by the same maker before review");
+
+  const makerMovementBefore=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [managerSession.id]
+  );
+  const makerAuditBefore=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [managerSession.id]
+  );
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.complete_stock_count($1::uuid)",[managerSession.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "complete_stock_count must deny the maker even when every line is counted"
+  );
+  const afterMakerRpcDenied=await db.unsafe(
+    "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+    [managerSession.id]
+  );
+  assert.deepEqual(afterMakerRpcDenied[0],{status:"open",completed_by:null},
+    "maker RPC denial must keep the session open and without a completing actor");
+  const makerMovementAfter=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [managerSession.id]
+  );
+  const makerAuditAfter=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [managerSession.id]
+  );
+  assert.deepEqual(makerMovementAfter[0],makerMovementBefore[0],
+    "denied maker completion must not write inventory movements");
+  assert.deepEqual(makerAuditAfter[0],makerAuditBefore[0],
+    "denied maker completion must not write a completion audit");
+
+  // Provision the independent reviewer scope only inside this disposable local
+  // PostgreSQL acceptance database; record the fixture's authority change.
+  const reviewerScopeRows=await db.unsafe(
+    "select id::text,is_active from public.authorization_profile_scopes "+
+    "where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+    [org,admin.profile_id,targetWarehouse]
+  );
+  assert.ok(reviewerScopeRows.length<=1,"admin reviewer must have at most one warehouse A scope");
+  if(reviewerScopeRows.length===1) {
+    assert.equal(reviewerScopeRows[0].is_active,true,
+      "any existing admin warehouse reviewer assignment must be active in the isolated fixture");
+  } else {
+    const reviewerScopeId=randomUUID();
+    await withActorAsServiceRole(db,admin,tx=>tx.unsafe(
+      "insert into public.authorization_profile_scopes("+
+      "id,organization_id,profile_id,scope_kind,warehouse_id,customer_id,reason,is_active,"+
+      "valid_from,expires_at,revision,created_by,updated_by) "+
+      "values($1::uuid,$2::uuid,$3::uuid,'warehouse',$4::uuid,NULL,$5::text,true,"+
+      "statement_timestamp(),NULL,1,$3::uuid,$3::uuid) returning id",
+      [reviewerScopeId,org,admin.profile_id,targetWarehouse,
+       "P2 isolated independent reviewer assignment for stock-count acceptance"]
+    ));
+    await withActorAsServiceRole(db,admin,tx=>tx.unsafe(
+      "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) "+
+      "values($1::uuid,$2::uuid,'authorization.scope.assignment.fixture','authorization_profile_scope',$3::uuid,"+
+      "'{}'::jsonb,jsonb_build_object('warehouse_id',$4::uuid,'is_active',true))",
+      [org,admin.profile_id,reviewerScopeId,targetWarehouse]
+    ));
+  }
+  const adminFinalizeDecision=await resourceDecision(db,admin,"inventory.count.finalize",targetWarehouse);
+  assert.equal(adminFinalizeDecision.decision,"REQUIRES_APPROVAL",
+    "the independent admin must hold an active warehouse-scoped maker-checker grant");
+  assert.equal(adminFinalizeDecision.separation_of_duties,true);
+
+  const inventoryBeforeReview=await db.unsafe(
+    "select ib.product_id::text,ib.quantity_on_hand::text,ib.quantity_reserved::text "+
+    "from public.inventory_balances ib where ib.warehouse_id=$1::uuid "+
+    "and ib.product_id in (select product_id from public.stock_count_lines where session_id=$2::uuid) "+
+    "order by ib.product_id",
+    [targetWarehouse,managerSession.id]
+  );
+  const reviewRows=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.complete_stock_count($1::uuid) as result",[managerSession.id]
+  ));
+  const reviewResult=typeof reviewRows[0].result==="string"?JSON.parse(reviewRows[0].result):reviewRows[0].result;
+  assert.equal(reviewResult.status,"completed",
+    "an independent assigned admin must complete the manager's count through the real RPC");
+  assert.equal(reviewResult.session_id,managerSession.id);
+  const completedSession=await db.unsafe(
+    "select status,completed_by::text,started_by::text,counted_lines,total_lines "+
+    "from public.stock_count_sessions where id=$1::uuid",[managerSession.id]
+  );
+  assert.deepEqual(completedSession[0],{
+    status:"completed",completed_by:admin.profile_id,started_by:manager.profile_id,
+    counted_lines:completedDraftLines[0].total,total_lines:completedDraftLines[0].total
+  },"the independent reviewer must finalize the fully counted snapshot");
+
+  const stockCountMovements=await db.unsafe(
+    "select id::text,product_id::text,quantity::text,balance_after::text from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid and movement_type='stock_count_adjustment' order by product_id",
+    [managerSession.id]
+  );
+  assert.equal(stockCountMovements.length,reviewResult.adjusted_lines,
+    "accepted completion must equal the number of persisted stock-adjustment movements");
+  assert.ok(stockCountMovements.length>0,
+    "the counted variance must produce a real append-only stock-adjustment movement");
+  const inventoryAfterReview=await db.unsafe(
+    "select ib.product_id::text,ib.quantity_on_hand::text,ib.quantity_reserved::text "+
+    "from public.inventory_balances ib where ib.warehouse_id=$1::uuid "+
+    "and ib.product_id in (select product_id from public.stock_count_lines where session_id=$2::uuid) "+
+    "order by ib.product_id",
+    [targetWarehouse,managerSession.id]
+  );
+  assert.notDeepEqual(inventoryAfterReview,inventoryBeforeReview,
+    "independent finalization must update the source inventory balances");
+  const completionAudit=await db.unsafe(
+    "select actor_id::text,action from public.audit_logs where organization_id=$1::uuid "+
+    "and entity_type='stock_count_session' and entity_id=$2::uuid "+
+    "and action='inventory.stock_count.completed'",
+    [org,managerSession.id]
+  );
+  assert.deepEqual([...completionAudit],[{actor_id:admin.profile_id,action:"inventory.stock_count.completed"}],
+    "one completion audit must identify the independent reviewer");
+
+  // P2 acceptance: approval-gated pricing proposals and guarded manager edit path.
+ 
+  // P2 acceptance: database-side product pagination and field-level price projection.
+  const adminPageIds=Array.from({length:4},()=>randomUUID());
+  const adminPagePrefix="P2-ADMIN-PAGE-"+process.pid+"-"+Date.now();
+  const pageFixtures=[
+    ["P2 Admin Page Fixture 001",adminPagePrefix+"-001","active"],
+    ["P2 Admin Page Fixture 002",adminPagePrefix+"-002","active"],
+    ["P2 Admin Page Fixture 003",adminPagePrefix+"-003","active"],
+    ["P2 Admin Page Fixture 004",adminPagePrefix+"-004","inactive"],
+  ];
+  try {
+    for(let index=0;index<pageFixtures.length;index+=1) {
+      const fixture=pageFixtures[index];
+      await db.unsafe(
+        "insert into public.products(id,organization_id,category_id,name,item_code,barcode,description,unit,base_price,cost_price,min_stock,status) "+
+        "values($1::uuid,$2::uuid,NULL,$3::text,$4::text,NULL,$5::text,'carton',38500,19000,0,$6::text)",
+        [adminPageIds[index],org,fixture[0],fixture[1],"P2 isolated SQL pagination fixture",fixture[2]]
+      );
+    }
+    const readAdminProductPage=async(actor,page,activeOnly=false)=> {
+      const rows=await withActor(db,actor,tx=>tx.unsafe(
+        "select public.get_admin_products_page($1::integer,$2::integer,$3::text,$4::boolean,NULL::uuid) as page",
+        [page,2,adminPagePrefix,activeOnly]
+      ));
+      const payload=typeof rows[0]?.page==="string"?JSON.parse(rows[0].page):rows[0]?.page;
+      assert.ok(payload&&typeof payload==="object"&&!Array.isArray(payload),"admin product page RPC must return a JSON page envelope");
+      assert.equal(payload.page,page);
+      assert.equal(payload.page_size,2);
+      assert.ok(Array.isArray(payload.items));
+      assert.ok(payload.items.length<=2,"PostgreSQL must return no more than the requested page size");
+      assert.equal(typeof payload.has_next_page,"boolean");
+      return payload;
+    };
+    const managerPageOne=await readAdminProductPage(manager,1,false);
+    const managerPageTwo=await readAdminProductPage(manager,2,false);
+    assert.equal(managerPageOne.items.length,2);
+    assert.equal(managerPageOne.has_next_page,true,"four matching rows must expose a second page");
+    assert.equal(managerPageTwo.items.length,2);
+    assert.equal(managerPageTwo.has_next_page,false);
+    const managerActivePage=await readAdminProductPage(manager,1,true);
+    assert.equal(managerActivePage.items.length,2);
+    assert.equal(managerActivePage.has_next_page,true,"active filtering must run before pagination");
+    for(const row of [...managerPageOne.items,...managerPageTwo.items]) {
+      assert.equal(Object.hasOwn(row,"base_price"),true,"authorized manager JSON must include permitted base_price");
+      assert.equal(Object.hasOwn(row,"cost_price"),false,"page RPC must not include product cost");
+      assert.equal(Object.hasOwn(row,"margin"),false,"page RPC must not include margins");
+    }
+    const staffPage=await readAdminProductPage(staff,1,false);
+    assert.equal(staffPage.items.length,2);
+    for(const row of staffPage.items) {
+      assert.equal(Object.hasOwn(row,"base_price"),false,"staff JSON must omit the base-price key completely");
+      assert.equal(Object.hasOwn(row,"cost_price"),false);
+      assert.equal(Object.hasOwn(row,"margin"),false);
+    }
+    await assert.rejects(
+      ()=>withActor(db,accountant,tx=>tx.unsafe(
+        "select public.get_admin_products_page(1,2,$1::text,false,NULL::uuid)",[adminPagePrefix]
+      )),
+      error=>error&&String(error.code)==="42501",
+      "accountant without storefront-staff role must not read product administration pages"
+    );
+  } finally {
+    await db.unsafe(
+      "delete from public.products where id=any($1::uuid[]) and organization_id=$2::uuid",
+      [adminPageIds,org]
+    );
+  }
   const pricingInsertSql =
     "insert into public.pricing_rules("+
     "organization_id,name,scope_type,scope_value,base_type,base_source,adjustment_type,"+
@@ -383,7 +1603,12 @@ async function main() {
   for(const [actor,sql] of deniedCommands) {
    await assert.rejects(
     ()=>withActor(db,actor,tx=>tx.unsafe(sql)),
-    error=>error&&String(error.code)==="42501",
+    error=>{
+      assert.equal(String(error?.code),"42501",
+        "unauthorized "+actor.roles.join(",")+" RPC must fail closed before payload validation; SQL: "+sql+
+        "; actual SQLSTATE: "+String(error?.code)+"; message: "+String(error?.message));
+      return true;
+    },
     "the V2 command capability must reject unauthorized RPC execution before validating payload or writing"
    );
   }
@@ -398,11 +1623,21 @@ async function main() {
    [manager.profile_id]));
   const listedDenials=typeof denialList[0].denials==="string"?JSON.parse(denialList[0].denials):denialList[0].denials;
   assert.ok(Array.isArray(listedDenials));
-  assert.equal(listedDenials.length,1);
-  assert.equal(listedDenials[0].denial_id,deny[0].result.denial_id);
-  assert.equal(listedDenials[0].capability_key,"pricing.edit_draft");
-  assert.equal(listedDenials[0].is_active,true);
-  assert.equal(listedDenials[0].reason,"Temporary authorization acceptance denial");
+  assert.equal(
+    new Set(listedDenials.map((entry)=>entry.denial_id)).size,
+    listedDenials.length,
+    "the denial-history RPC must return each persisted denial exactly once"
+  );
+  const listedTargetDenials=listedDenials.filter((entry)=>entry.denial_id===deny[0].result.denial_id);
+  assert.equal(listedTargetDenials.length,1,"the newly activated pricing denial must appear exactly once in the full history");
+  const listedTargetDenial=listedTargetDenials[0];
+  assert.equal(listedTargetDenial.capability_key,"pricing.edit_draft");
+  assert.equal(listedTargetDenial.is_active,true);
+  assert.equal(listedTargetDenial.reason,"Temporary authorization acceptance denial");
+  assert.ok(
+    listedDenials.some((entry)=>entry.capability_key==="inventory.balance.adjust"&&entry.is_active===true),
+    "the manager's independent stock-adjustment denial from the local count fixture must remain visible and active"
+  );
   await assert.rejects(
    ()=>withActor(db,manager,tx=>tx.unsafe(
     "select public.list_authorization_profile_denials($1::uuid)",
@@ -411,10 +1646,10 @@ async function main() {
    "non-admin members cannot inspect private explicit denial history"
   );
   const before=await db.unsafe("select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='authorization.capability.explicit_deny.changed' and entity_id=$2::uuid",[org,deny[0].result.denial_id]);
-  const replay=await withActor(db,admin,tx=>tx.unsafe(
+  const denialReplay =await withActor(db,admin,tx=>tx.unsafe(
    "select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',$2::text,NULL::timestamptz,true) as result",
    [manager.profile_id,"Temporary authorization acceptance denial"]));
-  assert.equal(replay[0].result.changed,false,"same deny replay must be idempotent");
+  assert.equal(denialReplay[0].result.changed,false,"same deny replay must be idempotent");
   const after=await db.unsafe("select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='authorization.capability.explicit_deny.changed' and entity_id=$2::uuid",[org,deny[0].result.denial_id]);
   assert.equal(after[0].count,before[0].count,"idempotent replay must not duplicate audit");
   await withActor(db,admin,tx=>tx.unsafe("select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',NULL,NULL::timestamptz,false)",[manager.profile_id]));
@@ -423,7 +1658,13 @@ async function main() {
    "select public.list_authorization_profile_denials($1::uuid) as denials",
    [manager.profile_id]));
   const revokedDenials=typeof revokedList[0].denials==="string"?JSON.parse(revokedList[0].denials):revokedList[0].denials;
-  assert.equal(revokedDenials[0].is_active,false,"revocation must remain visible in denial history");
+  const revokedTargetDenials=revokedDenials.filter((entry)=>entry.denial_id===deny[0].result.denial_id);
+  assert.equal(revokedTargetDenials.length,1,"revoked pricing denial must remain exactly once in denial history");
+  assert.equal(revokedTargetDenials[0].is_active,false,"revocation must remain visible in denial history");
+  assert.ok(
+    revokedDenials.some((entry)=>entry.capability_key==="inventory.balance.adjust"&&entry.is_active===true),
+    "revoking pricing edits must not revoke the independent stock-adjustment denial"
+  );
 
   await assert.rejects(
    ()=>withActor(db,admin,tx=>tx.unsafe(
@@ -502,6 +1743,28 @@ async function main() {
     "authenticated clients must not query the internal authorization tables"
    );
   }
+  const decisionLearningRpcPrivileges=await db.unsafe(
+   "select "+
+   "has_function_privilege('authenticated','public.create_decision_policy_learning_candidate(uuid[],text)'::regprocedure,'EXECUTE') as create_authenticated, "+
+   "has_function_privilege('authenticated','public.command_decision_policy_learning_candidate(uuid,text,text,integer,text,text)'::regprocedure,'EXECUTE') as command_authenticated, "+
+   "has_function_privilege('authenticated','public.fetch_decision_policy_learning_candidates(integer,integer)'::regprocedure,'EXECUTE') as fetch_authenticated, "+
+   "has_function_privilege('anon','public.create_decision_policy_learning_candidate(uuid[],text)'::regprocedure,'EXECUTE') as create_anon, "+
+   "has_function_privilege('anon','public.command_decision_policy_learning_candidate(uuid,text,text,integer,text,text)'::regprocedure,'EXECUTE') as command_anon, "+
+   "has_function_privilege('anon','public.fetch_decision_policy_learning_candidates(integer,integer)'::regprocedure,'EXECUTE') as fetch_anon"
+  );
+  assert.equal(decisionLearningRpcPrivileges[0].create_authenticated,true,
+   "authenticated finance actors must use the guarded decision-learning create RPC");
+  assert.equal(decisionLearningRpcPrivileges[0].command_authenticated,true,
+   "authenticated finance actors must use the guarded decision-learning command RPC");
+  assert.equal(decisionLearningRpcPrivileges[0].fetch_authenticated,true,
+   "authenticated finance actors must use the tenant-scoped decision-learning read RPC");
+  assert.equal(decisionLearningRpcPrivileges[0].create_anon,false,
+   "anonymous callers must not create decision-learning candidates");
+  assert.equal(decisionLearningRpcPrivileges[0].command_anon,false,
+   "anonymous callers must not mutate decision-learning candidates");
+  assert.equal(decisionLearningRpcPrivileges[0].fetch_anon,false,
+   "anonymous callers must not read decision-learning candidates");
+
   await db.unsafe("delete from auth.sessions where id=$1::uuid and user_id=$2::uuid",[manager.jwtClaims.session_id,manager.auth_user_id]);
   assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"DENY",
    "revoking auth.sessions must deny the next decision even when the same signed JWT is presented");

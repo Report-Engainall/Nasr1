@@ -1,16 +1,22 @@
 import { normalizeCartDraft, type CartLineDraft } from '@/lib/commerce-utils';
 
 export const GUEST_CART_STORAGE_KEY = 'aghbari:cart:v2:guest';
+const AUTH_USER_CART_STORAGE_PREFIX = 'aghbari:cart:v2:auth-user:';
 const LEGACY_CART_STORAGE_KEY = 'aghbari:cart:v1';
 const LEGACY_CART_RESTORE_KEY = 'aghbari:cart-restore:v1';
 
 export type OfflineCartStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
-/** A cart draft is customer-scoped; local storage never holds authoritative prices or order totals. */
-export function offlineCartStorageKey(profileId?: string | null): string {
-  const profile = profileId?.trim();
-  return profile
-    ? `aghbari:cart:v2:customer:${encodeURIComponent(profile)}`
+const PROFILE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A cart draft is identity-scoped; local storage never holds authoritative prices or order totals. */
+export function offlineCartStorageKey(profileId?: string | null, authUserId?: string | null): string {
+  const profile = typeof profileId === 'string' ? profileId.trim() : '';
+  if (PROFILE_ID_PATTERN.test(profile)) return `aghbari:cart:v2:customer:${encodeURIComponent(profile)}`;
+
+  const authUser = authUserId?.trim();
+  return authUser
+    ? `${AUTH_USER_CART_STORAGE_PREFIX}${encodeURIComponent(authUser)}`
     : GUEST_CART_STORAGE_KEY;
 }
 
@@ -50,18 +56,28 @@ function writeQuietly(storage: OfflineCartStorage, key: string, lines: CartLineD
  * Load a local cart draft for the current customer.
  *
  * Older builds used one global key. It is only migrated to the anonymous guest scope,
- * never straight into an authenticated profile. When a user signs in, a guest draft may
- * be claimed once if that profile has no saved cart. A draft belonging to another profile
- * is never read or merged.
+ * never directly into an authenticated identity. Only a user with a valid profile mapping
+ * may claim the guest draft once; authenticated users without a mapped profile read only
+ * their own auth-user key. A draft belonging to another profile is never read or merged.
  */
-export function loadOfflineCartDraft(storage: OfflineCartStorage, profileId?: string | null): CartLineDraft[] {
-  const key = offlineCartStorageKey(profileId);
-  const isGuest = !profileId?.trim();
+export function loadOfflineCartDraft(
+  storage: OfflineCartStorage,
+  profileId?: string | null,
+  authUserId?: string | null,
+): CartLineDraft[] {
+  const key = offlineCartStorageKey(profileId, authUserId);
+  const normalizedProfileId = typeof profileId === 'string' ? profileId.trim() : '';
+  const hasProfile = PROFILE_ID_PATTERN.test(normalizedProfileId);
+  const isGuest = !hasProfile && !authUserId?.trim();
 
   let currentRaw: string | null;
   try { currentRaw = storage.getItem(key); } catch { return []; }
 
   if (!isGuest) {
+    // An authenticated identity without a profile mapping must not read or claim
+    // the anonymous cart (nor consume its unscoped legacy restore queue).
+    if (!hasProfile) return parseDraft(currentRaw);
+
     // Retire unscoped legacy data rather than accidentally associate it with this customer.
     removeQuietly(storage, LEGACY_CART_STORAGE_KEY);
     removeQuietly(storage, LEGACY_CART_RESTORE_KEY);
@@ -78,7 +94,8 @@ export function loadOfflineCartDraft(storage: OfflineCartStorage, profileId?: st
       removeQuietly(storage, GUEST_CART_STORAGE_KEY);
       return [];
     }
-    // Do not remove the guest copy until the scoped copy has been written successfully.
+    // A mapped customer may claim a guest cart once; do not remove it until
+    // the profile-scoped copy has been written successfully.
     if (writeQuietly(storage, key, guestDraft)) removeQuietly(storage, GUEST_CART_STORAGE_KEY);
     return guestDraft;
   }
@@ -108,10 +125,11 @@ export function saveOfflineCartDraft(
   storage: OfflineCartStorage,
   profileId: string | null | undefined,
   lines: unknown,
+  authUserId?: string | null,
 ): boolean {
   const normalized = normalizeCartDraft(lines);
   try {
-    storage.setItem(offlineCartStorageKey(profileId), JSON.stringify(normalized));
+    storage.setItem(offlineCartStorageKey(profileId, authUserId), JSON.stringify(normalized));
     return true;
   } catch {
     // Offline persistence is best-effort; server validation remains mandatory for checkout.
@@ -124,8 +142,9 @@ export function mergeOfflineCartDraft(
   storage: OfflineCartStorage,
   profileId: string | null | undefined,
   additions: unknown,
+  authUserId?: string | null,
 ): CartLineDraft[] | null {
-  const existing = loadOfflineCartDraft(storage, profileId);
+  const existing = loadOfflineCartDraft(storage, profileId, authUserId);
   const merged = mergeDrafts(existing, normalizeCartDraft(additions));
-  return saveOfflineCartDraft(storage, profileId, merged) ? merged : null;
+  return saveOfflineCartDraft(storage, profileId, merged, authUserId) ? merged : null;
 }

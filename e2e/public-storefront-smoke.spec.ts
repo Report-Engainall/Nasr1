@@ -58,6 +58,25 @@ async function routeAdvancedSearchFixture(
     });
     return;
   }
+  if (pathname === "/rest/v1/rpc/get_storefront_catalog_page" && request.method() === "POST") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers,
+      body: JSON.stringify({
+        page: 1,
+        page_size: 1,
+        total_count: 0,
+        total_pages: 0,
+        filters: {
+          brands: [{ id: "a1000000-0000-4000-8000-000000000777", name: "علامة اختبار", name_en: "Test Brand" }],
+          units: ["كيس", "كرتون"],
+        },
+        items: [],
+      }),
+    });
+    return;
+  }
   await route.abort("blockedbyclient");
 }
 
@@ -90,6 +109,106 @@ test("public storefront and login routes render without external backend writes"
 
   expect(pageErrors, "The public storefront routes must not throw uncaught browser errors.").toEqual([]);
 });
+
+test("the storefront header cart button opens the real cart route", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  await page.goto("/");
+  await expect(page.locator(".sf-header")).toBeVisible({ timeout: 30_000 });
+  await page.locator(".sf-cart-btn").click();
+  await expect(page).toHaveURL(/\/cart$/);
+  await expect(page.getByRole("heading", { name: "سلة المشتريات", exact: true })).toBeVisible();
+  expect(pageErrors, "Opening the cart must not produce uncaught browser errors.").toEqual([]);
+});
+
+test("the cart restores its own products and exposes quantity controls without loading the full catalogue", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const requestedRpcs: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  const productId = "a1000000-0000-4000-8000-000000000071";
+  await page.addInitScript(({ cartKey, id }) => {
+    window.localStorage.setItem(cartKey, JSON.stringify([{ product_id: id, quantity: 4 }]));
+  }, { cartKey: "aghbari:cart:v2:guest", id: productId });
+
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+  };
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 200, headers });
+      return;
+    }
+    const rpcName = url.pathname.split("/").pop() ?? "";
+    requestedRpcs.push(rpcName);
+    const payloads: Record<string, unknown> = {
+      get_public_storefront_categories: [],
+      get_public_storefront_settings: { show_price_in_cart: false },
+      get_storefront_promotions: [],
+      get_storefront_announcements: [],
+      get_storefront_cart_product_details: {
+        items: [{
+          id: productId,
+          category_id: null,
+          brand_id: null,
+          name: "أرز بسمتي",
+          name_en: null,
+          item_code: "RICE-CART-071",
+          sku: null,
+          barcode: null,
+          unit: "كيس",
+          description: null,
+          image_url: null,
+          is_active: true,
+          is_featured: false,
+          sort_order: 0,
+          min_order_quantity: 2,
+          order_quantity_multiple: 2,
+          status: "active",
+          created_at: "2026-11-17T00:00:00Z",
+          display_price: null,
+          inventory: { product_id: productId, quantity_available: 12 },
+        }],
+      },
+    };
+    if (!(rpcName in payloads)) {
+      await route.fulfill({ status: 500, contentType: "application/json", headers, body: JSON.stringify({ message: "Unexpected storefront RPC: " + rpcName }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers,
+      body: JSON.stringify(payloads[rpcName]),
+    });
+  });
+
+  await page.goto("/cart");
+  await expect(page.getByRole("heading", { name: "سلة المشتريات", exact: true })).toBeVisible();
+  await expect(page.getByText("أرز بسمتي", { exact: true })).toBeVisible();
+  const quantity = page.getByRole("textbox", { name: "كمية أرز بسمتي" });
+  await expect(quantity).toHaveValue("4");
+
+  await page.getByRole("button", { name: "زيادة كمية أرز بسمتي" }).click();
+  await expect(quantity).toHaveValue("6");
+  await quantity.fill("٨");
+  await quantity.press("Enter");
+  await expect(quantity).toHaveValue("8");
+
+  expect(requestedRpcs).toContain("get_storefront_cart_product_details");
+  expect(requestedRpcs).not.toContain("get_storefront_catalog_page");
+  expect(requestedRpcs).not.toContain("get_storefront_product_prices");
+  expect(pageErrors, "Restoring and editing the cart must not produce uncaught browser errors.").toEqual([]);
+});
+
 
 test("subcategory deep link renders the child category screen", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -155,7 +274,14 @@ test("subcategory deep link renders the child category screen", async ({ page })
         status: 200,
         contentType: "application/json",
         headers,
-        body: JSON.stringify({ page: 1, page_size: 24, total_count: 0, total_pages: 0, items: [] }),
+        body: JSON.stringify({
+          page: 1,
+          page_size: 24,
+          total_count: 0,
+          total_pages: 0,
+          filters: { brands: [], units: [] },
+          items: [],
+        }),
       });
       return;
     }
@@ -252,6 +378,10 @@ test("advanced search recovers from a category-source failure", async ({ page })
     .filter({ hasText: "تعذر تحميل التصنيفات:" });
   await expect(categoryError).toBeVisible();
   await expect(categorySelect).toBeDisabled();
+  await expect(page.locator("#advanced-storefront-brand")).toBeEnabled();
+  await expect(page.locator("#advanced-storefront-brand").getByRole("option", { name: "علامة اختبار", exact: true })).toHaveCount(1);
+  await expect(page.locator("#advanced-storefront-unit").getByRole("option", { name: "كرتون", exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("إظهار المنتجات التي تسمح سياسة المتجر بعرض أسعارها فقط")).toBeVisible();
   // Prove the category endpoint itself was hit for all automatic transient retries.
   expect(fixtureState.categoryReads).toBeGreaterThanOrEqual(3);
 
@@ -261,6 +391,121 @@ test("advanced search recovers from a category-source failure", async ({ page })
   await expect(categoryError).toHaveCount(0);
 
   expect(fixtureState.categoryReads).toBeGreaterThanOrEqual(4);
+  expect(pageErrors).toEqual([]);
+});
+
+test("advanced search sends brand, sale-unit and price-display filters to server catalog", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const brandId = "a1000000-0000-4000-8000-000000000777";
+  const catalogCalls: Array<Record<string, unknown>> = [];
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+  };
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const rpcName = url.pathname.split("/").pop() ?? "";
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 200, headers });
+      return;
+    }
+    if (rpcName === "get_public_storefront_context") {
+      await route.fulfill({
+        status: 200, contentType: "application/json", headers,
+        body: JSON.stringify({ organization_id: organizationId, warehouse_id: null }),
+      });
+      return;
+    }
+    if (rpcName === "get_public_storefront_categories") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers, body: "[]" });
+      return;
+    }
+    if (rpcName === "get_storefront_catalog_page" && request.method() === "POST") {
+      const catalogRequest = request.postDataJSON() as { p_page?: unknown; p_page_size?: unknown };
+      catalogCalls.push(catalogRequest as Record<string, unknown>);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          page: typeof catalogRequest.p_page === "number" ? catalogRequest.p_page : 1,
+          page_size: typeof catalogRequest.p_page_size === "number" ? catalogRequest.p_page_size : 24,
+          total_count: 0,
+          total_pages: 0,
+          filters: {
+            brands: [{ id: brandId, name: "علامة اختبار", name_en: "Test Brand" }],
+            units: ["كيس", "كرتون"],
+          },
+          items: [],
+        }),
+      });
+      return;
+    }
+    if (rpcName === "get_public_storefront_settings") {
+      await route.fulfill({
+        status: 200, contentType: "application/json", headers,
+        body: JSON.stringify({ show_price_on_cards: false, show_price_in_cart: false, show_price_in_orders: false }),
+      });
+      return;
+    }
+    if (rpcName === "get_storefront_announcements" || rpcName === "get_storefront_promotions") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers, body: "[]" });
+      return;
+    }
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        headers: { ...headers, "content-range": "0-0/*" }, body: "[]",
+      });
+      return;
+    }
+    await route.abort("blockedbyclient");
+  });
+
+  await page.goto("/search/advanced");
+  await expect(page.getByRole("heading", { name: "البحث المتقدم", exact: true })).toBeVisible();
+  const brand = page.locator("#advanced-storefront-brand");
+  const unit = page.locator("#advanced-storefront-unit");
+  await expect(brand).toBeEnabled();
+  await expect(unit).toBeEnabled();
+  await brand.selectOption(brandId);
+  await unit.selectOption("كرتون");
+  await page.getByLabel("إظهار المنتجات التي تسمح سياسة المتجر بعرض أسعارها فقط").check();
+  await page.getByRole("button", { name: "عرض النتائج" }).click();
+
+  await expect(page).toHaveURL(/\/catalog(?:\?|$)/);
+  await expect.poll(() => catalogCalls.some((call) =>
+    call.p_brand_id === brandId &&
+    call.p_unit === "كرتون" &&
+    call.p_price_displayable_only === true
+  )).toBe(true);
+
+  // The predictive header search must preserve the active advanced-search filters.
+  const headerSearch = page.getByRole("combobox", { name: "ابحث عن منتج", exact: true }).first();
+  await expect(headerSearch).toBeVisible();
+  await headerSearch.fill("رز");
+  await headerSearch.press("Enter");
+  await expect.poll(() => {
+    const params = new URL(page.url()).searchParams;
+    return [
+      params.get("brand"),
+      params.get("unit"),
+      params.get("priced"),
+      params.get("q"),
+    ];
+  }).toEqual([brandId, "كرتون", '"1"', "رز"]);
+  await expect.poll(() => catalogCalls.some((call) =>
+    call.p_search === "رز" &&
+    call.p_brand_id === brandId &&
+    call.p_unit === "كرتون" &&
+    call.p_price_displayable_only === true
+  )).toBe(true);
+
   expect(pageErrors).toEqual([]);
 });
 
@@ -331,6 +576,39 @@ test("cart and checkout ignore browser-stored money without an authorized server
         contentType: "application/json",
         headers,
         body: JSON.stringify({ organization_id: organizationId, warehouse_id: null }),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/get_storefront_cart_product_details") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          items: [{
+            id: productId,
+            category_id: null,
+            brand_id: null,
+            name: "أرز اختبار",
+            name_en: null,
+            item_code: "SKU-001",
+            sku: null,
+            barcode: null,
+            unit: "كرتون",
+            description: "اختبار إخفاء مبالغ التخزين المحلي",
+            image_url: null,
+            is_active: true,
+            is_featured: false,
+            sort_order: 1,
+            status: "active",
+            created_at: "2026-01-01T00:00:00Z",
+            display_price: null,
+            min_order_quantity: 1,
+            order_quantity_multiple: 1,
+            inventory: { product_id: productId, quantity_available: 3 },
+          }],
+        }),
       });
       return;
     }
@@ -410,6 +688,7 @@ test("cart and checkout ignore browser-stored money without an authorized server
           page_size: pageSize,
           total_count: 1,
           total_pages: 1,
+          filters: { brands: [], units: [] },
           items: [{
             id: productId,
             name: "أرز اختبار",
@@ -718,7 +997,7 @@ test("critical admin routes preserve direct navigation, RTL, and mobile viewport
   );
 
   const routes = [
-    { path: "/admin", title: "لوحة تحكم الأغبري | مركز التشغيل" },
+    { path: "/admin", title: "متجر الأغبري | لوحة الإدارة ومركز التشغيل — Aghbari Commerce" },
     { path: "/admin/products", title: "إدارة المنتجات | الأغبري" },
     { path: "/admin/pricing", title: "التسعير والمخزون | الأغبري" },
     { path: "/admin/finance", title: "الفواتير والتحصيل | لوحة الإدارة" },
@@ -929,13 +1208,38 @@ test("admin access matrix compares roles, searches and filters access with keybo
     await matrix.getByRole("button", { name: "مسح البحث", exact: true }).click();
     await expect(matrix.getByTestId("single-page-finance")).toBeVisible();
 
-    // Verify the real keyboard sequence: mode controls → search → filter → both scrollable tables.
+    // Selected-role comparison exposes only the selected role columns and hides identical rows by default.
+    await matrix.getByRole("button", { name: "مقارنة أدوار محددة" }).click();
+    const selectedAdmin = matrix.getByRole("checkbox", { name: "اختيار دور مدير النظام للمقارنة" });
+    const selectedStaff = matrix.getByRole("checkbox", { name: "اختيار دور موظف تشغيل للمقارنة" });
+    const differencesOnly = matrix.getByRole("checkbox", { name: "عرض الفروقات فقط" });
+    await expect(selectedAdmin).toBeChecked();
+    await expect(selectedStaff).toBeChecked();
+    await expect(differencesOnly).toBeChecked();
+    await expect(pages.getByTestId("page-finance-admin")).toContainText("مسموح");
+    await expect(pages.getByTestId("page-finance-staff")).toContainText("ممنوع");
+    await expect(pages.getByTestId("page-dashboard-admin")).toHaveCount(0);
+    await expect(pageTable.getByRole("columnheader", { name: "مدير النظام", exact: true })).toBeVisible();
+    await expect(pageTable.getByRole("columnheader", { name: "موظف تشغيل", exact: true })).toBeVisible();
+    await expect(pageTable.getByRole("columnheader", { name: "مدير", exact: true })).toHaveCount(0);
+    await differencesOnly.uncheck();
+    await expect(pages.getByTestId("page-dashboard-admin")).toBeVisible();
+    await differencesOnly.check();
+
+    // At least two roles must remain selected so the comparison cannot collapse into a misleading single-role view.
+    await expect(selectedAdmin).toBeDisabled();
+    await expect(selectedStaff).toBeDisabled();
     await matrix.getByRole("button", { name: "مقارنة جميع الأدوار" }).click();
     await search.fill("");
     await filter.selectOption("all");
+
+    // Verify the real keyboard sequence: all-role mode → selected-role mode → single role → search → filter → tables.
     const allRolesButton = matrix.getByRole("button", { name: "مقارنة جميع الأدوار" });
+    const compareRolesButton = matrix.getByRole("button", { name: "مقارنة أدوار محددة" });
     const singleRoleButton = matrix.getByRole("button", { name: "تفاصيل دور واحد" });
     await allRolesButton.focus();
+    await page.keyboard.press("Tab");
+    await expect(compareRolesButton).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(singleRoleButton).toBeFocused();
     await page.keyboard.press("Tab");

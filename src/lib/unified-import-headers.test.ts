@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ONYX_ORDER_COLUMNS } from "@/lib/onyx-export";
-import { detectImportDatasetKind, normalizeHeader, resolveImportProfileMapping } from "@/lib/unified-import";
+import { detectImportDatasetKind, normalizeHeader, normalizeOnyxStockBalanceHeader, resolveImportProfileMapping } from "@/lib/unified-import";
 
 describe("default Onyx and bulk business import headers", () => {
   it("maps every one of the 27 official Onyx order-template column labels", () => {
@@ -28,6 +28,11 @@ describe("default Onyx and bulk business import headers", () => {
       ["البريد الالكتروني", "email"],
       ["العنوان", "address"],
       ["الرقم الضريبي", "tax_number"],
+      ["base_unit_name", "unit"],
+      ["اسم الوحدة الأساسية", "unit"],
+      ["quantity_on_hand", "quantity"],
+      ["quantity_reserved", "reserved_quantity"],
+      ["quantity_available", "available_quantity"],
     ];
     for (const [header, canonical] of pairs) {
       expect(normalizeHeader(header), header).toBe(canonical);
@@ -53,10 +58,30 @@ describe("default Onyx and bulk business import headers", () => {
   it("detects product files from Arabic/English item identity and product descriptors", () => {
     expect(detectImportDatasetKind(["رقم الصنف", "اسم الصنف", "الوحدة", "سعر التجزئة"]).kind).toBe("products");
     expect(detectImportDatasetKind(["item_code", "product_name", "unit", "price_retail"]).kind).toBe("products");
+    expect(detectImportDatasetKind(["product_code", "product_name", "base_unit_name", "price_retail"]).kind).toBe("products");
   });
 
   it("detects customer master files without trusting a source tier", () => {
     expect(detectImportDatasetKind(["رقم العميل", "اسم المؤسسة", "رقم الجوال", "فئة العميل"]).kind).toBe("customers");
+  });
+
+  it("detects order headers and the legacy 27-column Onyx order detail layout separately from products", () => {
+    expect(detectImportDatasetKind(["رقم الطلب", "رقم العميل", "رقم الصنف", "اسم الصنف"]).kind).toBe("orders");
+    expect(detectImportDatasetKind([...ONYX_ORDER_COLUMNS]).kind).toBe("orders");
+  });
+
+  it("detects price lists and price lines separately from product catalog rows", () => {
+    expect(normalizeHeader("كود قائمة الأسعار")).toBe("price_list_code");
+    expect(normalizeHeader("سعر الوحدة")).toBe("unit_price");
+    expect(detectImportDatasetKind(["كود قائمة الأسعار", "رقم الصنف", "الوحدة", "سعر الوحدة", "العملة"]).kind).toBe("pricing");
+  });
+
+  it("adds non-conflicting Onyx field names without changing legacy ambiguous headers", () => {
+    expect(normalizeHeader("رقم الطلب")).toBe("order_number");
+    expect(normalizeHeader("كود المخزن")).toBe("warehouse_code");
+    expect(normalizeHeader("رقم الصنف")).toBe("item_code");
+    expect(normalizeHeader("البيان")).toBe("description");
+    expect(normalizeHeader("product_code")).toBe("item_code");
   });
 
   it("detects inventory-only sheets before they can enter the product apply path", () => {
@@ -76,6 +101,31 @@ describe("default Onyx and bulk business import headers", () => {
 
   it("requires a manual type selection when headers do not establish a known dataset", () => {
     expect(detectImportDatasetKind(["document_date", "amount", "notes"]).kind).toBe("unknown");
+  });
+
+
+  it("classifies Onyx ProductUnits as a dedicated import instead of product or inventory rows", () => {
+    const headers = ["item_code", "unit_code", "unit_name", "conversion_factor"];
+    expect(detectImportDatasetKind(headers).kind).toBe("product_units");
+    expect(resolveImportProfileMapping("product_units", [], undefined)).toEqual({
+      requiredColumns: ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      matchingKey: "product_unit_key",
+    });
+  });
+
+  it("normalizes StockBalances worksheet headers and scopes the key to warehouse plus item", () => {
+    expect(normalizeOnyxStockBalanceHeader("product_code")).toBe("item_code");
+    expect(normalizeOnyxStockBalanceHeader("quantity_on_hand")).toBe("quantity");
+    expect(normalizeOnyxStockBalanceHeader("رقم الصنف")).toBe("item_code");
+    expect(resolveImportProfileMapping("inventory", [], undefined)).toEqual({
+      requiredColumns: ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      matchingKey: "warehouse_item_key",
+    });
+  });
+
+  it("does not classify unit conversion rows as StockBalances when warehouse is absent", () => {
+    expect(detectImportDatasetKind(["product_code", "unit_code", "unit_name", "conversion_factor"]).kind)
+      .toBe("product_units");
   });
 
   it("preserves the active product profile rules for product files", () => {

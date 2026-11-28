@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   user: null as null | { id: string; profileId: string; roles: string[]; isStaff: boolean },
@@ -34,6 +34,12 @@ const customer = {
   roles: ["customer"],
   isStaff: false,
 };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
+  return { promise, resolve };
+}
 
 beforeEach(() => {
   mocks.user = null;
@@ -97,6 +103,93 @@ describe("StorefrontProductReviews", () => {
       });
     });
     expect(await screen.findByText("تم إرسال التقييم للمراجعة قبل النشر")).toBeInTheDocument();
+  });
+
+  it("does not show a completed review submission after the authenticated customer changes", async () => {
+    mocks.user = customer;
+    const staleSubmission = deferred<{
+      id: string;
+      moderationStatus: string;
+      message: string;
+    }>();
+    mocks.fetchContext
+      .mockResolvedValueOnce({
+        eligible: true,
+        orderItemId: "e1000000-0000-0000-0000-000000000081",
+        orderNumber: "AGH-2026-081",
+        deliveredAt: "2026-11-12T10:00:00.000Z",
+        review: null,
+      })
+      .mockResolvedValue({
+        eligible: false, orderItemId: null, orderNumber: null, deliveredAt: null, review: null,
+      });
+    mocks.submit.mockReturnValueOnce(staleSubmission.promise);
+
+    const { rerender } = render(<StorefrontProductReviews productId={productId} />);
+    const body = await screen.findByLabelText("تجربتك مع المنتج");
+    fireEvent.change(body, { target: { value: "المنتج مطابق لما طلبته ووصل بحالة جيدة." } });
+    fireEvent.click(screen.getByRole("button", { name: "إرسال التقييم" }));
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalled());
+
+    mocks.user = {
+      ...customer,
+      id: "c1000000-0000-0000-0000-000000000082",
+      profileId: "d1000000-0000-0000-0000-000000000082",
+    };
+    rerender(<StorefrontProductReviews productId={productId} />);
+    expect(await screen.findByText(/يتاح التقييم بعد تسليم طلب/)).toBeInTheDocument();
+
+    await act(async () => {
+      staleSubmission.resolve({
+        id: "b1000000-0000-0000-0000-000000000084",
+        moderationStatus: "pending",
+        message: "نتيجة خاصة بالحساب السابق",
+      });
+      await staleSubmission.promise;
+    });
+    expect(screen.queryByText("نتيجة خاصة بالحساب السابق")).not.toBeInTheDocument();
+  });
+
+  it("ignores a late pagination response after navigation to another product", async () => {
+    const nextProductId = "a1000000-0000-0000-0000-000000000082";
+    const nextProductReview = {
+      ...review,
+      id: "b1000000-0000-0000-0000-000000000082",
+      body: "تقييم المنتج الجديد فقط.",
+    };
+    const stalePageReview = {
+      ...review,
+      id: "b1000000-0000-0000-0000-000000000083",
+      body: "تقييم متأخر من المنتج السابق.",
+    };
+    const stalePage = deferred<{
+      averageRating: number;
+      reviewCount: number;
+      items: Array<typeof review>;
+      hasMore: boolean;
+    }>();
+    mocks.fetchSummary.mockImplementation((requestedProductId: string, _limit?: number, offset?: number) => {
+      if (requestedProductId === productId && offset === 1) return stalePage.promise;
+      if (requestedProductId === productId) {
+        return { averageRating: 5, reviewCount: 2, items: [review], hasMore: true };
+      }
+      return { averageRating: 4, reviewCount: 1, items: [nextProductReview], hasMore: false };
+    });
+
+    const { rerender } = render(<StorefrontProductReviews productId={productId} />);
+    expect(await screen.findByText(review.body)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "عرض المزيد من التقييمات" }));
+    await waitFor(() => expect(mocks.fetchSummary).toHaveBeenCalledWith(productId, 8, 1));
+
+    rerender(<StorefrontProductReviews productId={nextProductId} />);
+    expect(await screen.findByText(nextProductReview.body)).toBeInTheDocument();
+
+    await act(async () => {
+      stalePage.resolve({ averageRating: 5, reviewCount: 2, items: [stalePageReview], hasMore: false });
+      await stalePage.promise;
+    });
+    expect(screen.queryByText(stalePageReview.body)).not.toBeInTheDocument();
+    expect(screen.getByText(nextProductReview.body)).toBeInTheDocument();
   });
 
   it("shows the private customer's moderation status without exposing it publicly", async () => {

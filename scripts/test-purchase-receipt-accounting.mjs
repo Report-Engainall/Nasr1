@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { appendFile } from "node:fs/promises";
 import postgres from "postgres";
 
 import { validateCashExpenseEndpoints } from "./lib/local-endpoint-guard.mjs";
@@ -124,6 +125,12 @@ async function callPrepare(receiptId, inventoryAccountId, payableAccountId, key 
 async function main() {
   const manager = await findProfile(managerEmail);
   const customer = await findProfile(customerEmail);
+  const admin = await findProfile(requiredEnv("E2E_DEVICE_ADMIN_EMAIL").toLowerCase());
+  const adminRole = await db.unsafe(
+    "select 1 from public.user_roles where profile_id=$1::uuid and role='admin' limit 1",
+    [admin.id],
+  );
+  assert.equal(adminRole.length, 1, "the independent journal poster must have the seeded admin role");
   const accountSuffix = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
   await db.unsafe("reset role");
   const accounts = await db.unsafe(
@@ -282,6 +289,40 @@ async function main() {
   assert.equal(unsupportedAccountantTasks[0].count, 0, "unknown cost must not create a misleading accounting draft task");
   const orgCurrency = await db.unsafe("select currency from public.organizations where id=$1::uuid", [organizationId]);
   assert.equal(orgCurrency[0]?.currency, "YER", "the isolated test tenant uses its explicit configured YER currency");
+  // A separate isolated fixture proves the downstream supplier-payable read model
+  // only sees a receipt journal after an independent finance reviewer posts it.
+  const publishedReceipt = await makeReceipt(manager, 175.25);
+  const publishedDraft = await callPrepare(publishedReceipt.receiptId, inventoryAccount.id, payableAccount.id);
+  assert.equal(publishedDraft.status, "draft");
+  assert.equal(publishedDraft.source_currency, "YER");
+  await setIdentity(admin.auth_user_id, admin.email);
+  const posting = await rpcJson(
+    "select public.post_general_journal_entry($1::uuid) as result",
+    [publishedDraft.journal_entry_id],
+  );
+  assert.equal(posting.status, "posted", "only the independent administrator posts the supplier payable journal");
+  await db.unsafe("reset role");
+  const postedSource = await db.unsafe(
+    "select e.status,e.source_type,e.source_reference,e.posted_at,posting.source_amount::text as source_amount,posting.source_currency " +
+    "from public.accounting_journal_entries e join public.purchase_receipt_accounting_postings posting " +
+    "on posting.organization_id=e.organization_id and posting.journal_entry_id=e.id " +
+    "where e.organization_id=$1::uuid and e.id=$2::uuid and posting.receipt_id=$3::uuid",
+    [organizationId,publishedDraft.journal_entry_id,publishedReceipt.receiptId],
+  );
+  assert.equal(postedSource.length, 1, "the posted receipt journal retains exactly one source posting link");
+  assert.equal(postedSource[0].status, "posted");
+  assert.equal(postedSource[0].source_type, "purchase_receipt");
+  assert.equal(postedSource[0].source_reference, publishedReceipt.receiptNumber);
+  assert.ok(postedSource[0].posted_at);
+  assert.equal(postedSource[0].source_amount, "175.25");
+  assert.equal(postedSource[0].source_currency, "YER");
+  const githubEnv = requiredEnv("GITHUB_ENV");
+  await appendFile(githubEnv, [
+    "E2E_BUSINESS_HEALTH_POSTED_RECEIPT_JOURNAL_ID=" + publishedDraft.journal_entry_id,
+    "E2E_BUSINESS_HEALTH_POSTED_RECEIPT_AMOUNT=175.25",
+    "E2E_BUSINESS_HEALTH_POSTED_RECEIPT_CURRENCY=YER",
+  ].join("\n") + "\n", "utf8");
+
   process.stdout.write("PASS purchase receipt accounting: source-backed cost only, YER policy, balanced inventory/AP draft, durable source link, idempotent replay, customer denial, direct-write denial, and unknown-cost rejection\n");
 }
 main().catch((error) => {

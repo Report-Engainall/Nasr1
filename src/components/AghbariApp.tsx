@@ -19,13 +19,17 @@ import type { CustomerTierPricePreview } from '@/lib/api';
 import { StorefrontProductReviewModeration } from '@/components/StorefrontProductReviewModeration';
 import { StorefrontProductQuestionModeration } from '@/components/StorefrontProductQuestionModeration';
 import { archiveAdminCatalogProduct, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
+import { buildAdminProductCatalogCsv, reviewAdminProductCatalog, type AdminProductCatalogReview } from '@/lib/admin-product-catalog-review';
 import { useFetch } from '@/lib/useFetch';
+import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { ADMIN_NAV_GROUPS, ADMIN_NAV_PATHS, rolesCanAccessView } from '@/lib/admin-access-matrix';
+import { getAdminOrderProgress } from '@/lib/admin-order-progress';
 import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
 import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { normalizePricingRuleTargetTier, PRICING_RULE_TARGET_OPTIONS } from '@/lib/pricing-rule-tiers';
+import { findPotentialPricingRuleConflicts } from '@/lib/pricing-rule-conflicts';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -51,6 +55,7 @@ const PricingGrid = lazy(async () => ({ default: (await import('@/components/Pri
 const AdminOrderCreationDialog = lazy(async () => ({ default: (await import('@/components/AdminOrderCreationDialog')).AdminOrderCreationDialog }));
 const ProductUnitConversionsEditor = lazy(async () => ({ default: (await import('@/components/ProductUnitConversionsEditor')).ProductUnitConversionsEditor }));
 const AdminAuditLog = lazy(async () => ({ default: (await import('@/components/AdminAuditLog')).AdminAuditLog }));
+const AdminCatalogChangeHistory = lazy(async () => ({ default: (await import('@/components/AdminCatalogChangeHistory')).AdminCatalogChangeHistory }));
 const AdminCustomer360 = lazy(async () => ({ default: (await import('@/components/AdminCustomer360')).AdminCustomer360 }));
 const CustomerServiceDesk = lazy(async () => ({ default: (await import('@/components/CustomerServiceDesk')).CustomerServiceDesk }));
 const CustomerActivationInvitationDialog = lazy(async () => ({ default: (await import('@/components/CustomerActivationInvitationDialog')).CustomerActivationInvitationDialog }));
@@ -63,11 +68,14 @@ const InventoryTransferHistoryPage = lazy(async () => ({ default: (await import(
 const PurchaseOrdersPage = lazy(async () => ({ default: (await import('@/components/PurchaseOrdersPage')).PurchaseOrdersPage }));
 const UnifiedImportEngine = lazy(async () => ({ default: (await import('@/components/UnifiedImportEngine')).UnifiedImportEngine }));
 const OnyxSnapshotCenter = lazy(async () => ({ default: (await import('@/components/OnyxSnapshotCenter')).OnyxSnapshotCenter }));
+const OnyxProExchangeWorkspace = lazy(async () => ({ default: (await import('@/components/OnyxProExchangeWorkspace')).OnyxProExchangeWorkspace }));
 const OnyxInventoryReconciliationWorkspace = lazy(async () => ({ default: (await import('@/components/OnyxInventoryReconciliationWorkspace')).OnyxInventoryReconciliationWorkspace }));
 const UnifiedOnyxAnalysisPanel = lazy(async () => ({ default: (await import('@/components/UnifiedOnyxAnalysisPanel')).UnifiedOnyxAnalysisPanel }));
 const ExecutiveStoreAnalytics = lazy(async () => ({ default: (await import('@/components/ExecutiveStoreAnalytics')).ExecutiveStoreAnalytics }));
 const PromotionManager = lazy(async () => ({ default: (await import('@/components/PromotionManager')).PromotionManager }));
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
+import { getProductImageDisplayStatus } from '@/lib/product-image-batch-match';
+import { PendingProductGalleryFiles } from '@/components/PendingProductGalleryFiles';
 const BulkProductImageUploader = lazy(async () => ({ default: (await import('@/components/BulkProductImageUploader')).BulkProductImageUploader }));
 import { validateCustomerInput } from '@/lib/customer-input';
 const StaffQuotesPage = lazy(async () => ({ default: (await import('@/components/CustomerWorkflows')).StaffQuotesPage }));
@@ -83,6 +91,8 @@ import { projectProductActivityPrintDocument } from '@/lib/product-activity-prin
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
 import { adminRecordContextStorageKey, previousAdminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
+
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 
 export type AdminView = 'dashboard' | 'products' | 'categories' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk' | 'system-health' | 'error-log' | 'architecture' | 'engine-status';
 export type AdminAppProps = { initialView?: AdminView };
@@ -234,9 +244,12 @@ function AdminWorkspaceContent({
     case "offers":
       return <Offers onNotice={onNotice} />;
     case "suppliers":
-      return <Suppliers onNotice={onNotice} initialSearch={recordContext?.kind === "supplier" ? recordContext.title : undefined} />;
+      return <Suppliers onNotice={onNotice} initialSearch={recordContext?.kind === "supplier" ? recordContext.title : undefined} initialSupplierInvoiceId={recordContext?.kind === "supplier_invoice" ? recordContext.id : undefined} />;
     case "purchase-orders":
-      return <PurchaseOrdersPage initialPurchaseOrderId={recordContext?.kind === "purchase_order" ? recordContext.id : undefined} />;
+      return <PurchaseOrdersPage
+        initialPurchaseOrderId={recordContext?.kind === "purchase_order" ? recordContext.id : undefined}
+        initialReceiptId={recordContext?.kind === "receipt_reference" ? recordContext.id : undefined}
+      />;
     case "devices":
       return <DeviceManagement onNotice={onNotice} />;
     case "reports":
@@ -244,8 +257,8 @@ function AdminWorkspaceContent({
     case "intelligence":
       return <IntelligenceWorkspace
         onOpenSupplierInvoice={(invoiceId) => {
-          keepSourceContext("supplier_invoice", invoiceId, "فاتورة مورد", "مرجع فاتورة مصدره مركز ذكاء الأعمال", "finance");
-          onNotice("تم فتح مساحة المالية مع الاحتفاظ بمرجع فاتورة المورد: " + invoiceId);
+          keepSourceContext("supplier_invoice", invoiceId, "فاتورة مورد", "مرجع فاتورة مصدره مركز ذكاء الأعمال", "suppliers");
+          onNotice("تم فتح سجل فواتير الموردين مع الاحتفاظ بمرجع الفاتورة: " + invoiceId);
         }}
         onOpenPurchaseOrder={(purchaseOrderId) => {
           keepSourceContext("purchase_order", purchaseOrderId, "أمر شراء", "مرجع أمر شراء من مركز ذكاء الأعمال", "purchase-orders");
@@ -472,10 +485,8 @@ function AdminSidebarNavigation({ groups, view, firstMobileNavItemRef, navigatio
   return (
     <nav aria-label="التنقل الإداري">
       {groups.map((group) => (
-        <div key={group.id} className="admin-nav-group" style={{ display: "contents" }}>
-          <div className="admin-nav-group-title" style={{ padding: "14px 18px 5px", color: "var(--muted-foreground, #64748b)", fontSize: 11, fontWeight: 700 }}>
-            {group.label}
-          </div>
+        <div key={group.id} className="admin-nav-group" role="group" aria-label={group.label}>
+          <div className="admin-nav-group-title">{group.label}</div>
           {group.items.map(({ id, label, icon: Icon }) => {
             const isFirst = firstButton;
             firstButton = false;
@@ -772,7 +783,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   return (
     <div className="app-shell" dir="rtl">
       <aside id="admin-sidebar" aria-label="القائمة الإدارية" className={`sidebar ${mobileNav ? 'open' : ''}`}>
-        <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
+        <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><img src="/icons/injaz-icon.svg" alt="" width={32} height={32} /></div><div><strong>إنجاز</strong><span>منصة الأغبري التجارية</span></div></div>
         <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
         <AdminSidebarNavigation
               groups={visibleNavGroups}
@@ -784,7 +795,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
         <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure">تنقل مخصص لحسابك</div></div>
       </aside>
       <main className="main">
-        <header className="topbar"><button type="button" ref={mobileMenuButtonRef} className="mobile-menu" aria-label={mobileNav ? "إغلاق القائمة الإدارية" : "فتح القائمة الإدارية"} aria-expanded={mobileNav} aria-controls="admin-sidebar" onClick={() => { if (mobileNav) closeMobileNav(); else setMobileNav(true); }}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
+        <header className="topbar"><button type="button" ref={mobileMenuButtonRef} className="mobile-menu" aria-label={mobileNav ? "إغلاق القائمة الإدارية" : "فتح القائمة الإدارية"} aria-expanded={mobileNav} aria-controls="admin-sidebar" onClick={() => { if (mobileNav) closeMobileNav(); else setMobileNav(true); }}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button><button type="button" className="store-return" aria-label="العودة إلى المتجر" title="العودة إلى المتجر" onClick={() => setMode('storefront')}><Store size={16} /><span>عرض المتجر</span></button></div></header>
         <div className="page-wrap">
           <nav className="admin-breadcrumb" aria-label="مسار التنقل">
             <button type="button" onClick={() => runAdminCommand("dashboard")}>لوحة الإدارة</button>
@@ -920,6 +931,14 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     () => fetchDashboardLowStockProducts(lowStockCandidates),
     [lowStockCandidatesKey],
   );
+  const refreshDashboard = useCallback(async () => {
+    await Promise.all([refetch(), refetchAlerts(), refetchLowStockProducts()]);
+  }, [refetch, refetchAlerts, refetchLowStockProducts]);
+  useRefreshWhileActive({
+    refresh: refreshDashboard,
+    busy: loading || alertsLoading || lowStockProductsLoading,
+    intervalMs: 45_000,
+  });
   if (loading) return <><Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} /><Loading /></>;
   if (error) return <>
     <Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} />
@@ -985,17 +1004,22 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
           return item ? [item] : [];
         });
         const GroupIcon = entries[0]?.icon ?? LayoutDashboard;
-        return <article className={`admin-group-card admin-group-card--${group.id}`} key={group.id}>
-          <button type="button" className="admin-group-card__heading" onClick={() => setActiveGroupId(group.id)} aria-label={`فتح مجموعة ${group.label}`}>
-            <span className="admin-group-card__icon"><GroupIcon size={20} /></span>
-            <span><strong>{group.label}</strong><small>{entries.length} وجهات متاحة وفق صلاحية الحساب</small></span>
-          </button>
-          <div className="admin-group-card__links">
-            {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
-              <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
-            </button>)}
-          </div>
-        </article>;
+        return <WorkspaceSectionGroup
+          key={group.id}
+          icon={GroupIcon}
+          title={group.label}
+          description={`${entries.length} وجهات متاحة وفق صلاحية الحساب`}
+          className={`admin-group-card admin-group-card--${group.id}`}
+          headingClassName="admin-group-card__heading"
+          iconClassName="admin-group-card__icon"
+          contentClassName="admin-group-card__links"
+          onActivate={() => setActiveGroupId(group.id)}
+          activateLabel={`فتح مجموعة ${group.label}`}
+        >
+          {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
+            <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
+          </button>)}
+        </WorkspaceSectionGroup>;
       })}
     </section>
     <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.length ? alerts.map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{lowStockProductsLoading ? <Loading /> : lowStockProductsError ? <ErrorBox message={lowStockProductsError} /> : !stats?.hasActiveWarehouse ? <Empty text="لم يتم تحديد مستودع نشط؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : stats.lowStockCount === null || lowStockProducts === null ? <Empty text="بيانات المخزون غير مكتملة؛ تعذر تأكيد قائمة الأصناف منخفضة المخزون." /> : lowStockProducts.length ? lowStockProducts.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.quantity_available <= 0 ? 'critical' : ''}>{formatNumber(product.quantity_available)} {product.unit}</b></div>) : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
@@ -1005,7 +1029,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
 function Sparkline() { return <svg className="sparkline" viewBox="0 0 160 52" aria-hidden="true"><path d="M2 42 C25 43 25 28 43 31 S65 42 79 27 S104 25 114 17 S139 24 158 6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>; }
 
 function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string; title: string; description: string; icon: IconType }) {
-  return <div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>;
+  return <WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />;
 }
 
 function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
@@ -1014,15 +1038,48 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const canUploadProductImages = Boolean(user?.roles.some((role) => ['admin', 'manager', 'staff'].includes(role)));
   const canManageReorderPoint = canManageProductLifecycle;
   const [lifecycleBusyId, setLifecycleBusyId] = useState<string | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(() => new Set());
+  const [bulkDialog, setBulkDialog] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<'unchanged' | 'active' | 'inactive'>('unchanged');
+  const [bulkCategory, setBulkCategory] = useState('unchanged');
+  const [bulkApplyUnit, setBulkApplyUnit] = useState(false);
+  const [bulkUnit, setBulkUnit] = useState('');
+  const [bulkApplyDescription, setBulkApplyDescription] = useState(false);
+  const [bulkDescription, setBulkDescription] = useState('');
+  const [bulkFeatured, setBulkFeatured] = useState<'unchanged' | 'yes' | 'no'>('unchanged');
+  const [catalogReview, setCatalogReview] = useState<AdminProductCatalogReview | null>(null);
+  const [catalogReviewError, setCatalogReviewError] = useState('');
+  const [catalogReviewBusy, setCatalogReviewBusy] = useState(false);
+  const [catalogExportBusy, setCatalogExportBusy] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState<ProductWithInventory | null>(null);
   const [showReviewModeration, setShowReviewModeration] = useState(false);
   const [showQuestionModeration, setShowQuestionModeration] = useState(false);
   const [page, setPage] = useState(1);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [query, setQuery] = useState(initialSearch ?? '');
   const [debouncedQuery, setDebouncedQuery] = useState(initialSearch?.trim() ?? '');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const categoriesCacheKey = useAdminScopedReadCacheKey('catalog-categories');
+  const {
+    data: categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useFetch(fetchCategories, [], {
+    cacheKey: categoriesCacheKey,
+    staleTimeMs: 15_000,
+    maxAgeMs: 120_000,
+  });
   const { data, loading, error, refetch } = useFetch(
-    () => fetchAdminProductsPage({ page, search: debouncedQuery }),
-    [page, debouncedQuery],
+    () => fetchAdminProductsPage({
+      page,
+      search: debouncedQuery,
+      status: statusFilter,
+      categoryId: categoryFilter === 'all' ? undefined : categoryFilter,
+    }),
+    [page, debouncedQuery, statusFilter, categoryFilter],
   );
   const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
   useEffect(() => { if (initialSearch?.trim()) setQuery(initialSearch); }, [initialSearch]);
@@ -1033,9 +1090,37 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     }, 180);
     return () => window.clearTimeout(timer);
   }, [query]);
+  useEffect(() => {
+    setSelectedProductIds(new Set());
+  }, [page, debouncedQuery, statusFilter, categoryFilter]);
   async function refreshProducts() {
     await refetch();
     setCatalogRevision((revision) => revision + 1);
+  }
+  async function loadCompleteAdminCatalog(input: { search?: string; status?: 'all' | 'active' | 'inactive'; categoryId?: string }): Promise<ProductWithInventory[]> {
+    const complete: ProductWithInventory[] = [];
+    const seenIds = new Set<string>();
+    for (let requestedPage = 1; requestedPage <= 2500; requestedPage += 1) {
+      const result = await fetchAdminProductsPage({
+        page: requestedPage,
+        search: input.search ?? '',
+        status: input.status ?? 'all',
+        categoryId: input.categoryId,
+      });
+      if (result.page !== requestedPage || result.items.length > result.pageSize) {
+        throw new Error('تسلسل صفحات الكتالوج غير متسق؛ أوقفنا الفحص والتصدير.');
+      }
+      if (result.hasNextPage && result.items.length !== result.pageSize) {
+        throw new Error('أعلن الخادم عن صفحة لاحقة مع صفحة حالية غير مكتملة؛ تعذر إثبات اكتمال الكتالوج.');
+      }
+      for (const product of result.items) {
+        if (seenIds.has(product.id)) throw new Error('تكرر منتج بين صفحات الكتالوج؛ أوقفنا العملية بدل إصدار نتيجة غير موثوقة.');
+        seenIds.add(product.id);
+        complete.push(product);
+      }
+      if (!result.hasNextPage) return complete;
+    }
+    throw new Error('تجاوز الكتالوج الحد الأعلى لعدد الصفحات؛ لم نصدر تقريرًا أو ملفًا جزئيًا.');
   }
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<ProductWithInventory | null>(null);
@@ -1057,6 +1142,9 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const [thresholdError, setThresholdError] = useState('');
   const thresholdRequestSequence = useRef(0);
   const rows = data?.items ?? [];
+  const selectedRows = rows.filter((product) => selectedProductIds.has(product.id));
+  const allVisibleProductsSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const someVisibleProductsSelected = selectedRows.length > 0 && !allVisibleProductsSelected;
   async function archive(product: ProductWithInventory) {
     if (!canManageProductLifecycle || lifecycleBusyId) return;
     if (!window.confirm('أرشفة ' + product.name + '؟ لن يظهر المنتج في المتجر، ويمكن إعادة تفعيله لاحقًا.')) return;
@@ -1079,7 +1167,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     if (!window.confirm('إعادة تفعيل ' + product.name + '؟ سيعود المنتج إلى الكتالوج وفق قواعد المتجر.')) return;
     setLifecycleBusyId(product.id);
     try {
-      const saved = await updateProduct(product.id, { status: 'active' });
+      const saved = await updateProduct(product.id, { status: 'active', is_active: true });
       if (saved.id !== product.id) {
         throw new Error('لم يؤكد الخادم إعادة تفعيل المنتج؛ حدّث القائمة قبل إعادة المحاولة.');
       }
@@ -1091,6 +1179,116 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       setLifecycleBusyId(null);
     }
   }
+
+  function toggleProductSelection(productId: string, checked: boolean) {
+    setSelectedProductIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(productId);
+      else next.delete(productId);
+      return next;
+    });
+  }
+
+  function resetBulkEditor() {
+    setBulkStatus('unchanged');
+    setBulkCategory('unchanged');
+    setBulkApplyUnit(false);
+    setBulkUnit('');
+    setBulkApplyDescription(false);
+    setBulkDescription('');
+    setBulkFeatured('unchanged');
+  }
+
+  async function applyBulkProductChanges(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canManageProductLifecycle || bulkSaving || selectedRows.length === 0) return;
+    const patch: Partial<ProductWithInventory> = {};
+    if (bulkStatus !== 'unchanged') {
+      patch.status = bulkStatus;
+      patch.is_active = bulkStatus === 'active';
+    }
+    if (bulkCategory !== 'unchanged') patch.category_id = bulkCategory === '__none__' ? null : bulkCategory;
+    if (bulkApplyUnit) {
+      const unit = bulkUnit.trim();
+      if (!unit || unit.length > 40) { onNotice('الوحدة مطلوبة ولا تتجاوز 40 حرفًا.'); return; }
+      patch.unit = unit;
+    }
+    if (bulkApplyDescription) {
+      const description = bulkDescription.trim();
+      if (description.length > 2000) { onNotice('وصف المنتج لا يتجاوز 2000 حرف.'); return; }
+      patch.description = description || null;
+    }
+    if (bulkFeatured !== 'unchanged') patch.is_featured = bulkFeatured === 'yes';
+    if (Object.keys(patch).length === 0) { onNotice('حدد تغييرًا واحدًا على الأقل قبل التطبيق.'); return; }
+    const targets = [...selectedRows];
+    if (!window.confirm(`سيُحفظ التعديل لكل منتج على حدة عبر أمر الكتالوج الخادمي وسجل التدقيق. عدد المنتجات: ${targets.length}. قد يتوقف التنفيذ عند أول خطأ مع الاحتفاظ بالمنتجات التي اكتمل حفظها. متابعة؟`)) return;
+    setBulkSaving(true);
+    let completed = 0;
+    let failedProduct = '';
+    try {
+      for (const product of targets) {
+        failedProduct = product.name;
+        const saved = await updateProduct(product.id, patch);
+        if (saved.id !== product.id) throw new Error('لم يؤكد الخادم حفظ المنتج المحدد.');
+        completed += 1;
+      }
+      setSelectedProductIds(new Set());
+      setBulkDialog(false);
+      resetBulkEditor();
+      onNotice(`اكتمل التعديل الجماعي: تم حفظ ${completed} من ${targets.length} منتجات عبر أوامر الخادم.`);
+    } catch (cause) {
+      const failureMessage = cause instanceof Error ? cause.message : 'تعذر تأكيد الحفظ.';
+      setSelectedProductIds(new Set());
+      setBulkDialog(false);
+      resetBulkEditor();
+      onNotice(`توقف التعديل الجماعي عند «${failedProduct}». اكتمل حفظ ${completed} من ${targets.length} منتجات؛ لم يُعلن نجاح الباقي. السبب: ${failureMessage}`);
+    } finally {
+      await refreshProducts().catch(() => undefined);
+      setBulkSaving(false);
+    }
+  }
+  async function reviewCatalogQuality() {
+    if (!canUploadProductImages || catalogReviewBusy) return;
+    setCatalogReviewBusy(true);
+    setCatalogReviewError('');
+    setCatalogReview(null);
+    try {
+      const products = await loadCompleteAdminCatalog({ status: 'all' });
+      const review = reviewAdminProductCatalog(products, canManageProductLifecycle);
+      setCatalogReview(review);
+      onNotice(`اكتمل فحص الكتالوج: ${formatNumber(review.totalProducts)} منتج، ${formatNumber(review.productsWithIssues.length)} سجل يحتاج مراجعة.`);
+    } catch (cause) {
+      setCatalogReviewError(cause instanceof Error ? cause.message : 'تعذر إكمال فحص الكتالوج.');
+    } finally {
+      setCatalogReviewBusy(false);
+    }
+  }
+
+  async function exportCatalog() {
+    if (!canUploadProductImages || catalogExportBusy) return;
+    setCatalogExportBusy(true);
+    try {
+      const products = await loadCompleteAdminCatalog({ search: debouncedQuery, status: statusFilter, categoryId: categoryFilter === 'all' ? undefined : categoryFilter });
+      if (products.length === 0) { onNotice('لا توجد منتجات مطابقة للتصدير.'); return; }
+      const csv = buildAdminProductCatalogCsv(products, canManageProductLifecycle);
+      const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `aghbari-products-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      onNotice(`تم تجهيز ملف CSV كامل يضم ${formatNumber(products.length)} منتج. ${canManageProductLifecycle ? 'يتضمن سعر الأساس المسموح للدور.' : 'استُبعدت جميع الأسعار وفق صلاحية الدور.'}`);
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر تصدير الكتالوج كاملًا.');
+    } finally {
+      setCatalogExportBusy(false);
+    }
+  }
+
   function openTransfer(product: ProductWithInventory) {
     setTransferProduct(product);
     setTransferSource(product.inventory?.warehouse_id ?? warehouses?.[0]?.id ?? '');
@@ -1252,7 +1450,22 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}{canUploadProductImages && <><Button variant="outline" disabled={catalogReviewBusy} onClick={() => void reviewCatalogQuality()}>{catalogReviewBusy ? 'جار فحص الكتالوج…' : 'فحص جودة ومكررات الكتالوج'}</Button><Button variant="outline" disabled={catalogExportBusy} onClick={() => void exportCatalog()}>{catalogExportBusy ? 'جار تجهيز الملف…' : 'تصدير الكتالوج CSV'}</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+    {catalogReviewError && <div className="form-error" role="alert">{catalogReviewError}</div>}
+    {catalogReview && <section className="panel" aria-label="نتائج جودة الكتالوج" style={{ marginBottom: 16 }}>
+      <div className="panel-head"><div><h2>مراجعة جودة الكتالوج</h2><p>فحص {formatNumber(catalogReview.totalProducts)} منتج من جميع صفحات الكتالوج. لا تُعامل الأسعار المخفية على أنها صفر.</p></div><Button variant="outline" onClick={() => setCatalogReview(null)}>إغلاق التقرير</Button></div>
+      <div className="report-grid">
+        <article className="report-metric"><span>بلا صورة رئيسية</span><strong>{formatNumber(catalogReview.missingPrimaryImage.length)}</strong></article>
+        <article className="report-metric"><span>بلا وحدة بيع</span><strong>{formatNumber(catalogReview.missingUnit.length)}</strong></article>
+        <article className="report-metric"><span>بلا وصف</span><strong>{formatNumber(catalogReview.missingDescription.length)}</strong></article>
+        <article className="report-metric"><span>سعر أساس غير متاح</span><strong>{catalogReview.missingBasePrice === null ? 'غير متاح بالصلاحية' : formatNumber(catalogReview.missingBasePrice.length)}</strong></article>
+        <article className="report-metric"><span>مفاتيح تعريف مكررة</span><strong>{formatNumber(catalogReview.duplicateIdentifiers.length)}</strong></article>
+        <article className="report-metric"><span>منتجات تحتاج مراجعة</span><strong>{formatNumber(catalogReview.productsWithIssues.length)}</strong></article>
+      </div>
+      {catalogReview.productsWithIssues.length > 0 ? <TableWrap><table><thead><tr><th>المنتج</th><th>الرمز</th><th>الملاحظات</th></tr></thead><tbody>{catalogReview.productsWithIssues.slice(0, 100).map((product) => <tr key={product.id}><td>{product.name}</td><td><code>{product.item_code}</code></td><td>{product.issues.join('، ')}</td></tr>)}</tbody></table>{catalogReview.productsWithIssues.length > 100 && <p className="report-note">يظهر أول 100 سجل؛ العدد الإجمالي محفوظ في المؤشر أعلاه.</p>}</TableWrap> : <p role="status">لم يرصد الفحص أي نقص أو تكرار في حقول الجودة التي أمكن التحقق منها.</p>}
+      {catalogReview.duplicateIdentifiers.length > 0 && <details><summary>تفاصيل المفاتيح المكررة</summary><ul>{catalogReview.duplicateIdentifiers.slice(0, 100).map((duplicate) => <li key={duplicate.kind + ':' + duplicate.value}>{duplicate.kind}: <code>{duplicate.value}</code> — {duplicate.products.map((product) => product.name).join('، ')}</li>)}</ul></details>}
+      <p className="report-note">نطاق التحليل: كل صفحات الكتالوج التي أعاد الخادم اكتمالها وقت الفحص. يشمل فحص السعر سعر الأساس فقط عندما تسمح صلاحية الدور بعرضه؛ لا يستنتج المحرك سعرًا مخفيًا أو سعر شريحة غير معادة.</p>
+    </section>}
     <BulkProductImageUploader
       loadProducts={fetchProducts}
       catalogRevision={catalogRevision}
@@ -1260,20 +1473,115 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
       onOpenProduct={canManageProductLifecycle ? (product) => { setEditing(product); setModal(true); } : undefined}
     />
+    <div className="admin-product-filters" role="group" aria-label="تصفية كتالوج المنتجات">
+      <label>
+        <span>حالة المنتج</span>
+        <select
+          aria-label="تصفية حسب حالة المنتج"
+          value={statusFilter}
+          disabled={loading}
+          onChange={(event) => {
+            setPage(1);
+            setStatusFilter(event.target.value as 'all' | 'active' | 'inactive');
+          }}
+        >
+          <option value="all">كل الحالات</option>
+          <option value="active">المنتجات النشطة</option>
+          <option value="inactive">المنتجات المؤرشفة</option>
+        </select>
+      </label>
+      <label>
+        <span>التصنيف</span>
+        <select
+          aria-label="تصفية حسب التصنيف"
+          value={categoryFilter}
+          disabled={categoriesLoading || Boolean(categoriesError) || loading}
+          onChange={(event) => {
+            setPage(1);
+            setCategoryFilter(event.target.value);
+          }}
+        >
+          <option value="all">جميع التصنيفات</option>
+          {(categories ?? []).map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.parent_id ? '— ' : ''}{category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {categoriesLoading && <span className="admin-product-filters__hint" role="status">جار تحميل التصنيفات…</span>}
+      {categoriesError && (
+        <span className="admin-product-filters__error" role="alert">
+          تعذر تحميل التصنيفات؛ أعد المحاولة قبل التصفية حسب التصنيف.
+          <button type="button" onClick={() => void refetchCategories()}>إعادة المحاولة</button>
+        </span>
+      )}
+      {(statusFilter !== 'all' || categoryFilter !== 'all') && (
+        <button
+          type="button"
+          className="admin-product-filters__reset"
+          disabled={loading}
+          onClick={() => {
+            setPage(1);
+            setStatusFilter('all');
+            setCategoryFilter('all');
+          }}
+        >
+          مسح التصفية
+        </button>
+      )}
+    </div>
+    {canManageProductLifecycle && rows.length > 0 && <section className="panel" aria-label="تحديد المنتجات وإدارتها جماعيًا" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <input type="checkbox" aria-label="تحديد كل منتجات الصفحة الحالية" checked={allVisibleProductsSelected} ref={(element) => { if (element) element.indeterminate = someVisibleProductsSelected; }} disabled={loading || bulkSaving} onChange={(event) => { const checked = event.target.checked; setSelectedProductIds((current) => { const next = new Set(current); if (checked) rows.forEach((product) => next.add(product.id)); else rows.forEach((product) => next.delete(product.id)); return next; }); }} />
+        <span>تحديد منتجات الصفحة الحالية ({formatNumber(rows.length)})</span>
+      </label>
+      <div className="toolbar-actions">
+        <span className="toolbar-note">المحدد: {formatNumber(selectedRows.length)}</span>
+        <Button variant="outline" disabled={selectedRows.length === 0 || bulkSaving} onClick={() => { resetBulkEditor(); setBulkDialog(true); }}>تعديل جماعي / تغيير النشر</Button>
+        <Button variant="outline" disabled={selectedRows.length === 0 || bulkSaving} onClick={() => setSelectedProductIds(new Set())}>إلغاء التحديد</Button>
+      </div>
+    </section>}
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
-        <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
+        <thead><tr>{canManageProductLifecycle && <th><span className="sr-only">تحديد</span></th>}<th>المنتج</th><th>الصور</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
           const qty = p.inventory?.quantity_available;
           const reorderPoint = p.inventory?.reorder_point ?? p.min_stock_level;
           const stockStatus = getInventoryAvailabilityStatus(qty, reorderPoint);
           const low = stockStatus === 'low';
+          const imageStatus = getProductImageDisplayStatus(p.image_url, p.image_gallery_urls);
+          const primaryImageUrl = imageStatus.hasPrimary && typeof p.image_url === 'string' ? p.image_url.trim() : null;
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td><td><code>{p.item_code}</code>{p.sku && <small>SKU: {p.sku}</small>}{p.barcode && <small>باركود: {p.barcode}</small>}</td><td>{p.category?.name ?? 'غير مصنف'}</td><td><span className={'badge ' + (p.status === 'inactive' ? 'warning' : p.status === 'active' ? 'success' : 'info')}>{p.status === 'inactive' ? 'مؤرشف' : p.status === 'active' ? 'نشط' : 'غير محدد'}</span></td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
+            {canManageProductLifecycle && <td><input type="checkbox" aria-label={'تحديد المنتج ' + p.name} checked={selectedProductIds.has(p.id)} disabled={bulkSaving || lifecycleBusyId === p.id} onChange={(event) => toggleProductSelection(p.id, event.target.checked)} /></td>}
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td>
+            <td>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 132 }}>
+                {primaryImageUrl ? (
+                  <img src={primaryImageUrl} alt={'الصورة الرئيسية للصنف ' + p.name}
+                    loading="lazy" decoding="async" width={48} height={48}
+                    style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border, #dbe3e8)', background: 'var(--surface, #fff)' }} />
+                ) : (
+                  <span role="img" aria-label={'لا توجد صورة رئيسية للصنف ' + p.name}
+                    style={{ width: 48, height: 48, display: 'grid', placeItems: 'center', borderRadius: 8, border: '1px dashed var(--border, #dbe3e8)', color: 'var(--muted-foreground, #64748b)' }}>
+                    <Package size={18} aria-hidden="true" />
+                  </span>
+                )}
+                <span style={{ display: 'grid', gap: 4 }}>
+                  <span className={'badge ' + (imageStatus.hasPrimary ? 'success' : 'warning')}>
+                    {imageStatus.hasPrimary ? 'صورة رئيسية' : 'بلا صورة رئيسية'}
+                  </span>
+                  <small>{imageStatus.galleryCount.toLocaleString('ar-YE')} صور إضافية</small>
+                </span>
+              </div>
+            </td>
+            <td><code>{p.item_code}</code>{p.sku && <small>SKU: {p.sku}</small>}{p.barcode && <small>باركود: {p.barcode}</small>}</td><td>{p.category?.name ?? 'غير مصنف'}</td><td><span className={'badge ' + (p.status === 'inactive' ? 'warning' : p.status === 'active' ? 'success' : 'info')}>{p.status === 'inactive' ? 'مؤرشف' : p.status === 'active' ? 'نشط' : 'غير محدد'}</span></td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
             <td><span className={'badge ' + (stockStatus === 'unknown' ? 'info' : low ? 'warning' : 'success')}>{stockStatus === 'unknown' ? 'غير متاح' : low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions">
               {canManageProductLifecycle && <button aria-label={'تعديل ' + p.name} title="تعديل المنتج والأسعار" onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>}
+              {canManageProductLifecycle && <button aria-label={'سجل تغييرات ' + p.name} title="سجل تغييرات المنتج" onClick={() => setHistoryProduct(p)}><ScrollText size={15} /></button>}
+              {p.status === 'active' && <a aria-label={'معاينة المنتج ' + p.name} title="معاينة صفحة المنتج كما يراها زائر المتجر" href={'/product/' + encodeURIComponent(p.id)} target="_blank" rel="noopener noreferrer"><Store size={15} /></a>}
               {canManageProductLifecycle && p.status === 'active' && <button aria-label={'أرشفة ' + p.name} title="أرشفة المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void archive(p)}><Trash2 size={15} /></button>}
               {canManageProductLifecycle && p.status === 'inactive' && <button aria-label={'إعادة تفعيل ' + p.name} title="إعادة تفعيل المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void restore(p)}><Check size={15} /></button>}
             </div></td>
@@ -1288,6 +1596,31 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
         </div>
       </div>
     </section>
+    {bulkDialog && <Modal title={`تعديل جماعي — ${formatNumber(selectedRows.length)} منتج`} onClose={() => { if (!bulkSaving) setBulkDialog(false); }}>
+      <form onSubmit={applyBulkProductChanges} style={{ display: 'grid', gap: 12 }}>
+        <p className="form-note">تُطبّق الحقول المحددة فقط. كل منتج يُحفظ بأمر خادمي مستقل مع التحقق من الأسعار الحالية وسجل التدقيق؛ هذه دفعة متتابعة وليست معاملة واحدة شاملة.</p>
+        <Field label="حالة النشر">
+          <select value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as 'unchanged' | 'active' | 'inactive')} disabled={bulkSaving}>
+            <option value="unchanged">الإبقاء على الحالة الحالية</option><option value="active">نشر / تفعيل المنتجات المحددة</option><option value="inactive">إيقاف النشر / أرشفة المحدد</option>
+          </select>
+        </Field>
+        <Field label="التصنيف">
+          <select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value)} disabled={bulkSaving || categoriesLoading || Boolean(categoriesError)}>
+            <option value="unchanged">الإبقاء على تصنيف كل منتج</option><option value="__none__">إزالة التصنيف</option>
+            {(categories ?? []).filter((category) => category.is_active !== false).map((category) => <option key={category.id} value={category.id}>{category.parent_id ? '— ' : ''}{category.name}</option>)}
+          </select>
+        </Field>
+        <label style={{ display: 'grid', gap: 6 }}><span><input type="checkbox" checked={bulkApplyUnit} disabled={bulkSaving} onChange={(event) => setBulkApplyUnit(event.target.checked)} /> تطبيق وحدة موحدة</span><input value={bulkUnit} onChange={(event) => setBulkUnit(event.target.value)} maxLength={40} placeholder="مثال: كرتون" disabled={!bulkApplyUnit || bulkSaving} /></label>
+        <label style={{ display: 'grid', gap: 6 }}><span><input type="checkbox" checked={bulkApplyDescription} disabled={bulkSaving} onChange={(event) => setBulkApplyDescription(event.target.checked)} /> تطبيق وصف موحد (اتركه فارغًا لمسح الوصف)</span><textarea value={bulkDescription} onChange={(event) => setBulkDescription(event.target.value)} maxLength={2000} rows={3} disabled={!bulkApplyDescription || bulkSaving} /></label>
+        <Field label="تمييز المنتج في المتجر">
+          <select value={bulkFeatured} onChange={(event) => setBulkFeatured(event.target.value as 'unchanged' | 'yes' | 'no')} disabled={bulkSaving}>
+            <option value="unchanged">الإبقاء على قيمة كل منتج</option><option value="yes">تمييز المنتجات المحددة</option><option value="no">إزالة التمييز</option>
+          </select>
+        </Field>
+        <div className="modal-actions"><Button variant="outline" type="button" disabled={bulkSaving} onClick={() => setBulkDialog(false)}>إلغاء</Button><Button type="submit" disabled={bulkSaving || selectedRows.length === 0 || (bulkStatus === 'unchanged' && bulkCategory === 'unchanged' && !bulkApplyUnit && !bulkApplyDescription && bulkFeatured === 'unchanged')}>{bulkSaving ? 'جارٍ حفظ المنتجات…' : 'تطبيق التعديلات على المحدد'}</Button></div>
+      </form>
+    </Modal>}
+    {historyProduct && <Modal title={'سجل تغييرات المنتج: ' + historyProduct.name} onClose={() => setHistoryProduct(null)}><Suspense fallback={<Loading />}><AdminCatalogChangeHistory entityType="product" entityId={historyProduct.id} /></Suspense></Modal>}
     {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); void refreshProducts(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
@@ -1855,22 +2188,14 @@ export function ProductModal({
             })}
           </div>
         )}
-        {galleryFiles.length > 0 && <div style={{ display: 'grid', gap: 5 }}>
-          {galleryFiles.map((file, index) => (
-            <div key={file.name + '-' + file.size + '-' + file.lastModified} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-              <span>{file.name}</span>
-              <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>إلغاء الاختيار</button>
-            </div>
-          ))}
-        </div>}
-        {galleryFiles.length > 0 && <div style={{ display: 'grid', gap: 5 }}>
-          {galleryFiles.map((file, index) => (
-            <div key={file.name + '-' + file.size + '-' + file.lastModified} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-              <span>{file.name}</span>
-              <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>إلغاء الاختيار</button>
-            </div>
-          ))}
-        </div>}
+        {galleryFiles.length > 0 && (
+          <PendingProductGalleryFiles
+            files={galleryFiles}
+            disabled={saving}
+            onRemove={(index) => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+          />
+        )}
+        
       </section>
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="modal-actions">
@@ -2232,48 +2557,136 @@ export function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSav
 function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void; onNotice: (message: string) => void }) {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search.trim());
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
   const { data, loading, error, refetch } = useFetch(
-    () => fetchAdminOrdersPage({ page }),
-    [page],
+    () => fetchAdminOrdersPage({ page, search: debouncedSearch, status: statusFilter, sort: sortBy }),
+    [page, debouncedSearch, statusFilter, sortBy],
   );
+  useRefreshWhileActive({ refresh: refetch, busy: loading, intervalMs: 45_000 });
+
   const rows = data?.items ?? [];
 
   return <>
-    <Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام حتى التسليم" icon={ShoppingCart} />
-    <div className="toolbar">
-      <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
-      <div className="toolbar-actions">
-        <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
-        <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+    <Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام والمراجعة إلى التجهيز والتسليم، مع بقاء اعتماد الحالة داخل تفاصيل الطلب." icon={ShoppingCart} />
+    <section className="admin-orders-workspace" aria-label="إدارة الطلبات">
+      <div className="admin-orders-toolbar">
+        <label className="admin-orders-search" htmlFor="admin-orders-search">
+          <Search size={17} aria-hidden="true" />
+          <input
+            id="admin-orders-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="ابحث برقم الطلب..."
+            aria-label="البحث برقم الطلب"
+            maxLength={80}
+          />
+        </label>
+        <label className="admin-orders-status-filter">
+          <span>حالة الطلب</span>
+          <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} aria-label="تصفية الطلبات حسب الحالة">
+            <option value="all">كل الحالات</option>
+            {ADMIN_ORDER_FILTER_STATUSES.map((status) => (
+              <option key={status} value={status}>{orderLabel(status)}</option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-orders-status-filter">
+          <span>ترتيب النتائج</span>
+          <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setPage(1); }} aria-label="ترتيب الطلبات">
+            <option value="newest">الأحدث أولاً</option>
+            <option value="oldest">الأقدم أولاً</option>
+            <option value="amount_high">الأعلى قيمة</option>
+            <option value="amount_low">الأقل قيمة</option>
+          </select>
+        </label>
+        <div className="admin-orders-toolbar-actions">
+          <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
+          <Button variant="secondary" onClick={() => void refetch()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
+        </div>
       </div>
-    </div>
-    <section className="panel table-panel">
-      {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refetch()}>إعادة تحميل الصفحة</Button></> : <TableWrap>
-        <table>
-          <thead><tr><th>رقم الطلب</th><th>العميل</th><th>التاريخ</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th><th /></tr></thead>
-          <tbody>{rows.map((o) => <tr key={o.id}>
-            <td><strong>#{o.order_number}</strong></td>
-            <td>{o.customer?.business_name ?? '—'}</td>
-            <td>{formatDateShort(o.created_at)}</td>
-            <td>{formatNumber(o.total_items)}</td>
-            <td>{formatCurrency(o.total_amount)}</td>
-            <td><span className={`badge ${o.status === 'delivered' ? 'success' : o.status === 'processing' ? 'info' : 'warning'}`}>{orderLabel(o.status)}</span></td>
-            <td><Button variant="outline" onClick={() => onViewDetail(o.id)}>تفاصيل</Button></td>
-          </tr>)}</tbody>
-        </table>
-        {!rows.length && <Empty text="لا توجد طلبات" />}
-      </TableWrap>}
-      <div className="toolbar" style={{ marginTop: 12 }}>
-        <span className="toolbar-note">صفحة {page} — {rows.length} طلب معروض</span>
+
+      <div className="admin-orders-result-meta" aria-live="polite">
+        <span>{data ? formatNumber(rows.length) + ' طلب في الصفحة' : 'قائمة الطلبات'}</span>
+        <span>صفحة {page}{data?.hasNextPage ? ' · توجد نتائج أخرى' : ''}</span>
+      </div>
+
+      <section className="admin-order-list" aria-label="بطاقات الطلبات">
+        {loading ? <Loading /> : error ? <>
+          <ErrorBox message={error} />
+          <Button variant="outline" onClick={() => void refetch()}>إعادة تحميل الطلبات</Button>
+        </> : rows.length === 0 ? <Empty text={debouncedSearch || statusFilter !== 'all' ? "لا توجد طلبات مطابقة لمعايير البحث والتصفية." : "لا توجد طلبات مسجلة."} /> : rows.map((order) => {
+          const progress = getAdminOrderProgress(order.status);
+          return (
+            <article className="admin-order-card" key={order.id}>
+              <div className="admin-order-card__header">
+                <div className="admin-order-card__identity">
+                  <strong dir="ltr">#{order.order_number}</strong>
+                  <span className="admin-order-card__customer">{order.customer?.business_name ?? 'عميل غير متاح'}</span>
+                </div>
+                <span className={"admin-order-status " + progress.kind}>{orderLabel(order.status)}</span>
+              </div>
+
+              {progress.kind === 'progress' ? (
+                <ol className="admin-order-progress" aria-label={"مراحل الطلب " + order.order_number}>
+                  {progress.steps.map((step, index) => (
+                    <li key={step.label} className={"admin-order-progress__step " + step.state} aria-current={step.state === 'current' ? 'step' : undefined}>
+                      <span className="admin-order-progress__marker" aria-hidden="true">{step.state === 'complete' ? '✓' : index + 1}</span>
+                      <span className="admin-order-progress__label">{step.label}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className={"admin-order-progress-message " + progress.kind} role="status">
+                  {progress.message}
+                </div>
+              )}
+
+              <div className="admin-order-card__details">
+                <span><small>تاريخ الطلب</small><strong>{formatDateShort(order.created_at)}</strong></span>
+                <span><small>عدد الأصناف</small><strong>{formatNumber(order.total_items)}</strong></span>
+                <span><small>إجمالي الطلب</small><strong>{formatCurrency(order.total_amount)}</strong></span>
+              </div>
+
+              <div className="admin-order-card__footer">
+                <span className="admin-order-card__reference" title={order.id}>مرجع الطلب · {order.order_number}</span>
+                <Button variant="outline" onClick={() => onViewDetail(order.id)}>تفاصيل الطلب ومراجعته</Button>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <div className="admin-orders-pagination">
+        <span>عرض {formatNumber(rows.length)} من طلبات الصفحة الحالية</span>
         <div className="toolbar-actions">
           <Button variant="outline" disabled={loading || page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>السابق</Button>
           <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
         </div>
       </div>
     </section>
-    {showCreate && <AdminOrderCreationDialog onClose={() => setShowCreate(false)} onNotice={onNotice} onCreated={async () => { await refetch(); }} />}
+    {showCreate && <AdminOrderCreationDialog onClose={() => setShowCreate(false)} onNotice={onNotice} onCreated={async () => { setPage(1); await refetch(); }} />}
   </>;
 }
+
+const ADMIN_ORDER_FILTER_STATUSES = [
+  'new', 'draft', 'pending', 'received', 'reviewing', 'returned',
+  'needs_customer_amendment', 'returned_for_adjustment', 'confirmed', 'approved',
+  'processing', 'preparing', 'prepared', 'shipped', 'dispatched', 'delivered',
+  'cancelled', 'rejected', 'invoiced',
+] as const;
 function orderLabel(status: string) { return ORDER_STATUS_LABELS[status] ?? status; }
 
 const PRICING_SCOPES = new Set(['default', 'all', 'product', 'category']);
@@ -2380,7 +2793,7 @@ function Pricing({
         </div>
         <div className="toolbar-actions">
           <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
-          {activeTab === 'rules' && <Button onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button>}
+          {activeTab === 'rules' && <Button disabled={loading || Boolean(error)} onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button>}
         </div>
       </div>
 
@@ -2459,8 +2872,8 @@ function Pricing({
       </div>
     </section>
 
-    {showCreate && <PricingRuleModal key="create" onClose={() => setShowCreate(false)} onSaved={async () => { await refetch(); setShowCreate(false); onNotice('تم حفظ القاعدة؛ وقد تبقى بانتظار اعتماد المدير قبل تطبيق السعر.'); }} />}
-    {editingRule && <PricingRuleModal key={editingRule.id} rule={editingRule} onClose={() => setEditingRule(null)} onSaved={async () => { await refetch(); setEditingRule(null); onNotice('تم حفظ التعديلات؛ وقد تحتاج القاعدة إلى اعتماد المدير قبل تطبيقها.'); }} />}
+    {showCreate && <PricingRuleModal key="create" existingRules={data ?? []} onClose={() => setShowCreate(false)} onSaved={async () => { await refetch(); setShowCreate(false); onNotice('تم حفظ القاعدة؛ وقد تبقى بانتظار اعتماد المدير قبل تطبيق السعر.'); }} />}
+    {editingRule && <PricingRuleModal key={editingRule.id} rule={editingRule} existingRules={data ?? []} onClose={() => setEditingRule(null)} onSaved={async () => { await refetch(); setEditingRule(null); onNotice('تم حفظ التعديلات؛ وقد تحتاج القاعدة إلى اعتماد المدير قبل تطبيقها.'); }} />}
     {approvalRule && <PricingApprovalModal key={approvalRule.id} rule={approvalRule} onClose={() => setApprovalRule(null)} onSaved={async () => { await refetch(); setApprovalRule(null); onNotice('تم اعتماد قاعدة التسعير وحُفظ سبب الاعتماد في سجل التدقيق.'); }} />}
   </>;
 }
@@ -2614,7 +3027,7 @@ function localDateTimeValue(value?: string | null): string {
   return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
+export function PricingRuleModal({ rule, existingRules = [], onClose, onSaved }: { rule?: PricingRule; existingRules?: PricingRule[]; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const [productSearch, setProductSearch] = useState('');
   const [appliedProductSearch, setAppliedProductSearch] = useState('');
   const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(
@@ -2664,6 +3077,27 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
   const [effectiveUntil, setEffectiveUntil] = useState(localDateTimeValue(rule?.effective_until));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [conflictAcknowledged, setConflictAcknowledged] = useState(false);
+  const potentialRuleConflicts = useMemo(() => {
+    const quantity = Number(minQuantity);
+    const rank = Number(priority);
+    const from = effectiveFrom ? new Date(effectiveFrom) : null;
+    const until = effectiveUntil ? new Date(effectiveUntil) : null;
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(rank) || rank < 1 || rank > 100000 ||
+        (from && !Number.isFinite(from.getTime())) || (until && !Number.isFinite(until.getTime())) || (from && until && from > until)) return [];
+    return findPotentialPricingRuleConflicts({
+      id: rule?.id ?? null,
+      scope_type: scopeType,
+      scope_value: scopeType === 'product' || scopeType === 'category' ? scopeValue || null : null,
+      target_tier: targetTier,
+      min_quantity: quantity,
+      priority: rank,
+      effective_from: from ? from.toISOString() : null,
+      effective_until: until ? until.toISOString() : null,
+    }, existingRules);
+  }, [existingRules, rule?.id, scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil]);
+  const potentialRuleConflictKey = JSON.stringify({ scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil, conflicts: potentialRuleConflicts.map((conflict) => [conflict.ruleId, conflict.priority, conflict.minQuantity, conflict.samePriority, conflict.effectiveFrom, conflict.effectiveUntil]) });
+  useEffect(() => { setConflictAcknowledged(false); }, [potentialRuleConflictKey]);
 
   const pageProductOptions = products?.rows ?? [];
   const productOptions = existingProductOption && !pageProductOptions.some((product) => product.id === existingProductOption.id)
@@ -2703,6 +3137,10 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
     const until = effectiveUntil ? new Date(effectiveUntil) : null;
     if ((from && !Number.isFinite(from.getTime())) || (until && !Number.isFinite(until.getTime())) || (from && until && from > until)) {
       setError('تحقق من تاريخي بداية ونهاية القاعدة.');
+      return;
+    }
+    if (potentialRuleConflicts.length > 0 && !conflictAcknowledged) {
+      setError('توجد قواعد نشطة متداخلة. راجع قائمة التداخلات وأكد قرارك قبل الحفظ.');
       return;
     }
     setSaving(true);
@@ -2779,7 +3217,13 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
       </div>
       <p style={{ color: '#71868a', fontSize: 12, lineHeight: 1.7 }}>{rule ? 'سيُحدّث المحرك هذه القاعدة ويزيد رقم إصدارها ويسجل التغيير، ثم يعيد احتساب الأسعار ضمن النطاق والشريحة والكمية والفترة المختارة.' : 'الحفظ لا يغيّر قائمة الأسعار يدويًا؛ قاعدة البيانات تحسب الجملة والتجزئة وتكتب سجل التدقيق. لا تُطبّق القاعدة إلا ضمن النطاق والشريحة والكمية والفترة المختارة.'}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
+      {potentialRuleConflicts.length > 0 && <section className="panel" role="alert" style={{ display: 'grid', gap: 8, borderColor: '#d6a45a' }}>
+      <strong>تنبيه: توجد قواعد تسعير نشطة متداخلة في النطاق والشريحة والفترة</strong>
+      <ul>{potentialRuleConflicts.map((conflict) => <li key={conflict.ruleId}>«{conflict.ruleName}» — أولوية {formatNumber(conflict.priority)}، تبدأ من كمية {formatNumber(conflict.minQuantity)}{conflict.samePriority ? ' · نفس الأولوية؛ راجع أثر ترتيب القواعد' : ' · أولوية مختلفة؛ راجع قاعدة الحسم'}</li>)}</ul>
+      <p className="report-note">هذا كشف واجهة للتداخلات ذات النطاق المطابق فقط. لا يحسب أثر القاعدة الجديدة على الأسعار ولا يكتشف تقاطعات المنتج مع التصنيف؛ محرك الخادم هو المرجع النهائي.</p>
+      <label><input type="checkbox" checked={conflictAcknowledged} disabled={saving} onChange={(event) => setConflictAcknowledged(event.target.checked)} /> راجعت التداخلات وأؤكد متابعة الحفظ</label>
+    </section>}
+    <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable || (potentialRuleConflicts.length > 0 && !conflictAcknowledged)}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
     </form>
   </Modal>;
 }
@@ -3023,7 +3467,7 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
 }) {
   const { user } = useAuth();
   const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const [section, setSection] = useState<'home' | 'import' | 'import-history' | 'onyx'>('home');
+  const [section, setSection] = useState<'home' | 'import' | 'import-history' | 'onyx' | 'onyx-exchange'>('home');
 
   useEffect(() => {
     if (initialImportJobId && canManageImports) setSection('import');
@@ -3047,6 +3491,15 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
     return <OnyxSnapshotCenter onBack={() => setSection('home')} />;
   }
 
+  if (section === 'onyx-exchange' && user?.isStaff) {
+    return <OnyxProExchangeWorkspace
+      onBack={() => setSection('home')}
+      onOpenImport={() => setSection('import')}
+      canManageImports={canManageImports}
+      onOpenSnapshots={() => setSection('onyx')}
+    />;
+  }
+
   return <>
     <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد"
       description="الاستيراد والتصدير ومصادر البيانات التشغيلية في مساحة واحدة" icon={Database} />
@@ -3066,6 +3519,11 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
         {canManageImports && (
           <Button variant="outline" onClick={() => setSection('import-history')}>
             <ClipboardList size={16} /> سجل دفعات الاستيراد
+          </Button>
+        )}
+        {user?.isStaff && (
+          <Button variant="outline" onClick={() => setSection('onyx-exchange')}>
+            <FileText size={16} /> تعريف وتبادل أونكس برو
           </Button>
         )}
         {rolesCanAccessView(user?.roles ?? [], "data") && (

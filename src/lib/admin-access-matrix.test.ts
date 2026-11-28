@@ -6,6 +6,15 @@ import {
 } from "@/lib/admin-access-matrix";
 
 const routeTreeSource = readFileSync(new URL("../routeTree.gen.ts", import.meta.url), "utf8");
+const adminAppSource = readFileSync(new URL("../components/AghbariApp.tsx", import.meta.url), "utf8");
+const operationsBarrelSource = readFileSync(new URL("../components/admin/operations/index.ts", import.meta.url), "utf8");
+
+const observabilityScreenBindings = [
+  { view: "system-health", component: "SystemHealthScreen" },
+  { view: "error-log", component: "ErrorLogScreen" },
+  { view: "architecture", component: "ArchitectureScreen" },
+  { view: "engine-status", component: "EngineStatusScreen" },
+] as const;
 
 describe("admin access presentation contract", () => {
   it("assigns every admin page to exactly one navigation group", () => {
@@ -14,8 +23,12 @@ describe("admin access presentation contract", () => {
     expect(ids).toHaveLength(28);
     expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.views).toContain('categories');
     expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.items).toEqual(ADMIN_NAV_ITEMS.filter(({ id }) => ['products', 'categories', 'pricing', 'offers'].includes(id)));
-    expect(ADMIN_NAV_GROUPS).toHaveLength(6);
+    expect(ADMIN_NAV_GROUPS).toHaveLength(7);
     expect(ADMIN_NAV_ITEMS).toHaveLength(28);
+    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === "finance")?.items).toEqual([
+      { id: "finance", label: "الفواتير والتحصيل", path: "/admin/finance" },
+    ]);
+    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === "administration")?.views).not.toContain("finance");
     expect(new Set(ADMIN_NAV_ITEMS.map(({ path }) => path)).size).toBe(ADMIN_NAV_ITEMS.length);
     expect(ADMIN_NAV_ITEMS.every(({ label, path }) => label.trim().length > 0 && path.startsWith('/admin'))).toBe(true);
     expect(ADMIN_NAV_PATHS.categories).toBe('/admin/categories');
@@ -29,6 +42,20 @@ describe("admin access presentation contract", () => {
   it("registers every canonical navigation destination in the generated TanStack route tree", () => {
     for (const item of ADMIN_NAV_ITEMS) {
       expect(routeTreeSource, `missing registered route for ${item.id}: ${item.path}`).toContain(`path: '${item.path}'`);
+    }
+  });
+
+  it("maps each observability view to its lazy screen in the canonical admin view switch", () => {
+    for (const { view, component } of observabilityScreenBindings) {
+      expect(adminAppSource).toContain(
+        `const ${component} = lazy(async () => ({ default: (await import('@/components/admin/operations')).${component} }));`,
+      );
+      expect(adminAppSource).toMatch(
+        new RegExp(`case\\s+["']${view}["']:\\s*return\\s*<${component}\\s*/>;`),
+      );
+      expect(operationsBarrelSource).toContain(
+        `export { ${component} } from "./${component}";`,
+      );
     }
   });
 

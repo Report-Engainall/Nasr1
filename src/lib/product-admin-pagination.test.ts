@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildProductAdminSearchFilter, isValidProductAdminCategoryId } from "./product-admin-pagination";
+import { buildProductAdminSearchFilter, isValidProductAdminCategoryId, isValidProductAdminStatusFilter, normalizeProductAdminSearchTerm } from "./product-admin-pagination";
 
 describe("buildProductAdminSearchFilter", () => {
   it("searches Arabic and Latin text across the four supported product identifiers", () => {
@@ -35,6 +35,16 @@ describe("buildProductAdminSearchFilter", () => {
 });
 
 
+describe("normalizeProductAdminSearchTerm", () => {
+  it("normalizes bounded Arabic/Latin terms and removes filter syntax", () => {
+    expect(normalizeProductAdminSearchTerm(" أرز Basmati 000125 ")).toBe("أرز Basmati 000125");
+    expect(normalizeProductAdminSearchTerm('x),organization_id.eq.anything,*%_"')).toBe("x organization_id.eq.anything _");
+    expect(normalizeProductAdminSearchTerm("   ")).toBeNull();
+    expect(normalizeProductAdminSearchTerm("(),%*")).toBeNull();
+    expect(() => normalizeProductAdminSearchTerm("a".repeat(101))).toThrow("طويلة جدًا");
+  });
+});
+
 describe("isValidProductAdminCategoryId", () => {
   it("accepts a canonical category UUID", () => {
     expect(isValidProductAdminCategoryId("2c4a6e80-1234-4abc-8def-1234567890ab")).toBe(true);
@@ -44,5 +54,21 @@ describe("isValidProductAdminCategoryId", () => {
     expect(isValidProductAdminCategoryId("not-a-uuid")).toBe(false);
     expect(isValidProductAdminCategoryId(" 2c4a6e80-1234-4abc-8def-1234567890ab")).toBe(false);
     expect(isValidProductAdminCategoryId(null)).toBe(false);
+  });
+});
+
+
+describe("isValidProductAdminStatusFilter", () => {
+  it("accepts all, active and inactive server-side product status filters", () => {
+    expect(isValidProductAdminStatusFilter("all")).toBe(true);
+    expect(isValidProductAdminStatusFilter("active")).toBe(true);
+    expect(isValidProductAdminStatusFilter("inactive")).toBe(true);
+  });
+
+  it("rejects unknown values instead of silently broadening the catalog query", () => {
+    expect(isValidProductAdminStatusFilter("archived")).toBe(false);
+    expect(isValidProductAdminStatusFilter("")).toBe(false);
+    expect(isValidProductAdminStatusFilter(null)).toBe(false);
+    expect(isValidProductAdminStatusFilter({})).toBe(false);
   });
 });

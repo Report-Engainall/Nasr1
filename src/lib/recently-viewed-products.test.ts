@@ -43,6 +43,9 @@ describe("recently viewed product history", () => {
     expect(canRecordRecentlyViewedProducts({
       authReady: true, profileId: customerA, isStaff: false, roles: ["manager"],
     })).toBe(false);
+    expect(canRecordRecentlyViewedProducts({
+      authReady: true, profileId: "not-a-profile-id", isStaff: false, roles: ["customer"],
+    })).toBe(false);
   });
 
   it("stores only public product details under the current customer profile", () => {
@@ -90,6 +93,9 @@ describe("recently viewed product history", () => {
     storage.setItem(recentlyViewedProductsStorageKey(customerA), "{invalid");
     expect(readRecentlyViewedProducts(storage, customerA)).toEqual([]);
     expect(recordRecentlyViewedProduct(storage, " ", { id: "p", name: "منتج" }, viewedAt)).toBe(false);
+    expect(recentlyViewedProductsStorageKey("not-a-profile-id")).toBe("");
+    expect(readRecentlyViewedProducts(storage, "not-a-profile-id")).toEqual([]);
+    expect(recordRecentlyViewedProduct(storage, "not-a-profile-id", { id: "p", name: "منتج" }, viewedAt)).toBe(false);
     expect(recordRecentlyViewedProduct(storage, customerA, { id: "", name: "منتج" }, viewedAt)).toBe(false);
   });
 

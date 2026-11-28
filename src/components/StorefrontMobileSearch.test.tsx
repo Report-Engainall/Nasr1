@@ -18,7 +18,7 @@ const riceProduct = {
   id: "a1000000-0000-0000-0000-000000000091",
   name: "رز بسمتي هندي",
   item_code: "RICE-MOBILE-091",
-  sku: "RICE-MOBILE-091",
+  sku: "SKU-RICE-091",
   barcode: null,
   unit: "كيس",
   image_url: null,
@@ -62,7 +62,9 @@ describe("storefront mobile predictive search", () => {
     expect(dialog).toBeInTheDocument();
     expect(input).toHaveFocus();
     expect(document.body.style.overflow).toBe("hidden");
-    expect(screen.getByRole("option", { name: /رز بسمتي هندي/ })).toBeInTheDocument();
+    const productSuggestion = screen.getByRole("option", { name: /رز بسمتي هندي/ });
+    expect(productSuggestion).toBeInTheDocument();
+    expect(productSuggestion).toHaveTextContent("SKU: SKU-RICE-091");
 
     fireEvent.click(screen.getByRole("option", { name: /رز بسمتي هندي/ }));
     expect(onProductSelect).toHaveBeenCalledWith(riceProduct);

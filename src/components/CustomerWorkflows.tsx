@@ -25,7 +25,13 @@ import {
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { getCurrentTenantScope, supabase } from "@/lib/supabase";
-import { normalizeLocalizedBarcodeInput } from "@/lib/localized-barcode-input";
+import {
+  DEFAULT_BARCODE_DETECTOR_FORMATS,
+  nextBarcodeScanQuantity,
+  normalizeLocalizedBarcodeInput,
+  resolveSupportedBarcodeFormats,
+} from "@/lib/localized-barcode-input";
+import { normalizeLocalizedDecimalInput } from "@/lib/localized-number-input";
 import { formatCurrency, formatDate, formatDateShort, formatNumber } from "@/lib/format";
 import {
   classifyAssistantIntent,
@@ -49,9 +55,19 @@ import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-acc
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { downloadCustomerQuoteWorkbookXlsx } from "@/lib/customer-quote-xlsx";
+import {
+  appendUniqueCustomerQuoteProducts,
+  customerQuoteProductPageHasMore,
+  CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE,
+} from "@/lib/customer-quote-product-pagination";
 import { downloadCustomerInvoiceWorkbookXlsx } from "@/lib/customer-invoice-xlsx";
 import { downloadCustomerPaymentHistoryWorkbookXlsx } from "@/lib/customer-payment-history-xlsx";
-import { filterCustomerPaymentHistory } from "@/lib/customer-payment-history-filter";
+import {
+  filterCustomerPaymentHistory,
+  parseCustomerPaymentHistoryPayload,
+  type ValidatedCustomerPayment,
+  type ValidatedCustomerPaymentInvoice,
+} from "@/lib/customer-payment-history-filter";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
@@ -214,7 +230,10 @@ type Product = {
   name: string;
   item_code: string;
   barcode?: string | null;
+  sku?: string | null;
   unit: string;
+  min_order_quantity?: number;
+  order_quantity_multiple?: number;
   base_price?: number | string | null;
   status?: string;
   image_url?: string | null;
@@ -248,6 +267,61 @@ type ReorderTemplate = {
   source_order_id: string | null;
 };
 type ReorderTemplateLine = { product_id: string | null; quantity: number | string };
+type ReorderCartLine = { product_id: string; quantity: number };
+
+function validateReorderTemplateLines(value: unknown, products: readonly Product[]): ReorderCartLine[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("لا يحتوي قالب إعادة الطلب على أصناف صالحة لإضافتها إلى السلة.");
+  }
+  if (value.length > 100) {
+    throw new Error("لا يمكن تطبيق قالب يضم أكثر من 100 صنف في السلة الواحدة.");
+  }
+
+  const productsById = new Map<string, Product>();
+  for (const product of products) {
+    if (product.status === "active") productsById.set(product.id.toLowerCase(), product);
+  }
+  const seen = new Set<string>();
+
+  return value.map((candidate) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      throw new Error("يحتوي القالب على بند غير صالح؛ لم تُغيّر السلة.");
+    }
+    const row = candidate as ReorderTemplateLine;
+    const productId = typeof row.product_id === "string" ? row.product_id.trim().toLowerCase() : "";
+    if (!productId) throw new Error("يحتوي القالب على صنف بلا معرّف صالح؛ لم تُغيّر السلة.");
+    if (seen.has(productId)) throw new Error("يحتوي القالب على الصنف نفسه أكثر من مرة؛ لم تُغيّر السلة.");
+    seen.add(productId);
+
+    const quantity = typeof row.quantity === "number"
+      ? row.quantity
+      : typeof row.quantity === "string" && row.quantity.trim()
+        ? Number(row.quantity.trim())
+        : Number.NaN;
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10000) {
+      throw new Error("يجب أن تكون كمية كل صنف عددًا صحيحًا بين 1 و10000.");
+    }
+
+    const product = productsById.get(productId);
+    if (!product) {
+      throw new Error("أحد أصناف القالب لم يعد نشطًا أو غير متاح في كتالوج المؤسسة. حدّث القالب قبل استخدامه.");
+    }
+    const minimum = product.min_order_quantity === undefined ? 1 : product.min_order_quantity;
+    const multiple = product.order_quantity_multiple === undefined ? 1 : product.order_quantity_multiple;
+    if (!Number.isSafeInteger(minimum) || minimum < 1 || minimum > 10000 ||
+        !Number.isSafeInteger(multiple) || multiple < 1 || multiple > 10000) {
+      throw new Error("تعذر التحقق من سياسة كمية الصنف «" + product.name + "». أعد تحميل المنتجات قبل المتابعة.");
+    }
+    if (quantity < minimum) {
+      throw new Error("الحد الأدنى لطلب «" + product.name + "» هو " + minimum + " " + product.unit + ".");
+    }
+    if ((quantity - minimum) % multiple !== 0) {
+      throw new Error("كمية «" + product.name + "» يجب أن تبدأ من " + minimum + " وتزيد بمضاعف " + multiple + ".");
+    }
+
+    return { product_id: productId, quantity };
+  });
+}
 type AssistantOrderRow = { order_number: string | number; status: string; created_at: string };
 type AssistantInvoiceStatusRow = { invoice_number: string; status: string; issued_at: string };
 type AssistantProductRow = {
@@ -283,7 +357,10 @@ function withResolvedProductPrice(
     name?: unknown;
     item_code?: unknown;
     barcode?: unknown;
+    sku?: unknown;
     unit?: unknown;
+    min_order_quantity?: unknown;
+    order_quantity_multiple?: unknown;
     status?: unknown;
     image_url?: unknown;
   },
@@ -296,7 +373,18 @@ function withResolvedProductPrice(
     name: typeof product.name === "string" ? product.name : "",
     item_code: typeof product.item_code === "string" ? product.item_code : "",
     barcode: typeof product.barcode === "string" ? product.barcode : null,
+    sku: typeof product.sku === "string" ? product.sku : null,
     unit: typeof product.unit === "string" ? product.unit : "",
+    ...(Number.isSafeInteger(Number(product.min_order_quantity)) &&
+      Number(product.min_order_quantity) >= 1 &&
+      Number(product.min_order_quantity) <= 10000
+      ? { min_order_quantity: Number(product.min_order_quantity) }
+      : {}),
+    ...(Number.isSafeInteger(Number(product.order_quantity_multiple)) &&
+      Number(product.order_quantity_multiple) >= 1 &&
+      Number(product.order_quantity_multiple) <= 10000
+      ? { order_quantity_multiple: Number(product.order_quantity_multiple) }
+      : {}),
     status: typeof product.status === "string" ? product.status : undefined,
     image_url: typeof product.image_url === "string" ? product.image_url : null,
   };
@@ -1360,14 +1448,9 @@ export function CustomerPaymentsPage() {
   );
 }
 
-type CustomerPaymentHistoryRow = PaymentAmount & {
-  id?: string;
-  paid_at?: string;
-};
-
 function CustomerPayments() {
-  const [payments, setPayments] = useState<CustomerPaymentHistoryRow[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [payments, setPayments] = useState<ValidatedCustomerPayment[]>([]);
+  const [invoices, setInvoices] = useState<ValidatedCustomerPaymentInvoice[]>([]);
   const [search, setSearch] = useState("");
   const [paidFrom, setPaidFrom] = useState("");
   const [paidThrough, setPaidThrough] = useState("");
@@ -1384,37 +1467,9 @@ function CustomerPayments() {
       if (result.error || !result.data || typeof result.data !== "object") {
         throw new Error("تعذر قراءة سجل الدفعات من دفتر الحساب المصرّح به.");
       }
-      const payload = result.data as { invoices?: unknown; payments?: unknown };
-      if (!Array.isArray(payload.invoices) || payload.invoices.length > 200 ||
-          !Array.isArray(payload.payments) || payload.payments.length > 500) {
-        throw new Error("أعاد الخادم تفاصيل دفعات غير مكتملة أو تجاوزت حدود القراءة.");
-      }
-      const parsed: CustomerPaymentHistoryRow[] = [];
-      for (const candidate of payload.payments) {
-        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-          throw new Error("توجد حركة دفع لا تطابق عقد دفتر الحساب؛ لم تُعرض بيانات جزئية.");
-        }
-        const row = candidate as Record<string, unknown>;
-        const amount = typeof row.amount === "number" || typeof row.amount === "string"
-          ? Number(row.amount)
-          : NaN;
-        if (typeof row.invoice_id !== "string" ||
-            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.invoice_id) ||
-            !Number.isFinite(amount) || amount < 0 ||
-            (row.id !== undefined && (typeof row.id !== "string" ||
-              !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id))) ||
-            (row.paid_at !== undefined && (typeof row.paid_at !== "string" || !Number.isFinite(Date.parse(row.paid_at))))) {
-          throw new Error("إحدى حركات الدفع تحتوي مرجعاً أو مبلغاً أو تاريخاً غير صالح.");
-        }
-        parsed.push({
-          invoice_id: row.invoice_id,
-          amount: row.amount as number | string,
-          ...(typeof row.id === "string" ? { id: row.id } : {}),
-          ...(typeof row.paid_at === "string" ? { paid_at: row.paid_at } : {}),
-        });
-      }
-      setInvoices(payload.invoices as Invoice[]);
-      setPayments(parsed);
+      const parsed = parseCustomerPaymentHistoryPayload(result.data);
+      setInvoices(parsed.invoices);
+      setPayments(parsed.payments);
     } catch (cause) {
       setInvoices([]);
       setPayments([]);
@@ -1568,6 +1623,9 @@ export function QuoteWorkspacePage() {
 }
 function Quotes() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [nextProductsOffset, setNextProductsOffset] = useState(0);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quoteItems, setQuoteItems] = useState<Record<string, QuoteLine[]>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -1598,7 +1656,8 @@ function Quotes() {
         .eq("organization_id", orgId)
         .eq("status", "active")
         .order("name")
-        .limit(500),
+        .order("id")
+        .range(0, CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE - 1),
       supabase
         .from("sales_quotes")
         .select("id,quote_number,status,notes,response_note,created_at,quoted_at,valid_until")
@@ -1607,15 +1666,22 @@ function Quotes() {
         .order("id", { ascending: false })
         .limit(50),
     ]);
-    if (p.error || q.error)
+    if (p.error || q.error) {
+      setHasMoreProducts(false);
+      setNextProductsOffset(0);
+      setProducts([]);
       setError("تعذر تحميل المنتجات أو عروض الأسعار. تحقق من نشر ترحيل قاعدة البيانات.");
-    else {
+    } else {
       try {
         const rows = (p.data ?? []) as Array<{ id: string; [key: string]: unknown }>;
         const priceMap = await fetchResolvedProductPrices(rows.map((row) => row.id));
         setProducts(rows.map((row) => withResolvedProductPrice(row, priceMap.get(row.id))) as Product[]);
+        setHasMoreProducts(customerQuoteProductPageHasMore(rows, CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE));
+        setNextProductsOffset(rows.length);
       } catch (priceError) {
         setProducts([]);
+        setHasMoreProducts(false);
+        setNextProductsOffset(0);
         setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
       }
       const quoteRows = (q.data ?? []) as Quote[];
@@ -1711,6 +1777,44 @@ function Quotes() {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل العروض الأقدم.");
     } finally {
       setLoadingMoreQuotes(false);
+    }
+  }
+
+  async function loadMoreProducts() {
+    if (loadingMoreProducts || !hasMoreProducts || loading || busy) return;
+    const offset = nextProductsOffset;
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      setError("تعذر التحقق من موضع صفحة الأصناف التالية.");
+      return;
+    }
+
+    setLoadingMoreProducts(true);
+    setError("");
+    try {
+      const { organizationId } = await getCurrentTenantScope();
+      const { data, error: productsError } = await supabase
+        .from("products")
+        .select("id,name,item_code,barcode,unit,status")
+        .eq("organization_id", organizationId)
+        .eq("status", "active")
+        .order("name")
+        .order("id")
+        .range(offset, offset + CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE - 1);
+      if (productsError) throw new Error("تعذر تحميل صفحة الأصناف التالية من المؤسسة الحالية.");
+
+      const rows = (data ?? []) as Array<{ id: string; [key: string]: unknown }>;
+      if (rows.some((row) => typeof row.id !== "string" || row.id.length === 0)) {
+        throw new Error("أعاد الخادم صنفًا دون معرّف صالح؛ لم تُضف الصفحة.");
+      }
+      const priceMap = await fetchResolvedProductPrices(rows.map((row) => row.id));
+      const page = rows.map((row) => withResolvedProductPrice(row, priceMap.get(row.id))) as Product[];
+      setProducts((current) => appendUniqueCustomerQuoteProducts(current, page));
+      setNextProductsOffset(offset + rows.length);
+      setHasMoreProducts(customerQuoteProductPageHasMore(rows, CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل أصناف إضافية.");
+    } finally {
+      setLoadingMoreProducts(false);
     }
   }
 
@@ -1847,6 +1951,31 @@ function Quotes() {
             ))}
           </div>
         )}
+        {products.length > 0 && (
+          <p role="status" aria-live="polite" style={quiet}>
+            تم تحميل {formatNumber(products.length)} صنفًا من الكتالوج
+          </p>
+        )}
+        {!loading && query.trim() && visible.length === 0 && hasMoreProducts && (
+          <p role="status" style={quiet}>لم يظهر الصنف في الدفعة الحالية؛ حمّل دفعة أخرى لمتابعة البحث في الكتالوج.</p>
+        )}
+        {!loading && query.trim() && visible.length === 0 && !hasMoreProducts && products.length > 0 && (
+          <p role="status" style={quiet}>لا توجد أصناف تطابق البحث في الكتالوج النشط.</p>
+        )}
+        {hasMoreProducts && (
+          <button
+            type="button"
+            style={secondary}
+            disabled={loadingMoreProducts || loading || busy}
+            onClick={() => void loadMoreProducts()}
+          >
+            <RefreshCw size={16} />
+            {loadingMoreProducts ? "جارٍ تحميل أصناف إضافية..." : "تحميل 100 صنف إضافي"}
+          </button>
+        )}
+        {!loading && products.length > 0 && !hasMoreProducts && (
+          <p role="status" style={quiet}>تم تحميل جميع الأصناف النشطة المتاحة في كتالوج مؤسستك.</p>
+        )}
         <label>
           ملاحظات
           <textarea
@@ -1857,7 +1986,7 @@ function Quotes() {
             placeholder="الكميات الشهرية أو موعد التوريد المطلوب"
           />
         </label>
-        <button style={primary} type="submit" disabled={busy || loading}>
+        <button style={primary} type="submit" disabled={busy || loading || loadingMoreProducts}>
           <Send size={16} />
           {busy ? "جارٍ الإرسال..." : "إرسال طلب عرض سعر"}
         </button>
@@ -2090,7 +2219,7 @@ function Reorder() {
     const responses = await Promise.all([
       supabase
         .from("products")
-        .select("id,name,item_code,barcode,unit,status")
+        .select("id,name,item_code,barcode,unit,status,min_order_quantity,order_quantity_multiple")
         .eq("organization_id", orgId)
         .eq("status", "active")
         .order("name")
@@ -2146,11 +2275,18 @@ function Reorder() {
   async function save(e: FormEvent) {
     e.preventDefault();
     const actionProfileId = user?.profileId;
-    const lines = Object.entries(quantities)
-      .filter(([, q]) => Number.isInteger(q) && q > 0)
+    const selectedLines = Object.entries(quantities)
+      .filter(([, quantity]) => quantity !== 0)
       .map(([product_id, quantity]) => ({ product_id, quantity }));
-    if (name.trim().length < 2 || !lines.length) {
+    if (name.trim().length < 2 || !selectedLines.length) {
       setError("اكتب اسم القالب واختر صنفًا واحدًا على الأقل.");
+      return;
+    }
+    let lines: ReorderCartLine[];
+    try {
+      lines = validateReorderTemplateLines(selectedLines, products);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "توجد كمية لا تطابق سياسة أحد الأصناف.");
       return;
     }
     setBusy(true);
@@ -2190,15 +2326,24 @@ function Reorder() {
         .eq("template_id", t.id);
       if (activeProfileIdRef.current !== actionProfileId) return;
       if (r.error) throw new Error("تعذر قراءة أصناف القالب. حاول مجددًا.");
-      const draft = normalizeCartDraft(
-        (r.data ?? [])
-          .filter((x: ReorderTemplateLine) => x.product_id)
-          .map((x: ReorderTemplateLine) => ({
-            product_id: x.product_id as string,
-            quantity: Number(x.quantity),
-          })),
-      );
-      if (!draft.length) throw new Error("لا يحتوي القالب على أصناف صالحة لإضافتها إلى السلة.");
+      const draft = validateReorderTemplateLines(r.data, products);
+      const currentDraft = loadOfflineCartDraft(window.localStorage, actionProfileId);
+      const combinedQuantities = new Map<string, number>();
+      for (const line of currentDraft) {
+        combinedQuantities.set(line.product_id.toLowerCase(), line.quantity);
+      }
+      for (const line of draft) {
+        const productId = line.product_id.toLowerCase();
+        combinedQuantities.set(
+          productId,
+          Math.min(10000, (combinedQuantities.get(productId) ?? 0) + line.quantity),
+        );
+      }
+      const combinedDraft = [...combinedQuantities.entries()].map(([product_id, quantity]) => ({
+        product_id,
+        quantity,
+      }));
+      validateReorderTemplateLines(combinedDraft, products);
       const merged = mergeOfflineCartDraft(window.localStorage, actionProfileId, draft);
       if (!merged) throw new Error("تعذر حفظ السلة المعزولة لهذا الحساب على الجهاز.");
       if (activeProfileIdRef.current !== actionProfileId) return;
@@ -2250,42 +2395,54 @@ function Reorder() {
             borderRadius: 10,
           }}
         >
-          {visible.map((p) => (
-            <div
-              key={p.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0,1fr) 95px",
-                gap: 10,
-                alignItems: "center",
-                padding: 10,
-                borderBottom: "1px solid #edf2f3",
-              }}
-            >
-              <div>
-                <strong>{p.name}</strong>
-                <div style={quiet}>
-                  {p.item_code}{customerStorefrontPriceSuffix(priceVisibilityPolicy, p.base_price)}
+          {visible.map((p) => {
+            const minimum = p.min_order_quantity ?? 1;
+            const multiple = p.order_quantity_multiple ?? 1;
+            const policyId = "reorder-policy-" + p.id;
+            return (
+              <div
+                key={p.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1fr) 95px",
+                  gap: 10,
+                  alignItems: "center",
+                  padding: 10,
+                  borderBottom: "1px solid #edf2f3",
+                }}
+              >
+                <div>
+                  <strong>{p.name}</strong>
+                  <div style={quiet}>
+                    {p.item_code} · {p.unit}{customerStorefrontPriceSuffix(priceVisibilityPolicy, p.base_price)}
+                  </div>
+                  <small id={policyId} style={{ ...quiet, display: "block", marginTop: 3 }}>
+                    الحد الأدنى: {minimum} {p.unit} · الزيادة من الحد الأدنى بمضاعف: {multiple}
+                  </small>
                 </div>
+                <input
+                  style={field}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  dir="ltr"
+                  maxLength={16}
+                  aria-label={"كمية " + p.name}
+                  aria-describedby={policyId}
+                  value={quantities[p.id] ?? ""}
+                  onChange={(e) => {
+                    const normalized = normalizeLocalizedDecimalInput(e.currentTarget.value);
+                    const parsed = normalized === "" ? 0 : Number(normalized);
+                    setQuantities((prev) => ({
+                      ...prev,
+                      [p.id]: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+                    }));
+                  }}
+                  placeholder="الكمية"
+                />
               </div>
-              <input
-                style={field}
-                type="number"
-                min="0"
-                max="10000"
-                step="1"
-                aria-label={"كمية " + p.name}
-                value={quantities[p.id] ?? ""}
-                onChange={(e) =>
-                  setQuantities((prev) => ({
-                    ...prev,
-                    [p.id]: Math.min(10000, Math.max(0, Number(e.target.value) || 0)),
-                  }))
-                }
-                placeholder="الكمية"
-              />
-            </div>
-          ))}
+            );
+          })}
         </div>
         <button type="submit" style={primary} disabled={busy}>
           <Save size={16} />
@@ -2337,10 +2494,12 @@ function Barcode() {
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState("");
   const [cameraError, setCameraError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const navigate = useNavigate();
+  const lookupRevisionRef = useRef(0);
   const lookup = useCallback(
     async (raw = value) => {
       const code = normalizeLocalizedBarcodeInput(raw);
@@ -2352,42 +2511,53 @@ function Barcode() {
         setError("الرمز يتجاوز الحد المسموح.");
         return;
       }
+
+      const requestRevision = ++lookupRevisionRef.current;
+      const isCurrentRequest = () => requestRevision === lookupRevisionRef.current;
       setBusy(true);
       setError("");
+      setNotice("");
       setProduct(null);
-      const tenantScope = await getCurrentTenantScope().catch((cause) => {
-        setError(cause instanceof Error ? cause.message : "تعذر تحديد المؤسسة الحالية.");
-        setBusy(false);
-        return null;
-      });
-      if (!tenantScope) return;
-      const { organizationId: orgId } = tenantScope;
-      let r = await supabase
-        .from("products")
-        .select("id,name,item_code,barcode,unit,status")
-        .eq("organization_id", orgId)
-        .eq("status", "active")
-        .eq("barcode", code)
-        .maybeSingle();
-      if (!r.data && !r.error)
-        r = await supabase
+      try {
+        const tenantScope = await getCurrentTenantScope();
+        if (!isCurrentRequest()) return;
+        const { organizationId: orgId } = tenantScope;
+        const productQuery = () => supabase
           .from("products")
-          .select("id,name,item_code,barcode,unit,status")
+          .select("id,name,item_code,barcode,sku,unit,min_order_quantity,order_quantity_multiple,status")
           .eq("organization_id", orgId)
-          .eq("status", "active")
-          .eq("item_code", code)
-          .maybeSingle();
-      if (r.error) setError("تعذر البحث في الكتالوج.");
-      else if (!r.data) setError("لم نعثر على صنف بهذا الرمز.");
-      else {
-        try {
-          const priceMap = await fetchResolvedProductPrices([r.data.id]);
-          setProduct(withResolvedProductPrice(r.data, priceMap.get(r.data.id)) as Product);
-        } catch (priceError) {
-          setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
+          .eq("status", "active");
+
+        let result = await productQuery().eq("barcode", code).maybeSingle();
+        if (!isCurrentRequest()) return;
+        if (!result.data && !result.error) {
+          result = await productQuery().eq("item_code", code).maybeSingle();
+          if (!isCurrentRequest()) return;
         }
+        if (!result.data && !result.error) {
+          result = await productQuery().eq("sku", code).maybeSingle();
+          if (!isCurrentRequest()) return;
+        }
+
+        if (result.error) {
+          setError("تعذر البحث في كتالوج المؤسسة الحالية.");
+          return;
+        }
+        if (!result.data) {
+          setError("لم نعثر على صنف بهذا الباركود أو رمز الصنف أو SKU.");
+          return;
+        }
+
+        const priceMap = await fetchResolvedProductPrices([result.data.id]);
+        if (!isCurrentRequest()) return;
+        setProduct(withResolvedProductPrice(result.data, priceMap.get(result.data.id)) as Product);
+      } catch (cause) {
+        if (isCurrentRequest()) {
+          setError(cause instanceof Error ? cause.message : "تعذر البحث في الكتالوج.");
+        }
+      } finally {
+        if (isCurrentRequest()) setBusy(false);
       }
-      setBusy(false);
     },
     [value],
   );
@@ -2405,18 +2575,39 @@ function Barcode() {
     let frame = 0;
     let video: HTMLVideoElement | null = null;
     type Detector = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>> };
-    type DetectorCtor = new (options: { formats: string[] }) => Detector;
-
+    type DetectorCtor = {
+      new (options: { formats: string[] }): Detector;
+      getSupportedFormats?: () => Promise<string[]>;
+    };
     const setup = async () => {
       try {
         const BarcodeCtor = (window as unknown as { BarcodeDetector?: DetectorCtor })
           .BarcodeDetector;
         if (!BarcodeCtor) {
-          setCameraError("هذا المتصفح لا يدعم قراءة الباركود بالكاميرا. استخدم الإدخال اليدوي.");
+          setCameraError("هذا المتصفح لا يدعم قراءة الباركود بالكاميرا. استخدم الإدخال اليدوي أو افتح المتجر في متصفح يدعم BarcodeDetector.");
           setScanning(false);
           return;
         }
-        stream = await navigator.mediaDevices.getUserMedia({
+
+        const mediaDevices = navigator.mediaDevices;
+        if (!mediaDevices?.getUserMedia) {
+          setCameraError("الكاميرا غير متاحة في هذا السياق. افتح المتجر عبر HTTPS أو استخدم الإدخال اليدوي.");
+          setScanning(false);
+          return;
+        }
+
+        const supportedFormats = typeof BarcodeCtor.getSupportedFormats === "function"
+          ? await BarcodeCtor.getSupportedFormats()
+          : DEFAULT_BARCODE_DETECTOR_FORMATS;
+        if (!active) return;
+        const formats = resolveSupportedBarcodeFormats(supportedFormats);
+        if (!formats.length) {
+          setCameraError("الكاميرا متاحة، لكن المتصفح لا يدعم صيغ الباركود المطلوبة. استخدم الإدخال اليدوي.");
+          setScanning(false);
+          return;
+        }
+
+        stream = await mediaDevices.getUserMedia({
           video: { facingMode: { ideal: "environment" } },
           audio: false,
         });
@@ -2427,29 +2618,46 @@ function Barcode() {
         }
         video.srcObject = stream;
         await video.play();
-        const detector = new BarcodeCtor({
-          formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "qr_code"],
-        });
+        if (!active) return;
+
+        const detector = new BarcodeCtor({ formats });
         const scan = async () => {
           if (!active || !video) return;
           try {
             const hits = await detector.detect(video);
-            const detectedCode = hits[0]?.rawValue;
+            // A frame decoded after the scanner was stopped must never trigger a lookup.
+            if (!active || !video) return;
+            const detectedCode = hits.find((hit) =>
+              typeof hit.rawValue === "string" && hit.rawValue.trim().length > 0,
+            )?.rawValue;
             if (detectedCode) {
-              setValue(detectedCode);
+              const normalizedCode = normalizeLocalizedBarcodeInput(detectedCode);
+              setValue(normalizedCode);
               setCameraError("");
               setScanning(false);
-              void lookupRef.current(detectedCode);
+              void lookupRef.current(normalizedCode);
               return;
             }
           } catch {
             // Ignore one unreadable frame and continue scanning.
           }
-          frame = requestAnimationFrame(() => void scan());
+          if (active) frame = requestAnimationFrame(() => void scan());
         };
         void scan();
-      } catch {
-        setCameraError("تعذر فتح الكاميرا. اسمح بالوصول إليها عبر HTTPS أو استخدم الإدخال اليدوي.");
+      } catch (cause) {
+        if (!active) return;
+        const errorName = cause && typeof cause === "object" && "name" in cause
+          ? String((cause as { name?: unknown }).name ?? "")
+          : "";
+        setCameraError(
+          errorName === "NotAllowedError" || errorName === "SecurityError"
+            ? "تم رفض إذن الكاميرا أو أن الصفحة ليست ضمن سياق آمن. اسمح بالوصول عبر HTTPS أو استخدم الإدخال اليدوي."
+            : errorName === "NotFoundError"
+              ? "لم يتم العثور على كاميرا متاحة في هذا الجهاز."
+              : errorName === "NotReadableError"
+                ? "الكاميرا مستخدمة من تطبيق أو تبويب آخر. أغلقه ثم أعد المحاولة."
+                : "تعذر فتح الكاميرا. تحقق من الإذن والاتصال الآمن أو استخدم الإدخال اليدوي.",
+        );
         setScanning(false);
       }
     };
@@ -2464,14 +2672,37 @@ function Barcode() {
   async function add() {
     if (!product) return;
     try {
+      const minimum = product.min_order_quantity;
+      const multiple = product.order_quantity_multiple;
+      if (minimum === undefined || multiple === undefined) {
+        setError("لم تصل سياسة الحد الأدنى ومضاعف الطلب من الخادم؛ لم تتم إضافة كمية تخمينية.");
+        return;
+      }
+      const currentLines = loadOfflineCartDraft(window.localStorage, user?.profileId);
+      const currentQuantity = currentLines.find((line) => line.product_id === product.id)?.quantity ?? 0;
+      const nextQuantity = nextBarcodeScanQuantity(currentQuantity, minimum, multiple);
+      if (nextQuantity === null) {
+        setError("تعذر تحديد الكمية التالية ضمن سياسة الصنف أو تجاوز حد السلة؛ راجع الكمية في السلة.");
+        return;
+      }
+      const quantityToAdd = nextQuantity - currentQuantity;
       const merged = mergeOfflineCartDraft(window.localStorage, user?.profileId, [
-        { product_id: product.id, quantity: 1 },
+        { product_id: product.id, quantity: quantityToAdd },
       ]);
       if (!merged) {
         setError("تعذر حفظ الصنف في السلة المعزولة لهذا الحساب.");
         return;
       }
-      void navigate({ to: "/" });
+      setError("");
+      setCameraError("");
+      setNotice(
+        "أُضيف " + product.name + " بكمية " + formatNumber(quantityToAdd) + " " + product.unit +
+        " إلى مسودة السلة المحلية. تحتوي المسودة الآن " + formatNumber(merged.length) +
+        " أصناف؛ الأسعار والتوفر والطلب النهائي لا تعتمد إلا بعد التحقق من الخادم.",
+      );
+      setProduct(null);
+      setValue("");
+      setScanning(false);
     } catch {
       setError("تعذر حفظ الصنف في السلة على هذا الجهاز.");
     }
@@ -2483,6 +2714,27 @@ function Barcode() {
     >
       {error && <ErrorBox message={error} />}
       {cameraError && <ErrorBox message={cameraError} />}
+      {notice && (
+        <section role="status" style={{ ...card, display: "grid", gap: 10, borderColor: "#a8d8c6" }}>
+          <p style={{ margin: 0, lineHeight: 1.8 }}>{notice}</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              type="button"
+              style={primary}
+              onClick={() => {
+                setNotice("");
+                setCameraError("");
+                setScanning(true);
+              }}
+            >
+              <ScanLine size={16} /> مسح صنف آخر
+            </button>
+            <button type="button" style={secondary} onClick={() => void navigate({ to: "/cart" })}>
+              <ShoppingCart size={16} /> فتح سلة المشتريات
+            </button>
+          </div>
+        </section>
+      )}
       <section style={{ ...card, display: "grid", gap: 12 }}>
         <form
           onSubmit={(e) => {
@@ -2501,6 +2753,10 @@ function Barcode() {
             style={{ ...field, flex: "1 1 260px" }}
             value={value}
             onChange={(e) => {
+              // Editing the value invalidates any pending result for the previous code.
+              lookupRevisionRef.current += 1;
+              setBusy(false);
+              setProduct(null);
               setValue(normalizeLocalizedBarcodeInput(e.currentTarget.value));
               setError("");
             }}
@@ -2515,6 +2771,12 @@ function Barcode() {
             style={secondary}
             onClick={() => {
               setCameraError("");
+              if (!scanning) {
+                lookupRevisionRef.current += 1;
+                setBusy(false);
+                setProduct(null);
+                setError("");
+              }
               setScanning((v) => !v);
             }}
           >
@@ -2537,12 +2799,15 @@ function Barcode() {
           <article style={{ ...card, borderColor: "#a8d8c6" }}>
             <h2 style={{ margin: "0 0 6px" }}>{product.name}</h2>
             <p style={quiet}>
-              رمز الصنف: {product.item_code} · الباركود: {product.barcode ?? "غير مسجل"}
+              رمز الصنف: {product.item_code} · SKU: {product.sku ?? "غير مسجل"} · الباركود: {product.barcode ?? "غير مسجل"}
             </p>
             <strong style={{ fontSize: 22, color: "#087f8d" }}>
               {resolvedProductPriceLabel(product.base_price)}
             </strong>
             <span style={{ marginInlineStart: 8 }}>/ {product.unit}</span>
+            <small style={quiet}>
+              الحد الأدنى: {product.min_order_quantity ?? "غير متاح"} · مضاعف الطلب: {product.order_quantity_multiple ?? "غير متاح"}
+            </small>
             <div style={{ marginTop: 14 }}>
               <button style={primary} onClick={() => void add()}>
                 <ShoppingCart size={16} /> أضف إلى السلة
@@ -2760,6 +3025,18 @@ function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: 
     unknown: false,
   };
 }
+type CachedOfflineProduct = ReturnType<typeof sanitizePublicCatalogCache>[number];
+
+function offlineDraftQuantityRules(product: CachedOfflineProduct): { minimum: number; multiple: number; firstValid: number } | null {
+  const minimum = Number(product.min_order_quantity ?? 1);
+  const multiple = Number(product.order_quantity_multiple ?? 1);
+  if (!Number.isSafeInteger(minimum) || minimum < 1 || minimum > 10000 ||
+      !Number.isSafeInteger(multiple) || multiple < 1 || multiple > 10000) return null;
+  const firstValid = Math.ceil(minimum / multiple) * multiple;
+  if (!Number.isSafeInteger(firstValid) || firstValid > 10000) return null;
+  return { minimum, multiple, firstValid };
+}
+
 function Offline() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -2773,6 +3050,8 @@ function Offline() {
   const [cachedProducts, setCachedProducts] = useState<ReturnType<typeof sanitizePublicCatalogCache>>([]);
   const [draftLines, setDraftLines] = useState<ReturnType<typeof loadOfflineCartDraft>>([]);
   const [cartCount, setCartCount] = useState(0);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogQuantityDrafts, setCatalogQuantityDrafts] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
   const refresh = useCallback(() => {
@@ -2878,6 +3157,57 @@ function Offline() {
       window.removeEventListener("offline", off);
     };
   }, [refresh, user?.profileId]);
+  const visibleCachedProducts = useMemo(() => cachedProducts.filter((product) =>
+    product.status === "active" && matchesArabicCatalogSearch({
+      ...product,
+      name: product.name + " " + (product.category?.name ?? ""),
+    }, catalogSearch),
+  ), [cachedProducts, catalogSearch]);
+
+  function addCachedProductToDraft(product: CachedOfflineProduct) {
+    if (!user?.profileId || product.status !== "active" ||
+        !cachedProducts.some((cachedProduct) => cachedProduct.id === product.id)) {
+      setMessage("تعذر تحديد صنف نشط ضمن كتالوج هذا الحساب؛ لم تُغيّر المسودة.");
+      return;
+    }
+    const rules = offlineDraftQuantityRules(product);
+    if (!rules) {
+      setMessage("تعذر التحقق من الحد الأدنى أو خطوة كمية الصنف؛ لم يُضف إلى المسودة.");
+      return;
+    }
+    const rawQuantity = catalogQuantityDrafts[product.id] ?? String(rules.firstValid);
+    const quantity = Number(normalizeLocalizedDecimalInput(rawQuantity));
+    if (!Number.isSafeInteger(quantity) || quantity < rules.minimum || quantity > 10000 ||
+        quantity % rules.multiple !== 0) {
+      setMessage("أدخل كمية صحيحة لا تقل عن الحد الأدنى وتطابق مضاعف الكمية للصنف.");
+      return;
+    }
+    try {
+      const currentLines = loadOfflineCartDraft(window.localStorage, user.profileId);
+      const currentQuantity = currentLines.find((line) => line.product_id === product.id)?.quantity ?? 0;
+      if (currentQuantity + quantity > 10000) {
+        setMessage("تجاوزت الكمية الإجمالية الحد المحلي الآمن (10,000)؛ لم تُغيّر المسودة.");
+        return;
+      }
+      const merged = mergeOfflineCartDraft(window.localStorage, user.profileId, [
+        { product_id: product.id, quantity },
+      ]);
+      if (!merged) {
+        setMessage("تعذر حفظ الإضافة في مسودة هذا الحساب؛ لم يُرسل أي طلب.");
+        return;
+      }
+      setDraftLines(merged);
+      setCartCount(merged.reduce((sum, line) => sum + line.quantity, 0));
+      setCatalogQuantityDrafts((previous) => ({ ...previous, [product.id]: String(rules.firstValid) }));
+      setMessage(
+        "أُضيف " + product.name + " إلى مسودة السلة بكمية " + formatNumber(quantity) +
+        ". لم يُرسل طلب ولم يُعتمد سعر أو مخزون.",
+      );
+    } catch {
+      setMessage("تعذر إضافة الصنف إلى المسودة المحلية؛ لم يُرسل أي طلب.");
+    }
+  }
+
   async function sync() {
     if (!online || !navigator.onLine) {
       setMessage("لا يوجد اتصال؛ ستظل النسخة المحلية محفوظة.");
@@ -3069,6 +3399,80 @@ function Offline() {
           <p style={{ ...quiet, margin: 0 }}>لا توجد مسودة محفوظة لهذا الحساب على هذا الجهاز.</p>
         )}
         <p style={{ ...quiet, marginBottom: 0 }}>تُحفظ معرّفات الأصناف والكميات فقط؛ الأسعار والمخزون والاعتماد النهائي يعاد التحقق منها عبر الخادم.</p>
+      </section>
+      <section style={{ ...card, display: "grid", gap: 12, marginBottom: 14 }}>
+        <div>
+          <h2 style={{ margin: "0 0 6px", fontSize: 16 }}>الكتالوج المحفوظ</h2>
+          <p style={{ ...quiet, margin: 0 }}>
+            تصفح الأصناف المحفوظة وابنِ مسودة سلة محلية. لا تُعرض الأسعار أو أرصدة المخزون من النسخة المحلية.
+          </p>
+        </div>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ fontWeight: 700 }}>البحث في الكتالوج المحفوظ</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="البحث في الكتالوج المحفوظ"
+              value={catalogSearch}
+              onChange={(event) => setCatalogSearch(event.target.value)}
+              maxLength={100}
+              placeholder="ابحث باسم الصنف أو الرمز أو التصنيف"
+              style={{ flex: "1 1 220px", minWidth: 0, padding: 10, border: "1px solid #cbdad9", borderRadius: 9, background: "#fff", font: "inherit" }}
+            />
+          </div>
+        </label>
+        {visibleCachedProducts.length === 0 ? (
+          <p style={{ ...quiet, margin: 0 }}>
+            {cachedProducts.length === 0
+              ? "لا توجد أصناف محفوظة بعد. اتصل بالخادم ثم حدّث الكتالوج المحلي."
+              : "لا توجد أصناف نشطة تطابق البحث في النسخة المحلية."}
+          </p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 10 }}>
+            {visibleCachedProducts.map((product) => {
+              const rules = offlineDraftQuantityRules(product);
+              const quantityValue = catalogQuantityDrafts[product.id] ?? String(rules?.firstValid ?? 1);
+              return (
+                <article key={product.id} style={{ border: "1px solid #e3ebec", borderRadius: 12, padding: 12, display: "grid", gap: 9, minWidth: 0 }}>
+                  <div>
+                    <strong>{product.name}</strong>
+                    <p style={{ ...quiet, margin: "4px 0 0" }}>
+                      الرمز: {product.item_code || "غير مسجل"} · الوحدة: {product.unit || "غير محددة"}
+                    </p>
+                    {product.category?.name ? (
+                      <p style={{ ...quiet, margin: "3px 0 0" }}>التصنيف: {product.category.name}</p>
+                    ) : null}
+                    <p style={{ ...quiet, margin: "3px 0 0" }}>
+                      الحد الأدنى: {rules ? formatNumber(rules.minimum) : "غير متاح"} · مضاعف الكمية: {rules ? formatNumber(rules.multiple) : "غير متاح"}
+                    </p>
+                  </div>
+                  <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
+                    الكمية المراد إضافتها للمسودة
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      dir="ltr"
+                      maxLength={12}
+                      aria-label={"الكمية لمسودة السلة: " + product.name}
+                      value={quantityValue}
+                      onChange={(event) => setCatalogQuantityDrafts((previous) => ({ ...previous, [product.id]: event.target.value }))}
+                      style={{ width: "100%", boxSizing: "border-box", padding: 9, border: "1px solid #cbdad9", borderRadius: 8, background: "#fff", font: "inherit" }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    style={primary}
+                    disabled={syncing || !rules || !user?.profileId}
+                    onClick={() => addCachedProductToDraft(product)}
+                  >
+                    <Plus size={16} /> إضافة إلى مسودة السلة
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
       <section style={{ ...card, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button style={primary} onClick={() => void sync()} disabled={syncing || !online}>
@@ -3893,7 +4297,7 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
       </section>
     );
   return (
-    <section style={{ display: "grid", gap: 14 }}>
+    <section style={{ display: "grid", gap: 14, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
       <header>
         <h1 style={{ fontSize: 24, margin: 0 }}>الفواتير والتحصيل</h1>
         <p style={quiet}>تسجيل دفعة فعلية من خلال أمر خادمي يتحقق من المتبقي داخل معاملة واحدة.</p>

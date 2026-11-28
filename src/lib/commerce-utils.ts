@@ -373,12 +373,18 @@ export const MAX_CATALOG_SEARCH_LENGTH = 120;
 
 /** Bound untrusted user input before local catalog filtering. */
 export function normalizeCatalogSearchQuery(value: unknown): string {
-  return String(value ?? '').normalize('NFKC').slice(0, MAX_CATALOG_SEARCH_LENGTH);
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .slice(0, MAX_CATALOG_SEARCH_LENGTH);
 }
 
 export function normalizeArabicSearchText(value: unknown): string {
   return String(value ?? '')
     .normalize('NFKC')
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
     .replace(/\u0640/g, '')
     .replace(ARABIC_DIACRITICS, '')
     .replace(/[أإآٱ]/g, 'ا')
@@ -419,13 +425,16 @@ function editDistanceAtMostOne(left: string, right: string): boolean {
 
 export type ArabicCatalogSearchRecord = {
   name?: unknown;
+  name_en?: unknown;
+  description?: unknown;
   item_code?: unknown;
+  sku?: unknown;
   barcode?: unknown;
 };
 
 /**
- * Empty queries show all records. SKU/barcode are exact-or-prefix only;
- * product names additionally support normalized substrings and one-edit token typos.
+ * Empty queries show all records. SKU/barcode/item-code are exact-or-prefix only;
+ * Arabic and English names plus descriptions support normalized substring and one-edit token matching.
  */
 export function matchesArabicCatalogSearch(
   product: ArabicCatalogSearchRecord,
@@ -436,21 +445,22 @@ export function matchesArabicCatalogSearch(
 
   const codeQuery = normalized.replace(/\s+/g, '');
   if (codeQuery) {
-    const codes = [product.item_code, product.barcode]
+    const codes = [product.item_code, product.sku, product.barcode]
       .map((value) => normalizeArabicSearchText(value).replace(/\s+/g, ''))
       .filter(Boolean);
     if (codes.some((code) => code === codeQuery || code.startsWith(codeQuery))) return true;
   }
 
-  const name = normalizeArabicSearchText(product.name);
-  if (!name) return false;
-  if (name.includes(normalized)) return true;
+  const searchableFields = [product.name, product.name_en, product.description]
+    .map((value) => normalizeArabicSearchText(value))
+    .filter(Boolean);
+  if (searchableFields.some((field) => field.includes(normalized))) return true;
 
   const queryTokens = normalized.split(' ').filter(Boolean);
-  const nameTokens = name.split(' ').filter(Boolean);
-  return queryTokens.every((queryToken) => nameTokens.some((nameToken) =>
-    nameToken.includes(queryToken) ||
-    (queryToken.length >= 4 && editDistanceAtMostOne(nameToken, queryToken)),
+  const searchableTokens = searchableFields.flatMap((field) => field.split(' ').filter(Boolean));
+  return queryTokens.every((queryToken) => searchableTokens.some((fieldToken) =>
+    fieldToken.includes(queryToken) ||
+    (queryToken.length >= 4 && editDistanceAtMostOne(fieldToken, queryToken)),
   ));
 }
 

@@ -33,7 +33,16 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-afterEach(() => cleanup());
+const originalCreateObjectURL = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+const originalRevokeObjectURL = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
+
+afterEach(() => {
+  cleanup();
+  if (originalCreateObjectURL) Object.defineProperty(URL, "createObjectURL", originalCreateObjectURL);
+  else Reflect.deleteProperty(URL, "createObjectURL");
+  if (originalRevokeObjectURL) Object.defineProperty(URL, "revokeObjectURL", originalRevokeObjectURL);
+  else Reflect.deleteProperty(URL, "revokeObjectURL");
+});
 
 function renderUploader(loadProducts: () => Promise<ProductWithInventory[]>, catalogRevision = 0) {
   return render(
@@ -161,6 +170,70 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
     expect(toWebp).toHaveBeenCalledTimes(3);
     expect(onUploaded).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "اكتمل رفع الصور" })).toBeDisabled();
+  });
+
+
+  it("measures retry progress against the failed subset, not the original batch", async () => {
+    vi.mocked(toWebp).mockResolvedValue(new Blob(["webp"], { type: "image/webp" }));
+    vi.mocked(uploadProductImage).mockResolvedValue("https://cdn.example.test/primary.webp");
+
+    let finishSecondRetry: (() => void) | undefined;
+    vi.mocked(uploadProductGalleryImage)
+      .mockRejectedValueOnce(new Error("first gallery failure"))
+      .mockRejectedValueOnce(new Error("second gallery failure"))
+      .mockResolvedValueOnce("https://cdn.example.test/gallery-2.webp")
+      .mockImplementationOnce(() => new Promise<string>((resolve) => {
+        finishSecondRetry = () => resolve("https://cdn.example.test/gallery-3.webp");
+      }));
+
+    const product = {
+      id: "product-progress",
+      name: "Rice",
+      item_code: "000125",
+      image_url: null,
+      image_gallery_urls: [],
+    } as unknown as ProductWithInventory;
+    const { container } = render(
+      <BulkProductImageUploader
+        loadProducts={vi.fn().mockResolvedValue([product])}
+        catalogRevision={0}
+        canManage
+        onUploaded={vi.fn()}
+      />,
+    );
+
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)")).toBeEnabled());
+
+    fireEvent.change(screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)"), {
+      target: {
+        files: [
+          new File(["primary"], "000125.jpg", { type: "image/jpeg" }),
+          new File(["gallery one"], "000125__2.jpg", { type: "image/jpeg" }),
+          new File(["gallery two"], "000125__3.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "رفع الصور المطابقة" }));
+    await waitFor(() => {
+      expect(container.querySelector('section[aria-label="نتائج رفع الصور"] [role="status"]')?.textContent).toContain("تعذر 2");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة محاولة الصور الفاشلة (2)" }));
+    await waitFor(() => expect(uploadProductGalleryImage).toHaveBeenCalledTimes(4));
+
+    const progress = screen.getByRole("progressbar", { name: "تقدم معالجة ورفع الصور" });
+    await waitFor(() => expect(progress.getAttribute("aria-valuemax")).toBe("2"));
+    await waitFor(() => expect(progress.getAttribute("aria-valuenow")).toBe("1"));
+    expect(progress.querySelector("i")).toHaveStyle({ width: "50%" });
+
+    finishSecondRetry?.();
+    await waitFor(() => expect(screen.queryByRole("progressbar", { name: "تقدم معالجة ورفع الصور" })).not.toBeInTheDocument());
+    expect(container.querySelector('section[aria-label="نتائج رفع الصور"] [role="status"]')?.textContent).toContain("تعذر 0");
   });
 
   it("does not fetch the full catalog until the image tool is expanded", async () => {
@@ -291,6 +364,39 @@ describe("product image coverage and direct completion", () => {
     expect(csv.split("\r\n")).toHaveLength(3);
   });
 
+  it("previews the locally selected primary image before any upload begins", async () => {
+    const previewUrl = "blob:http://localhost/product-preview";
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => previewUrl),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
+    const loadProducts = vi.fn().mockResolvedValue([missingProduct]);
+    const { container } = renderUploader(loadProducts);
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("اختيار صورة رئيسية للصنف أرز ناقص"), {
+      target: { files: [new File(["source"], "rice-original.jpg", { type: "image/jpeg" })] },
+    });
+
+    const preview = await screen.findByRole("img", {
+      name: "معاينة الصورة المختارة للصنف أرز ناقص",
+    });
+    expect(preview.getAttribute("src")).toBe(previewUrl);
+    expect(screen.getByText("معاينة الصورة قبل الرفع")).toBeTruthy();
+    expect(screen.getByText(/rice-original\.jpg/)).toBeTruthy();
+    expect(uploadProductImage).not.toHaveBeenCalled();
+  });
+
   it("uploads a selected image directly as the primary image for a product with no primary image", async () => {
     const converted = new Blob(["webp"], { type: "image/webp" });
     vi.mocked(toWebp).mockResolvedValue(converted);
@@ -330,6 +436,35 @@ describe("product image coverage and direct completion", () => {
     // Product opening remains an explicit, separate action from the image upload.
     // It is tested with the same catalog entry before its upload in a dedicated render below.
     expect(onOpenProduct).not.toHaveBeenCalled();
+  });
+
+  it("replaces a legacy non-HTTPS primary URL using its exact current value", async () => {
+    const converted = new Blob(["webp"], { type: "image/webp" });
+    vi.mocked(toWebp).mockResolvedValue(converted);
+    vi.mocked(uploadProductImage).mockResolvedValue("https://cdn.example.test/repaired-primary.webp");
+    const legacyUrl = "http://legacy.example.test/product.jpg";
+    const legacyProduct = { ...missingProduct, image_url: legacyUrl } as ProductWithInventory;
+    const loadProducts = vi.fn().mockResolvedValue([legacyProduct]);
+    const { container } = renderUploader(loadProducts);
+
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByText(/أصناف تحتاج صورة رئيسية/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("اختيار صورة رئيسية للصنف أرز ناقص"), {
+      target: { files: [new File(["source"], "rice.webp", { type: "image/webp" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "رفع كصورة رئيسية للصنف أرز ناقص" }));
+
+    await waitFor(() => expect(uploadProductImage).toHaveBeenCalledWith(
+      "product-missing",
+      converted,
+      legacyUrl,
+    ));
+    await waitFor(() => expect(screen.getByText("كل الأصناف المحمّلة لديها صورة رئيسية صالحة.")).toBeInTheDocument());
   });
 
   it("blocks duplicate direct image upload clicks before React commits the busy state", async () => {

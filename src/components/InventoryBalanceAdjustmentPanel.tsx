@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { adjustInventoryBalance, fetchInventoryAdjustmentBalances } from '@/lib/api';
 import type { InventoryAdjustmentBalance } from '@/lib/api';
+import { parseLocalizedQuantityInput } from '@/lib/localized-number-input';
 
 const formatQuantity = (value: number) =>
   new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(value);
@@ -37,9 +38,22 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const pendingKey = useRef<{ signature: string; key: string } | null>(null);
+  const reloadSequence = useRef(0);
+  const activeWarehouseId = useRef(warehouseId);
+  activeWarehouseId.current = warehouseId;
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   async function reload() {
+    const requestId = ++reloadSequence.current;
     if (!warehouseId) {
+      if (requestId !== reloadSequence.current) return;
       setItems([]);
       setSelectedProductId('');
       setLoading(false);
@@ -49,6 +63,8 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
     setError('');
     try {
       const loaded = await fetchInventoryAdjustmentBalances(warehouseId);
+      // A warehouse switch or a newer manual refresh supersedes this response.
+      if (requestId !== reloadSequence.current) return;
       setItems(loaded);
       setSelectedProductId((current) =>
         current && loaded.some((item) => item.product_id === current)
@@ -57,9 +73,10 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
       );
       setNewQuantity((current) => current.trim() !== '' ? current : String(loaded[0]?.quantity_on_hand ?? ''));
     } catch (cause) {
+      if (requestId !== reloadSequence.current) return;
       setError(cause instanceof Error ? cause.message : 'تعذر تحميل أرصدة التسوية.');
     } finally {
-      setLoading(false);
+      if (requestId === reloadSequence.current) setLoading(false);
     }
   }
 
@@ -74,6 +91,10 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
     setNotice('');
     pendingKey.current = null;
     void reload();
+    return () => {
+      // Invalidate an in-flight projection when the warehouse changes or the panel unmounts.
+      reloadSequence.current += 1;
+    };
     // Warehouse changes are the only external input that reloads this projection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouseId]);
@@ -81,13 +102,10 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
   const selected = items.find((item) => item.product_id === selectedProductId) ?? null;
   const filteredItems = useMemo(() => filterInventoryItems(items, search), [items, search]);
 
-  const parsedNewQuantity = newQuantity.trim() === '' ? null : Number(newQuantity);
-  const validNewQuantity = parsedNewQuantity !== null && Number.isFinite(parsedNewQuantity)
-    && parsedNewQuantity >= 0 && parsedNewQuantity <= 999999999999.999
-    && Number.isSafeInteger(Math.round(parsedNewQuantity * 1000))
-    && Math.abs(Math.round(parsedNewQuantity * 1000) / 1000 - parsedNewQuantity) < 1e-9;
-  const delta = selected && validNewQuantity ? parsedNewQuantity! - selected.quantity_on_hand : null;
-  const belowReserved = Boolean(selected && validNewQuantity && parsedNewQuantity! < selected.quantity_reserved);
+  const parsedNewQuantity = parseLocalizedQuantityInput(newQuantity);
+  const validNewQuantity = parsedNewQuantity !== null;
+  const delta = selected && parsedNewQuantity !== null ? parsedNewQuantity - selected.quantity_on_hand : null;
+  const belowReserved = Boolean(selected && parsedNewQuantity !== null && parsedNewQuantity < selected.quantity_reserved);
 
   function selectProduct(productId: string) {
     setSelectedProductId(productId);
@@ -112,9 +130,10 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
       setError('الرصيد الجديد مطابق للحالي؛ لا توجد تسوية لتنفيذها.');
       return;
     }
+    const submittedWarehouseId = warehouseId;
     const payload = {
       productId: selected.product_id,
-      warehouseId,
+      warehouseId: submittedWarehouseId,
       expectedQuantity: selected.quantity_on_hand,
       newQuantity: parsedNewQuantity,
       reason: reason.trim(),
@@ -144,6 +163,8 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
     setNotice('');
     try {
       const result = await adjustInventoryBalance({ ...payload, idempotencyKey: key });
+      // A completed adjustment for a no-longer-visible warehouse must not replace the new view.
+      if (!mounted.current || activeWarehouseId.current !== submittedWarehouseId) return;
       setNotice(
         (result.idempotent_replay ? 'تم استرجاع نتيجة التسوية السابقة دون تكرارها. ' : 'تم تنفيذ التسوية وحفظ حركتها وتدقيقها. ') +
         'الرصيد: ' + formatQuantity(result.previous_quantity_on_hand) + ' ← ' +
@@ -154,9 +175,11 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
       setNewQuantity(String(result.new_quantity_on_hand));
       await reload();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'تعذر تنفيذ تسوية الرصيد.');
+      if (mounted.current && activeWarehouseId.current === submittedWarehouseId) {
+        setError(cause instanceof Error ? cause.message : 'تعذر تنفيذ تسوية الرصيد.');
+      }
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
 
@@ -224,11 +247,15 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
               <div className="form-grid" style={{ marginTop: 12 }}>
                 <label>
                   الرصيد الجديد
-                  <input type="number" min="0" max="999999999999.999" step="0.001"
+                  <input type="text" inputMode="decimal" dir="ltr" autoComplete="off"
                     aria-label={'الرصيد الجديد للصنف ' + selected.product_name}
+                    aria-describedby="inventory-adjustment-quantity-hint"
                     value={newQuantity}
                     onChange={(event) => { setNewQuantity(event.target.value); setNotice(''); }}
                     disabled={busy} />
+                  <span id="inventory-adjustment-quantity-hint" className="text-muted">
+                    اكتب بالأرقام العربية أو الإنجليزية، ويمكن استخدام الفاصلة العشرية ٫ أو النقطة، حتى ثلاث منازل.
+                  </span>
                 </label>
                 <label>
                   سبب التسوية

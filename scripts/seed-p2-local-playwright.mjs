@@ -26,6 +26,7 @@ if (
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const foreignOrganizationId = "a1111111-1111-4111-8111-111111111111";
 const productId = "a1000000-0000-0000-0000-000000000001";
+const foreignProductId = "a1000000-0000-0000-0000-000000000002";
 const preferredWarehouseId = "d0000000-0000-0000-0000-000000000001";
 const runKey = (process.env.GITHUB_RUN_ID || "local") + "-" + randomUUID().slice(0, 8);
 const passwordA = randomUUID().replaceAll("-", "") + "Aa1!";
@@ -52,6 +53,9 @@ const returnOrderId = randomUUID();
 const returnOrderNumber = "P2-RET-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
 const returnInvoiceNumber = "INV-" + returnOrderNumber;
 const returnItemName = "P2 Playwright Return Item";
+const amendmentOrderId = randomUUID();
+const amendmentOrderNumber = "P2-AMD-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
+let amendmentOrderItemId = "";
 const multiReceiptSuffix = runKey.replaceAll("-", "").slice(-12).toUpperCase();
 const multiReceiptInvoiceANumber = "P2-MR-A-" + multiReceiptSuffix;
 const multiReceiptInvoiceBNumber = "P2-MR-B-" + multiReceiptSuffix;
@@ -67,6 +71,25 @@ let purchaseWarehouse = null;
 let purchaseProduct = null;
 
 const db = postgres(connectionString, { max: 2, prepare: false, idle_timeout: 5 });
+
+async function signInLocal(email, password, expectedUserId) {
+  const response = await fetch(new URL("/auth/v1/token?grant_type=password", api), {
+    method: "POST",
+    headers: { apikey: publishableKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || typeof body?.access_token !== "string") {
+    throw new Error("Local Supabase administrator sign-in failed (HTTP " + response.status + ").");
+  }
+  const parts = body.access_token.split(".");
+  if (parts.length !== 3) throw new Error("Local Supabase issued a malformed administrator JWT.");
+  const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  if (claims.sub !== expectedUserId || typeof claims.session_id !== "string") {
+    throw new Error("Local Supabase administrator JWT is missing the expected session identity.");
+  }
+  return claims;
+}
 
 async function createConfirmedUser(email, password, fullName) {
   const response = await fetch(new URL("/auth/v1/admin/users", api), {
@@ -100,6 +123,7 @@ async function main() {
   const managerUserId = await createConfirmedUser(managerEmail, managerPassword, "P2 Local E2E Manager");
   const staffUserId = await createConfirmedUser(staffEmail, staffPassword, "P2 Local E2E Staff");
   const adminUserId = await createConfirmedUser(adminEmail, adminPassword, "P2 Local E2E Administrator");
+  const adminJwtClaims = await signInLocal(adminEmail, adminPassword, adminUserId);
   const accountantUserId = await createConfirmedUser(accountantEmail, accountantPassword, "P2 Local E2E Accountant");
   const companyMemberUserId = await createConfirmedUser(companyMemberEmail, companyMemberPassword, "P2 Local E2E Company Member");
   const customerManagerUserId = await createConfirmedUser(customerManagerEmail, customerManagerPassword, "P2 Local E2E Customer Manager");
@@ -171,6 +195,13 @@ async function main() {
       "on conflict(profile_id,role) do nothing",
       [profileAId, profileBId, managerProfileId, companyMemberProfileId, customerManagerProfileId, accountantProfileId, adminProfileId, staffProfileId],
     );
+    // Auth signup provisions a default customer role. Internal E2E identities must
+    // be role-exclusive so the customer/staff boundary is tested against distinct
+    // accounts instead of synthetic dual-role profiles.
+    await tx.unsafe(
+      "delete from public.user_roles where role='customer' and profile_id=any($1::uuid[])",
+      [[managerProfileId, staffProfileId, adminProfileId, accountantProfileId, customerManagerProfileId]],
+    );
     await tx.unsafe(
       "insert into public.customers(" +
       "organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at" +
@@ -220,6 +251,30 @@ async function main() {
     }
     purchaseWarehouse = warehouses[0];
 
+    // Keep the manager's stock-count assignment isolated from the two deliberately
+    // unassigned warehouses used by the negative/positive RLS authorization test.
+    const unassignedWarehouseIds = [
+      "d0000000-0000-0000-0000-000000000002",
+      "d0000000-0000-0000-0000-000000000003",
+    ];
+    await tx.unsafe(
+      "insert into public.warehouses(id,organization_id,branch_id,name,code,is_active) values " +
+      "($1::uuid,$2::uuid,NULL,'P2 Unassigned RLS Warehouse A','P2-LOCAL-RLS-A',true)," +
+      "($3::uuid,$2::uuid,NULL,'P2 Unassigned RLS Warehouse B','P2-LOCAL-RLS-B',true) " +
+      "on conflict(id) do nothing",
+      [unassignedWarehouseIds[0], organizationId, unassignedWarehouseIds[1]],
+    );
+    const unassignedWarehouses = await tx.unsafe(
+      "select id::text,organization_id::text,code from public.warehouses " +
+      "where id=any($1::uuid[]) and organization_id=$2::uuid and is_active=true " +
+      "and code in ('P2-LOCAL-RLS-A','P2-LOCAL-RLS-B') order by id",
+      [unassignedWarehouseIds, organizationId],
+    );
+    if (unassignedWarehouses.length !== 2 ||
+        unassignedWarehouses.some((warehouse) => !unassignedWarehouseIds.includes(warehouse.id))) {
+      throw new Error("The isolated unassigned-warehouse RLS fixtures are missing or tenant-mismatched.");
+    }
+
     // The seed-removal migration deliberately disables public publication and clears
     // its warehouse. Re-enable it only in this disposable local P2 database, and only
     // against the canonical organization + verified fixture warehouse created above.
@@ -258,6 +313,24 @@ async function main() {
       throw new Error("The isolated P2 product fixture is missing, inactive, or owned by another tenant.");
     }
     purchaseProduct = product[0];
+
+    await tx.unsafe(
+      "insert into public.products(" +
+      "id,organization_id,category_id,name,item_code,barcode,description,unit,base_price,cost_price,min_stock,status" +
+      ") values($1::uuid,$2::uuid,NULL,'P2 Local E2E Foreign Product','P2-LOCAL-FOREIGN-001',NULL," +
+      "'Disposable cross-tenant image authorization fixture','carton',38500,0,0,'active') " +
+      "on conflict(id) do nothing",
+      [foreignProductId, foreignOrganizationId],
+    );
+    const foreignProduct = await tx.unsafe(
+      "select id,organization_id,item_code from public.products " +
+      "where id=$1::uuid and organization_id=$2::uuid and item_code='P2-LOCAL-FOREIGN-001' and status='active'",
+      [foreignProductId, foreignOrganizationId],
+    );
+    if (foreignProduct.length !== 1) {
+      throw new Error("The isolated foreign-tenant image product fixture is missing or tenant-mismatched.");
+    }
+
     await tx.unsafe(
       "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values " +
       "($1::uuid,'retail',38500,1,true),($1::uuid,'wholesale',37000,10,true),($1::uuid,'vip',35500,20,true) " +
@@ -283,10 +356,10 @@ async function main() {
       throw new Error("The isolated P2 receipt supplier fixture is missing, inactive, or owned by another tenant.");
     }
     await tx.unsafe(
-      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
-      "values($1::uuid,$2::uuid,100,0,0) " +
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values " +
+      "($1::uuid,$2::uuid,100,0,0),($1::uuid,$3::uuid,100,0,0),($1::uuid,$4::uuid,100,0,0) " +
       "on conflict(product_id,warehouse_id) do update set quantity_on_hand=100,quantity_reserved=0,reorder_point=0",
-      [productId, warehouses[0].id],
+      [productId, warehouses[0].id, unassignedWarehouseIds[0], unassignedWarehouseIds[1]],
     );
 
     // A tenant-scoped supplier fixture is required by the actual purchase-order RPC.
@@ -333,6 +406,25 @@ async function main() {
     if (returnOrderItemRows.length !== 1) {
       throw new Error("The isolated customer return order line could not be created.");
     }
+    // This returned, unreserved order isolates the customer amendment replay path.
+    const amendmentOrderRows = await tx.unsafe(
+      "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4,'returned',200,1,'Isolated P2 customer amendment replay',$5::uuid) returning id",
+      [amendmentOrderId, organizationId, returnCustomerId, amendmentOrderNumber, profileAId],
+    );
+    if (amendmentOrderRows.length !== 1) {
+      throw new Error("The isolated customer amendment replay order could not be created.");
+    }
+    const amendmentOrderItemRows = await tx.unsafe(
+      "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) " +
+      "values($1::uuid,$2::uuid,'P2-AMD-001','P2 Local E2E Amendment Item','piece',2,2,2,100,0,200) returning id",
+      [amendmentOrderId, productId],
+    );
+    if (amendmentOrderItemRows.length !== 1) {
+      throw new Error("The isolated customer amendment replay order line could not be created.");
+    }
+    amendmentOrderItemId = amendmentOrderItemRows[0].id;
+
     const returnInvoiceRows = await tx.unsafe(
       "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
       "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',pg_catalog.now(),'YER',200,0,200) returning id",
@@ -394,6 +486,52 @@ async function main() {
     }
     returnReceivableAccountId = receivableRows[0].id;
     returnRevenueAccountId = revenueRows[0].id;
+
+    // A disposable warehouse relationship is needed for stock-count start/entry.
+    // Keep the separate single-item balance-adjustment command explicitly denied.
+    await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)", [adminUserId]);
+    await tx.unsafe("select set_config('request.jwt.claims',$1,true)", [
+      JSON.stringify({ ...adminJwtClaims, role: "authenticated" }),
+    ]);
+    await tx.unsafe("set local role authenticated");
+    try {
+      const decodeJson = (value) => typeof value === "string" ? JSON.parse(value) : value;
+      const scopeRows = await tx.unsafe(
+        "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+        [managerProfileId, preferredWarehouseId, "P2 local stock-count warehouse assignment"],
+      );
+      const scopeResult = decodeJson(scopeRows[0]?.result);
+      if (scopeResult?.changed !== true || scopeResult?.is_active !== true) {
+        throw new Error("Local stock-count warehouse scope was not persisted and audited.");
+      }
+      const denialRows = await tx.unsafe(
+        "select public.set_authorization_profile_denial($1::uuid,'inventory.balance.adjust',$2::text,NULL::timestamptz,true) as result",
+        [managerProfileId, "P2 local fixture keeps standalone inventory adjustments denied"],
+      );
+      const denialResult = decodeJson(denialRows[0]?.result);
+      if (denialResult?.changed !== true || denialResult?.is_active !== true) {
+        throw new Error("Local manager balance-adjustment denial was not persisted and audited.");
+      }
+      const decisions = await tx.unsafe(
+        "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.start',$2::uuid) as count_start," +
+        "public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.enter',$2::uuid) as count_enter," +
+        "public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.balance.adjust',$2::uuid) as balance_adjust",
+        [managerProfileId, preferredWarehouseId],
+      );
+      const countStart = decodeJson(decisions[0]?.count_start);
+      const countEnter = decodeJson(decisions[0]?.count_enter);
+      const balanceAdjust = decodeJson(decisions[0]?.balance_adjust);
+      if (countStart?.decision !== "PERMIT" || countEnter?.decision !== "PERMIT" ||
+          balanceAdjust?.decision !== "DENY") {
+        throw new Error(
+          "Local manager authorization mismatch: count.start=" + String(countStart?.decision) +
+          ", count.enter=" + String(countEnter?.decision) +
+          ", balance.adjust=" + String(balanceAdjust?.decision) + ".",
+        );
+      }
+    } finally {
+      await tx.unsafe("reset role");
+    }
   });
 
   const configuredTenant = await db.unsafe(
@@ -412,6 +550,7 @@ async function main() {
     "E2E_PASSWORD=" + passwordA,
     "E2E_EMAIL_B=" + emailB,
     "E2E_PASSWORD_B=" + passwordB,
+    "E2E_PROFILE_SESSION_ISOLATION=1",
     "E2E_PHONE=771234567",
     "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_MANAGER_EMAIL=" + managerEmail,
@@ -419,6 +558,7 @@ async function main() {
     "E2E_STAFF_EMAIL=" + staffEmail,
     "E2E_STAFF_PASSWORD=" + staffPassword,
     "E2E_PRODUCT_ID=" + productId,
+    "E2E_FOREIGN_PRODUCT_ID=" + foreignProductId,
     "E2E_DEVICE_ADMIN_EMAIL=" + adminEmail,
     "E2E_DEVICE_ADMIN_PASSWORD=" + adminPassword,
     "E2E_DEVICE_TARGET_EMAIL=" + managerEmail,
@@ -437,6 +577,8 @@ async function main() {
     "E2E_EXPIRED_COMPANY_INVITATION_ID=" + expiredInvitationId,
     "E2E_RETURN_ORDER_ID=" + returnOrderId,
     "E2E_RETURN_ORDER_NUMBER=" + returnOrderNumber,
+    "E2E_AMENDMENT_ORDER_ID=" + amendmentOrderId,
+    "E2E_AMENDMENT_ITEM_ID=" + amendmentOrderItemId,
     "E2E_MULTI_RECEIPT_INVOICE_A_NUMBER=" + multiReceiptInvoiceANumber,
     "E2E_MULTI_RECEIPT_INVOICE_B_NUMBER=" + multiReceiptInvoiceBNumber,
     "E2E_MULTI_RECEIPT_CUSTOMER_NAME=P2 Local E2E Customer A",

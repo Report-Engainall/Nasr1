@@ -108,7 +108,7 @@ describe("public catalog privacy and tenant query contract", () => {
 
     const products = queryFor("products");
     expect(products.columns).toBe(
-      "id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple",
+      "id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,updated_at,min_order_quantity,order_quantity_multiple",
     );
     expect(products.columns).not.toMatch(/organization_id|warehouse_id|quantity_on_hand/i);
     expect(products.columns).not.toMatch(/base_price|cost_price|retail_price|wholesale_price|purchase_cost/i);
@@ -127,7 +127,7 @@ describe("public catalog privacy and tenant query contract", () => {
     });
 
     const categories = queryFor("categories");
-    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active");
+    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active,icon");
     expect(categories.columns).not.toMatch(/description|created_at/i);
     expect(categories.filters).toContainEqual({
       column: "organization_id",
@@ -166,6 +166,7 @@ describe("public catalog privacy and tenant query contract", () => {
         is_featured: false,
         sort_order: 1,
         created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-11-19T08:15:00Z",
       }],
       error: null,
     });
@@ -173,7 +174,7 @@ describe("public catalog privacy and tenant query contract", () => {
     const rows = await fetchProducts();
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: "staff-product-1", name: "Staff product", min_stock: 4 });
+    expect(rows[0]).toMatchObject({ id: "staff-product-1", name: "Staff product", min_stock: 4, updated_at: "2026-11-19T08:15:00Z" });
     expect(rows[0]).not.toHaveProperty("base_price");
     expect(rows[0]).not.toHaveProperty("cost_price");
     expect(rows[0]).not.toHaveProperty("price_wholesale");
@@ -370,13 +371,13 @@ describe("public catalog privacy and tenant query contract", () => {
 
   it("returns only active public categories through the dedicated category fetcher", async () => {
     mocks.responses.categories = {
-      data: [{ id: "category-1", name: "Public category", code: "PUB", parent_id: null, sort_order: 1, is_active: true }],
+      data: [{ id: "category-1", name: "Public category", code: "PUB", parent_id: null, sort_order: 1, is_active: true, icon: "food" }],
       error: null,
     } as never;
     await expect(fetchCategories()).resolves.toEqual(mocks.responses.categories.data);
 
     const categories = queryFor("categories");
-    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active");
+    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active,icon");
     expect(categories.columns).not.toMatch(/description|created_at/i);
     expect(categories.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
     expect(categories.filters).toContainEqual({ column: "is_active", value: true });

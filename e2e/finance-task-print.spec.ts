@@ -184,9 +184,8 @@ async function assertAdminMobileNavigation(page: Page): Promise<void> {
 
 const ADMIN_SCREEN_PATHS = ["/admin","/admin/products","/admin/customers","/admin/orders","/admin/pricing","/admin/stock-count","/admin/inventory-transfers","/admin/offers","/admin/suppliers","/admin/purchase-orders","/admin/devices","/admin/reports","/admin/intelligence","/admin/ai","/admin/notifications","/admin/data","/admin/operations","/admin/settings","/admin/quotes","/admin/finance","/admin/tasks","/admin/audit"] as const;
 
-async function assertRouteViewport(page: Page, route: string, width: number) {
+async function assertRouteViewportAtWidth(page: Page, route: string, width: number) {
   await page.setViewportSize({ width, height: 800 });
-  await page.goto(route, { waitUntil: "domcontentloaded" });
 
   if (route === "/admin/exports") {
     await expect(page.getByRole("heading", { name: "تصدير الطلبات غير المتزامن" })).toBeVisible({ timeout: 20_000 });
@@ -241,7 +240,34 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
       right: element.getBoundingClientRect().right,
       left: element.getBoundingClientRect().left,
     }));
-    expect(scrollMetrics.clientWidth).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
+    const layoutChain = await journalLineScroller.evaluate((element) => {
+      const chain: Array<Record<string, string | number>> = [];
+      let current: HTMLElement | null = element as HTMLElement;
+      for (let depth = 0; depth < 8 && current; depth += 1) {
+        const rect = current.getBoundingClientRect();
+        const style = getComputedStyle(current);
+        chain.push({
+          depth,
+          tag: current.tagName.toLowerCase(),
+          className: typeof current.className === "string" ? current.className : "",
+          width: Math.round(rect.width),
+          clientWidth: current.clientWidth,
+          scrollWidth: current.scrollWidth,
+          minWidth: style.minWidth,
+          maxWidth: style.maxWidth,
+          display: style.display,
+          flex: style.flex,
+          gridTemplateColumns: style.gridTemplateColumns,
+          overflowX: style.overflowX,
+        });
+        current = current.parentElement;
+      }
+      return chain;
+    });
+    expect(
+      scrollMetrics.clientWidth,
+      "Journal line scroller exceeded the mobile viewport: " + JSON.stringify({ scrollMetrics, layoutChain }),
+    ).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
     expect(scrollMetrics.right).toBeLessThanOrEqual(scrollMetrics.viewportWidth + 1);
     expect(scrollMetrics.left).toBeGreaterThanOrEqual(-1);
     expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
@@ -299,6 +325,17 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
   return { route, width, ...measured, overflow: false };
 }
 
+// One real navigation per route is sufficient: CSS breakpoint behavior is exercised
+// at both widths on the same rendered screen, avoiding a duplicate app boot per route.
+async function assertRouteViewports(page: Page, route: string) {
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+  const results = [];
+  for (const width of [360, 1280]) {
+    results.push(await assertRouteViewportAtWidth(page, route, width));
+  }
+  return results;
+}
+
 async function assertAdminRouteViewportMatrix(page: Page) {
   const results: Array<{
     route: string;
@@ -309,10 +346,8 @@ async function assertAdminRouteViewportMatrix(page: Page) {
     documentWidth: number;
     overflow: boolean;
   }> = [];
-  for (const width of [360, 1280]) {
-    for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
-      results.push(await assertRouteViewport(page, route, width));
-    }
+  for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
+    results.push(...await assertRouteViewports(page, route));
   }
   await test.info().attach("admin-route-responsive-rtl-matrix.json", {
     body: JSON.stringify({
@@ -355,9 +390,11 @@ test("authorized finance documents and operational-task print remain tenant-scop
     // Admin sales-order print must show only persisted order values, never editable draft values.
     await manager.goto("/admin/orders");
     await expect(manager.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
-    const salesOrderRow = manager.getByRole("row").filter({ hasText: orderNumber }).first();
-    await expect(salesOrderRow).toBeVisible({ timeout: 30_000 });
-    await salesOrderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+    // The live orders workspace renders semantic article cards, not table rows.
+    // Anchor the acceptance to the persisted order card and its actual review action.
+    const salesOrderCard = manager.locator("article.admin-order-card").filter({ hasText: orderNumber }).first();
+    await expect(salesOrderCard).toBeVisible({ timeout: 30_000 });
+    await salesOrderCard.getByRole("button", { name: "تفاصيل الطلب ومراجعته", exact: true }).click();
     await expect(manager.getByRole("heading", { name: "الطلب #" + orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
     const salesOrderPrintButton = manager.getByRole("button", { name: "طباعة أمر البيع", exact: true });
     await expect(salesOrderPrintButton).toBeEnabled();
@@ -373,6 +410,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(1);
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(manager.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(manager, "manager");
@@ -446,7 +484,42 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
     await manager.goto("/admin/tasks");
     await expect(manager.getByRole("heading", { name: "مركز المهام التشغيلية" })).toBeVisible();
-    await manager.getByLabel("الحالة").selectOption("all");
+    const taskPagination = manager.getByRole("navigation", { name: "صفحات المهام" });
+    await expect(taskPagination).toBeVisible();
+    await expect(taskPagination.getByRole("button", { name: "التالي", exact: true })).toBeEnabled();
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
+    // Source-backed supplier purchase/invoice events can add legitimate operational tasks.
+    // Read the tenant-scoped total from the real pagination control instead of assuming a fixed seed count.
+    const firstPageTaskStatus = await taskPagination.getByRole("status").textContent();
+    const totalTaskMatch = firstPageTaskStatus?.match(/من ([٠-٩]+) مهمة/);
+    expect(totalTaskMatch, "the task pagination must expose a localized total count").not.toBeNull();
+    const totalTaskCount = Number(
+      totalTaskMatch![1].replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))),
+    );
+    expect(Number.isSafeInteger(totalTaskCount)).toBe(true);
+    expect(totalTaskCount).toBeGreaterThan(10);
+    const firstTaskCard = manager.locator(".task-center-list .task-card").first();
+    await expect(firstTaskCard.getByRole("button", { name: "فتح مراجعة الجودة", exact: true })).toHaveAttribute("aria-expanded", "false");
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
+    await firstTaskCard.getByRole("button", { name: "فتح مراجعة الجودة", exact: true }).click();
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toBeVisible();
+    await firstTaskCard.getByRole("button", { name: "إخفاء مراجعة الجودة", exact: true }).click();
+    await expect(firstTaskCard.getByRole("form", { name: "مراجعة جودة المهمة" })).toHaveCount(0);
+    await taskPagination.getByRole("button", { name: "التالي", exact: true }).click();
+    await expect(taskPagination).toContainText("صفحة ٢");
+    const lastTaskOnSecondPage = Math.min(totalTaskCount, 20);
+    const expectedSecondPageStatus = `عرض ${(11).toLocaleString("ar-YE")}–${lastTaskOnSecondPage.toLocaleString("ar-YE")} من ${totalTaskCount.toLocaleString("ar-YE")} مهمة`;
+    await expect(taskPagination.getByRole("status")).toHaveText(expectedSecondPageStatus);
+    // Page 2 shows the inclusive range 11–20, so its rendered card count is capped at ten.
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(lastTaskOnSecondPage - 10);
+    await taskPagination.getByRole("button", { name: "السابق", exact: true }).click();
+    await expect(taskPagination).toContainText("صفحة ١");
+    const taskStatusFilter = manager.getByRole("combobox", { name: "الحالة", exact: true });
+    await expect(taskStatusFilter).toHaveCount(1);
+    await expect(taskStatusFilter).toBeVisible();
+    await expect(taskStatusFilter).toBeEnabled();
+    await taskStatusFilter.selectOption("all");
+    await expect(manager.locator(".task-center-list .task-card")).toHaveCount(10);
     await manager.getByLabel("نطاق الطباعة").selectOption("all");
     const printTasksButton = manager.getByRole("button", { name: "طباعة كل المهام المسموحة", exact: true });
     await expect(printTasksButton).toBeEnabled({ timeout: 15_000 });
@@ -576,6 +649,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await signIn(accountant, accountantEmail, accountantPassword);
     await accountant.goto("/admin/finance");
     await expect(accountant.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
+    await expect(accountant.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(1);
     await expect(accountant.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
     await expect(accountant.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
     await assertTrialBalanceDownload(accountant, "accountant");
@@ -644,6 +718,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await customer.goto("/admin/finance");
     await expect(customer.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true })).toHaveCount(0);
     await expect(customer.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" })).toHaveCount(0);
+    await expect(customer.getByRole("heading", { name: "الأرصدة الافتتاحية ومطابقة كشوف البنوك" })).toHaveCount(0);
     await customer.goto("/admin/purchase-orders");
     // The app-level RBAC gate rejects customer accounts before the purchasing page mounts.
     await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة" })).toBeVisible();
@@ -860,23 +935,39 @@ test("manager records one receipt across two same-currency customer invoices and
     expect(invoiceBId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(invoiceAId).not.toBe(invoiceBId);
 
-    await primaryInvoice.selectOption(invoiceAId!);
-    await paymentForm.getByLabel("المبلغ", { exact: true }).fill("25.00");
-    await paymentForm.getByLabel("توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها", { exact: true }).check();
-    const invoiceBAllocation = paymentForm.getByRole("checkbox", { name: "تخصيص على الفاتورة " + invoiceBNumber, exact: true });
-    await expect(invoiceBAllocation).toBeVisible();
-    await invoiceBAllocation.check();
-    await paymentForm.getByLabel("مبلغ التخصيص على الفاتورة " + invoiceBNumber, { exact: true }).fill("35.00");
-    const privateNote = "PRIVATE-P2-MULTI-RECEIPT-" + Date.now().toString(36).toUpperCase();
-    await paymentForm.locator("textarea").first().fill(privateNote);
-    await paymentForm.getByRole("button", { name: "تسجيل سند القبض وتوزيعه", exact: true }).click();
-    await expect(manager.getByText("تم تسجيل سند القبض وتوزيعه على 2 فواتير مع تحديث أرصدتها.", { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
-    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
-
     const receiptSection = manager.locator('section[aria-labelledby="customer-payment-receipt-print-heading"]');
     await expect(receiptSection.getByRole("heading", { name: "سجل سندات القبض متعددة الفواتير" })).toBeVisible();
     const receiptSelect = receiptSection.getByLabel("سند القبض متعدد الفواتير", { exact: true });
+    // Playwright retries reuse the same disposable local database; never post twice.
+    await expect(receiptSection.getByRole("status")).toHaveCount(0, { timeout: 30_000 });
+    const existingFixtureReceipts = receiptSelect.locator("option").filter({ hasText: customerName });
+    const existingFixtureReceiptCount = await existingFixtureReceipts.count();
+    expect(existingFixtureReceiptCount, "A retry must never find more than one saved receipt for this unique local customer.").toBeLessThanOrEqual(1);
+    const privateNote = "PRIVATE-P2-MULTI-RECEIPT-" + Date.now().toString(36).toUpperCase();
+
+    if (existingFixtureReceiptCount === 1) {
+      const existingLabel = await existingFixtureReceipts.first().innerText();
+      expect(existingLabel).toContain("60.00 YER");
+      expect(existingLabel).toMatch(/فواتير/);
+      const existingReceiptId = await existingFixtureReceipts.first().getAttribute("value");
+      expect(existingReceiptId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      await receiptSelect.selectOption(existingReceiptId!);
+    } else {
+      await primaryInvoice.selectOption(invoiceAId!);
+      await paymentForm.getByLabel("المبلغ", { exact: true }).fill("25.00");
+      await paymentForm.getByLabel("توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها", { exact: true }).check();
+      const invoiceBAllocation = paymentForm.getByRole("checkbox", { name: "تخصيص على الفاتورة " + invoiceBNumber, exact: true });
+      await expect(invoiceBAllocation).toBeVisible();
+      await invoiceBAllocation.check();
+      await paymentForm.getByLabel("مبلغ التخصيص على الفاتورة " + invoiceBNumber, { exact: true }).fill("35.00");
+      await paymentForm.locator("textarea").first().fill(privateNote);
+      await paymentForm.getByRole("button", { name: "تسجيل سند القبض وتوزيعه", exact: true }).click();
+      await expect(manager.getByText("تم تسجيل سند القبض وتوزيعه على 2 فواتير مع تحديث أرصدتها.", { exact: true })).toBeVisible({ timeout: 30_000 });
+    }
+
+    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
+    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
+
     const savedReceiptOptions = receiptSelect.locator("option").filter({ hasText: /SND-\d{6}/ });
     await expect(savedReceiptOptions).toHaveCount(1, { timeout: 30_000 });
     const receiptLabel = await savedReceiptOptions.first().innerText();
@@ -908,7 +999,7 @@ test("manager records one receipt across two same-currency customer invoices and
       const styles = await printPage.locator("style").allTextContents();
       expect(styles.join(" ")).toContain("A4");
       const html = await printPage.locator("html").evaluate((element) => element.outerHTML);
-      expect(html).not.toContain(privateNote);
+      expect(html).not.toContain("PRIVATE-P2-MULTI-RECEIPT-");
       for (const internalKey of ["organization_id", "receipt_id", "customer_id", "invoice_id", "created_by", "actor_id", "idempotency_key", "private_note", "payment_id"]) {
         expect(html).not.toContain(internalKey);
       }

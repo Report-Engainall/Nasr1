@@ -1,6 +1,6 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
+import { ArrowRight, Copy, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
@@ -13,6 +13,7 @@ import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendme
 import { getOrCreateBoundIdempotencyKey, type BoundIdempotencyKey } from '@/lib/bound-idempotency-key';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
+const CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS = 45_000;
 
 function normalizeOrderNumberSearch(value: string): string {
   return value.trim()
@@ -69,6 +70,7 @@ function buildCustomerReorderTemplateLines(items: CustomerOrderLine[]): Array<{ 
   }
   return lines;
 }
+import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { Login } from '@/components/Login';
 import { CustomerReturnRequest } from '@/components/CustomerReturnRequest';
 
@@ -393,8 +395,11 @@ function MyOrdersInner() {
   const [orderNumberQuery, setOrderNumberQuery] = useState('');
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const orderListRequestId = useRef(0);
+
+  const load = useCallback(async (quiet = false) => {
+    const requestId = ++orderListRequestId.current;
+    if (!quiet) setLoading(true);
     setError('');
     try {
       let query = supabase
@@ -410,6 +415,7 @@ function MyOrdersInner() {
       if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
         throw new Error('تعذر تأكيد إجمالي الطلبات. أعد المحاولة قبل الاعتماد على قائمة الطلبات.');
       }
+      if (requestId !== orderListRequestId.current) return;
       const nextPageCount = Math.max(1, Math.ceil(count / CUSTOMER_ORDERS_PAGE_SIZE));
       setTotalCount(count);
       if (page > nextPageCount) {
@@ -419,13 +425,21 @@ function MyOrdersInner() {
       }
       setData((rows ?? []) as CustomerOrderSummary[]);
     } catch (cause) {
+      if (requestId !== orderListRequestId.current) return;
       setData(null);
       setTotalCount(null);
       setError(cause instanceof Error ? cause.message : 'تعذر تحميل الطلبات.');
     } finally {
-      setLoading(false);
+      if (!quiet && requestId === orderListRequestId.current) setLoading(false);
     }
   }, [page, statusFilter, orderNumberQuery]);
+
+  const refreshWhileCustomerIsActive = useCallback(() => load(true), [load]);
+  useRefreshWhileActive({
+    refresh: refreshWhileCustomerIsActive,
+    busy: loading,
+    intervalMs: CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS,
+  });
 
   useEffect(() => { void load(); }, [load]);
 
@@ -501,8 +515,9 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const cancellationRequestKey = useRef<BoundIdempotencyKey | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<'success' | 'error' | null>(null);
   const templateSaveInFlightRef = useRef(false);
-  const { data, loading, error, refetch } = useFetch(async () => {
+  const { data, loading, error, refreshError, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
       supabase.from('orders').select('id,order_number,customer_id,status,total_items,notes,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,customer_confirmed_at,payment_request_status,delivery_address_snapshot').eq('id', id).maybeSingle(),
       supabase.from('order_items').select('id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity').eq('order_id', id),
@@ -535,6 +550,71 @@ function OrderInvoiceInner({ id }: { id: string }) {
       cancellation,
     };
   }, [id]);
+
+  const previousOrderStatusRef = useRef<{ orderId: string; status: string } | null>(null);
+  const [statusChangeNotice, setStatusChangeNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!data?.order) return;
+    const orderId = data.order.id;
+    const nextStatus = data.order.status;
+    const previous = previousOrderStatusRef.current;
+    previousOrderStatusRef.current = { orderId, status: nextStatus };
+
+    if (previous?.orderId !== orderId) {
+      setStatusChangeNotice(null);
+      return;
+    }
+    if (previous.status !== nextStatus) {
+      const previousLabel = ORDER_STATUS_LABELS[previous.status] ?? previous.status;
+      const nextLabel = ORDER_STATUS_LABELS[nextStatus] ?? nextStatus;
+      setStatusChangeNotice(
+        `تغيّرت حالة الطلب ${data.order.order_number} من ${previousLabel} إلى ${nextLabel}.`,
+      );
+    }
+  }, [data?.order?.id, data?.order?.status, data?.order?.order_number]);
+
+  const hasUnsavedAmendmentDraft = useMemo(() => {
+    if (amendmentBusy || amendmentNote.trim()) return true;
+    return (data?.items ?? []).some((item) => {
+      const draftQuantity = amendmentQuantities[item.id];
+      const persistedQuantity = String(item.approved_quantity ?? item.quantity);
+      return draftQuantity !== undefined && draftQuantity !== persistedQuantity;
+    });
+  }, [amendmentBusy, amendmentNote, amendmentQuantities, data?.items]);
+
+  const automaticRefreshInFlight = useRef(false);
+  const refreshWhileCustomerIsActive = useCallback(async () => {
+    if (
+      automaticRefreshInFlight.current ||
+      hasUnsavedAmendmentDraft ||
+      document.visibilityState !== 'visible' ||
+      !navigator.onLine
+    ) return;
+
+    automaticRefreshInFlight.current = true;
+    try {
+      await refetch();
+    } finally {
+      automaticRefreshInFlight.current = false;
+    }
+  }, [hasUnsavedAmendmentDraft, refetch]);
+
+  useEffect(() => {
+    const refresh = () => { void refreshWhileCustomerIsActive(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const interval = window.setInterval(refresh, CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', refresh);
+    };
+  }, [refreshWhileCustomerIsActive]);
 
   useEffect(() => {
     if (!data?.items) return;
@@ -587,6 +667,43 @@ function OrderInvoiceInner({ id }: { id: string }) {
     } catch (cause) {
       setExportFeedback({ kind: 'error', message: cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel للطلب.' });
     }
+  }
+
+  async function copyOrderReference() {
+    setCopyFeedback(null);
+    const orderReference = printDocument.orderNumber.trim();
+    if (!orderReference) {
+      setCopyFeedback('error');
+      return;
+    }
+
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(orderReference);
+        copied = true;
+      }
+    } catch {
+      // Clipboard permission may be unavailable; use the selection fallback.
+    }
+
+    if (!copied && typeof document.execCommand === 'function') {
+      const input = document.createElement('textarea');
+      input.value = orderReference;
+      input.setAttribute('readonly', '');
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      try {
+        input.select();
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      } finally {
+        input.remove();
+      }
+    }
+    setCopyFeedback(copied ? 'success' : 'error');
   }
 
 
@@ -758,9 +875,33 @@ function OrderInvoiceInner({ id }: { id: string }) {
           background: #fff !important;
         }
       }`}</style>
+      {refreshError ? (
+        <div className="no-print" role="status" aria-live="polite" style={{ marginBottom: 12, padding: 12, border: '1px solid #e4c58b', borderRadius: 10, background: '#fff9ed', color: '#76500f' }}>
+          تعذر تحديث حالة الطلب تلقائيًا. ما تزال آخر حالة مؤكدة من الخادم معروضة.
+          <button type="button" className="sf-link" style={{ marginInlineStart: 8 }} onClick={() => void refetch()}>
+            إعادة المحاولة الآن
+          </button>
+        </div>
+      ) : null}
+      {statusChangeNotice ? (
+        <div
+          className="no-print"
+          role="status"
+          aria-live="polite"
+          aria-label="إشعار تحديث حالة الطلب"
+          style={{ ...card, marginBottom: 12, borderColor: '#9bcfc1', background: '#f0faf6', color: '#185b49' }}
+        >
+          <strong>{statusChangeNotice}</strong>
+          <Link to="/notifications" className="sf-link" style={{ display: 'inline-flex', marginInlineStart: 10 }}>
+            فتح مركز التنبيهات
+          </Link>
+        </div>
+      ) : null}
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
+        <Link to="/notifications" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>مركز التنبيهات</Link>
         <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>
+        <button type="button" className="sf-btn-secondary" aria-label="نسخ الرقم المرجعي للطلب" onClick={() => void copyOrderReference()}><Copy size={16} /> نسخ الرقم المرجعي</button>
         <button
           type="button"
           className="sf-btn-secondary"
@@ -773,6 +914,13 @@ function OrderInvoiceInner({ id }: { id: string }) {
         <button type="button" className="sf-btn-secondary" aria-label="تنزيل كشف الطلب بصيغة Excel" onClick={exportOrderWorkbook}><Download size={16} /> تنزيل Excel</button>
         <button className="sf-btn-primary" onClick={() => window.print()}><Printer size={16} /> طباعة / حفظ PDF</button>
       </div>
+      {copyFeedback ? (
+        <p className="no-print" role="status" aria-live="polite" style={{ ...card, marginBottom: 16 }}>
+          {copyFeedback === 'success'
+            ? 'تم نسخ الرقم المرجعي للطلب.'
+            : 'تعذر النسخ التلقائي؛ حدّد الرقم المرجعي الظاهر في المستند وانسخه يدويًا.'}
+        </p>
+      ) : null}
       {exportFeedback && (
         <div className="no-print" role={exportFeedback.kind === 'error' ? 'alert' : 'status'} style={{ ...card, marginBottom: 16, borderColor: exportFeedback.kind === 'error' ? '#dfb5ad' : '#b7d9ce' }}>
           <p style={{ margin: 0 }}>{exportFeedback.message}</p>

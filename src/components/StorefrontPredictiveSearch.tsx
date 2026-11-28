@@ -2,6 +2,7 @@ import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import { Package, Search, Tags } from "lucide-react";
 import { MAX_CATALOG_SEARCH_LENGTH, normalizeArabicSearchText, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
 import type { Category, ProductWithInventory } from "@/lib/types";
+import { isSafeStorefrontImageUrl } from "@/lib/storefront-image-url";
 
 type PredictiveSuggestion =
   | { kind: "query"; id: string; label: string }
@@ -195,6 +196,10 @@ export function StorefrontPredictiveSearch({
       );
     }
 
+    const productImageUrl = isSafeStorefrontImageUrl(suggestion.product.image_url)
+      ? suggestion.product.image_url
+      : null;
+
     return (
       <button
         key={suggestion.id}
@@ -207,12 +212,20 @@ export function StorefrontPredictiveSearch({
         onClick={() => selectSuggestion(suggestion)}
         style={commonStyle}
       >
-        {suggestion.product.image_url
-          ? <img src={suggestion.product.image_url} alt="" loading="lazy" decoding="async" style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 6, background: "#f6f8f7" }} />
+        {productImageUrl
+          ? <img src={productImageUrl} alt="" loading="lazy" decoding="async" style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 6, background: "#f6f8f7" }} />
           : <Package size={17} aria-hidden="true" />}
         <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
           <span>{suggestion.label}</span>
-          <small style={{ color: "#66817d" }}>{suggestion.product.item_code}</small>
+          <small style={{ color: "#66817d" }}>
+            {[
+              suggestion.product.item_code ? "رمز: " + suggestion.product.item_code : null,
+              suggestion.product.sku && suggestion.product.sku !== suggestion.product.item_code
+                ? "SKU: " + suggestion.product.sku
+                : null,
+              suggestion.product.barcode ? "باركود: " + suggestion.product.barcode : null,
+            ].filter(Boolean).join(" · ") || "رمز غير مسجل"}
+          </small>
         </span>
       </button>
     );
