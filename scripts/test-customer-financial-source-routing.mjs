@@ -750,6 +750,121 @@ async function main() {
   assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("staff_customer_app_only_financial_rows_read_allowed")), "invoice source policies must restrict staff reads to the active APP_ONLY source");
   assert.ok(invoiceSourcePolicies.every(policy => policy.predicate.includes("current_organization_id()")), "staff invoice read exception must remain scoped to the active organization");
 
+
+  // Persist one real APP_ONLY return-credit memo and its general-ledger journal
+  // before source cutover. The journal header and lines are separate mutation
+  // surfaces and must be guarded independently from the memo/posting link.
+  const sourceTestCreditMemoRequestId = randomUUID();
+  const sourceTestCreditMemoId = randomUUID();
+  const sourceTestCreditMemoJournalId = randomUUID();
+  const sourceTestCreditMemoJournalLineAccount = await db.unsafe(
+    "select id::text as id from public.accounting_accounts " +
+      "where organization_id=$1::uuid order by id limit 1",
+    [orgId],
+  );
+  assert.equal(sourceTestCreditMemoJournalLineAccount.length, 1,
+    "financial-source acceptance requires the tenant's seeded chart of accounts");
+  await db.unsafe(
+    "insert into public.customer_return_requests(" +
+      "id,organization_id,customer_id,order_id,request_number,status,reason,requested_by,idempotency_key,payload_fingerprint" +
+    ") values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,'submitted','other',$6::uuid,$7::text,$8::text)",
+    [
+      sourceTestCreditMemoRequestId,orgId,customerId,sourceTestSecondOrderId,
+      "FIN-SOURCE-RETURN-"+randomUUID().slice(0,8).toUpperCase(),
+      customerProfile.id,randomUUID(),"1".repeat(32),
+    ],
+  );
+  await db.unsafe(
+    "insert into public.customer_return_credit_memos(" +
+      "id,organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency," +
+      "subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id" +
+    ") values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::text,'draft','YER',1.00,0,1.00,$7::uuid,$8::text,$9::uuid)",
+    [
+      sourceTestCreditMemoId,orgId,sourceTestCreditMemoRequestId,sourceTestInvoiceId,customerId,
+      "FIN-SOURCE-CM-"+randomUUID().slice(0,8).toUpperCase(),
+      randomUUID(),"2".repeat(32),accountant.id,
+    ],
+  );
+  await db.unsafe(
+    "insert into public.accounting_journal_entries(" +
+      "id,organization_id,entry_date,description,source_type,source_reference,status," +
+      "idempotency_key,payload_fingerprint,created_by_profile_id" +
+    ") values($1::uuid,$2::uuid,(statement_timestamp() at time zone 'UTC')::date,$3::text," +
+      "'customer_return_credit_memo',$4::text,'draft',$5::uuid,$6::text,$7::uuid)",
+    [
+      sourceTestCreditMemoJournalId,orgId,"Financial-source journal acceptance fixture",
+      sourceTestCreditMemoId,randomUUID(),"3".repeat(32),manager.id,
+    ],
+  );
+  await db.unsafe(
+    "insert into public.accounting_journal_lines(" +
+      "organization_id,journal_entry_id,line_number,account_id,debit,credit,memo" +
+    ") values($1::uuid,$2::uuid,1,$3::uuid,1.00,0.00,'Financial-source source-bound journal line fixture')",
+    [orgId,sourceTestCreditMemoJournalId,sourceTestCreditMemoJournalLineAccount[0].id],
+  );
+  async function assertCreditMemoJournalWritesDenied(sourceLabel) {
+    const headerBefore = await db.unsafe(
+      "select organization_id::text as organization_id,source_type,source_reference,status,description " +
+      "from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+      [sourceTestCreditMemoJournalId,orgId],
+    );
+    assert.equal(headerBefore.length,1,sourceLabel+" source-bound journal header fixture exists");
+    await expectFailure(
+      sourceLabel+" source cannot mutate an APP_ONLY return-credit journal header",
+      db.unsafe(
+        "update public.accounting_journal_entries set description=description " +
+        "where id=$1::uuid and organization_id=$2::uuid",
+        [sourceTestCreditMemoJournalId,orgId],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    const headerAfter = await db.unsafe(
+      "select organization_id::text as organization_id,source_type,source_reference,status,description " +
+      "from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+      [sourceTestCreditMemoJournalId,orgId],
+    );
+    assert.deepEqual(headerAfter,headerBefore,
+      sourceLabel+" rejected journal-header mutation leaves source, status and description unchanged");
+
+    const lineBefore = await db.unsafe(
+      "select organization_id::text as organization_id,journal_entry_id::text as journal_entry_id," +
+        "line_number,account_id::text as account_id,debit::text as debit,credit::text as credit,memo " +
+      "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+      [orgId,sourceTestCreditMemoJournalId],
+    );
+    assert.equal(lineBefore.length,1,sourceLabel+" source-bound journal line fixture exists");
+    await expectFailure(
+      sourceLabel+" source cannot mutate an APP_ONLY return-credit journal line",
+      db.unsafe(
+        "update public.accounting_journal_lines set memo=memo " +
+        "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+        [orgId,sourceTestCreditMemoJournalId],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    const lineAfter = await db.unsafe(
+      "select organization_id::text as organization_id,journal_entry_id::text as journal_entry_id," +
+        "line_number,account_id::text as account_id,debit::text as debit,credit::text as credit,memo " +
+      "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+      [orgId,sourceTestCreditMemoJournalId],
+    );
+    assert.deepEqual(lineAfter,lineBefore,
+      sourceLabel+" rejected journal-line mutation preserves account and debit/credit values");
+
+    await expectFailure(
+      sourceLabel+" source cannot detach the APP_ONLY credit memo journal identity",
+      db.unsafe(
+        "update public.accounting_journal_entries set source_type='manual',source_reference=NULL " +
+        "where id=$1::uuid and organization_id=$2::uuid",
+        [sourceTestCreditMemoJournalId,orgId],
+      ),
+      "55000",
+      "source identity",
+    );
+  }
+
   const idempotencyKey = randomUUID() + randomUUID();
   const requestArgs = [customerId, "ONYX", "ONYX-CUST-0001", "Verified migration to Onyx customer ledger", idempotencyKey, 1, "ONYX-COMPANY-01", "ONYX-BRANCH-01"];
   const concurrentRequests = await Promise.all([
@@ -991,6 +1106,8 @@ async function main() {
     "55000",
     "active APP_ONLY financial source",
   );
+
+  await assertCreditMemoJournalWritesDenied("ONYX");
   const [paymentLedgerAfterOnyxDenial,receiptLedgerAfterOnyxDenial] = await Promise.all([
     db.unsafe(
       "select count(*)::integer as count,coalesce(sum(amount),0)::numeric(15,2)::text as total " +
@@ -1237,6 +1354,8 @@ async function main() {
     "active APP_ONLY financial source",
   );
 
+  await assertCreditMemoJournalWritesDenied("MUTAKAMEL");
+
   await expectFailure(
     "MUTAKAMEL customer cannot list APP_ONLY receipts through the customer RPC",
     rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(50,0) as result"),
@@ -1290,6 +1409,21 @@ async function main() {
   const appOnlyApproved = await reviewSource(accountantDb, appOnlyRequest.request_id, "approve", "all external balances reconciled to the app ledger before cutover");
   assert.equal(appOnlyApproved.source_mode, "APP_ONLY");
   assert.equal(appOnlyApproved.revision, 4);
+
+  const restoredCreditMemoJournalHeader = await db.unsafe(
+    "update public.accounting_journal_entries set description=description " +
+    "where id=$1::uuid and organization_id=$2::uuid returning id",
+    [sourceTestCreditMemoJournalId,orgId],
+  );
+  assert.equal(restoredCreditMemoJournalHeader.length,1,
+    "APP_ONLY source restores authorized mutations of its return-credit journal header");
+  const restoredCreditMemoJournalLine = await db.unsafe(
+    "update public.accounting_journal_lines set memo=memo " +
+    "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1 returning line_number",
+    [orgId,sourceTestCreditMemoJournalId],
+  );
+  assert.equal(restoredCreditMemoJournalLine.length,1,
+    "APP_ONLY source restores authorized mutations of its return-credit journal lines");
 
   await serviceDb.unsafe(
     "update public.customer_financial_source_bindings set source_status='suspended' where organization_id=$1::uuid and customer_id=$2::uuid",
