@@ -138,6 +138,17 @@ describe("staff customer financial source lookup", () => {
         source_mode: "ONYX", source_status: "active",
         source_as_of: "2026-11-27T20:00:00Z", last_synced_at: "2026-11-27T20:05:00Z",
         verified_at: "2026-11-27T19:55:00Z", revision: 2, is_stale: false,
+        external_account_ref: "ONYX-CUST-0001",
+      },
+      error: null,
+    });
+    await expect(fetchStaffCustomerFinancialSource("11111111-1111-4111-8111-111111111111")).rejects.toThrow(/حساب العميل والشركة والفرع معًا/);
+    mocks.rpc.mockResolvedValue({
+      data: {
+        customer_id: "11111111-1111-4111-8111-111111111111",
+        source_mode: "ONYX", source_status: "active",
+        source_as_of: "2026-11-27T20:00:00Z", last_synced_at: "2026-11-27T20:05:00Z",
+        verified_at: "2026-11-27T19:55:00Z", revision: 2, is_stale: false,
         external_account_ref: "ONYX-CUST-0001", company_external_ref: "ONYX-COMPANY-01",
       },
       error: null,

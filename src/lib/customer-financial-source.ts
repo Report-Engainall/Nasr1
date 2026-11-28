@@ -102,11 +102,8 @@ export async function fetchStaffCustomerFinancialSource(customerId: string): Pro
   const externalAccountRef = parseExternalReference(row.external_account_ref, "external_account_ref", 160);
   const companyExternalRef = parseExternalReference(row.company_external_ref, "company_external_ref", 256);
   const branchExternalRef = parseExternalReference(row.branch_external_ref, "branch_external_ref", 256);
-  if (source.source_mode !== "APP_ONLY" && !externalAccountRef) {
-    throw new Error("مصدر العميل الخارجي لا يحتوي معرف حساب محاسبيًا صالحًا.");
-  }
-  if (Boolean(companyExternalRef) !== Boolean(branchExternalRef)) {
-    throw new Error("نطاق ربط ERP غير مكتمل؛ يجب تحديد الشركة والفرع معًا.");
+  if (source.source_mode !== "APP_ONLY" && (!externalAccountRef || !companyExternalRef || !branchExternalRef)) {
+    throw new Error("نطاق ربط ERP غير مكتمل؛ يجب تحديد حساب العميل والشركة والفرع معًا.");
   }
   return {
     ...source,
