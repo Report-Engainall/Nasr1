@@ -257,6 +257,11 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid ERP page envelope and checkpoint metadata are required';
   END IF;
 
+  IF (p_pending_watermark IS NOT NULL AND p_pending_watermark>statement_timestamp())
+     OR (p_completed_watermark IS NOT NULL AND p_completed_watermark>statement_timestamp()) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP source watermarks cannot be in the future';
+  END IF;
+
   v_records_received:=pg_catalog.jsonb_array_length(p_records);
   IF v_records_received>1000 THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP page exceeds the maximum accepted staging row count';
@@ -312,6 +317,9 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP source timestamp is invalid';
     END;
+    IF v_source_updated_at>statement_timestamp() THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='ERP source record timestamp cannot be in the future';
+    END IF;
 
     SELECT entry.key INTO v_invalid_field
       FROM pg_catalog.jsonb_each(v_fields) AS entry(key,value)

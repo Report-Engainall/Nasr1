@@ -277,6 +277,54 @@ async function main() {
   assert.equal(initialized.cursor_ciphertext, null);
   assert.equal(initialized.completed_watermark, null);
 
+  const futureTimeRows = await db.unsafe(
+    "select statement_timestamp()+interval '1 hour' as future_value," +
+      "statement_timestamp()-interval '1 second' as current_value",
+  );
+  const futureSourceTime = new Date(futureTimeRows[0].future_value).toISOString();
+  const currentWatermark = new Date(futureTimeRows[0].current_value).toISOString();
+  await expectSql(
+    "future-dated ERP source records are rejected before checkpoint or staging mutation",
+    () => persistPage(page({
+      expectedVersion: 0,
+      label: "future-source-record-rejected",
+      records: [stagedRecord("Future source record", futureSourceTime, {}, "ONYX-FUTURE-SOURCE-0001")],
+      pendingWatermark: currentWatermark,
+    })),
+    "22023",
+  );
+  const afterFutureRecord = await loadCheckpoint(baseScope);
+  const futureRecordPreview = await previewStagedRecords(baseScope);
+  const futureRecordReceipts = await previewPageReceipts(baseScope);
+  assert.equal(afterFutureRecord.version, 0,
+    "future-dated record must not advance the checkpoint");
+  assert.equal(futureRecordPreview.total, 0,
+    "future-dated record must not be staged");
+  assert.equal(futureRecordReceipts.total, 0,
+    "future-dated record must not create a page receipt");
+
+  await expectSql(
+    "future ERP completed watermarks are rejected before checkpoint mutation",
+    () => persistPage(page({
+      expectedVersion: 0,
+      label: "future-completed-watermark-rejected",
+      records: [],
+      nextCursor: null,
+      pendingWatermark: null,
+      completedWatermark: futureSourceTime,
+      completed: true,
+    })),
+    "22023",
+  );
+  const afterFutureWatermark = await loadCheckpoint(baseScope);
+  const futureWatermarkReceipts = await previewPageReceipts(baseScope);
+  assert.equal(afterFutureWatermark.version, 0,
+    "future completed watermark must not advance the checkpoint");
+  assert.equal(afterFutureWatermark.completed_watermark, null,
+    "future completed watermark must not be stored");
+  assert.equal(futureWatermarkReceipts.total, 0,
+    "future completed watermark must not create a page receipt");
+
   const invalidSensitivePage = page({
     expectedVersion: 0,
     label: "sensitive-field-rejected",

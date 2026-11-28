@@ -170,6 +170,18 @@ class InMemoryCheckpointStore implements ErpSyncCheckpointStore {
 }
 
 describe("server-side ERP read connector contract", () => {
+  it("rejects future-dated source records before projecting a page", async () => {
+    const connector = new OfficialJsonErpReadConnector(connection, productContract, {
+      now: () => Date.parse("2026-11-28T00:00:00Z"),
+      fetcher: vi.fn(async () => jsonResponse({
+        data: { items: [sourceProduct("future-dated", "2026-11-28T00:00:01Z")] },
+        meta: { next_cursor: null },
+      })),
+    });
+    await expect(connector.readPage({ cursor: null, modifiedSince: null }))
+      .rejects.toMatchObject({ code: "INVALID_SOURCE_TIMESTAMP" });
+  });
+
   it("rejects unencrypted, unapproved and private network destinations", () => {
     expect(() => new OfficialJsonErpReadConnector(
       { ...connection, baseUrl: "http://erp.example.test" },

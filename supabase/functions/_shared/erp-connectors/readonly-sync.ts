@@ -909,6 +909,9 @@ export class OfficialJsonErpReadConnector implements ErpReadConnector {
     }
     const externalId = cleanIdentity(getPath(source, this.contract.externalIdPath, "externalIdPath"), "external_id");
     const sourceUpdatedAt = validateTimestamp(getPath(source, this.contract.sourceUpdatedAtPath, "sourceUpdatedAtPath"));
+    if (timestampToEpochMicros(sourceUpdatedAt) > BigInt(Math.trunc(this.now())) * 1000n) {
+      throw new ErpConnectorError("INVALID_SOURCE_TIMESTAMP", "وقت تحديث سجل ERP لا يجوز أن يكون في المستقبل.");
+    }
     const fields: Partial<Record<ErpCanonicalField, ErpScalar>> = {};
     for (const [field, path] of Object.entries(this.contract.fieldPaths)) {
       if (!path) continue;

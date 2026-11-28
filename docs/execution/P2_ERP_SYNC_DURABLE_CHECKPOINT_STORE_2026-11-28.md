@@ -36,3 +36,10 @@ The P2 PostgreSQL 17 suite is required on the exact resulting commit SHA. Queued
 - Fixed `stagedRecord()` to honor its existing fourth `externalId` argument and include that identity in its deterministic idempotency digest. The old helper silently discarded supplied external IDs, weakening duplicate-identity assertions.
 - Added an empty-page regression: an identical page fingerprint/response digest commits independently in two warehouse/currency scopes, creating one zero-record receipt per scope and no synthetic staged records.
 - No production SQL rule, P2 RPC contract, ERP transport, inventory/financial posting or external connection was changed. Re-run the full isolated PostgreSQL 17 acceptance on the resulting exact SHA; no earlier run transfers.
+
+## 2026-11-28 — Reject future-dated ERP source records and watermarks
+
+- Closed a durable-cursor integrity gap at both layers. The P4 TypeScript projector rejects a provider record whose `source_updated_at` is later than the injected server clock. The PostgreSQL `persist_erp_sync_page_atomically` RPC repeats this validation for every canonical record and also rejects future pending/completed watermarks before it locks or mutates a checkpoint.
+- This prevents an ahead-of-time provider timestamp from becoming the staged "latest" record and suppressing subsequent valid updates under source-timestamp conflict ordering. SQLSTATE `22023` is raised before checkpoint, staged-record, receipt, outcome or cursor writes.
+- Acceptance additions in `scripts/test-erp-sync-checkpoint-store.mjs` verify both future-record and future-completed-watermark rejection with checkpoint version, staged-row count and page-receipt count unchanged. `readonly-sync.test.ts` injects a deterministic clock and verifies the adapter rejects a future record.
+- Code-bearing pre-change head: `5fd4fef5066817d380be85b4b396d4013ec005b6`. Exact new-head Vitest/strict-TypeScript and P2 PostgreSQL 17 / critical-path acceptance must complete; previous queued results are not transferable. No ERP endpoint, production database, secret, financial ledger or inventory row was accessed or changed.
