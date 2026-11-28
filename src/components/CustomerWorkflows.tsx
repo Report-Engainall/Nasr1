@@ -611,7 +611,6 @@ function Invoices() {
   const [detailBusy, setDetailBusy] = useState(false);
   const [error, setError] = useState("");
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
-  const [externalStatement, setExternalStatement] = useState<CustomerExternalStatement | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
   const invoiceReadSequenceRef = useRef(0);
   const invoiceDetailSequenceRef = useRef(0);
@@ -742,7 +741,7 @@ function Invoices() {
   }, [load]);
   async function open(i: Invoice) {
     const sourceSnapshot = financialSource;
-    if (!sourceSnapshot || (!canReadCustomerAppLedger(sourceSnapshot) && !externalStatement)) return;
+    if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
     const detailRequestId = ++invoiceDetailSequenceRef.current;
     setPrintError("");
     setChosen(i);
@@ -1343,6 +1342,7 @@ function Statement() {
   const [summaryAsOfUtc, setSummaryAsOfUtc] = useState("");
   const [creditDetailsAvailable, setCreditDetailsAvailable] = useState(false);
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [externalStatement, setExternalStatement] = useState<CustomerExternalStatement | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
   const statementReadSequenceRef = useRef(0);
   const load = useCallback(async () => {
@@ -1584,7 +1584,7 @@ function Statement() {
 
   const printStatement = useCallback(async () => {
     const sourceSnapshot = financialSource;
-    if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
+    if (!sourceSnapshot || (!canReadCustomerAppLedger(sourceSnapshot) && !externalStatement)) return;
     let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
     try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
     catch {
