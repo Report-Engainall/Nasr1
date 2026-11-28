@@ -125,7 +125,10 @@ describe("customer retention action triage", () => {
     });
 
     expect(csv.startsWith("\uFEFF")).toBe(true);
-    expect(csv).toContain("'=HYPERL…");
+    expect(csv).toContain('"عميل #1"');
+    expect(csv).toContain("customer_reference_label");
+    expect(csv).not.toContain("HYPERLINK");
+    expect(csv).not.toContain("example.invalid");
     expect(csv).toContain("'=SUM(1,2)");
     expect(csv).toContain(",112,0,2,2,");
     expect(csv).toContain("evidence_ids");
@@ -168,6 +171,8 @@ describe("CustomerRetentionActionQueuePanel", () => {
     expect(screen.getByText(/لم يظهر طلب منذ أكثر من 90 يوماً/)).toBeInTheDocument();
     expect(screen.getByText(/112 يوماً/)).toBeInTheDocument();
     expect(screen.getByText("أدلة مرتبطة: 2")).toBeInTheDocument();
+    expect(screen.getByText("عميل #1")).toBeInTheDocument();
+    expect(screen.queryByText("customer-1234567890")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /تصدير الإجراءات المفلترة CSV/ })).toBeInTheDocument();
     expect(screen.getByText(/لا ترسل رسائل للعملاء/)).toBeInTheDocument();
   });

@@ -145,8 +145,8 @@ function dateLabel(value: string | null): string {
     : "غير متاح";
 }
 
-function customerReference(value: string): string {
-  return value.length > 14 ? value.slice(0, 7) + "…" + value.slice(-4) : value;
+function customerReferenceLabel(index: number): string {
+  return "عميل #" + index;
 }
 
 function customerRetentionCsvCell(value: string | number | null | undefined): string {
@@ -156,7 +156,7 @@ function customerRetentionCsvCell(value: string | number | null | undefined): st
   return "\"" + protectedText.replace(/"/g, '""') + "\"";
 }
 
-/** Exports only the supplied filtered queue and keeps customer references masked. */
+/** Exports the supplied filtered queue with ordinal labels, never source customer references. */
 export function buildCustomerRetentionActionsCsv(input: {
   actions: CustomerRetentionAction[];
   loadedCount: number;
@@ -177,13 +177,13 @@ export function buildCustomerRetentionActionsCsv(input: {
     "؛ سجلات محجوبة عن التوصية " + input.withheldCustomerCount +
     ". لا يعني التصدير اكتمال مجتمع العملاء.";
   const headers = [
-    "customer_reference_masked", "priority", "action", "activity", "reason",
+    "customer_reference_label", "priority", "action", "activity", "reason",
     "last_order_at", "days_since_last_order", "order_count_current",
     "order_count_previous", "evidence_count", "evidence_ids", "metric_ids",
     "metric_keys", "formula_versions", "coverage_notice",
   ];
-  const rows = input.actions.map(action => [
-    customerReference(action.customerRef),
+  const rows = input.actions.map((action, index) => [
+    customerReferenceLabel(index + 1),
     action.priority,
     action.action,
     action.activity,
@@ -446,7 +446,7 @@ export function CustomerRetentionActionQueuePanel({
         <p role="status" className="rounded-lg border p-3 text-sm">لا توجد إجراءات تطابق البحث والتصفية الحالية.</p>
       ) : (
         <div className="space-y-2">
-          {pageView.items.map(action => (
+          {pageView.items.map((action, index) => (
             <article key={action.customerRef} className="rounded-lg border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <strong className="text-sm">{actionLabels[action.action]}</strong>
@@ -454,7 +454,7 @@ export function CustomerRetentionActionQueuePanel({
               </div>
               <p className="mt-2 text-sm">{action.reason}</p>
               <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                <span>مرجع العميل: <bdi dir="ltr">{customerReference(action.customerRef)}</bdi></span>
+                <span>مرجع العميل: <bdi dir="ltr">{customerReferenceLabel(pageView.page * 10 + index + 1)}</bdi></span>
                 <span>آخر طلب: {dateLabel(action.lastOrderAt)} · {daysSinceLastOrderLabel(action.daysSinceLastOrder)}</span>
                 <span>طلبات الفترة الحالية: {action.orderCountCurrent}</span>
                 <span>طلبات الفترة السابقة: {action.orderCountPrevious}</span>

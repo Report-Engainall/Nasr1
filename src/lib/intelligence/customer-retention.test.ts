@@ -403,6 +403,19 @@ describe("customer retention daily decision integration", () => {
     expect(new Set(decisions.map(item => item.id)).size).toBe(2);
     expect(decisions.map(item => item.id)).toEqual(repeated.map(item => item.id));
     expect(decisions.some(item => item.id.includes(longA) || item.id.includes(longB))).toBe(false);
+    expect(decisions.every(item => !item.what.includes(longA) && !item.what.includes(longB))).toBe(true);
+  });
+
+  it("keeps short customer references out of decision display text", () => {
+    const phoneLikeReference = "777123456";
+    const queue = buildCustomerRetentionActionQueue(build([
+      customer(phoneLikeReference, 0, 1, "2026-07-01T12:00:00.000Z"),
+    ], []));
+    const candidate = buildCustomerRetentionDecisionCandidates({ asOf, queue })[0];
+
+    expect(candidate).toBeDefined();
+    expect(candidate.what).toContain("ضمن قائمة متابعة العملاء");
+    expect(candidate.what).not.toContain(phoneLikeReference);
   });
 
   it("does not promote actions from incomplete population coverage", () => {
