@@ -678,7 +678,7 @@ BEGIN
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
      ) x
     ),0)
-  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved quantity is below active order movement ledger'; END IF;
+  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved quantity differs from active order movement ledger'; END IF;
 
   IF EXISTS(
    SELECT 1 FROM public.inventory_balances ib JOIN public.warehouses w ON w.id=ib.warehouse_id AND w.organization_id=v_org
@@ -692,7 +692,7 @@ BEGIN
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
     ) x
    ),0)
-  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved quantity is below active order movement ledger'; END IF;
+  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved quantity differs from active order movement ledger'; END IF;
 
   SELECT coalesce(pg_catalog.sum(oi.quantity),0)::numeric(15,3) INTO v_ordered FROM public.order_items oi WHERE oi.order_id=v_order.id AND oi.product_id=v_product;
   SELECT coalesce(pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END),0)::numeric(15,3)
@@ -888,7 +888,7 @@ BEGIN
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
      ) x
     ),0)
-  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved quantity is below active order movement ledger'; END IF;
+  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved quantity differs from active order movement ledger'; END IF;
   IF EXISTS(
    SELECT 1 FROM public.inventory_balances ib JOIN public.warehouses w ON w.id=ib.warehouse_id AND w.organization_id=v_org
     WHERE ib.product_id=v_product AND ib.quantity_reserved IS DISTINCT FROM coalesce((
@@ -902,7 +902,7 @@ BEGIN
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
      ) x
     ),0)
-  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved quantity is below active order movement ledger'; END IF;
+  ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved quantity differs from active order movement ledger'; END IF;
 
   SELECT coalesce(pg_catalog.sum(oi.quantity),0)::numeric(15,3) INTO v_ordered
    FROM public.order_items oi WHERE oi.order_id=v_order.id AND oi.product_id=v_product;
@@ -989,6 +989,220 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Serialize shipment/cancellation with confirmation, FEFO repair and transfers
+  -- using the same per-product mutex, then take locks in balance -> batch order.
+  IF (
+       NEW.status IN ('shipped','delivered')
+       AND OLD.status IN ('confirmed','processing','shipped')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.inventory_movements
+          WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='sale'
+       )
+     )
+     OR (
+       NEW.status='cancelled'
+       AND OLD.status IN ('confirmed','processing')
+     ) THEN
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        NEW.organization_id::text||':inventory-batch-reservation:'||affected_product.product_id::text,
+        0
+      )
+    )
+      FROM (
+        SELECT DISTINCT im.product_id
+          FROM public.inventory_movements im
+         WHERE im.reference_type='order'
+           AND im.reference_id=NEW.id
+           AND im.movement_type IN ('reserve','release_reservation')
+         ORDER BY im.product_id
+      ) affected_product;
+
+    PERFORM ib.id
+      FROM public.inventory_balances ib
+      JOIN (
+        SELECT DISTINCT im.product_id,im.warehouse_id
+          FROM public.inventory_movements im
+         WHERE im.reference_type='order'
+           AND im.reference_id=NEW.id
+           AND im.movement_type IN ('reserve','release_reservation')
+      ) affected_balance
+        ON affected_balance.product_id=ib.product_id
+       AND affected_balance.warehouse_id=ib.warehouse_id
+     ORDER BY ib.product_id,ib.warehouse_id
+     FOR UPDATE OF ib;
+
+    PERFORM b.id
+      FROM public.inventory_batches b
+      JOIN (
+        SELECT DISTINCT im.inventory_batch_id
+          FROM public.inventory_movements im
+         WHERE im.reference_type='order'
+           AND im.reference_id=NEW.id
+           AND im.movement_type IN ('reserve','release_reservation')
+           AND im.inventory_batch_id IS NOT NULL
+      ) affected_batch
+        ON affected_batch.inventory_batch_id=b.id
+     ORDER BY b.id
+     FOR UPDATE OF b;
+
+    -- A peer order with negative net movements is a corrupted ledger, even if
+    -- positive peers happen to make the physical counter look plausible.
+    IF EXISTS (
+      SELECT 1
+        FROM public.inventory_movements im
+        JOIN public.orders active_order
+          ON active_order.id=im.reference_id
+         AND active_order.organization_id=NEW.organization_id
+        JOIN (
+          SELECT DISTINCT current_move.inventory_batch_id
+            FROM public.inventory_movements current_move
+           WHERE current_move.reference_type='order'
+             AND current_move.reference_id=NEW.id
+             AND current_move.movement_type IN ('reserve','release_reservation')
+             AND current_move.inventory_batch_id IS NOT NULL
+        ) affected_batch
+          ON affected_batch.inventory_batch_id=im.inventory_batch_id
+       WHERE im.reference_type='order'
+         AND im.movement_type IN ('reserve','release_reservation')
+         AND (active_order.status IN ('confirmed','processing') OR active_order.id=NEW.id)
+         AND NOT EXISTS (
+           SELECT 1 FROM public.inventory_movements sale
+            WHERE sale.reference_type='order'
+              AND sale.reference_id=active_order.id
+              AND sale.movement_type='sale'
+         )
+       GROUP BY im.reference_id,im.inventory_batch_id
+      HAVING pg_catalog.sum(
+        CASE WHEN im.movement_type='reserve' THEN im.quantity
+             WHEN im.movement_type='release_reservation' THEN -im.quantity
+             ELSE 0 END
+      )<0
+    ) OR EXISTS (
+      SELECT 1
+        FROM public.inventory_movements im
+        JOIN public.orders active_order
+          ON active_order.id=im.reference_id
+         AND active_order.organization_id=NEW.organization_id
+        JOIN (
+          SELECT DISTINCT current_move.product_id,current_move.warehouse_id
+            FROM public.inventory_movements current_move
+           WHERE current_move.reference_type='order'
+             AND current_move.reference_id=NEW.id
+             AND current_move.movement_type IN ('reserve','release_reservation')
+        ) affected_balance
+          ON affected_balance.product_id=im.product_id
+         AND affected_balance.warehouse_id=im.warehouse_id
+       WHERE im.reference_type='order'
+         AND im.movement_type IN ('reserve','release_reservation')
+         AND (active_order.status IN ('confirmed','processing') OR active_order.id=NEW.id)
+         AND NOT EXISTS (
+           SELECT 1 FROM public.inventory_movements sale
+            WHERE sale.reference_type='order'
+              AND sale.reference_id=active_order.id
+              AND sale.movement_type='sale'
+         )
+       GROUP BY im.reference_id,im.product_id,im.warehouse_id
+      HAVING pg_catalog.sum(
+        CASE WHEN im.movement_type='reserve' THEN im.quantity
+             WHEN im.movement_type='release_reservation' THEN -im.quantity
+             ELSE 0 END
+      )<0
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='negative active order reservation movement ledger; shipment/cancellation refused';
+    END IF;
+
+    -- A batch counter must equal the signed movement net of every active order
+    -- sharing it. Include NEW.id because AFTER triggers see its updated status.
+    IF EXISTS (
+      SELECT 1
+        FROM (
+          SELECT DISTINCT im.inventory_batch_id
+            FROM public.inventory_movements im
+           WHERE im.reference_type='order'
+             AND im.reference_id=NEW.id
+             AND im.movement_type IN ('reserve','release_reservation')
+             AND im.inventory_batch_id IS NOT NULL
+        ) affected_batch
+        LEFT JOIN public.inventory_batches b
+          ON b.id=affected_batch.inventory_batch_id
+       WHERE b.quantity_reserved IS DISTINCT FROM coalesce((
+         SELECT pg_catalog.sum(active_batch_net.reserved_quantity)::numeric(15,3)
+           FROM (
+             SELECT pg_catalog.sum(
+               CASE WHEN im.movement_type='reserve' THEN im.quantity
+                    WHEN im.movement_type='release_reservation' THEN -im.quantity
+                    ELSE 0 END
+             )::numeric(15,3) AS reserved_quantity
+               FROM public.inventory_movements im
+               JOIN public.orders active_order
+                 ON active_order.id=im.reference_id
+                AND active_order.organization_id=NEW.organization_id
+              WHERE im.reference_type='order'
+                AND im.inventory_batch_id=affected_batch.inventory_batch_id
+                AND im.movement_type IN ('reserve','release_reservation')
+                AND (active_order.status IN ('confirmed','processing') OR active_order.id=NEW.id)
+                AND NOT EXISTS (
+                  SELECT 1 FROM public.inventory_movements sale
+                   WHERE sale.reference_type='order'
+                     AND sale.reference_id=active_order.id
+                     AND sale.movement_type='sale'
+                )
+              GROUP BY im.reference_id
+           ) active_batch_net
+       ),0)
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='batch reserved counter differs from the active order movement ledger; shipment/cancellation refused';
+    END IF;
+
+    -- The warehouse aggregate must include batched and legacy/unbatched order
+    -- movement rows, and every referenced balance endpoint must exist.
+    IF EXISTS (
+      SELECT 1
+        FROM (
+          SELECT DISTINCT im.product_id,im.warehouse_id
+            FROM public.inventory_movements im
+           WHERE im.reference_type='order'
+             AND im.reference_id=NEW.id
+             AND im.movement_type IN ('reserve','release_reservation')
+        ) affected_balance
+        LEFT JOIN public.inventory_balances ib
+          ON ib.product_id=affected_balance.product_id
+         AND ib.warehouse_id=affected_balance.warehouse_id
+       WHERE ib.quantity_reserved IS DISTINCT FROM coalesce((
+         SELECT pg_catalog.sum(active_balance_net.reserved_quantity)::numeric(15,3)
+           FROM (
+             SELECT pg_catalog.sum(
+               CASE WHEN im.movement_type='reserve' THEN im.quantity
+                    WHEN im.movement_type='release_reservation' THEN -im.quantity
+                    ELSE 0 END
+             )::numeric(15,3) AS reserved_quantity
+               FROM public.inventory_movements im
+               JOIN public.orders active_order
+                 ON active_order.id=im.reference_id
+                AND active_order.organization_id=NEW.organization_id
+              WHERE im.reference_type='order'
+                AND im.product_id=affected_balance.product_id
+                AND im.warehouse_id=affected_balance.warehouse_id
+                AND im.movement_type IN ('reserve','release_reservation')
+                AND (active_order.status IN ('confirmed','processing') OR active_order.id=NEW.id)
+                AND NOT EXISTS (
+                  SELECT 1 FROM public.inventory_movements sale
+                   WHERE sale.reference_type='order'
+                     AND sale.reference_id=active_order.id
+                     AND sale.movement_type='sale'
+                )
+              GROUP BY im.reference_id
+           ) active_balance_net
+       ),0)
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='warehouse reserved counter differs from the active order movement ledger; shipment/cancellation refused';
+    END IF;
+  END IF;
+
   IF NEW.status IN ('shipped','delivered')
      AND OLD.status IN ('confirmed','processing','shipped')
      AND NOT EXISTS (
@@ -1003,8 +1217,7 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation';
     END IF;
 
-    -- The full commercial quantity must be reserved by product before any
-    -- batch can be settled; shortage/excess on one product cannot net against another.
+    -- Match the full commercial quantity by product before settling any lot.
     IF EXISTS (
       WITH ordered_quantities AS MATERIALIZED (
         SELECT oi.product_id,pg_catalog.sum(oi.quantity)::numeric(15,3) AS quantity
@@ -1063,16 +1276,6 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE='55000',
         MESSAGE='order has an expired reserved batch; reallocate its reservation before shipment';
     END IF;
-
-    PERFORM 1
-      FROM public.inventory_balances ib
-      JOIN (
-        SELECT DISTINCT product_id,warehouse_id
-          FROM public.inventory_movements
-         WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve'
-      ) r ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id
-     ORDER BY ib.product_id,ib.warehouse_id
-     FOR UPDATE OF ib;
 
     FOR v_move IN
       SELECT product_id,warehouse_id,inventory_batch_id,
@@ -1138,34 +1341,6 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='order reservation has no batch allocation';
     END IF;
 
-    IF EXISTS (
-      SELECT 1
-        FROM public.inventory_movements im
-       WHERE im.reference_type='order' AND im.reference_id=NEW.id
-         AND im.movement_type IN ('reserve','release_reservation')
-       GROUP BY im.product_id,im.warehouse_id,im.inventory_batch_id
-      HAVING pg_catalog.sum(
-        CASE WHEN im.movement_type='reserve' THEN im.quantity
-             WHEN im.movement_type='release_reservation' THEN -im.quantity
-             ELSE 0 END
-      )<0
-    ) THEN
-      RAISE EXCEPTION USING ERRCODE='40001',
-        MESSAGE='negative reservation movement ledger; cancellation refused';
-    END IF;
-
-    PERFORM 1
-      FROM public.inventory_balances ib
-      JOIN (
-        SELECT DISTINCT product_id,warehouse_id
-          FROM public.inventory_movements
-         WHERE reference_type='order' AND reference_id=NEW.id AND movement_type='reserve'
-      ) r ON r.product_id=ib.product_id AND r.warehouse_id=ib.warehouse_id
-     ORDER BY ib.product_id,ib.warehouse_id
-     FOR UPDATE OF ib;
-
-    -- Release only the remaining net reservation. Previously released source
-    -- lots (for example during FEFO reallocation) are never released twice.
     FOR v_move IN
       SELECT product_id,warehouse_id,inventory_batch_id,
              pg_catalog.sum(
@@ -1439,8 +1614,8 @@ BEGIN
      AND b.expiry_date<v_today
    ORDER BY b.product_id,b.warehouse_id,b.id
   LOOP
-    -- Fail closed if the lot or aggregate reservation ledger is already below
-    -- the sum of every still-active order's immutable reserve/release movements.
+    -- Fail closed unless the lot and aggregate reservation counters exactly equal
+    -- every still-active order's immutable reserve/release movement net.
     -- A per-order comparison is insufficient when several orders share one lot.
     SELECT b.quantity_reserved INTO v_batch_reserved
       FROM public.inventory_batches b
