@@ -85,7 +85,8 @@ export function filterDailyDecisionRecords(
         (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= dayAhead || due > weekAhead)) return false;
     const genuinelyUnscheduled = !record.reviewAt &&
       (record.reviewDisposition === "NOT_SCHEDULED" || record.reviewDisposition === null);
-    if (filters.due === "UNSCHEDULED" && (terminal || !genuinelyUnscheduled)) return false;
+    if (filters.due === "UNSCHEDULED" &&
+        (terminal || record.state === "EXECUTED" || !genuinelyUnscheduled)) return false;
 
     if (!query) return true;
     const candidate = record.candidateSnapshot;
@@ -164,7 +165,7 @@ export function summarizeDailyDecisionQueue(
     if (record.state === "IN_REVIEW") summary.inReview += 1;
     if (record.state === "EXECUTED") summary.awaitingMeasurement += 1;
     const terminal = record.state === "REJECTED" || record.state === "MEASURED";
-    if (terminal) continue;
+    if (terminal || record.state === "EXECUTED") continue;
     const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
     if (record.reviewDisposition === "SCHEDULED" && Number.isFinite(due)) {
       if (due <= now) summary.overdue += 1;
