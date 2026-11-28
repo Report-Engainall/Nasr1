@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type {SupplierPerformanceResult, SupplierPerformanceSupplier} from "@/lib/intelligence/supplier-performance";
+import { buildSupplierPerformanceCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:3});
 const days=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:2});
 const date=(v:string|null)=>v?new Date(v).toLocaleDateString("ar-YE",{dateStyle:"medium"}):"غير متاح";
@@ -75,7 +76,13 @@ export function SupplierPerformancePanel({result,state="ready",onRetry,onOpenPur
  return <section dir="rtl" className="space-y-4 rounded-xl border p-4" aria-label="ذكاء أداء الموردين">
   <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">ذكاء أداء الموردين</h2>
    <p className="text-xs text-muted-foreground">{result.period.from} — {result.period.to} UTC · كما في {date(result.asOf)}</p></div>
-   <span className="rounded-full border px-2 py-1 text-xs">{result.completePopulation?"تغطية كاملة":"تغطية جزئية"}</span></header>
+   <div className="flex flex-wrap items-center gap-2">
+    <span className="rounded-full border px-2 py-1 text-xs">{result.completePopulation?"تغطية كاملة":"تغطية جزئية"}</span>
+    <button type="button" className="rounded-lg border px-3 py-2 text-xs"
+     onClick={()=>downloadIntelligenceCsv(buildSupplierPerformanceCsv(result,visibleSuppliers),"aghbari-supplier-performance.csv")}>
+     تصدير الموردين المطابقين CSV ({visibleSuppliers.length})
+    </button>
+   </div></header>
   <div className="grid gap-2 sm:grid-cols-3">
    <article className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">الموردون المشمولون</p>
     <p className="text-2xl font-semibold tabular-nums">{qty.format(result.returnedSupplierCount)}</p>
