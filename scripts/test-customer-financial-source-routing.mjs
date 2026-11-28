@@ -846,17 +846,6 @@ async function main() {
     );
     assert.deepEqual(lineAfter,lineBefore,
       sourceLabel+" rejected journal-line mutation preserves account and debit/credit values");
-
-    await expectFailure(
-      sourceLabel+" source cannot detach the APP_ONLY credit memo journal identity",
-      db.unsafe(
-        "update public.accounting_journal_entries set source_type='manual',source_reference=NULL " +
-        "where id=$1::uuid and organization_id=$2::uuid",
-        [sourceTestCreditMemoJournalId,orgId],
-      ),
-      "55000",
-      "source identity",
-    );
   }
 
 
@@ -1437,6 +1426,17 @@ async function main() {
   );
   assert.equal(restoredCreditMemoJournalLine.length,1,
     "APP_ONLY source restores authorized mutations of its return-credit journal lines");
+
+  await expectFailure(
+    "APP_ONLY source-bound credit memo journal cannot be detached from its immutable source identity",
+    db.unsafe(
+      "update public.accounting_journal_entries set source_type='manual',source_reference=NULL " +
+      "where id=$1::uuid and organization_id=$2::uuid",
+      [sourceTestCreditMemoJournalId,orgId],
+    ),
+    "55000",
+    "source identity",
+  );
 
   await serviceDb.unsafe(
     "update public.customer_financial_source_bindings set source_status='suspended' where organization_id=$1::uuid and customer_id=$2::uuid",
