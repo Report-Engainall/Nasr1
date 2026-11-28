@@ -500,7 +500,10 @@ BEGIN
                    THEN (latest.fields->>'debit_amount')::numeric>0 ELSE false END
               AND CASE WHEN coalesce(latest.fields->>'credit_amount','') ~ '^(0|[1-9][0-9]{0,15})([.][0-9]{1,4})?$'
                        THEN (latest.fields->>'credit_amount')::numeric>0 ELSE false END
-           OR (latest.fields ? 'due_date' AND jsonb_typeof(latest.fields->'due_date')<>'null',               AND (jsonb_typeof(latest.fields->'due_date') IS DISTINCT FROM 'string',                    OR (latest.fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$',                    OR NOT pg_catalog.pg_input_is_valid(latest.fields->>'due_date','date')))
+           OR (latest.fields ? 'due_date' AND jsonb_typeof(latest.fields->'due_date')<>'null'
+               AND (jsonb_typeof(latest.fields->'due_date') IS DISTINCT FROM 'string'
+                    OR (latest.fields->>'due_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                    OR NOT pg_catalog.pg_input_is_valid(latest.fields->>'due_date','date')))
            OR (latest.fields ? 'description' AND jsonb_typeof(latest.fields->'description') NOT IN ('string','null'))
            OR (jsonb_typeof(latest.fields->'description')='string'
                AND length(latest.fields->>'description')>500)
