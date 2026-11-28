@@ -41,7 +41,7 @@ function metricValue(metric: DecisionMemoryMetricResult | null): string {
 
 export type DailyDecisionStateFilter = "ALL" | DecisionMemoryRecord["state"];
 export type DailyDecisionPriorityFilter = "ALL" | "P0" | "P1" | "P2" | "P3" | "UNRANKED";
-export type DailyDecisionDueFilter = "ALL" | "OVERDUE" | "DUE_7_DAYS" | "UNSCHEDULED";
+export type DailyDecisionDueFilter = "ALL" | "OVERDUE" | "DUE_24H" | "DUE_7_DAYS" | "UNSCHEDULED";
 
 export interface DailyDecisionFilters {
   searchText: string;
@@ -67,6 +67,7 @@ export function filterDailyDecisionRecords(
   now: number,
 ): DecisionMemoryRecord[] {
   const query = normalizeDailyDecisionSearch(filters.searchText);
+  const dayAhead = now + 24 * 60 * 60 * 1000;
   const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
   return records.filter(record => {
     if (filters.state !== "ALL" && record.state !== filters.state) return false;
@@ -78,8 +79,10 @@ export function filterDailyDecisionRecords(
     const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
     if (filters.due === "OVERDUE" &&
         (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due > now)) return false;
+    if (filters.due === "DUE_24H" &&
+        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= now || due > dayAhead)) return false;
     if (filters.due === "DUE_7_DAYS" &&
-        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= now || due > weekAhead)) return false;
+        (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= dayAhead || due > weekAhead)) return false;
     const genuinelyUnscheduled = !record.reviewAt &&
       (record.reviewDisposition === "NOT_SCHEDULED" || record.reviewDisposition === null);
     if (filters.due === "UNSCHEDULED" && (terminal || !genuinelyUnscheduled)) return false;
@@ -634,7 +637,8 @@ export function DailyDecisionBoard({
                 className="w-full rounded-lg border bg-background px-3 py-2">
                 <option value="ALL">كل المواعيد</option>
                 <option value="OVERDUE">متأخر أو مستحق الآن</option>
-                <option value="DUE_7_DAYS">مستحق خلال 7 أيام</option>
+                <option value="DUE_24H">مستحق خلال 24 ساعة</option>
+                <option value="DUE_7_DAYS">بعد 24 ساعة وحتى 7 أيام</option>
                 <option value="UNSCHEDULED">غير مجدول</option>
               </select>
             </label>
