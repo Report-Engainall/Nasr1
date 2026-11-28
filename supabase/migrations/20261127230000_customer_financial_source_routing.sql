@@ -2724,4 +2724,110 @@ COMMENT ON FUNCTION public.record_customer_payment_allocation(jsonb,text,uuid,te
 
 NOTIFY pgrst,'reload schema';
 
+
+-- Invoice and return-credit documents are also APP_ONLY ledger records. Keep the
+-- commerce order workflow separate, but never issue/mutate internal finance documents
+-- for ONYX/MUTAKAMEL customers.
+CREATE OR REPLACE FUNCTION public.enforce_customer_app_only_financial_document_source()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_organization_id uuid;
+  v_customer_id uuid;
+  v_parent_id uuid;
+BEGIN
+  IF TG_OP<>'INSERT' THEN
+    IF TG_TABLE_NAME IN ('customer_invoices','customer_return_credit_memos') THEN
+      PERFORM public.assert_customer_app_only_financial_write(OLD.organization_id,OLD.customer_id);
+    ELSIF TG_TABLE_NAME='customer_invoice_items' THEN
+      SELECT i.customer_id INTO v_customer_id
+        FROM public.customer_invoices i
+       WHERE i.organization_id=OLD.organization_id AND i.id=OLD.invoice_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='23503',MESSAGE='invoice source row is required for APP_ONLY invoice-line mutation';
+      END IF;
+      PERFORM public.assert_customer_app_only_financial_write(OLD.organization_id,v_customer_id);
+    ELSE
+      SELECT m.customer_id INTO v_customer_id
+        FROM public.customer_return_credit_memos m
+       WHERE m.organization_id=OLD.organization_id AND m.id=OLD.credit_memo_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='23503',MESSAGE='credit memo source row is required for APP_ONLY credit-line mutation';
+      END IF;
+      PERFORM public.assert_customer_app_only_financial_write(OLD.organization_id,v_customer_id);
+    END IF;
+  END IF;
+
+  IF TG_OP<>'DELETE' THEN
+    IF TG_TABLE_NAME IN ('customer_invoices','customer_return_credit_memos') THEN
+      PERFORM public.assert_customer_app_only_financial_write(NEW.organization_id,NEW.customer_id);
+    ELSIF TG_TABLE_NAME='customer_invoice_items' THEN
+      SELECT i.customer_id INTO v_customer_id
+        FROM public.customer_invoices i
+       WHERE i.organization_id=NEW.organization_id AND i.id=NEW.invoice_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='23503',MESSAGE='invoice source row is required for APP_ONLY invoice-line mutation';
+      END IF;
+      PERFORM public.assert_customer_app_only_financial_write(NEW.organization_id,v_customer_id);
+    ELSE
+      SELECT m.customer_id INTO v_customer_id
+        FROM public.customer_return_credit_memos m
+       WHERE m.organization_id=NEW.organization_id AND m.id=NEW.credit_memo_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE='23503',MESSAGE='credit memo source row is required for APP_ONLY credit-line mutation';
+      END IF;
+      PERFORM public.assert_customer_app_only_financial_write(NEW.organization_id,v_customer_id);
+    END IF;
+  END IF;
+
+  IF TG_OP='DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END
+$function$;
+REVOKE ALL ON FUNCTION public.enforce_customer_app_only_financial_document_source()
+  FROM PUBLIC,anon,authenticated,service_role;
+
+DROP TRIGGER IF EXISTS customer_invoices_app_only_financial_source_guard
+  ON public.customer_invoices;
+CREATE TRIGGER customer_invoices_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.customer_invoices
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_financial_document_source();
+
+DROP TRIGGER IF EXISTS customer_invoice_items_app_only_financial_source_guard
+  ON public.customer_invoice_items;
+CREATE TRIGGER customer_invoice_items_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.customer_invoice_items
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_financial_document_source();
+
+DROP TRIGGER IF EXISTS customer_return_credit_memos_app_only_financial_source_guard
+  ON public.customer_return_credit_memos;
+CREATE TRIGGER customer_return_credit_memos_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.customer_return_credit_memos
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_financial_document_source();
+
+DROP TRIGGER IF EXISTS customer_return_credit_memo_items_app_only_financial_source_guard
+  ON public.customer_return_credit_memo_items;
+CREATE TRIGGER customer_return_credit_memo_items_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.customer_return_credit_memo_items
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_financial_document_source();
+
+DROP TRIGGER IF EXISTS accounting_return_credit_memo_postings_app_only_financial_source_guard
+  ON public.accounting_return_credit_memo_postings;
+CREATE TRIGGER accounting_return_credit_memo_postings_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.accounting_return_credit_memo_postings
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_financial_document_source();
+
+DROP TRIGGER IF EXISTS accounting_return_credit_memo_reversals_app_only_financial_source_guard
+  ON public.accounting_return_credit_memo_reversals;
+CREATE TRIGGER accounting_return_credit_memo_reversals_app_only_financial_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.accounting_return_credit_memo_reversals
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_financial_document_source();
+
+
 COMMIT;

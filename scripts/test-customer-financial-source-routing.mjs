@@ -935,6 +935,40 @@ async function main() {
     "55000",
     "active APP_ONLY financial source",
   );
+
+  await expectFailure(
+    "ONYX source cannot issue a new internal customer invoice",
+    db.unsafe(
+      "insert into public.customer_invoices(" +
+        "organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount" +
+      ") values($1::uuid,$2::uuid,$3::uuid,$4::text,'issued','YER',1.00,0,1.00)",
+      [orgId, customerId, sourceTestSecondOrderId, "FIN-SOURCE-EXTERNAL-" + randomUUID().slice(0,8)],
+    ),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  await expectFailure(
+    "ONYX source cannot mutate an existing APP_ONLY invoice",
+    db.unsafe(
+      "update public.customer_invoices set status=status " +
+      "where id=$1::uuid and organization_id=$2::uuid and customer_id=$3::uuid",
+      [sourceTestInvoiceId,orgId,customerId],
+    ),
+    "55000",
+    "active APP_ONLY financial source",
+  );
+  await expectFailure(
+    "ONYX source cannot create an internal return credit memo",
+    db.unsafe(
+      "insert into public.customer_return_credit_memos(" +
+        "organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency," +
+        "subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id" +
+      ") values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,'draft','YER',1.00,0,1.00,$6::uuid,$7::text,$8::uuid)",
+      [orgId,randomUUID(),sourceTestInvoiceId,customerId,"FIN-SOURCE-EXT-CM-"+randomUUID().slice(0,8),randomUUID(),"e".repeat(32),accountant.id],
+    ),
+    "55000",
+    "active APP_ONLY financial source",
+  );
   const [paymentLedgerAfterOnyxDenial,receiptLedgerAfterOnyxDenial] = await Promise.all([
     db.unsafe(
       "select count(*)::integer as count,coalesce(sum(amount),0)::numeric(15,2)::text as total " +
@@ -1344,6 +1378,41 @@ async function main() {
   assert.equal(freshReceiptHeaderRows[0].allocation_count, 2);
   assert.equal(freshReceiptChildren.length, 2,
     "APP_ONLY receipt writer persists one customer_payment allocation per invoice");
+
+  const appOnlyInvoiceFixtureMarker = "ROLLBACK_APP_ONLY_INVOICE_SOURCE_WRITE_FIXTURE";
+  const appOnlyInvoiceFixtureOrderId = randomUUID();
+  const appOnlyInvoiceFixtureNumber = "FIN-SOURCE-RETURN-" + randomUUID().slice(0,8).toUpperCase();
+  let appOnlyInvoiceFixtureRolledBack = false;
+  try {
+    await db.begin(async tx => {
+      await tx.unsafe(
+        "insert into public.orders(" +
+          "id,organization_id,customer_id,order_number,status,notes,created_by,idempotency_key,idempotency_payload_hash" +
+        ") values($1::uuid,$2::uuid,$3::uuid,$4::text,'pending','APP_ONLY source guard rollback fixture',$5::uuid,$6::text,$7::text)",
+        [appOnlyInvoiceFixtureOrderId,orgId,customerId,appOnlyInvoiceFixtureNumber,customerProfile.id,randomUUID(),"f".repeat(64)],
+      );
+      const issuedInvoice = await tx.unsafe(
+        "insert into public.customer_invoices(" +
+          "organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount" +
+        ") values($1::uuid,$2::uuid,$3::uuid,$4::text,'issued','YER',1.00,0,1.00) returning id",
+        [orgId,customerId,appOnlyInvoiceFixtureOrderId,"INV-"+appOnlyInvoiceFixtureNumber],
+      );
+      assert.equal(issuedInvoice.length,1,
+        "APP_ONLY invoice source guard allows the real internal invoice header after approved source return");
+      throw new Error(appOnlyInvoiceFixtureMarker);
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || error.message!==appOnlyInvoiceFixtureMarker) throw error;
+    appOnlyInvoiceFixtureRolledBack = true;
+  }
+  assert.equal(appOnlyInvoiceFixtureRolledBack,true,
+    "APP_ONLY invoice fixture transaction is rolled back after proving the source guard allows it");
+  const [rolledBackInvoice,rolledBackOrder]=await Promise.all([
+    db.unsafe("select count(*)::integer as count from public.customer_invoices where organization_id=$1::uuid and order_id=$2::uuid",[orgId,appOnlyInvoiceFixtureOrderId]),
+    db.unsafe("select count(*)::integer as count from public.orders where organization_id=$1::uuid and id=$2::uuid",[orgId,appOnlyInvoiceFixtureOrderId]),
+  ]);
+  assert.equal(rolledBackInvoice[0].count,0,"rolled-back APP_ONLY invoice leaves no financial document");
+  assert.equal(rolledBackOrder[0].count,0,"rolled-back APP_ONLY invoice leaves no order fixture");
 
   const finalReceiptOptions = await rpc(accountantDb,
     "select public.get_customer_payment_receipt_print_options(100,0) as result");
