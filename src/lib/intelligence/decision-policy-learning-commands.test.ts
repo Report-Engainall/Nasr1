@@ -24,8 +24,8 @@ describe("decision policy learning command retries", () => {
 
   it("reuses the complete transition payload after the source version and typed reason change", () => {
     const createId = vi.fn()
-      .mockReturnValueOnce("event-id-1")
-      .mockReturnValueOnce("idempotency-key-1");
+      .mockReturnValueOnce("11111111-1111-4111-8111-111111111111")
+      .mockReturnValueOnce("22222222-2222-4222-8222-222222222222");
     const first = resolveDecisionPolicyLearningTransition({
       candidateId: "candidate-a",
       expectedVersion: 4,
@@ -48,8 +48,8 @@ describe("decision policy learning command retries", () => {
       expectedVersion: 4,
       eventType: "APPROVE",
       reason: "مراجعة الأدلة والنتيجة.",
-      eventId: "event-id-1",
-      idempotencyKey: "idempotency-key-1",
+      eventId: "11111111-1111-4111-8111-111111111111",
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
     });
     expect(createId).toHaveBeenCalledTimes(2);
   });
@@ -68,13 +68,15 @@ describe("decision policy learning command retries", () => {
       reason: "رفض موثق.",
     }, first.command, (() => {
       let index = 0;
-      return () => "new-id-" + (++index);
+      return () => index++ === 0
+        ? "44444444-4444-4444-8444-444444444444"
+        : "55555555-5555-4555-8555-555555555555";
     })());
 
     expect(next.reused).toBe(false);
     expect(next.command.eventType).toBe("REJECT");
-    expect(next.command.eventId).toBe("new-id-1");
-    expect(next.command.idempotencyKey).toBe("new-id-2");
+    expect(next.command.eventId).toBe("44444444-4444-4444-8444-444444444444");
+    expect(next.command.idempotencyKey).toBe("55555555-5555-4555-8555-555555555555");
     expect(decisionPolicyLearningTransitionKey("candidate-a", "REJECT"))
       .toBe("candidate-a:REJECT");
   });
