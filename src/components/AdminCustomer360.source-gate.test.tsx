@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getTenantScope: vi.fn(),
   loadScopedCustomer: vi.fn(),
   fetchFinancialSource: vi.fn(),
+  fetchFinancialSourceHistory: vi.fn(),
   fetchSummary: vi.fn(),
   fetchInteractions: vi.fn(),
   requestFinancialSourceChange: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("@/lib/supabase", () => ({
 vi.mock("@/lib/customer-financial-source", () => ({
   fetchStaffCustomerFinancialSource: mocks.fetchFinancialSource,
   requestCustomerFinancialSourceChange: mocks.requestFinancialSourceChange,
+  fetchCustomerFinancialSourceChangeHistory: mocks.fetchFinancialSourceHistory,
   canReadCustomerAppLedger: (source: any) => Boolean(
     source && source.source_mode === "APP_ONLY" && source.source_status === "active" &&
     !source.is_stale && source.can_read_app_ledger
@@ -72,6 +74,7 @@ beforeEach(() => {
   mocks.fetchFinancialSource.mockResolvedValue(onyxSource);
   mocks.fetchSummary.mockRejectedValue(new Error("summary should remain blocked in this test"));
   mocks.fetchInteractions.mockResolvedValue([]);
+  mocks.fetchFinancialSourceHistory.mockResolvedValue({ records: [], total: 0, limit: 10 });
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
@@ -114,6 +117,20 @@ describe("AdminCustomer360 financial source gate", () => {
       replayed: false,
       changed: true,
     });
+    mocks.fetchFinancialSourceHistory
+      .mockResolvedValueOnce({ records: [], total: 0, limit: 10 })
+      .mockResolvedValueOnce({
+        records: [{
+          request_id: "44444444-4444-4444-8444-444444444444",
+          current_source_mode: "APP_ONLY", target_source_mode: "ONYX",
+          status: "pending_reconciliation", reason: "توحيد حساب العميل مع سجل Onyx Pro",
+          review_reason: null, expected_binding_revision: 2,
+          requested_at: "2026-11-28T00:00:00Z", reviewed_at: null,
+          reconciliation_result: null, reconciliation_source_as_of: null,
+          reconciliation_currency_codes: [], reconciliation_record_counts: {},
+        }],
+        total: 1, limit: 10,
+      });
     render(<AdminCustomer360 customer={{ id: customerId }} onClose={vi.fn()} />);
     expect(await screen.findByText(/إدارة مصدر الحساب المالي/)).toBeInTheDocument();
 
@@ -135,6 +152,9 @@ describe("AdminCustomer360 financial source gate", () => {
     })));
     expect(await screen.findByText(/أُنشئ طلب تغيير المصدر/)).toBeInTheDocument();
     expect(screen.getByText(/44444444-4444-4444-8444-444444444444/)).toBeInTheDocument();
+    expect(await screen.findByText(/بانتظار المطابقة/)).toBeInTheDocument();
+    expect(screen.getByText(/سجل طلبات تغيير المصدر/)).toBeInTheDocument();
+    expect(mocks.fetchFinancialSourceHistory).toHaveBeenCalledWith(customerId, 10);
     expect(mocks.fetchSummary).not.toHaveBeenCalled();
   });
 

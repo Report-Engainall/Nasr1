@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
-import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
 const appOnly = { source_mode:"APP_ONLY", source_status:"active", source_as_of:null, last_synced_at:null, verified_at:null, revision:1, is_stale:false, can_read_app_ledger:true };
 describe("customer financial source contract", () => {
   it("allows the app ledger only when the server confirms APP_ONLY and active status", () => {
@@ -304,5 +304,55 @@ describe("customer financial source change requests", () => {
       customerId, targetSourceMode: "APP_ONLY", reason: "إعادة الدفتر الداخلي",
       idempotencyKey, expectedBindingRevision: 2,
     })).rejects.toThrow(/تعذر إنشاء طلب تغيير/);
+  });
+});
+
+
+describe("customer financial source-change history", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+  const customerId = "11111111-1111-4111-8111-111111111111";
+  const record = {
+    request_id: "55555555-5555-4555-8555-555555555555",
+    current_source_mode: "APP_ONLY",
+    target_source_mode: "ONYX",
+    status: "approved",
+    reason: "توحيد الحساب مع سجل Onyx Pro",
+    review_reason: "تمت مطابقة الأرصدة واعتماد التحويل",
+    expected_binding_revision: 3,
+    requested_at: "2026-11-28T00:00:00Z",
+    reviewed_at: "2026-11-28T00:20:00Z",
+    reconciliation_result: "matched",
+    reconciliation_source_as_of: "2026-11-28T00:15:00Z",
+    reconciliation_currency_codes: ["YER", "USD"],
+    reconciliation_record_counts: { invoices: 4, payments: 3, statement_entries: 7 },
+  };
+  it("loads bounded history for the selected customer", async () => {
+    mocks.rpc.mockResolvedValue({ data: { records: [record], total: 1, limit: 10 }, error: null });
+    const history = await fetchCustomerFinancialSourceChangeHistory(customerId);
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_financial_source_change_history", {
+      p_customer_id: customerId, p_limit: 10,
+    });
+    expect(history.records[0]).toMatchObject({
+      request_id: record.request_id, status: "approved", reconciliation_result: "matched",
+      reconciliation_currency_codes: ["YER", "USD"],
+    });
+  });
+  it("drops unexpected raw ERP reference fields from the allowlisted DTO", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { records: [{ ...record, target_external_account_ref: "ERP-ACCOUNT-RAW" }], total: 1, limit: 10 },
+      error: null,
+    });
+    const history = await fetchCustomerFinancialSourceChangeHistory(customerId);
+    expect(JSON.stringify(history)).not.toContain("ERP-ACCOUNT-RAW");
+  });
+  it("rejects malformed history rows and unbounded server output", async () => {
+    mocks.rpc.mockResolvedValue({ data: { records: [{ ...record, status: "unknown" }], total: 1, limit: 10 }, error: null });
+    await expect(fetchCustomerFinancialSourceChangeHistory(customerId)).rejects.toThrow();
+    mocks.rpc.mockResolvedValue({ data: { records: Array.from({ length: 21 }, () => record), total: 21, limit: 21 }, error: null });
+    await expect(fetchCustomerFinancialSourceChangeHistory(customerId)).rejects.toThrow();
+  });
+  it("fails closed when the history resolver rejects access", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "permission denied" } });
+    await expect(fetchCustomerFinancialSourceChangeHistory(customerId)).rejects.toThrow(/تعذر تحميل سجل تغييرات/);
   });
 });

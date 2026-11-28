@@ -122,6 +122,108 @@ export type CustomerFinancialSourceChangeRequestResult = {
   changed: boolean;
 };
 
+
+export type CustomerFinancialSourceChangeHistoryItem = {
+  request_id: string;
+  current_source_mode: CustomerFinancialSourceMode;
+  target_source_mode: CustomerFinancialSourceMode;
+  status: "pending_reconciliation" | "pending_approval" | "approved" | "rejected" | "cancelled";
+  reason: string;
+  review_reason: string | null;
+  expected_binding_revision: number;
+  requested_at: string;
+  reviewed_at: string | null;
+  reconciliation_result: "matched" | "mismatch" | null;
+  reconciliation_source_as_of: string | null;
+  reconciliation_currency_codes: string[];
+  reconciliation_record_counts: Record<string, number>;
+};
+
+export type CustomerFinancialSourceChangeHistory = {
+  records: CustomerFinancialSourceChangeHistoryItem[];
+  total: number;
+  limit: number;
+};
+
+function parseSourceChangeHistory(value: unknown): CustomerFinancialSourceChangeHistory {
+  const row = asRecord(value);
+  if (!row || !Array.isArray(row.records) || row.records.length > 20 ||
+      typeof row.total !== "number" || !Number.isSafeInteger(row.total) || row.total < row.records.length ||
+      typeof row.limit !== "number" || !Number.isSafeInteger(row.limit) || row.limit < 1 || row.limit > 20 ||
+      row.records.length > row.limit) {
+    throw new Error("استجابة سجل تغييرات مصدر الحساب غير مكتملة أو تجاوزت الحد المسموح.");
+  }
+  const records = row.records.map((candidate): CustomerFinancialSourceChangeHistoryItem => {
+    const item = asRecord(candidate);
+    const validMode = (mode: unknown): mode is CustomerFinancialSourceMode =>
+      mode === "APP_ONLY" || mode === "ONYX" || mode === "MUTAKAMEL";
+    const validStatus = (status: unknown): status is CustomerFinancialSourceChangeHistoryItem["status"] =>
+      status === "pending_reconciliation" || status === "pending_approval" ||
+      status === "approved" || status === "rejected" || status === "cancelled";
+    if (!item ||
+        typeof item.request_id !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.request_id) ||
+        !validMode(item.current_source_mode) || !validMode(item.target_source_mode) ||
+        !validStatus(item.status) ||
+        typeof item.reason !== "string" || item.reason.length < 5 || item.reason.length > 500 ||
+        !(item.review_reason === null || typeof item.review_reason === "string" && item.review_reason.length <= 500) ||
+        typeof item.expected_binding_revision !== "number" ||
+        !Number.isSafeInteger(item.expected_binding_revision) || item.expected_binding_revision < 1) {
+      throw new Error("يحتوي سجل تغيير مصدر الحساب على طلب غير صالح.");
+    }
+    const requestedAt = parseTimestamp(item.requested_at, "requested_at");
+    if (!requestedAt) throw new Error("سجل تغيير مصدر الحساب يفتقد وقت الطلب.");
+    const reviewedAt = parseTimestamp(item.reviewed_at, "reviewed_at");
+    const reconciliationAsOf = parseTimestamp(item.reconciliation_source_as_of, "reconciliation_source_as_of");
+    if (!(item.reconciliation_result === null || item.reconciliation_result === "matched" || item.reconciliation_result === "mismatch") ||
+        !Array.isArray(item.reconciliation_currency_codes) ||
+        item.reconciliation_currency_codes.length > 10 ||
+        item.reconciliation_currency_codes.some(code => typeof code !== "string" || !/^[A-Z]{3}$/.test(code)) ||
+        new Set(item.reconciliation_currency_codes).size !== item.reconciliation_currency_codes.length) {
+      throw new Error("بيانات المطابقة في سجل مصدر الحساب غير صالحة.");
+    }
+    const counts = asRecord(item.reconciliation_record_counts);
+    if (!counts || Object.values(counts).some(count =>
+      typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)) {
+      throw new Error("عدادات المطابقة في سجل مصدر الحساب غير صالحة.");
+    }
+    return {
+      request_id: item.request_id,
+      current_source_mode: item.current_source_mode,
+      target_source_mode: item.target_source_mode,
+      status: item.status,
+      reason: item.reason,
+      review_reason: item.review_reason as string | null,
+      expected_binding_revision: item.expected_binding_revision,
+      requested_at: requestedAt,
+      reviewed_at: reviewedAt,
+      reconciliation_result: item.reconciliation_result as "matched" | "mismatch" | null,
+      reconciliation_source_as_of: reconciliationAsOf,
+      reconciliation_currency_codes: [...item.reconciliation_currency_codes] as string[],
+      reconciliation_record_counts: counts as Record<string, number>,
+    };
+  });
+  return { records, total: row.total, limit: row.limit };
+}
+
+export async function fetchCustomerFinancialSourceChangeHistory(
+  customerId: string,
+  limit = 10,
+): Promise<CustomerFinancialSourceChangeHistory> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId) ||
+      !Number.isSafeInteger(limit) || limit < 1 || limit > 20) {
+    throw new Error("معرف العميل أو حد سجل تغييرات المصدر غير صالح.");
+  }
+  const { data, error } = await supabase.rpc("get_customer_financial_source_change_history", {
+    p_customer_id: customerId,
+    p_limit: limit,
+  });
+  if (error) {
+    throw new Error("تعذر تحميل سجل تغييرات مصدر الحساب. يلزم توفر صلاحية طلب أو اعتماد المصدر المالي.");
+  }
+  return parseSourceChangeHistory(data);
+}
+
 export type CustomerFinancialSourceChangeRequestInput = {
   customerId: string;
   targetSourceMode: CustomerFinancialSourceMode;

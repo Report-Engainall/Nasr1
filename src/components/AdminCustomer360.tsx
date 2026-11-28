@@ -17,7 +17,7 @@ import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retent
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
 import { CustomerAssetsPanel } from '@/components/CustomerAssetsPanel';
 import { CustomerFinancialSourceNotice } from '@/components/CustomerFinancialSourceNotice';
-import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode } from '@/lib/customer-financial-source';
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode, type CustomerFinancialSourceChangeHistoryItem } from '@/lib/customer-financial-source';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -858,6 +858,63 @@ function Customer360Interactions({
 }
 
 
+
+const financialSourceModeLabel: Record<CustomerFinancialSourceMode, string> = {
+  APP_ONLY: "دفتر متجر الأغبري",
+  ONYX: "Onyx Pro",
+  MUTAKAMEL: "المتكامل",
+};
+const financialSourceRequestStatusLabel: Record<CustomerFinancialSourceChangeHistoryItem["status"], string> = {
+  pending_reconciliation: "بانتظار المطابقة",
+  pending_approval: "بانتظار اعتماد المحاسبة",
+  approved: "معتمد",
+  rejected: "مرفوض",
+  cancelled: "ملغى",
+};
+
+function CustomerFinancialSourceChangeHistory({
+  items,
+  loading,
+  error,
+}: {
+  items: CustomerFinancialSourceChangeHistoryItem[];
+  loading: boolean;
+  error: string;
+}) {
+  if (loading) return <p className="report-note" role="status">جارٍ تحميل سجل طلبات تغيير المصدر…</p>;
+  if (error) return <p className="report-note" role="status">{error}</p>;
+  if (items.length === 0) return <p className="report-note">لا توجد طلبات تغيير مصدر سابقة لهذا العميل.</p>;
+  return (
+    <TableWrap>
+      <table>
+        <thead><tr><th>الطلب</th><th>المصدر</th><th>الحالة</th><th>التاريخ</th><th>السبب والمراجعة</th></tr></thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.request_id}>
+              <td><code dir="ltr">{item.request_id.slice(0, 8)}</code><small style={{ display: "block" }}>الإصدار {formatNumber(item.expected_binding_revision)}</small></td>
+              <td>{financialSourceModeLabel[item.current_source_mode]} ← {financialSourceModeLabel[item.target_source_mode]}</td>
+              <td>
+                <strong>{financialSourceRequestStatusLabel[item.status]}</strong>
+                {item.reconciliation_result ? (
+                  <small style={{ display: "block" }}>
+                    المطابقة: {item.reconciliation_result === "matched" ? "مطابقة" : "اختلاف"}
+                    {item.reconciliation_currency_codes.length ? " · " + item.reconciliation_currency_codes.join("، ") : ""}
+                  </small>
+                ) : null}
+              </td>
+              <td>{formatDateShort(item.requested_at)}{item.reviewed_at ? <small style={{ display: "block" }}>المراجعة: {formatDateShort(item.reviewed_at)}</small> : null}</td>
+              <td>
+                <span>{item.reason}</span>
+                {item.review_reason ? <small style={{ display: "block", color: "var(--muted, #667085)" }}>ملاحظة المراجع: {item.review_reason}</small> : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableWrap>
+  );
+}
+
 function CustomerFinancialSourceChangeRequestPanel({
   customerId,
   source,
@@ -876,6 +933,28 @@ function CustomerFinancialSourceChangeRequestPanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => createCustomerInteractionIdempotencyKey());
+  const [history, setHistory] = useState<CustomerFinancialSourceChangeHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const historyRequestSequence = useRef(0);
+
+  const reloadHistory = useCallback(async () => {
+    const requestSequence = ++historyRequestSequence.current;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const result = await fetchCustomerFinancialSourceChangeHistory(customerId, 10);
+      if (historyRequestSequence.current !== requestSequence) return;
+      setHistory(result.records);
+    } catch (cause) {
+      if (historyRequestSequence.current !== requestSequence) return;
+      setHistory([]);
+      setHistoryError(cause instanceof Error ? cause.message : "تعذر تحميل سجل طلبات تغيير المصدر.");
+    } finally {
+      if (historyRequestSequence.current === requestSequence) setHistoryLoading(false);
+    }
+  }, [customerId]);
+
 
   useEffect(() => {
     setTargetMode(source.source_mode === "APP_ONLY" ? "ONYX" : source.source_mode);
@@ -894,6 +973,11 @@ function CustomerFinancialSourceChangeRequestPanel({
     source.company_external_ref,
     source.branch_external_ref,
   ]);
+
+  useEffect(() => {
+    void reloadHistory();
+    return () => { historyRequestSequence.current += 1; };
+  }, [reloadHistory]);
 
   const isExternalTarget = targetMode !== "APP_ONLY";
   const requestReady = reason.trim().length >= 5 &&
@@ -931,6 +1015,7 @@ function CustomerFinancialSourceChangeRequestPanel({
       }
       setReason("");
       setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+      await reloadHistory();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر إنشاء طلب تغيير مصدر الحساب.");
     } finally {
@@ -1003,6 +1088,10 @@ function CustomerFinancialSourceChangeRequestPanel({
       </form>
       {notice && <p className="customer-360-interaction-notice" role="status">{notice}</p>}
       {error && <ErrorBox message={error} />}
+      <div style={{ marginTop: 14 }}>
+        <h4>سجل طلبات تغيير المصدر</h4>
+        <CustomerFinancialSourceChangeHistory items={history} loading={historyLoading} error={historyError} />
+      </div>
     </section>
   );
 }
