@@ -1185,7 +1185,10 @@ describe("customer quote workspace tenant boundary", () => {
     expect(sourceReads).toBe(3);
     expect(host?.textContent).toContain("تغير مصدر الحساب المالي؛ أوقفنا إنشاء كشف من الدفتر السابق.");
     expect(host?.textContent).not.toContain("INV-PDF-CUTOVER-STALE");
-    expect(host?.querySelector('[aria-label="تنزيل PDF عربي"]')).toBeNull();
+    expect(
+      Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .some((button) => button.textContent?.includes("تنزيل PDF عربي")),
+    ).toBe(false);
   });
 
   it("renders and prints a source-routed ONYX statement as separate customer currency ledgers", async () => {
