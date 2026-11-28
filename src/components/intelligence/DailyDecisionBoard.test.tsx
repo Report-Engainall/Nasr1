@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
 import {
+  buildDailyDecisionBoardCsv,
   filterDailyDecisionRecords,
   normalizeDailyDecisionSearch,
   selectDailyDecisionBoardRows,
@@ -192,6 +193,68 @@ describe("daily decision queue search and filters", () => {
     expect(searchedSelection.records.map(item => item.decisionId)).toEqual(["eleventh"]);
     expect(searchedSelection.matchedCount).toBe(1);
     expect(searchedSelection.omittedCount).toBe(0);
+  });
+
+  it("exports all filtered decision evidence with formula protection and a partial-source notice", () => {
+    const recordWithEvidence = decision({
+      decisionId: "=HYPERLINK(\"https://example.invalid\")",
+      decisionReason: "=SUM(1,2)",
+      metricComparison: {
+        status: "VERIFIED",
+        expected: {
+          metricKey: "cashflow.expected_collections",
+          value: 15,
+          unit: "CURRENCY",
+          currency: "YER",
+          unitOfMeasure: null,
+          period: { from: "2026-11-01", to: "2026-11-07" },
+          asOf: "2026-11-08T00:00:00.000Z",
+          formulaId: "receivables",
+          formulaVersion: "1",
+          evidenceIds: ["expected-evidence"],
+        },
+        actual: {
+          metricKey: "cashflow.expected_collections",
+          value: 12,
+          unit: "CURRENCY",
+          currency: "YER",
+          unitOfMeasure: null,
+          period: { from: "2026-11-01", to: "2026-11-07" },
+          asOf: "2026-11-15T00:00:00.000Z",
+          formulaId: "receivables",
+          formulaVersion: "1",
+          evidenceIds: ["actual-evidence"],
+        },
+        difference: -3,
+        differencePercent: -20,
+        reason: null,
+      },
+      facts: [{
+        id: "fact-1", kind: "FACT", text: "فاتورة مستحقة",
+        actorRole: "manager", recordedAt: "2026-11-08T00:00:00.000Z",
+        evidenceIds: ["invoice-1"],
+      }],
+    });
+    const csv = buildDailyDecisionBoardCsv({
+      records: [recordWithEvidence],
+      loadedCount: 1,
+      totalCount: 4,
+    });
+
+    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain("'=SUM(1,2)");
+    expect(csv).toContain(",15,");
+    expect(csv).toContain(",12,");
+    expect(csv).toContain("expected-evidence");
+    expect(csv).toContain("actual-evidence");
+    expect(csv).toContain("invoice-1");
+    expect(csv).toContain("نطاق جزئي: 1 من 4 قراراً محمّلاً");
+    expect(() => buildDailyDecisionBoardCsv({
+      records: [recordWithEvidence],
+      loadedCount: 2,
+      totalCount: 1,
+    })).toThrow("daily_decision_export_invalid");
   });
 
   it("searches evidence references and event reasons without treating hypotheses as facts", () => {
