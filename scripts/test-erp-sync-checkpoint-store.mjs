@@ -203,6 +203,14 @@ async function main() {
   organizationB = organizations[1].id;
   assert.notEqual(organizationA, organizationB,
     "ERP acceptance requires two distinct active tenant organizations");
+  const statementScopeTrigger = await db.unsafe(
+    "select " +
+      "(pg_catalog.to_regprocedure('public.capture_customer_financial_source_statement_scope_from_checkpoint()') is not null) as resolver_exists," +
+      "exists (select 1 from pg_catalog.pg_trigger where tgname='customer_financial_source_statement_scope_from_checkpoint' " +
+      "and tgrelid='public.erp_sync_checkpoints'::regclass and not tgisinternal) as trigger_attached",
+  );
+  assert.equal(statementScopeTrigger[0].trigger_attached, statementScopeTrigger[0].resolver_exists,
+    "P4 migration attaches the P2 currency-scope trigger only when P2 has been installed first");
   baseScope = {
     organizationId: organizationA,
     provider,

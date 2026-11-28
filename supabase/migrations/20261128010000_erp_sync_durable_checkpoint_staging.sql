@@ -866,4 +866,25 @@ GRANT EXECUTE ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text
 COMMENT ON FUNCTION public.list_erp_sync_page_receipts(uuid,text,text,text,text,text,text,text,integer,integer) IS
   'Service-role-only bounded ERP page receipt history. Exposes disposition counts and watermarks without cursors, response hashes or provider request IDs.';
 
+-- P2 can be merged before P4. Attach the tenant/customer scope refresh trigger
+-- when the P2 resolver is already present; P2 performs the reverse-order attach.
+DO $do$
+BEGIN
+  IF pg_catalog.to_regprocedure('public.capture_customer_financial_source_statement_scope_from_checkpoint()') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_trigger
+        WHERE tgname='customer_financial_source_statement_scope_from_checkpoint'
+          AND tgrelid='public.erp_sync_checkpoints'::regclass
+          AND NOT tgisinternal
+     ) THEN
+    EXECUTE
+      'CREATE TRIGGER customer_financial_source_statement_scope_from_checkpoint ' ||
+      'AFTER UPDATE OF completed_watermark,cursor_ciphertext,pending_watermark ' ||
+      'ON public.erp_sync_checkpoints FOR EACH ROW ' ||
+      'EXECUTE FUNCTION public.capture_customer_financial_source_statement_scope_from_checkpoint()';
+  END IF;
+END
+$do$;
+
 COMMIT;
