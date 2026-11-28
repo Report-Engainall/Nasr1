@@ -649,6 +649,33 @@ BEGIN
 
   UPDATE public.warehouses SET is_active=true
    WHERE id='40000000-0000-0000-0000-000000000001';
+
+  -- A batch retry must also revalidate the destination's active state before
+  -- acquiring/replaying its idempotency key.
+  UPDATE public.warehouses SET is_active=false
+   WHERE id='40000000-0000-0000-0000-000000000002';
+  v_denied:=false;
+  BEGIN
+    PERFORM public.transfer_inventory_batch(
+      '40000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000002',
+      'pg17-batch-transfer-key-0001',v_lines,'PG17 batch endpoint replay guard'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied:=true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'batch transfer replay was not denied after destination deactivation';
+  END IF;
+  v_after:=public.test_inventory_transfer_snapshot(
+    '50000000-0000-0000-0000-000000000002'
+  );
+  IF v_after IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'denied batch replay after destination deactivation changed inventory or audit';
+  END IF;
+  UPDATE public.warehouses SET is_active=true
+   WHERE id='40000000-0000-0000-0000-000000000002';
+
   UPDATE public.warehouses
      SET organization_id='10000000-0000-0000-0000-000000000002'
    WHERE id='40000000-0000-0000-0000-000000000002';
