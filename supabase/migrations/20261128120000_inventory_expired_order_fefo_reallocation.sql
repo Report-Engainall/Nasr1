@@ -570,7 +570,7 @@ BEGIN
  IF p_order_id IS NULL OR v_key !~ '^[A-Za-z0-9_-]{16,128}$' OR v_reason IS NULL OR pg_catalog.char_length(v_reason)>500 THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='order id, valid idempotency key and reason of 1..500 characters are required';
  END IF;
- v_payload:=pg_catalog.jsonb_build_object('order_id',p_order_id,'reason',v_reason);
+ v_payload:=pg_catalog.jsonb_build_object('operation','reconcile_missing','order_id',p_order_id,'reason',v_reason);
  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_org::text||':order-reservation-reconcile:'||v_key,0));
  SELECT x.* INTO v_existing FROM public.inventory_order_reservation_reconciliations x
   WHERE x.organization_id=v_org AND x.idempotency_key=v_key FOR UPDATE;
