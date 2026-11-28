@@ -69,7 +69,7 @@ function concentrationMetric(
   key: string,
   deltaPercentagePoints: number,
   asOf: string,
-  period: EvidencePeriod,
+  _period: EvidencePeriod,
   evidenceIds: string[],
   formulaId: string,
   formulaVersion: string,
@@ -84,7 +84,8 @@ function concentrationMetric(
     status: "VERIFIED",
     completeness: "COMPLETE",
     quality: "ACCEPTABLE",
-    period,
+    // A delta compares two adjacent periods; source periods remain on the two evidence records.
+    period: null,
     asOf,
     lineage: {
       evidenceIds,
