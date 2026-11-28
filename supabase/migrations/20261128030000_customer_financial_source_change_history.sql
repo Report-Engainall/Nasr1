@@ -96,7 +96,11 @@ BEGIN
       'reconciliation_result',evidence.reconciliation_result,
       'reconciliation_source_as_of',evidence.source_as_of,
       'reconciliation_currency_codes',evidence.currency_codes,
-      'reconciliation_record_counts',evidence.record_counts
+      'reconciliation_record_counts',evidence.record_counts,
+      'can_review',
+        visible_page.status IN ('pending_reconciliation','pending_approval')
+        AND visible_page.requested_by IS DISTINCT FROM v_actor
+        AND public.current_actor_has_capability('finance.customer_source.approve')
     )
     ORDER BY visible_page.requested_at DESC,visible_page.id DESC
   ),'[]'::jsonb),

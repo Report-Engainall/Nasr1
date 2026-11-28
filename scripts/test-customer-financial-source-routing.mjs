@@ -1288,6 +1288,8 @@ async function main() {
   assert.equal(pendingRequestRecord.target_source_mode, "ONYX");
   assert.equal(pendingRequestRecord.reason, "Verified migration to Onyx customer ledger");
   assert.equal(pendingRequestRecord.reconciliation_result, null);
+  assert.equal(pendingRequestRecord.can_review, false,
+    "maker cannot review their own source-change request even when the actor has finance request capability");
   await expectFailure(
     "finance source history cannot cross tenant boundaries",
     rpc(managerDb,
@@ -1429,6 +1431,18 @@ async function main() {
     requestId, "matched", matchedTime[0].as_of, matchedHash, "ONYX-REF-001", matchingCurrencyBalances,
   );
   assert.equal(matchedEvidence.status, "pending_approval");
+  const reviewerPendingHistory = await rpc(accountantDb,
+    "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
+    [customerId]);
+  const reviewerPendingRecord = reviewerPendingHistory.records.find(item => item.request_id === requestId);
+  assert.ok(reviewerPendingRecord, "authorized checker can see the matched request awaiting approval");
+  assert.equal(reviewerPendingRecord.can_review, true,
+    "a different accountant with approval capability can review matched requests");
+  const makerPendingHistory = await rpc(managerDb,
+    "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
+    [customerId]);
+  assert.equal(makerPendingHistory.records.find(item => item.request_id === requestId).can_review, false,
+    "maker cannot activate their own matched request");
   await expectFailure(
     "same reconciliation hash cannot be replayed with changed currency balances",
     recordReconciliation(requestId, "matched", matchedTime[0].as_of, matchedHash, "ONYX-REF-001", {
@@ -1447,6 +1461,8 @@ async function main() {
   const completedRequestRecord = completedRequestHistory.records.find(item => item.request_id === requestId);
   assert.ok(completedRequestRecord, "approver can retrieve the completed source-change audit row");
   assert.equal(completedRequestRecord.status, "approved");
+  assert.equal(completedRequestRecord.can_review, false,
+    "completed source-change requests are no longer reviewable");
   assert.equal(completedRequestRecord.reconciliation_result, "matched");
   assert.deepEqual(completedRequestRecord.reconciliation_currency_codes, ["YER", "USD"]);
   assert.equal(completedRequestRecord.review_reason, "verified opening ledger and currency totals match");

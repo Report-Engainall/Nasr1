@@ -285,3 +285,10 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - Preserved `get_customer_financial_source_change_history(uuid,integer)` as the existing first-page compatibility wrapper. Authenticated-only grants remain; anonymous execute is revoked on both functions.
 - Test commit `fdac0dd430cf0d0db9c616b0f7fc0272a0f40616` now proves first/second-page continuity, no duplicate request IDs, missing-cursor-pair rejection, old-wrapper compatibility, tenant/customer denial, and both functions' grants/SECURITY DEFINER flags. The composite history index is checked valid in `pg_catalog.pg_index`.
 - API/OPS contract updated in commit `671f1c6e8c28882a954da1d34c9b9d7e78e10725`. Exact-head PostgreSQL 17 and P1/P2 workflows are required on the next SHA; no runtime PASS is claimed.
+
+
+## 2026-11-28 — Capability-aware maker/checker review controls
+
+- The paged source-change history now returns a per-row `can_review` decision only when the current authenticated actor has `finance.customer_source.approve`, the request is still pending, and the actor is not the original requester.
+- The source-change history test proves a maker cannot review their own request, an independent accountant can review a request only after matched evidence moves it to `pending_approval`, and an already approved request is no longer reviewable.
+- This boolean is an affordance for the UI only. `review_customer_financial_source_change` continues to re-check capability, maker/checker separation, request state, binding revision and fresh matched evidence transactionally before approval or rejection.
