@@ -116,4 +116,46 @@ describe("demand scenario stock impact", () => {
     expect(zeroDemand.status).toBe("READY");
     expect(zeroDemand.horizons.every(item => item.scenarioDemand.expected === 0)).toBe(true);
   });
+
+  it("withholds malformed scenario structures and inventory lineage instead of throwing", () => {
+    const malformedHorizons = { ...scenario, horizons: null } as unknown as DemandScenarioResult;
+    expect(buildDemandScenarioStockImpact({ scenario: malformedHorizons, recommendations: [recommendation] }).reason)
+      .toBe("SCENARIO_HORIZONS_INVALID");
+
+    const malformedHorizonRow = { ...scenario, horizons: [null, ...scenario.horizons.slice(1)] } as unknown as DemandScenarioResult;
+    expect(buildDemandScenarioStockImpact({ scenario: malformedHorizonRow, recommendations: [recommendation] }).reason)
+      .toBe("SCENARIO_HORIZONS_INVALID");
+
+    const malformedInventoryRow = [null as unknown as ReplenishmentRecommendation];
+    expect(buildDemandScenarioStockImpact({ scenario, recommendations: malformedInventoryRow }).reason)
+      .toBe("INVENTORY_SOURCE_UNAVAILABLE");
+
+    expect(buildDemandScenarioStockImpact({
+      scenario,
+      recommendations: [{ ...recommendation, evidenceIds: ["stock-a"] }],
+    }).reason).toBe("INVENTORY_AND_DEMAND_EVIDENCE_MISMATCH");
+
+    expect(buildDemandScenarioStockImpact({
+      scenario,
+      recommendations: [{ ...recommendation, formulaVersion: "" }],
+    }).reason).toBe("INVENTORY_AND_DEMAND_EVIDENCE_MISMATCH");
+
+    expect(buildDemandScenarioStockImpact({
+      scenario: { ...scenario, productRef: "" },
+      recommendations: [recommendation],
+    }).reason).toBe("SCENARIO_IDENTITY_INVALID");
+  });
+
+  it("treats equality with the reorder point as at the threshold, not above it", () => {
+    const result = buildDemandScenarioStockImpact({
+      scenario,
+      recommendations: [{ ...recommendation, availableToPromise: 70, reorderPoint: 49 }],
+    });
+    expect(result.status).toBe("READY");
+    expect(result.horizons[0]).toMatchObject({
+      days: 7,
+      scenarioRemainingAtp: 49,
+      belowReorderPoint: false,
+    });
+  });
 });

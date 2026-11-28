@@ -195,7 +195,7 @@ function DemandScenarioLab({ result, onSaveScenario, replenishmentRecommendation
                       <td className="p-2">{formatQuantity(item.baselineRemainingAtp, stockImpact.quantityUnit ?? "")}</td>
                       <td className="p-2">{formatQuantity(item.scenarioRemainingAtp, stockImpact.quantityUnit ?? "")}</td>
                       <td className="p-2">{formatQuantity(item.scenarioPotentialShortfall, stockImpact.quantityUnit ?? "")}</td>
-                      <td className="p-2">{item.belowReorderPoint ? "دون نقطة إعادة الطلب" : "فوق نقطة إعادة الطلب"}</td>
+                      <td className="p-2">{item.belowReorderPoint ? "دون نقطة إعادة الطلب" : "عند نقطة إعادة الطلب أو أعلى"}</td>
                     </tr>
                   ))}</tbody>
                 </table>

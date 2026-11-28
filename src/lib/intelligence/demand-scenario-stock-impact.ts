@@ -34,11 +34,18 @@ export interface DemandScenarioStockImpact {
   demandEvidenceIds: string[];
   limitations: string[];
 }
-const withheld = (scenario: DemandScenarioResult, reason: string): DemandScenarioStockImpact => ({
-  status: "WITHHELD", reason, productRef: scenario?.productRef ?? "", quantityUnit: null,
+function validLabel(value: unknown, maxLength = 256): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= maxLength;
+}
+const withheld = (scenario: DemandScenarioResult | null | undefined, reason: string): DemandScenarioStockImpact => ({
+  status: "WITHHELD", reason,
+  productRef: validLabel(scenario?.productRef, 200) ? scenario.productRef : "",
+  quantityUnit: null,
   availableToPromise: null, reorderPoint: null, leadTime: null, horizons: [],
   inventoryEvidenceIds: [], inventoryFormulaId: null, inventoryFormulaVersion: null,
-  demandEvidenceIds: Array.isArray(scenario?.evidenceIds) ? [...scenario.evidenceIds] : [],
+  demandEvidenceIds: Array.isArray(scenario?.evidenceIds)
+    ? scenario.evidenceIds.filter((value): value is string => validLabel(value)).slice(0, 500)
+    : [],
   limitations: [reason, "NO_INVENTORY_OR_PURCHASE_SIDE_EFFECTS"],
 });
 function validEvidence(values: unknown): values is string[] {
@@ -72,13 +79,25 @@ export function buildDemandScenarioStockImpact(input: {
   recommendations: readonly ReplenishmentRecommendation[] | null | undefined;
 }): DemandScenarioStockImpact {
   const scenario = input.scenario;
-  if (!scenario || scenario.status !== "SIMULATED" ||
+  if (!scenario || typeof scenario !== "object" || scenario.status !== "SIMULATED" ||
       scenario.assumptionBoundary !== "USER_SUPPLIED" || scenario.accountingFact !== false ||
       !Number.isInteger(scenario.changePercent) || scenario.changePercent === null ||
       scenario.changePercent < -100 || scenario.changePercent > 300) {
     return withheld(scenario, "SCENARIO_NOT_VERIFIED");
   }
+  if (!validLabel(scenario.productRef, 200) || !validLabel(scenario.unitOfMeasure, 64) ||
+      !validLabel(scenario.formulaId, 128) || !validLabel(scenario.formulaVersion, 64)) {
+    return withheld(scenario, "SCENARIO_IDENTITY_INVALID");
+  }
+  if (!Array.isArray(scenario.horizons) || scenario.horizons.length !== 3 ||
+      scenario.horizons.some(horizon => !horizon || typeof horizon !== "object")) {
+    return withheld(scenario, "SCENARIO_HORIZONS_INVALID");
+  }
   if (!Array.isArray(input.recommendations)) return withheld(scenario, "INVENTORY_SOURCE_UNAVAILABLE");
+  if (input.recommendations.some(item => !item || typeof item !== "object" ||
+      !validLabel(item.productRef, 200))) {
+    return withheld(scenario, "INVENTORY_SOURCE_UNAVAILABLE");
+  }
   const matches = input.recommendations.filter(item => item.productRef === scenario.productRef);
   if (matches.length !== 1) return withheld(scenario, "PRODUCT_INVENTORY_NOT_UNIQUE");
   const recommendation = matches[0];
@@ -88,11 +107,14 @@ export function buildDemandScenarioStockImpact(input: {
       recommendation.availableToPromise === null || recommendation.reorderPoint === null ||
       !Number.isFinite(recommendation.availableToPromise) || !Number.isFinite(recommendation.reorderPoint) ||
       recommendation.availableToPromise < 0 || recommendation.reorderPoint < 0 ||
+      !validEvidence(recommendation.evidenceIds) ||
+      !validLabel(recommendation.formulaId, 128) || !validLabel(recommendation.formulaVersion, 64) ||
       !validEvidence(recommendation.forecastEvidenceIds) ||
       !validEvidence(recommendation.forecastMetricKeys) ||
       !validEvidence(recommendation.forecastFormulaVersions) ||
       !validEvidence(scenario.evidenceIds) || !validEvidence(scenario.metricKeys) ||
       !validEvidence(scenario.formulaVersions) ||
+      !recommendation.forecastEvidenceIds.every(id => recommendation.evidenceIds.includes(id)) ||
       !sameSet(recommendation.forecastEvidenceIds, scenario.evidenceIds) ||
       !sameSet(recommendation.forecastMetricKeys, scenario.metricKeys) ||
       !sameSet(recommendation.forecastFormulaVersions, scenario.formulaVersions)) {
@@ -111,7 +133,7 @@ export function buildDemandScenarioStockImpact(input: {
     return withheld(scenario, "INVENTORY_QUANTITY_INVALID");
   }
   const horizons = [...scenario.horizons].sort((a, b) => a.days - b.days);
-  if (horizons.length !== 3 || horizons.some((horizon, index) => horizon.days !== [7, 30, 90][index])) {
+  if (horizons.some((horizon, index) => horizon.days !== [7, 30, 90][index])) {
     return withheld(scenario, "SCENARIO_HORIZONS_INVALID");
   }
   const projected: DemandScenarioStockHorizon[] = [];
