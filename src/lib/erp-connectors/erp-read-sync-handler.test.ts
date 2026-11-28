@@ -5,6 +5,7 @@ import type {
   ErpReadContract,
   ErpSyncCheckpointStore,
   ErpSyncScope,
+  ErpStagedRecordReader,
   ErpSyncPageReceiptReader,
 } from "../../../supabase/functions/_shared/erp-connectors/readonly-sync";
 
@@ -138,7 +139,7 @@ function buildDependencies(overrides: Partial<ErpReadSyncHandlerDependencies> = 
       limit: input.limit ?? 20,
       offset: input.offset ?? 0,
       checkpointVersion: 1,
-      hasCursor: true,
+      hasCursor: false,
       pendingWatermark: null,
       completedWatermark: "2026-11-28T00:30:00Z",
     })),
@@ -194,7 +195,7 @@ describe("ERP read-only Edge Function handler", () => {
     expect(response.status).toBe(200);
     expect(payload.status).toBe("complete");
     expect(payload.preview).toMatchObject({ total: 1, limit: 20, hasCursor: true, records: [{ externalId: "ERP-PRODUCT-001", fields: { item_code: "000125" } }] });
-    expect(payload.checkpoint).toMatchObject({ has_cursor: true });
+    expect(payload.checkpoint).toMatchObject({ has_cursor: false });
     expect(payload.preview_error).toBeNull();
     expect(payload.receipts).toMatchObject({
       total: 1,

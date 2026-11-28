@@ -319,12 +319,12 @@ describe("SupabaseErpSyncCheckpointStore", () => {
           fields: { item_code: "000125", name: "منتج مرحلي", barcode: null },
           last_disposition: "created",
           last_disposition_reason: null,
-          last_disposition_reason: null,
         }],
         total: 25,
         limit: 10,
         offset: 5,
         checkpoint_version: 3,
+        has_cursor: false,
         pending_watermark: null,
         completed_watermark: "2026-11-28T00:30:00Z",
       });
@@ -370,6 +370,7 @@ describe("SupabaseErpSyncCheckpointStore", () => {
       limit: 20,
       offset: 0,
       checkpoint_version: 1,
+      has_cursor: false,
       pending_watermark: null,
       completed_watermark: null,
     }));

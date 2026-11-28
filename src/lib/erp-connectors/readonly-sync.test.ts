@@ -240,6 +240,7 @@ describe("server-side ERP read connector contract", () => {
       ...productContract,
       cursorParameter: undefined,
       nextCursorPath: undefined,
+      pageSizeParameter: undefined,
       singlePageComplete: true,
     })).not.toThrow();
 

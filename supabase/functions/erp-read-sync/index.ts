@@ -16,9 +16,10 @@ type Runtime = {
 
 const runtime = (globalThis as unknown as { Deno?: Runtime }).Deno;
 if (!runtime) throw new Error("This function must run inside the Supabase Edge Runtime.");
+const denoRuntime: Runtime = runtime;
 
 function getEnv(name: string): string | undefined {
-  return runtime.env.get(name);
+  return denoRuntime.env.get(name);
 }
 
 function createAuthClient(url: string, publishableKey: string) {
@@ -54,7 +55,7 @@ function createAdminClient(url: string, serviceRoleKey: string) {
   };
 }
 
-runtime.serve(createErpReadSyncHandler({
+denoRuntime.serve(createErpReadSyncHandler({
   getEnv,
   readBody: (request) => readBoundedTextBody(
     request.body,

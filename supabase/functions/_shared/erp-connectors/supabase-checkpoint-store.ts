@@ -322,10 +322,12 @@ export class SupabaseErpSyncCheckpointStore implements ErpSyncCheckpointStore, E
     const keyBytes = hexToBytes(options.cursorEncryptionKey);
     const subtle = globalThis.crypto?.subtle;
     if (!subtle) throw new ErpConnectorError("ERP_STORE_CRYPTO_UNAVAILABLE", "خدمة التشفير الآمن غير متاحة.");
+    const keyMaterial = new ArrayBuffer(keyBytes.byteLength);
+    new Uint8Array(keyMaterial).set(keyBytes);
     this.baseUrl = baseUrl;
     this.fetcher = options.fetcher ?? fetch;
     this.serviceRoleKey = options.serviceRoleKey;
-    this.encryptionKey = subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+    this.encryptionKey = subtle.importKey("raw", keyMaterial, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
   }
 
   private async scopeArguments(scope: ErpSyncScope): Promise<RpcScope> {
