@@ -84,11 +84,11 @@ describe("customer retention action triage", () => {
     ];
 
     expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "0_30")
-      .map(item => item.customerRef)).toEqual(["age-0", "age-30"]);
+      .map(item => item.customerRef)).toEqual(["age-30", "age-0"]);
     expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "31_60")
-      .map(item => item.customerRef)).toEqual(["age-31", "age-60"]);
+      .map(item => item.customerRef)).toEqual(["age-60", "age-31"]);
     expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "61_90")
-      .map(item => item.customerRef)).toEqual(["age-61", "age-90"]);
+      .map(item => item.customerRef)).toEqual(["age-90", "age-61"]);
     expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "OVER_90")
       .map(item => item.customerRef)).toEqual(["age-91"]);
     expect(filterCustomerRetentionActions(actions, "", "ALL", "ALL", "UNKNOWN")
