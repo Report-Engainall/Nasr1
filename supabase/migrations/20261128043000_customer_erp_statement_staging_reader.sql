@@ -476,7 +476,7 @@ BEGIN
        WHERE (
            latest.fields->>'external_customer_id'=$3
            OR nullif(btrim(latest.fields->>'external_customer_id'),'') IS NULL
-           OR coalesce(latest.fields->>'external_customer_id','') !~ '^[A-Za-z0-9._:/-]{1,160}
+           OR coalesce(latest.fields->>'external_customer_id','') !~ '^[A-Za-z0-9._:/-]{1,160}$'
            OR latest.disposition NOT IN ('created','updated','unchanged')
            OR latest.fields->>'currency_code' IS DISTINCT FROM $4
            OR jsonb_typeof(latest.fields->'entry_reference') IS DISTINCT FROM 'string'
