@@ -4,10 +4,13 @@ import { readFile } from "node:fs/promises";
 import postgres from "postgres";
 
 const statementReaderMigration = await readFile(new URL("../supabase/migrations/20261128043000_customer_erp_statement_staging_reader.sql", import.meta.url), "utf8");
-const readerMigrationCommits = [...statementReaderMigration.matchAll(/^\\s*COMMIT;\\s*$/gim)];
-assert.equal(readerMigrationCommits.length, 1, "ERP statement reader migration must contain exactly one terminal COMMIT");
+const readerMigrationLines = statementReaderMigration.split("\n");
+const readerMigrationCommitIndexes = readerMigrationLines
+  .map((line, index) => line.trim() === "COMMIT;" ? index : -1)
+  .filter((index) => index >= 0);
+assert.equal(readerMigrationCommitIndexes.length, 1, "ERP statement reader migration must contain exactly one terminal COMMIT");
 assert.equal(
-  statementReaderMigration.slice(readerMigrationCommits[0].index + readerMigrationCommits[0][0].length).trim(),
+  readerMigrationLines.slice(readerMigrationCommitIndexes[0] + 1).join("\n").trim(),
   "",
   "ERP statement reader migration must not contain SQL after its transaction COMMIT",
 );
