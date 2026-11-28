@@ -5,6 +5,7 @@ import {
   filterDailyDecisionRecords,
   normalizeDailyDecisionSearch,
   selectDailyDecisionBoardRows,
+  splitDailyDecisionTimelineEvents,
   type DailyDecisionFilters,
 } from "./DailyDecisionBoard";
 
@@ -193,6 +194,27 @@ describe("daily decision queue search and filters", () => {
     expect(searchedSelection.records.map(item => item.decisionId)).toEqual(["eleventh"]);
     expect(searchedSelection.matchedCount).toBe(1);
     expect(searchedSelection.omittedCount).toBe(0);
+  });
+
+  it("keeps the newest eight timeline events visible and preserves older events for expansion", () => {
+    const events = Array.from({ length: 12 }, (_, index) => ({
+      id: "event-" + (index + 1),
+      type: "DEFER",
+      version: index + 1,
+      at: "2026-11-" + String(index + 1).padStart(2, "0") + "T00:00:00.000Z",
+      actorRole: "manager",
+      reason: "سبب " + (index + 1),
+    }));
+    const timeline = splitDailyDecisionTimelineEvents(events);
+
+    expect(timeline.earlier.map(event => event.id)).toEqual([
+      "event-1", "event-2", "event-3", "event-4",
+    ]);
+    expect(timeline.recent.map(event => event.id)).toEqual([
+      "event-5", "event-6", "event-7", "event-8",
+      "event-9", "event-10", "event-11", "event-12",
+    ]);
+    expect(splitDailyDecisionTimelineEvents(events, 0).recent).toHaveLength(8);
   });
 
   it("exports all filtered decision evidence with formula protection and a partial-source notice", () => {
