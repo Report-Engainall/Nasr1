@@ -1360,6 +1360,8 @@ function Statement() {
     let confirmingSource = false;
     setLoading(true);
     setError("");
+    setPdfBusy(false);
+    setPdfError("");
     setXlsxError("");
     setFinancialSource(null);
     setExternalStatement(null);
@@ -1468,6 +1470,8 @@ function Statement() {
   }, []);
 
   const downloadStatementPdf = useCallback(async () => {
+    const requestId = statementReadSequenceRef.current;
+    const isCurrentRequest = () => statementReadSequenceRef.current === requestId;
     setPdfBusy(true);
     setPdfError("");
     const sourceSnapshot = financialSource;
@@ -1476,16 +1480,21 @@ function Statement() {
       let sourceBefore: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
       try { sourceBefore = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
       catch (cause) {
+        if (!isCurrentRequest()) return;
         setFinancialSource(null);
+        clearStatementProjection();
         setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تنزيل كشف الحساب؛ أوقفنا إخراج المستند.");
         throw cause;
       }
+      if (!isCurrentRequest()) return;
       if (!sourceBefore.unchanged) {
         setFinancialSource(sourceBefore.source);
+        clearStatementProjection();
         setFinancialSourceError("تغير مصدر الحساب المالي؛ أوقفنا إنشاء كشف من الدفتر السابق.");
         throw new Error("تغير مصدر الحساب؛ حدّث الكشف قبل التنزيل.");
       }
       const sessionResult = await supabase.auth.getSession();
+      if (!isCurrentRequest()) return;
       const accessToken = sessionResult.data.session?.access_token;
       if (sessionResult.error || !accessToken) {
         throw new Error("سجّل الدخول مجددًا لتنزيل كشف الحساب.");
@@ -1499,6 +1508,7 @@ function Statement() {
         },
         cache: "no-store",
       });
+      if (!isCurrentRequest()) return;
       if (!response.ok) {
         let message = "تعذر إنشاء ملف PDF من كشف الحساب.";
         try {
@@ -1514,18 +1524,23 @@ function Statement() {
         throw new Error("استجابة المستند غير صحيحة؛ لم يتم تنزيل الملف.");
       }
       const blob = await response.blob();
+      if (!isCurrentRequest()) return;
       if (blob.size < 500 || blob.type && !blob.type.toLowerCase().includes("application/pdf")) {
         throw new Error("ملف PDF فارغ أو غير صالح.");
       }
       let sourceAfter: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
       try { sourceAfter = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
       catch (cause) {
+        if (!isCurrentRequest()) return;
         setFinancialSource(null);
+        clearStatementProjection();
         setFinancialSourceError("تعذر إعادة التحقق من مصدر الحساب بعد إنشاء كشف PDF؛ أوقفنا التنزيل.");
         throw cause;
       }
+      if (!isCurrentRequest()) return;
       if (!sourceAfter.unchanged) {
         setFinancialSource(sourceAfter.source);
+        clearStatementProjection();
         setFinancialSourceError("تغير مصدر الحساب أثناء إعداد كشف PDF؛ ألغينا تنزيل النسخة القديمة.");
         throw new Error("تغير مصدر الحساب أثناء تجهيز كشف الحساب؛ لم يتم تنزيل الملف.");
       }
@@ -1540,11 +1555,11 @@ function Statement() {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
     } catch (cause) {
-      setPdfError(cause instanceof Error ? cause.message : "تعذر تنزيل كشف الحساب.");
+      if (isCurrentRequest()) setPdfError(cause instanceof Error ? cause.message : "تعذر تنزيل كشف الحساب.");
     } finally {
-      setPdfBusy(false);
+      if (isCurrentRequest()) setPdfBusy(false);
     }
-  }, [financialSource]);
+  }, [financialSource, clearStatementProjection]);
 
   const downloadStatementXlsx = useCallback(async () => {
     const sourceSnapshot = financialSource;
