@@ -75,15 +75,97 @@ function parseDate(value: unknown, label: string, nullable = false): string | nu
   return value;
 }
 
-function parseTimestamp(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length > 80 ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ||
-      !Number.isFinite(Date.parse(value))) {
+function timestampMicroseconds(value: unknown, label: string): bigint {
+  if (typeof value !== "string" || value.length > 80) {
     throw new Error("كشف ERP يحتوي وقت مزامنة غير صالح في " + label + ".");
   }
-  return value;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,6}))?(Z|([+-])(\d{2}):([0-5]\d))$/.exec(value);
+  if (!match) {
+    throw new Error("كشف ERP يحتوي وقت مزامنة غير معياري في " + label + ".");
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+  const offsetHour = match[10] ? Number(match[10]) : 0;
+  const offsetMinute = match[11] ? Number(match[11]) : 0;
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth ||
+      offsetHour > 14 || (offsetHour === 14 && offsetMinute !== 0)) {
+    throw new Error("كشف ERP يحتوي وقت مزامنة خارج النطاق في " + label + ".");
+  }
+
+  const local = new Date(0);
+  local.setUTCFullYear(year, month - 1, day);
+  local.setUTCHours(Number(match[4]), Number(match[5]), Number(match[6]), 0);
+  const offsetSign = match[9] === "+" ? 1 : -1;
+  const offsetMilliseconds = (offsetHour * 60 + offsetMinute) * 60_000 * offsetSign;
+  const epochMilliseconds = local.getTime() - offsetMilliseconds;
+  if (!Number.isFinite(epochMilliseconds)) {
+    throw new Error("كشف ERP يحتوي وقت مزامنة غير صالح في " + label + ".");
+  }
+  const fractionalMicroseconds = BigInt((match[7] ?? "").padEnd(6, "0") || "0");
+  return BigInt(epochMilliseconds) * 1_000n + fractionalMicroseconds;
 }
 
+function parseTimestamp(value: unknown, label: string): string {
+  timestampMicroseconds(value, label);
+  return value as string;
+}
+
+function decimalToScale4(value: string): bigint {
+  const negative = value.startsWith("-");
+  const unsigned = negative ? value.slice(1) : value;
+  const [whole, fraction = ""] = unsigned.split(".");
+  const scaled = BigInt(whole) * 10_000n + BigInt(fraction.padEnd(4, "0"));
+  return negative ? -scaled : scaled;
+}
+
+function validateCurrencyLedger(input: {
+  entryCount: number;
+  totalDebit: string;
+  totalCredit: string;
+  closingBalance: string;
+  detailsPartial: boolean;
+  entries: CustomerExternalStatementEntry[];
+}): void {
+  const totalDebit = decimalToScale4(input.totalDebit);
+  const totalCredit = decimalToScale4(input.totalCredit);
+  const closingBalance = decimalToScale4(input.closingBalance);
+
+  for (let index = 0; index < input.entries.length; index += 1) {
+    const current = input.entries[index];
+    const older = input.entries[index + 1];
+    if (!older) continue;
+    if (current.entry_date < older.entry_date) {
+      throw new Error("ترتيب حركات كشف ERP ليس من الأحدث إلى الأقدم.");
+    }
+    const balanceChange = decimalToScale4(current.running_balance) - decimalToScale4(older.running_balance);
+    const movement = decimalToScale4(current.debit_amount) - decimalToScale4(current.credit_amount);
+    if (balanceChange !== movement) {
+      throw new Error("الرصيد الجاري لا يطابق حركة المدين والدائن بين سطرين متتابعين.");
+    }
+  }
+
+  if (input.entries.length > 0) {
+    if (decimalToScale4(input.entries[0].running_balance) !== closingBalance) {
+      throw new Error("الرصيد الجاري لأحدث حركة لا يطابق الرصيد الختامي المعتمد.");
+    }
+  } else if (closingBalance !== 0n) {
+    throw new Error("كشف ERP بلا حركات لكنه يعرض رصيدًا ختاميًا غير صفري.");
+  }
+
+  if (!input.detailsPartial) {
+    const entriesDebit = input.entries.reduce((sum, entry) => sum + decimalToScale4(entry.debit_amount), 0n);
+    const entriesCredit = input.entries.reduce((sum, entry) => sum + decimalToScale4(entry.credit_amount), 0n);
+    if (entriesDebit !== totalDebit || entriesCredit !== totalCredit ||
+        totalDebit - totalCredit !== closingBalance ||
+        input.entries.length !== input.entryCount) {
+      throw new Error("إجماليات كشف ERP لا تتطابق حسابيًا مع تفاصيل الحركات والرصيد الختامي.");
+    }
+  }
+}
 function parseCount(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 1_000_000_000) {
     throw new Error("كشف ERP يحتوي عدادًا غير صالح في " + label + ".");
@@ -135,8 +217,8 @@ export function parseCustomerExternalStatement(
     throw new Error("استجابة كشف الحساب الخارجي لا تطابق مصدر الحساب أو حدود القراءة المعتمدة.");
   }
   const sourceAsOf = parseTimestamp(root.source_as_of, "source_as_of");
-  if (!expectedSourceAsOf || !Number.isFinite(Date.parse(expectedSourceAsOf)) ||
-      Date.parse(sourceAsOf) !== Date.parse(expectedSourceAsOf)) {
+  if (!expectedSourceAsOf ||
+      timestampMicroseconds(sourceAsOf, "source_as_of") !== timestampMicroseconds(expectedSourceAsOf, "expected_source_as_of")) {
     throw new Error("تغير توقيت مصدر ERP عن ربط الحساب المعتمد؛ أوقفنا عرض الكشف.");
   }
   const currencies = root.currencies.map((candidate, currencyIndex): CustomerExternalStatementCurrency => {
@@ -147,9 +229,13 @@ export function parseCustomerExternalStatement(
       throw new Error("ملخص عملة ERP رقم " + currencyIndex + " غير صالح.");
     }
     const currencySourceAsOf = parseTimestamp(row.source_as_of, "currency.source_as_of");
-    if (Date.parse(currencySourceAsOf) < Date.parse(sourceAsOf) ||
-        Date.parse(currencySourceAsOf) > Date.now() ||
-        Date.now() - Date.parse(currencySourceAsOf) > 24 * 60 * 60 * 1000) {
+    const currencyWatermark = timestampMicroseconds(currencySourceAsOf, "currency.source_as_of");
+    const bindingWatermark = timestampMicroseconds(sourceAsOf, "source_as_of");
+    const nowMicroseconds = BigInt(Date.now()) * 1_000n;
+    const maxAgeMicroseconds = 24n * 60n * 60n * 1_000_000n;
+    if (currencyWatermark < bindingWatermark ||
+        currencyWatermark > nowMicroseconds ||
+        nowMicroseconds - currencyWatermark > maxAgeMicroseconds) {
       throw new Error("نطاق عملة ERP قديم أو أسبق من إثبات المزامنة المعتمد.");
     }
     const entryCount = parseCount(row.entry_count, "entry_count");
@@ -159,13 +245,24 @@ export function parseCustomerExternalStatement(
         (row.details_partial && entries.length !== 500)) {
       throw new Error("عدد حركات ERP لا يطابق حدود التفاصيل المعلنة.");
     }
+    const totalDebit = parseDecimal(row.total_debit, false, "total_debit");
+    const totalCredit = parseDecimal(row.total_credit, false, "total_credit");
+    const closingBalance = parseDecimal(row.closing_balance, true, "closing_balance");
+    validateCurrencyLedger({
+      entryCount,
+      totalDebit,
+      totalCredit,
+      closingBalance,
+      detailsPartial: row.details_partial,
+      entries,
+    });
     return {
       currency_code: row.currency_code,
       source_as_of: currencySourceAsOf,
       entry_count: entryCount,
-      total_debit: parseDecimal(row.total_debit, false, "total_debit"),
-      total_credit: parseDecimal(row.total_credit, false, "total_credit"),
-      closing_balance: parseDecimal(row.closing_balance, true, "closing_balance"),
+      total_debit: totalDebit,
+      total_credit: totalCredit,
+      closing_balance: closingBalance,
       details_partial: row.details_partial,
       entries,
     };
