@@ -766,7 +766,7 @@ async function main(){
  // combined parity. Counter=1 would falsely match order A (+1) if order B (-1)
  // were filtered out of the active movement ledger.
  await withReservationLedgerDriftFixture(async()=>{
-  await db.unsafe("update public.inventory_batches set quantity_reserved=1 where id=$1::uuid",[ledgerBatchId]);
+  await db.unsafe("update public.inventory_batches set expiry_date=$2::date,quantity_reserved=1 where id=$1::uuid",[ledgerBatchId,expiredDate]);
   await db.unsafe(
    "update public.inventory_balances set quantity_reserved=1,last_movement_at=now(),updated_at=now() "+
    "where product_id=$1::uuid and warehouse_id=$2::uuid",[product,warehouse]
