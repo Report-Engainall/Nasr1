@@ -53,7 +53,7 @@ import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintAc
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { CustomerPaymentReceiptSelfServiceActions } from "@/components/CustomerPaymentReceiptSelfServiceActions";
 import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
-import { CustomerExternalAccountStatement } from "@/components/CustomerExternalAccountStatement";
+import { CustomerExternalAccountStatement, CustomerExternalFinanceEntries } from "@/components/CustomerExternalAccountStatement";
 import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, revalidateMyCustomerFinancialSource, revalidateMyCustomerFinancialSourceSnapshot, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 import {
   downloadCustomerAccountStatementWorkbookXlsx,
@@ -604,6 +604,39 @@ function EmptyBox({ children }: { children: React.ReactNode }) {
   );
 }
 
+type ExternalCustomerStatementRead =
+  | { kind: "ready"; statement: CustomerExternalStatement }
+  | { kind: "source_changed"; source: CustomerFinancialSource };
+
+async function readExternalCustomerStatement(
+  source: CustomerFinancialSource,
+): Promise<ExternalCustomerStatementRead> {
+  if (source.source_mode === "APP_ONLY") {
+    throw new Error("قراءة كشف ERP غير مسموحة لحساب APP_ONLY.");
+  }
+  if (source.source_status !== "active" || source.is_stale || !source.source_as_of) {
+    throw new Error("مصدر الحساب الخارجي غير نشط أو قديم؛ أوقفنا قراءة المستندات دون الرجوع إلى دفتر التطبيق.");
+  }
+  const result = await supabase.rpc("get_customer_account_statement");
+  if (result.error || !result.data || typeof result.data !== "object" || Array.isArray(result.data)) {
+    throw new Error("تعذر قراءة مستندات الحساب من موصل ERP المعتمد؛ لم نستخدم دفتر التطبيق بديلًا.");
+  }
+  const payload = result.data as { source_mode?: unknown; external_statement?: unknown };
+  if (payload.source_mode !== source.source_mode) {
+    throw new Error("مصدر كشف ERP الذي أعاده الخادم لا يطابق مصدر الحساب الحالي؛ أوقفنا العرض.");
+  }
+  const statement = parseCustomerExternalStatement(
+    payload.external_statement,
+    source.source_mode,
+    source.source_as_of,
+  );
+  const confirmedSource = await fetchMyCustomerFinancialSource();
+  if (!isSameCustomerFinancialSourceVersion(source, confirmedSource)) {
+    return { kind: "source_changed", source: confirmedSource };
+  }
+  return { kind: "ready", statement };
+}
+
 export function CustomerInvoicesPage() {
   return (
     <CustomerAccountGate>
@@ -636,12 +669,14 @@ function Invoices() {
   const [error, setError] = useState("");
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
+  const [externalStatement, setExternalStatement] = useState<CustomerExternalStatement | null>(null);
   const invoiceReadSequenceRef = useRef(0);
   const invoiceDetailSequenceRef = useRef(0);
   chosenInvoiceIdRef.current = chosen?.id ?? null;
   const clearInvoiceProjection = () => {
     invoiceDetailSequenceRef.current += 1;
     setRows([]);
+    setExternalStatement(null);
     setHasMoreInvoices(false);
     setChosen(null);
     setItems([]);
@@ -674,6 +709,7 @@ function Invoices() {
     setError("");
     setFinancialSource(null);
     setFinancialSourceError("");
+    setExternalStatement(null);
     setOlderInvoicesError("");
     setRows([]);
     setHasMoreInvoices(false);
@@ -699,6 +735,17 @@ function Invoices() {
         return;
       }
       setFinancialSource(source);
+      if (source.source_mode !== "APP_ONLY") {
+        const externalRead = await readExternalCustomerStatement(source);
+        if (!isCurrentRequest()) return;
+        if (externalRead.kind === "source_changed") {
+          setFinancialSource(externalRead.source);
+          setFinancialSourceError("تغير مصدر الحساب أثناء تحميل مستندات ERP؛ أسقطنا اللقطة السابقة.");
+          return;
+        }
+        setExternalStatement(externalRead.statement);
+        return;
+      }
       if (!canReadCustomerAppLedger(source)) return;
       const page = await fetchCustomerInvoicePage();
       if (!isCurrentRequest()) return;
@@ -1186,7 +1233,11 @@ function Invoices() {
           marginBottom: 16,
         }}
       >
-        <span style={quiet}>{rows.length} فاتورة{hasMoreInvoices ? " محملة" : ""}</span>
+        <span style={quiet}>
+          {externalStatement
+            ? externalStatement.currencies.reduce((sum, currency) => sum + currency.entries.filter(entry => ["invoice", "debit_note", "credit_note"].includes(entry.entry_type)).length, 0)
+            : rows.length} مستند{hasMoreInvoices ? " محمل" : ""}
+        </span>
         <button style={secondary} disabled={busy || loadingOlderInvoices} onClick={() => void load()}>
           <RefreshCw size={15} /> تحديث
         </button>
@@ -1203,6 +1254,8 @@ function Invoices() {
           <p role="status" style={{ padding: 18 }}>
             جارٍ تحميل الفواتير...
           </p>
+        ) : externalStatement ? (
+          <CustomerExternalFinanceEntries statement={externalStatement} view="invoices" />
         ) : !rows.length ? (
           canReadCustomerAppLedger(financialSource) ? (
             <EmptyBox>
@@ -2033,6 +2086,7 @@ function CustomerPayments() {
   const [error, setError] = useState("");
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
+  const [externalStatement, setExternalStatement] = useState<CustomerExternalStatement | null>(null);
   const paymentReadSequenceRef = useRef(0);
   const [xlsxError, setXlsxError] = useState("");
   const [xlsxBusy, setXlsxBusy] = useState(false);
@@ -2040,6 +2094,7 @@ function CustomerPayments() {
     paymentReadSequenceRef.current += 1;
     setInvoices([]);
     setPayments([]);
+    setExternalStatement(null);
     setXlsxBusy(false);
   }, []);
 
@@ -2051,6 +2106,7 @@ function CustomerPayments() {
     setError("");
     setFinancialSource(null);
     setFinancialSourceError("");
+    setExternalStatement(null);
     setXlsxBusy(false);
     setXlsxError("");
     setInvoices([]);
@@ -2066,6 +2122,17 @@ function CustomerPayments() {
         return;
       }
       setFinancialSource(source);
+      if (source.source_mode !== "APP_ONLY") {
+        const externalRead = await readExternalCustomerStatement(source);
+        if (!isCurrentRequest()) return;
+        if (externalRead.kind === "source_changed") {
+          setFinancialSource(externalRead.source);
+          setFinancialSourceError("تغير مصدر الحساب أثناء تحميل حركات ERP؛ أسقطنا اللقطة السابقة.");
+          return;
+        }
+        setExternalStatement(externalRead.statement);
+        return;
+      }
       if (!canReadCustomerAppLedger(source)) return;
       const result = await supabase.rpc("get_customer_account_statement");
       if (!isCurrentRequest()) return;
@@ -2092,6 +2159,7 @@ function CustomerPayments() {
       }
       setInvoices([]);
       setPayments([]);
+      setExternalStatement(null);
       setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل الدفعات.");
     } finally {
       if (isCurrentRequest()) setLoading(false);
@@ -2175,8 +2243,9 @@ function CustomerPayments() {
       subtitle="حركات الدفعات المسجلة في دفتر حسابك. هذه الشاشة للقراءة فقط ولا تنشئ دفعة أو إيصال سداد."
     >
       <CustomerFinancialSourceNotice source={financialSource} loading={loading && !financialSourceError} error={financialSourceError} />
+      {externalStatement && <CustomerExternalFinanceEntries statement={externalStatement} view="payments" />}
       {appLedgerAvailable && <CustomerPaymentReceiptSelfServiceActions source={financialSource} />}
-      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+      <div hidden={!appLedgerAvailable} className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link to="/statement" style={secondary}>كشف الحساب</Link>
           <Link to="/invoices" style={secondary}>الفواتير</Link>
@@ -2191,12 +2260,12 @@ function CustomerPayments() {
       </div>
       {error && <ErrorBox message={error} retry={() => void load()} />}
       {xlsxError && <ErrorBox message={xlsxError} retry={downloadPaymentHistoryXlsx} />}
-      {!error && detailMayBePartial && (
+      {appLedgerAvailable && !error && detailMayBePartial && (
         <p role="status" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
           هذه قائمة تفاصيل محدودة بآخر 500 دفعة و200 فاتورة من مصدر كشف الحساب. لا تمثل هذه الصفحة وحدها كامل دفتر العميل.
         </p>
       )}
-      <section style={{ ...card, marginBottom: 14 }}>
+      <section hidden={!appLedgerAvailable} style={{ ...card, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18 }}>سجل الدفعات</h2>
