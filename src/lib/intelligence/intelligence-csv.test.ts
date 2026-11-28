@@ -3,11 +3,15 @@ import type { DemandForecastResult } from "./demand-forecast";
 import type { DeadStockReport } from "./dead-stock";
 import type { SupplierPerformanceResult } from "./supplier-performance";
 import type { ProcessBottleneckResult } from "./process-bottlenecks";
+import type { TaskPerformanceScorecard } from "./task-performance-scorecard";
+import type { CustomerQuotePipelineResult } from "./customer-quote-pipeline";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import {
   buildDeadStockCsv,
   buildSupplierPerformanceCsv,
   buildProcessBottlenecksCsv,
+  buildTaskPerformanceScorecardCsv,
+  buildCustomerQuotePipelineCsv,
   buildDemandForecastCsv,
   buildReplenishmentCsv,
   serializeIntelligenceCsv,
@@ -250,6 +254,92 @@ const processExportFixture: ProcessBottleneckResult = {
   ]
 };
 
+const taskExportFixture: TaskPerformanceScorecard = {
+  "status": "READY",
+  "asOf": "2026-11-28T02:00:00.000Z",
+  "scope": {
+    "visibleRoles": [
+      "accountant"
+    ],
+    "completePopulation": true,
+    "visibleTaskCount": 4
+  },
+  "coverage": {
+    "sourceLinkedTaskCount": 3,
+    "idempotencyKeyCount": 2,
+    "traceableTaskCount": 2,
+    "idempotencyKeyCoveragePercent": 66.67,
+    "traceabilityCoveragePercent": 66.67
+  },
+  "resolution": {
+    "completedTaskCount": 2,
+    "sampleCount": 2,
+    "excludedCount": 1,
+    "status": "PARTIAL"
+  },
+  "audit": {
+    "reopenEventCount": 1,
+    "reopenedTaskCount": 1,
+    "firstCompletedTaskCount": null,
+    "windowStartedAt": null,
+    "completeness": "PARTIAL",
+    "reasonCode": "AUTOMATIC_SOURCE_TRANSITIONS_ARE_NOT_ALL_AUDITED",
+    "reopenRatePercent": null
+  },
+  "groups": [
+    {
+      "taskType": "invoice_collection",
+      "taskRole": "accountant",
+      "taskCount": 4,
+      "completedCount": 2,
+      "resolutionSampleCount": 2,
+      "resolutionExcludedCount": 1,
+      "medianResolutionMinutes": 30,
+      "p90ResolutionMinutes": 60,
+      "sourceLinkedTaskCount": 3,
+      "idempotencyKeyCount": 2,
+      "traceableTaskCount": 2,
+      "idempotencyKeyCoveragePercent": 66.67,
+      "traceabilityCoveragePercent": 66.67,
+      "resolutionStatus": "PARTIAL"
+    }
+  ],
+  "unavailableMetrics": [
+    "REOPEN_RATE",
+    "EMPLOYEE_COMPARISON"
+  ],
+  "quality": {
+    "status": "UNAVAILABLE",
+    "reasonCode": "QUALITY_REVIEW_MIGRATION_PENDING"
+  }
+};
+const quoteExportFixture: CustomerQuotePipelineResult = {
+  "kind": "CUSTOMER_QUOTE_PIPELINE",
+  "state": "READY",
+  "sourceRpc": "fetch_customer_quote_pipeline",
+  "asOf": "2026-11-28T02:00:00.000Z",
+  "period": {
+    "from": "2026-11-01",
+    "to": "2026-11-28",
+    "timeZone": "UTC"
+  },
+  "cohortBasis": "SALES_QUOTES.CREATED_AT",
+  "statusAsOf": "2026-11-28T02:00:00.000Z",
+  "completePopulation": true,
+  "totalQuotes": 10,
+  "requestedForPricing": 2,
+  "awaitingCustomerResponse": 3,
+  "accepted": 3,
+  "rejected": 1,
+  "expired": 1,
+  "decidedCount": 4,
+  "acceptanceRatePercent": 75,
+  "answer": "هناك عشرة عروض.",
+  "warnings": [
+    "ACCEPTANCE_IS_NOT_ORDER_CONVERSION"
+  ]
+};
+
 describe("intelligence spreadsheet exports", () => {
   it("uses a UTF-8 BOM, CRLF rows, spreadsheet-safe text and numeric cells", () => {
     const csv = serializeIntelligenceCsv([
@@ -323,6 +413,26 @@ describe("intelligence spreadsheet exports", () => {
     expect(csv).toContain("TASKS_SOURCE_UNAVAILABLE");
     expect(csv).toContain("'=راجع الاستلام");
     expect(csv).toContain("MIXED_SUPPLIER_RECEIVING");
+  });
+
+  it("exports role-scoped task aggregates and unavailable metrics without turning them into zeros", () => {
+    const csv = buildTaskPerformanceScorecardCsv(taskExportFixture);
+    expect(csv).toContain("invoice_collection");
+    expect(csv).toContain("accountant");
+    expect(csv).toContain("EMPLOYEE_COMPARISON");
+    expect(csv).toContain("QUALITY_WITHHELD");
+    expect(csv).toContain("المهام تخص الأدوار المرئية المسموح بها فقط");
+    expect(csv).toContain("66.67");
+  });
+
+  it("exports the quote funnel while disclosing that acceptance is not order conversion", () => {
+    const csv = buildCustomerQuotePipelineCsv(quoteExportFixture);
+    expect(csv).toContain("TOTAL_QUOTES");
+    expect(csv).toContain("AWAITING_CUSTOMER_RESPONSE");
+    expect(csv).toContain("ACCEPTED");
+    expect(csv).toContain("ACCEPTANCE_IS_NOT_ORDER_CONVERSION");
+    expect(csv).toContain("قبول العرض لا يثبت إنشاء طلب بيع");
+    expect(csv).toContain("75");
   });
 
   it("escapes formula-like product labels and never changes numeric quantities into text", () => {
