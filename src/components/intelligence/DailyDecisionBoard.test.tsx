@@ -148,10 +148,11 @@ describe("daily decision queue search and filters", () => {
       reviewAt: "2026-12-10T00:00:00.000Z",
     });
     const unscheduled = decision({ decisionId: "unscheduled", reviewDisposition: "NOT_SCHEDULED", reviewAt: null });
+    const inconsistentDated = decision({ decisionId: "inconsistent-dated", reviewDisposition: "NOT_SCHEDULED", reviewAt: "2026-11-29T00:00:00.000Z" });
     const notRequired = decision({ decisionId: "not-required", reviewDisposition: "NOT_REQUIRED", reviewAt: null });
     const rejected = decision({ decisionId: "rejected", state: "REJECTED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
     const measured = decision({ decisionId: "measured", state: "MEASURED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
-    const records = [overdue, dueNow, upcoming, tooFar, unscheduled, notRequired, rejected, measured];
+    const records = [overdue, dueNow, upcoming, tooFar, unscheduled, inconsistentDated, notRequired, rejected, measured];
 
     expect(filterDailyDecisionRecords(records, { ...allFilters, due: "OVERDUE" }, now)
       .map(item => item.decisionId)).toEqual(["overdue", "due-now"]);
