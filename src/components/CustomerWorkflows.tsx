@@ -585,6 +585,7 @@ export function CustomerInvoicesPage() {
 function Invoices() {
   const [rows, setRows] = useState<Invoice[]>([]);
   const [chosen, setChosen] = useState<Invoice | null>(null);
+  const chosenInvoiceIdRef = useRef<string | null>(null);
   const [chosenCustomer, setChosenCustomer] = useState<{
     customer_code: string;
     business_name: string;
@@ -608,6 +609,7 @@ function Invoices() {
   const [financialSourceError, setFinancialSourceError] = useState("");
   const invoiceReadSequenceRef = useRef(0);
   const invoiceDetailSequenceRef = useRef(0);
+  chosenInvoiceIdRef.current = chosen?.id ?? null;
   const [olderInvoicesError, setOlderInvoicesError] = useState("");
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingOlderInvoices, setLoadingOlderInvoices] = useState(false);
@@ -615,6 +617,8 @@ function Invoices() {
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState("");
   const [xlsxError, setXlsxError] = useState("");
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printError, setPrintError] = useState("");
   const load = useCallback(async () => {
     const requestId = ++invoiceReadSequenceRef.current;
     invoiceDetailSequenceRef.current += 1;
@@ -734,6 +738,7 @@ function Invoices() {
     const sourceSnapshot = financialSource;
     if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
     const detailRequestId = ++invoiceDetailSequenceRef.current;
+    setPrintError("");
     setChosen(i);
     setDetailBusy(true);
     setChosenFinancials(null);
@@ -1011,6 +1016,65 @@ function Invoices() {
     }
   }
 
+  async function printInvoice() {
+    const invoice = chosen;
+    const sourceSnapshot = financialSource;
+    const detailRequestId = invoiceDetailSequenceRef.current;
+    setPrintError("");
+    if (!invoice || detailBusy || items.length === 0) {
+      setPrintError("حمّل تفاصيل الفاتورة أولًا قبل الطباعة.");
+      return;
+    }
+    if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) {
+      setPrintError("مصدر الحساب لا يسمح بطباعة مستندات دفتر التطبيق.");
+      return;
+    }
+
+    setPrintBusy(true);
+    try {
+      let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
+      try {
+        sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+      } catch (cause) {
+        if (detailRequestId === invoiceDetailSequenceRef.current && chosenInvoiceIdRef.current === invoice.id) {
+          setFinancialSource(null);
+          setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل طباعة الفاتورة؛ أوقفنا إخراج المستند.");
+          setRows([]);
+          setHasMoreInvoices(false);
+          setChosen(null);
+          setItems([]);
+          setChosenCustomer(null);
+          setChosenFinancials(null);
+        }
+        throw new Error("تعذر التحقق من مصدر الحساب قبل الطباعة؛ أوقفنا إخراج الفاتورة.");
+      }
+
+      // Do not print a stale selection if the user closed or changed the invoice
+      // while the server-owned financial-source resolver was in flight.
+      if (detailRequestId !== invoiceDetailSequenceRef.current || chosenInvoiceIdRef.current !== invoice.id) return;
+
+      if (!sourceCheck.unchanged) {
+        setFinancialSource(sourceCheck.source);
+        setFinancialSourceError("تغير مصدر الحساب المالي؛ أوقفنا طباعة الفاتورة من الدفتر السابق.");
+        setRows([]);
+        setHasMoreInvoices(false);
+        setChosen(null);
+        setItems([]);
+        setChosenCustomer(null);
+        setChosenFinancials(null);
+        throw new Error("تغير مصدر الحساب المالي؛ لم تتم طباعة الفاتورة القديمة.");
+      }
+
+      window.print();
+    } catch (cause) {
+      if (detailRequestId === invoiceDetailSequenceRef.current && chosenInvoiceIdRef.current === invoice.id) {
+        setPrintError(cause instanceof Error ? cause.message : "تعذرت طباعة الفاتورة.");
+      }
+    } finally {
+      setPrintBusy(false);
+    }
+  }
+
   return (
     <WorkspaceShell
       title="فواتيري"
@@ -1118,7 +1182,7 @@ function Invoices() {
             className="no-print"
             style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
           >
-            <button style={secondary} onClick={() => setChosen(null)}>
+            <button style={secondary} onClick={() => { invoiceDetailSequenceRef.current += 1; setChosen(null); setItems([]); setPrintError(""); }}>
               إغلاق
             </button>
             <button
@@ -1136,11 +1200,12 @@ function Invoices() {
             >
               <FileSpreadsheet size={15} /> تنزيل Excel
             </button>
-            <button style={secondary} onClick={() => window.print()}>
-              <Printer size={16} /> طباعة من المتصفح
+            <button style={secondary} onClick={() => void printInvoice()} disabled={detailBusy || printBusy || items.length === 0}>
+              <Printer size={16} /> {printBusy ? "جارٍ التحقق والطباعة..." : "طباعة من المتصفح"}
             </button>
           </div>
           {pdfError && <ErrorBox message={pdfError} retry={() => void downloadInvoicePdf(chosen.id)} />}
+          {printError && <ErrorBox message={printError} retry={() => void printInvoice()} />}
           {xlsxError && <ErrorBox message={xlsxError} retry={downloadInvoiceXlsx} />}
           <header
             style={{

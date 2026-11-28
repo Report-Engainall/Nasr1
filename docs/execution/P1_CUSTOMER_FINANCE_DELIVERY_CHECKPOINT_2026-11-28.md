@@ -63,6 +63,17 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - The code commit `ffa15cfcaa46c526fe85981f9d885364dbc3afbb` had no workflow run/status surfaced at the first immediate query. No PASS is claimed.
 - The checkpoint update itself is documentation-only; re-fetch the live PR #699 head and require terminal P1 Admin Context Verification plus the relevant P2 Playwright result on that exact head. Queued, absent, skipped or cancelled remains non-acceptance.
 
+## P1 follow-up — guarded customer invoice browser print (2026-11-28)
+
+- Invoice browser printing no longer calls `window.print()` directly from the button. It now revalidates the server-owned financial source immediately before printing, requires the same APP_ONLY revision, and binds the decision to the selected invoice ID and detail-request sequence.
+- If source revalidation fails or the account has moved to ONYX/MUTAKAMEL/stale/suspended, the UI clears the stale invoice/list projection, retains a precise source notice, and blocks the browser print. Closing/changing the selected invoice invalidates any in-flight print check.
+- Added a route-level regression that loads an APP_ONLY invoice, changes the authoritative source to ONYX at the print boundary, and asserts no browser print occurs and no stale invoice details remain visible.
+- Code paths changed: `src/components/CustomerWorkflows.tsx` and `src/test/customer-workflow-tenant.test.tsx`. This is a read/print guard only; no financial write or database change.
+
+### Acceptance
+- Regression test authored; it has not yet been run locally in this session.
+- Must pass the exact-head P1 Vitest/strict TypeScript workflow and the applicable P2 Playwright run. No PASS is claimed from tests authored or earlier SHAs.
+
 ### Next executable action
 
 - Inspect exact-head P1/P2 workflow results for the updated #699 branch; repair a reproduced failing step in the same branch. Keep #699 Draft and unmerged until exact-head acceptance and P2 PostgreSQL 17/security acceptance are complete.

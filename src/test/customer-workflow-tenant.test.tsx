@@ -1323,4 +1323,97 @@ describe("customer quote workspace tenant boundary", () => {
     expect(router.state.location.pathname).toBe("/cart");
   });
 
+
+  it("blocks invoice browser printing when the server source changes immediately before print", async () => {
+    const invoiceId = "2c222222-2222-4222-8222-222222222222";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-PRINT-CUTOVER",
+        order_id: "2c333333-3333-4333-8333-333333333333",
+        customer_id: "2c444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-11-27T00:00:00Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 3
+            ? {
+                source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+                last_synced_at: null, verified_at: null, revision: 51,
+                is_stale: false, can_read_app_ledger: true,
+              }
+            : {
+                source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z",
+                last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z",
+                revision: 52, is_stale: false, can_read_app_ledger: false,
+              },
+          error: null,
+        };
+      }
+      if (name === "get_customer_invoice_pdf") {
+        expect(args).toEqual({ p_invoice_id: invoiceId });
+        return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    const printSpy = vi.fn();
+    const originalPrintDescriptor = Object.getOwnPropertyDescriptor(window, "print");
+    Object.defineProperty(window, "print", { configurable: true, value: printSpy });
+
+    try {
+      await mountQuoteWorkspace("/invoices");
+      const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("عرض / طباعة"),
+      );
+      expect(openButton).toBeDefined();
+      await act(async () => {
+        openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(sourceReads).toBe(3);
+
+      const browserPrintButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("طباعة من المتصفح"),
+      );
+      expect(browserPrintButton).toBeDefined();
+      await act(async () => {
+        browserPrintButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(sourceReads).toBe(4);
+      expect(printSpy).not.toHaveBeenCalled();
+      expect(host?.textContent).toContain("تغير مصدر الحساب المالي؛ لم تتم طباعة الفاتورة القديمة.");
+      expect(host?.textContent).not.toContain("INV-PRINT-CUTOVER");
+      expect(host?.textContent).not.toContain("25.00");
+    } finally {
+      if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
+      else Reflect.deleteProperty(window, "print");
+    }
+  });
+
 });
