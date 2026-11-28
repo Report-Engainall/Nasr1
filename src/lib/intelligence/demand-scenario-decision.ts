@@ -1,5 +1,5 @@
 import type { DemandScenarioResult } from "./demand-forecast";
-import type { DemandScenarioStockImpact } from "./demand-scenario-stock-impact";
+import type { DemandScenarioStockHorizon, DemandScenarioStockImpact } from "./demand-scenario-stock-impact";
 import type { DecisionCandidate } from "./types";
 
 const boundedText = (value: string, maximum: number) => value.trim().slice(0, maximum);
@@ -12,6 +12,77 @@ function fingerprint64(value: string): string {
     hash = BigInt.asUintN(64, (hash ^ BigInt(value.charCodeAt(index))) * prime);
   }
   return hash.toString(16).padStart(16, "0");
+}
+
+function validEvidenceIds(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length > 0 && value.length <= 500 &&
+    value.every(item => typeof item === "string" && item.trim().length > 0) &&
+    new Set(value).size === value.length;
+}
+
+function sameSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const sortedRight = [...right].sort();
+  return [...left].sort().every((value, index) => value === sortedRight[index]);
+}
+
+function validDemandBand(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const band = value as { low?: unknown; expected?: unknown; high?: unknown };
+  return [band.low, band.expected, band.high].every(item =>
+    typeof item === "number" && Number.isFinite(item) && item >= 0
+  ) && (band.low as number) <= (band.expected as number) &&
+    (band.expected as number) <= (band.high as number);
+}
+
+function validStockHorizon(value: unknown, days: 7 | 30 | 90): value is DemandScenarioStockHorizon {
+  if (!value || typeof value !== "object") return false;
+  const horizon = value as DemandScenarioStockHorizon;
+  return horizon.days === days &&
+    validDemandBand(horizon.baselineDemand) &&
+    validDemandBand(horizon.scenarioDemand) &&
+    [horizon.baselineRemainingAtp, horizon.scenarioRemainingAtp, horizon.scenarioPotentialShortfall]
+      .every(item => typeof item === "number" && Number.isFinite(item)) &&
+    horizon.scenarioPotentialShortfall >= 0 &&
+    typeof horizon.belowReorderPoint === "boolean";
+}
+
+function validStockImpactForScenario(
+  impact: DemandScenarioStockImpact | null | undefined,
+  scenario: DemandScenarioResult,
+): impact is DemandScenarioStockImpact {
+  if (!impact || typeof impact !== "object" || impact.status !== "READY" ||
+      impact.productRef !== scenario.productRef || impact.quantityUnit !== scenario.unitOfMeasure ||
+      typeof impact.availableToPromise !== "number" || !Number.isFinite(impact.availableToPromise) ||
+      impact.availableToPromise < 0 ||
+      typeof impact.reorderPoint !== "number" || !Number.isFinite(impact.reorderPoint) ||
+      impact.reorderPoint < 0 ||
+      !validEvidenceIds(impact.inventoryEvidenceIds) ||
+      !validEvidenceIds(impact.demandEvidenceIds) ||
+      !sameSet(impact.demandEvidenceIds, scenario.evidenceIds) ||
+      typeof impact.inventoryFormulaId !== "string" || !impact.inventoryFormulaId.trim() ||
+      typeof impact.inventoryFormulaVersion !== "string" || !impact.inventoryFormulaVersion.trim() ||
+      !Array.isArray(impact.horizons) || impact.horizons.length !== 3 ||
+      ![7, 30, 90].every(days => impact.horizons.some(item =>
+        item && validStockHorizon(item, days as 7 | 30 | 90)
+      )) ||
+      !impact.leadTime || typeof impact.leadTime !== "object" ||
+      ![7, 30, 90].includes(impact.leadTime.sourceHorizonDays) ||
+      !validDemandBand(impact.leadTime.baselineDemand) ||
+      !validDemandBand(impact.leadTime.scenarioDemand) ||
+      [impact.leadTime.baselineRemainingAtp, impact.leadTime.scenarioRemainingAtp, impact.leadTime.scenarioPotentialShortfall]
+        .some(item => typeof item !== "number" || !Number.isFinite(item)) ||
+      impact.leadTime.scenarioPotentialShortfall < 0 ||
+      typeof impact.leadTime.belowReorderPoint !== "boolean") {
+    return false;
+  }
+
+  return [7, 30, 90].every(days => {
+    const scenarioHorizon = scenario.horizons.find(item => item.days === days);
+    const impactHorizon = impact.horizons.find(item => item.days === days);
+    return Boolean(scenarioHorizon && impactHorizon &&
+      impactHorizon.scenarioDemand.expected === scenarioHorizon.scenarioExpectedQuantity);
+  });
 }
 
 /**
@@ -31,15 +102,18 @@ export function buildDemandScenarioDecisionCandidate(
     scenario.changePercent === null ||
     scenario.changePercent < -100 ||
     scenario.changePercent > 300 ||
-    !scenario.productRef?.trim() ||
-    !scenario.productLabel?.trim() ||
-    !scenario.unitOfMeasure?.trim() ||
+    typeof scenario.productRef !== "string" || !scenario.productRef.trim() ||
+    typeof scenario.productLabel !== "string" || !scenario.productLabel.trim() ||
+    typeof scenario.unitOfMeasure !== "string" || !scenario.unitOfMeasure.trim() ||
+    typeof scenario.formulaId !== "string" || !scenario.formulaId.trim() ||
+    typeof scenario.formulaVersion !== "string" || !scenario.formulaVersion.trim() ||
     !scenario.asOf ||
     !Number.isFinite(Date.parse(scenario.asOf)) ||
     !scenario.period ||
     !scenario.baselinePeriod ||
     !Array.isArray(scenario.horizons) ||
     scenario.horizons.length !== 3 ||
+    scenario.horizons.some(horizon => !horizon || typeof horizon !== "object") ||
     !Array.isArray(scenario.evidenceIds) ||
     scenario.evidenceIds.length === 0 ||
     scenario.evidenceIds.some((id) => typeof id !== "string" || !id.trim()) ||
@@ -66,6 +140,9 @@ export function buildDemandScenarioDecisionCandidate(
   )) return null;
 
   const assumption = scenario.changePercent > 0 ? "+" + scenario.changePercent : String(scenario.changePercent);
+  const validStockImpact = stockImpact?.status === "READY" &&
+    validStockImpactForScenario(stockImpact, scenario);
+  if (stockImpact?.status === "READY" && !validStockImpact) return null;
   const identity = [
     scenario.productRef,
     scenario.asOf,
@@ -79,32 +156,13 @@ export function buildDemandScenarioDecisionCandidate(
     [...scenario.evidenceIds].sort().join(","),
     [...scenario.metricKeys].sort().join(","),
     [...scenario.formulaVersions].sort().join(","),
-    ...(stockImpact?.status === "READY" ? [
-      Array.isArray(stockImpact.inventoryEvidenceIds) ? [...stockImpact.inventoryEvidenceIds].sort().join(",") : "INVALID_INVENTORY_EVIDENCE",
-      typeof stockImpact.inventoryFormulaId === "string" ? stockImpact.inventoryFormulaId : "INVALID_INVENTORY_FORMULA",
-      typeof stockImpact.inventoryFormulaVersion === "string" ? stockImpact.inventoryFormulaVersion : "INVALID_INVENTORY_FORMULA_VERSION",
+    ...(validStockImpact ? [
+      [...stockImpact.inventoryEvidenceIds].sort().join(","),
+      stockImpact.inventoryFormulaId,
+      stockImpact.inventoryFormulaVersion,
     ] : []),
   ].join("|");
   const candidateId = "demand.whatif:" + fingerprint64(identity);
-  const validStockImpact = stockImpact?.status === "READY" &&
-    stockImpact.productRef === scenario.productRef &&
-    stockImpact.quantityUnit === scenario.unitOfMeasure &&
-    typeof stockImpact.availableToPromise === "number" && Number.isFinite(stockImpact.availableToPromise) &&
-    typeof stockImpact.reorderPoint === "number" && Number.isFinite(stockImpact.reorderPoint) &&
-    stockImpact.availableToPromise >= 0 && stockImpact.reorderPoint >= 0 &&
-    Array.isArray(stockImpact.inventoryEvidenceIds) && stockImpact.inventoryEvidenceIds.length > 0 &&
-    stockImpact.inventoryEvidenceIds.every(id => typeof id === "string" && id.trim()) &&
-    typeof stockImpact.inventoryFormulaId === "string" && stockImpact.inventoryFormulaId.trim() &&
-    typeof stockImpact.inventoryFormulaVersion === "string" && stockImpact.inventoryFormulaVersion.trim() &&
-    Array.isArray(stockImpact.horizons) && stockImpact.horizons.length === 3 &&
-    [7, 30, 90].every(days => stockImpact.horizons.some(item =>
-      item.days === days && Number.isFinite(item.scenarioDemand.expected) &&
-      Number.isFinite(item.scenarioPotentialShortfall) && item.scenarioPotentialShortfall >= 0
-    )) &&
-    stockImpact.leadTime !== null &&
-    Number.isFinite(stockImpact.leadTime.scenarioDemand.expected) &&
-    Number.isFinite(stockImpact.leadTime.scenarioPotentialShortfall);
-  if (stockImpact?.status === "READY" && !validStockImpact) return null;
   const inventorySummary = validStockImpact
     ? " لقطة المخزون: ATP " + stockImpact.availableToPromise + " " + scenario.unitOfMeasure +
       "، ونقطة إعادة الطلب " + stockImpact.reorderPoint + " " + scenario.unitOfMeasure +

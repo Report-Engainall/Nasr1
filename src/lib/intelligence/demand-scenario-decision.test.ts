@@ -93,6 +93,28 @@ describe("demand scenario decision candidate", () => {
     expect(candidate?.id).not.toBe(buildDemandScenarioDecisionCandidate(scenario)?.id);
     expect(buildDemandScenarioDecisionCandidate(scenario, { ...stockImpact, productRef: "another-product" })).toBeNull();
     expect(buildDemandScenarioDecisionCandidate(scenario, { ...stockImpact, inventoryEvidenceIds: [] })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, { ...stockImpact, demandEvidenceIds: ["unrelated-demand"] })).toBeNull();
+  });
+
+  it("rejects malformed or cross-linked READY stock projections without throwing", () => {
+    expect(buildDemandScenarioDecisionCandidate(scenario, {
+      ...stockImpact,
+      leadTime: undefined as unknown as DemandScenarioStockImpact["leadTime"],
+    })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, {
+      ...stockImpact,
+      horizons: [null, stockImpact.horizons[1], stockImpact.horizons[2]] as unknown as DemandScenarioStockImpact["horizons"],
+    })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, {
+      ...stockImpact,
+      horizons: stockImpact.horizons.map(item => item.days === 7
+        ? { ...item, scenarioDemand: { ...item.scenarioDemand, expected: 999 } }
+        : item),
+    })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, {
+      ...stockImpact,
+      leadTime: { ...stockImpact.leadTime, scenarioPotentialShortfall: Number.NaN },
+    })).toBeNull();
   });
 
   it("uses the same id for an exact replay and a different id for a changed assumption", () => {
