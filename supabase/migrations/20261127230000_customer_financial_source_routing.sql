@@ -2935,7 +2935,8 @@ BEGIN
     SELECT e.source_type,e.source_reference
       INTO v_old_source_type,v_old_source_reference
       FROM public.accounting_journal_entries e
-     WHERE e.organization_id=OLD.organization_id AND e.id=OLD.journal_entry_id;
+     WHERE e.organization_id=OLD.organization_id AND e.id=OLD.journal_entry_id
+     FOR SHARE;
     IF NOT FOUND THEN
       RAISE EXCEPTION USING ERRCODE='23503',
         MESSAGE='journal entry parent is required for source-bound journal line mutation';
@@ -2949,7 +2950,8 @@ BEGIN
     SELECT e.source_type,e.source_reference
       INTO v_new_source_type,v_new_source_reference
       FROM public.accounting_journal_entries e
-     WHERE e.organization_id=NEW.organization_id AND e.id=NEW.journal_entry_id;
+     WHERE e.organization_id=NEW.organization_id AND e.id=NEW.journal_entry_id
+     FOR SHARE;
     IF NOT FOUND THEN
       RAISE EXCEPTION USING ERRCODE='23503',
         MESSAGE='journal entry parent is required for source-bound journal line mutation';
