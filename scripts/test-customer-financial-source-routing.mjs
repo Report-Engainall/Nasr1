@@ -844,6 +844,62 @@ async function main() {
       "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
       [orgId,sourceTestCreditMemoJournalId],
     );
+
+    await expectFailure(
+      sourceLabel+" source cannot insert a second APP_ONLY return-credit journal header",
+      db.unsafe(
+        "insert into public.accounting_journal_entries(" +
+          "id,organization_id,entry_date,description,source_type,source_reference,status," +
+          "idempotency_key,payload_fingerprint,created_by_profile_id" +
+        ") values($1::uuid,$2::uuid,(statement_timestamp() at time zone 'UTC')::date,$3::text," +
+          "'customer_return_credit_memo',$4::text,'draft',$5::uuid,$6::text,$7::uuid)",
+        [randomUUID(),orgId,"Blocked external-source duplicate journal header",sourceTestCreditMemoId,randomUUID(),"4".repeat(32),manager.id],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    await expectFailure(
+      sourceLabel+" source cannot insert another APP_ONLY return-credit journal line",
+      db.unsafe(
+        "insert into public.accounting_journal_lines(" +
+          "organization_id,journal_entry_id,line_number,account_id,debit,credit,memo" +
+        ") values($1::uuid,$2::uuid,2,$3::uuid,1.00,0.00,'Blocked external-source journal line')",
+        [orgId,sourceTestCreditMemoJournalId,returnReceivableAccountId],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    await expectFailure(
+      sourceLabel+" source cannot delete an APP_ONLY return-credit journal line",
+      db.unsafe(
+        "delete from public.accounting_journal_lines " +
+        "where organization_id=$1::uuid and journal_entry_id=$2::uuid and line_number=1",
+        [orgId,sourceTestCreditMemoJournalId],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    await expectFailure(
+      sourceLabel+" source cannot delete an APP_ONLY return-credit journal header",
+      db.unsafe(
+        "delete from public.accounting_journal_entries " +
+        "where id=$1::uuid and organization_id=$2::uuid",
+        [sourceTestCreditMemoJournalId,orgId],
+      ),
+      "55000",
+      "active APP_ONLY financial source",
+    );
+    const journalCountsAfterDeniedCrud = await db.unsafe(
+      "select (select count(*)::integer from public.accounting_journal_entries " +
+        "where id=$1::uuid and organization_id=$2::uuid) as header_count," +
+      "(select count(*)::integer from public.accounting_journal_lines " +
+        "where organization_id=$2::uuid and journal_entry_id=$1::uuid) as line_count",
+      [sourceTestCreditMemoJournalId,orgId],
+    );
+    assert.equal(journalCountsAfterDeniedCrud[0].header_count,1,
+      sourceLabel+" denied CRUD leaves exactly one source-bound journal header");
+    assert.equal(journalCountsAfterDeniedCrud[0].line_count,1,
+      sourceLabel+" denied CRUD leaves exactly one source-bound journal line");
     assert.deepEqual(lineAfter,lineBefore,
       sourceLabel+" rejected journal-line mutation preserves account and debit/credit values");
   }
