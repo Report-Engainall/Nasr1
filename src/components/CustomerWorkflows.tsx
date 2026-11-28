@@ -559,6 +559,30 @@ function CustomerAccountGate({ children }: { children: React.ReactNode }) {
   }
   return <Fragment key={user.id + ":" + user.profileId + ":" + sessionRevision}>{children}</Fragment>;
 }
+function useCustomerFinancialForegroundRefresh(
+  refresh: () => Promise<void> | void,
+  busy: boolean,
+): void {
+  const lastRefreshAtRef = useRef(0);
+  const refreshOnForeground = useCallback(() => {
+    if (document.visibilityState !== "visible" || busy) return;
+    const now = Date.now();
+    // Browsers may emit focus and visibilitychange for the same foreground transition.
+    if (now - lastRefreshAtRef.current < 30_000) return;
+    lastRefreshAtRef.current = now;
+    void refresh();
+  }, [busy, refresh]);
+
+  useEffect(() => {
+    window.addEventListener("focus", refreshOnForeground);
+    document.addEventListener("visibilitychange", refreshOnForeground);
+    return () => {
+      window.removeEventListener("focus", refreshOnForeground);
+      document.removeEventListener("visibilitychange", refreshOnForeground);
+    };
+  }, [refreshOnForeground]);
+}
+
 function ErrorBox({ message, retry }: { message: string; retry?: () => void }) {
   return (
     <div
@@ -707,6 +731,7 @@ function Invoices() {
       if (isCurrentRequest()) setBusy(false);
     }
   }, []);
+  useCustomerFinancialForegroundRefresh(load, busy);
   const loadOlderInvoices = useCallback(async () => {
     if (loadOlderInvoicesInFlightRef.current || busy || loadingOlderInvoices || !hasMoreInvoices || rows.length === 0 || !canReadCustomerAppLedger(financialSource)) return;
     const requestId = invoiceReadSequenceRef.current;
@@ -1534,25 +1559,7 @@ function Statement() {
     }
   }, []);
 
-  const lastForegroundRefreshAtRef = useRef(0);
-  const refreshStatementOnForeground = useCallback(() => {
-    if (document.visibilityState !== "visible" || loading) return;
-    const now = Date.now();
-    // Browsers commonly emit both focus and visibilitychange for one return.
-    // Deduplicate that pair and avoid repeated source/statement reads on focus churn.
-    if (now - lastForegroundRefreshAtRef.current < 30_000) return;
-    lastForegroundRefreshAtRef.current = now;
-    void load();
-  }, [load, loading]);
-
-  useEffect(() => {
-    window.addEventListener("focus", refreshStatementOnForeground);
-    document.addEventListener("visibilitychange", refreshStatementOnForeground);
-    return () => {
-      window.removeEventListener("focus", refreshStatementOnForeground);
-      document.removeEventListener("visibilitychange", refreshStatementOnForeground);
-    };
-  }, [refreshStatementOnForeground]);
+  useCustomerFinancialForegroundRefresh(load, loading);
 
   const downloadStatementPdf = useCallback(async () => {
     const requestId = statementReadSequenceRef.current;
@@ -2054,6 +2061,8 @@ function CustomerPayments() {
       if (isCurrentRequest()) setLoading(false);
     }
   }, []);
+
+  useCustomerFinancialForegroundRefresh(load, loading);
 
   useEffect(() => {
     void load();

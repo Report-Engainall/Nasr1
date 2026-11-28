@@ -1953,4 +1953,101 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("EXT-NEW-001");
   });
 
+
+  it("refreshes customer invoices after returning to the foreground and drops the APP_ONLY list on source cutover", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const invoiceId = "a1111111-1111-4111-8111-111111111111";
+    mocks.responses.customer_invoices = [{
+      id: invoiceId, invoice_number: "INV-FOREGROUND-INVOICE-STALE",
+      order_id: "a2222222-2222-4222-8222-222222222222",
+      customer_id: "a3333333-3333-4333-8333-333333333333",
+      status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null, currency: "YER",
+    }];
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 101, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 102, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("INV-FOREGROUND-INVOICE-STALE");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-INVOICE-STALE");
+    expect(host?.textContent).toContain("لا نعرض مستندات دفتر التطبيق");
+  });
+
+  it("refreshes customer payments after returning to the foreground and drops the APP_ONLY ledger on source cutover", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    let sourceReads = 0;
+    let statementReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 111, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "MUTAKAMEL", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 112, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        statementReads += 1;
+        return {
+          data: {
+            invoices: [{
+              id: "b1111111-1111-4111-8111-111111111111",
+              invoice_number: "INV-FOREGROUND-PAYMENT-STALE", currency: "YER",
+            }],
+            payments: [{
+              id: "b2222222-2222-4222-8222-222222222222",
+              invoice_id: "b1111111-1111-4111-8111-111111111111",
+              amount: "75.00", paid_at: "2026-11-27T10:00:00Z",
+            }],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/payments");
+    expect(sourceReads).toBe(2);
+    expect(statementReads).toBe(1);
+    expect(host?.textContent).toContain("INV-FOREGROUND-PAYMENT-STALE");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(statementReads).toBe(1);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-PAYMENT-STALE");
+    expect(host?.textContent).toContain("لا تتوفر قراءة مصرح بها لمصدر الحساب");
+    expect(host?.querySelector('[aria-label="ترقيم سندات قبض العميل"]')).toBeNull();
+  });
+
 });

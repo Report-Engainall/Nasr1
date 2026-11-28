@@ -168,3 +168,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Acceptance is pending exact-head P1 Vitest/strict-TypeScript and P2 Playwright; the test is authored, not a PASS. No migration, payment, inventory, production DB, live ERP, credential or deployment was introduced.
 
 - Added an invoice-output concurrency race test: while the customer invoice A PDF source preflight is pending, the customer closes A and opens invoice B. Releasing the old preflight must not call auth session lookup or start a PDF fetch, and B remains the selected detail dialog. The test is authored; it needs the exact-head P1/P2 acceptance run.
+
+
+## P1 follow-up — unify foreground source refresh across customer finance screens (2026-11-28)
+
+- Extracted one shared, 30-second-deduplicated foreground refresh hook and mounted it in the customer invoice list, statement, and payment-history routes. Focus and visible-tab return use each route's existing loader and server source resolver; no parallel query or client-selected source was introduced.
+- When an APP_ONLY invoice or payment view is left in the background and the server source changes to ONYX/MUTAKAMEL, returning to the page reloads the source, clears the old projection, and does not expose the old APP_ONLY document or receipt actions.
+- Invoice and payment routes already expose explicit refresh controls; those controls continue to call the same source-resolved loader.
+- Added separate route-level regressions for invoice and payment source cutovers on foreground return. The statement regression from the preceding change covers the positive ONYX replacement path and duplicate focus/visibility event suppression.
+- Exact-head P1 Vitest/strict-TypeScript and P2 Playwright are required; tests are authored and not yet accepted. No production, schema, payment or inventory writes were made.
