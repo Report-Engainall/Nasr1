@@ -42,7 +42,7 @@ This registry defines stable identifiers and crosswalks. It is **not** a second 
 | AGH-PRICE-PRIVACY-001 | Three-tier pricing and privacy | STF-010; STF-011; DLV-005; DLV-011 |
 | AGH-CUSTOMER-360-001 | Customer 360, company membership and service | COMPANY-001; DLV-006; DLV-010 |
 | AGH-FINANCE-DOCS-001 | Invoices/statements/financial documents | FIN-*/PRINT-*; DLV-008; DLV-011 |
-| AGH-CUSTOMER-FINANCIAL-SOURCE-001 | Server-selected APP_ONLY/ONYX/MUTAKAMEL routing; exact per-currency balance reconciliation; source-bound invoice/payment/credit-memo journals; append-only customer source-posting evidence; maker-checker cutover, monotonic sync evidence and fail-closed statement routing. | DLV-008; DLV-009; DLV-015 |
+| AGH-CUSTOMER-FINANCIAL-SOURCE-001 | Server-selected APP_ONLY/ONYX/MUTAKAMEL routing; exact per-currency reconciliation; source-bound invoice/payment/credit-memo journals and append-only posting evidence; restrictive staff RLS read isolation; maker-checker cutover, monotonic sync evidence and fail-closed statement routing. | DLV-008; DLV-009; DLV-015 |
 | AGH-SEC-BROWSER-E2E-001 | Current deployed routes and authenticated browser | ROUTES-001; GATE-001; DLV-002; DLV-018 |
 | AGH-ONYX-INTEGRATION-001 | Onyx snapshots/reconciliation/import | INV-009; DLV-009 |
 | AGH-ONYX-XLSX-001 | Onyx 27-column XLSX profile/target compatibility | ONYX-XLSX-001; DLV-009; DLV-011 |
