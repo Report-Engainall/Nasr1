@@ -246,14 +246,14 @@ describe("ErpReadSyncPanel", () => {
     }));
     expect(await screen.findByText("فشلت")).toBeInTheDocument();
     expect(screen.getByText("تحتاج استئنافًا")).toBeInTheDocument();
-    expect(screen.getAllByText("مكتملة")).toHaveLength(1);
+    await waitFor(() => expect(screen.getAllByText("مكتملة")).toHaveLength(1));
 
     fireEvent.click(screen.getByRole("button", { name: "إعادة محاولة هذا النوع فقط" }));
     await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(4));
     expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(4, expect.objectContaining({
       object_type: "customers", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
     }));
-    expect(screen.getAllByText("مكتملة")).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByText("مكتملة")).toHaveLength(2));
     expect(mocks.runErpReadSync).toHaveBeenCalledTimes(4);
   });
 

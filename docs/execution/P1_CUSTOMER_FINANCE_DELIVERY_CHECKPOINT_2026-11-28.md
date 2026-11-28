@@ -246,3 +246,9 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Tightened the ERP panel test to run products, customers and warehouses in one selected batch, deliberately fail customers, verify warehouses still completes, and prove only customers is retried. This covers the failure-isolation contract rather than only a terminal failure on the last selected stream.
 - Kept task labels out of the generic `role=status` region so the existing result/status accessibility assertions resolve to the actual selected stream result instead of an incidental per-row label.
 - Final P1 exact-head checks are still pending and must be tied to the current PR head.
+
+
+## P1 test synchronization — multi-stream final assertions (2026-11-28)
+
+- The multi-stream acceptance waits for each resolved stream state to be rendered before checking completed counts. This prevents a test race between a resolved promise invocation and React's batched state commit; it does not alter production flow behavior.
+- Required P1/Vitest + strict TypeScript and browser gates remain queued for the resulting exact SHA.
