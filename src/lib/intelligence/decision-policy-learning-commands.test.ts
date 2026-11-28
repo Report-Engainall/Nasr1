@@ -60,7 +60,7 @@ describe("decision policy learning command retries", () => {
       expectedVersion: 2,
       eventType: "APPROVE",
       reason: "اعتماد القياس.",
-    }, undefined, () => "first-id");
+    }, undefined, () => "33333333-3333-4333-8333-333333333333");
     const next = resolveDecisionPolicyLearningTransition({
       candidateId: "candidate-a",
       expectedVersion: 2,
@@ -82,7 +82,7 @@ describe("decision policy learning command retries", () => {
   });
 
   it("reuses the exact source decision set when candidate creation is retried after a refreshed suggestion", () => {
-    const createId = vi.fn().mockReturnValue("create-key-1");
+    const createId = vi.fn().mockReturnValue("66666666-6666-4666-8666-666666666666");
     const first = resolveDecisionPolicyLearningCreation(
       "rule|metric|period",
       ["decision-a", "decision-b"],
@@ -109,7 +109,7 @@ describe("decision policy learning command retries", () => {
       "suggestion-a",
       decisionIds,
       undefined,
-      () => "key",
+      () => "77777777-7777-4777-8777-777777777777",
     );
     decisionIds.push("decision-b");
 
