@@ -166,12 +166,29 @@ BEGIN
                         AND sale.movement_type='sale'
                    )
                  GROUP BY reservation_movement.reference_id
-                HAVING pg_catalog.sum(
-                  CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
-                       WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
-                       ELSE 0 END
-                )>0
               ) active_batch_reservations
+          ) AND NOT EXISTS (
+            SELECT 1
+              FROM public.inventory_movements negative_movement
+              JOIN public.orders negative_order
+                ON negative_order.id=negative_movement.reference_id
+               AND negative_order.organization_id=v_org
+             WHERE negative_movement.reference_type='order'
+               AND negative_movement.inventory_batch_id=l.batch_id
+               AND negative_movement.movement_type IN ('reserve','release_reservation')
+               AND negative_order.status IN ('confirmed','processing')
+               AND NOT EXISTS (
+                 SELECT 1 FROM public.inventory_movements sale
+                  WHERE sale.reference_type='order'
+                    AND sale.reference_id=negative_order.id
+                    AND sale.movement_type='sale'
+               )
+             GROUP BY negative_movement.reference_id
+            HAVING pg_catalog.sum(
+              CASE WHEN negative_movement.movement_type='reserve' THEN negative_movement.quantity
+                   WHEN negative_movement.movement_type='release_reservation' THEN -negative_movement.quantity
+                   ELSE 0 END
+            )<0
           ),
           'reservation_matches_balance',coalesce((
             SELECT balance.quantity_reserved IS NOT DISTINCT FROM (
@@ -198,15 +215,34 @@ BEGIN
                           AND sale.movement_type='sale'
                      )
                    GROUP BY reservation_movement.reference_id
-                  HAVING pg_catalog.sum(
-                    CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
-                         WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
-                         ELSE 0 END
-                  )>0
                 ) active_balance_reservations
             )
               FROM public.inventory_balances balance
              WHERE balance.product_id=l.product_id AND balance.warehouse_id=l.warehouse_id
+              AND NOT EXISTS (
+               SELECT 1
+                 FROM public.inventory_movements negative_movement
+                 JOIN public.orders negative_order
+                   ON negative_order.id=negative_movement.reference_id
+                  AND negative_order.organization_id=v_org
+                WHERE negative_movement.reference_type='order'
+                  AND negative_movement.product_id=l.product_id
+                  AND negative_movement.warehouse_id=l.warehouse_id
+                  AND negative_movement.movement_type IN ('reserve','release_reservation')
+                  AND negative_order.status IN ('confirmed','processing')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM public.inventory_movements sale
+                     WHERE sale.reference_type='order'
+                       AND sale.reference_id=negative_order.id
+                       AND sale.movement_type='sale'
+                  )
+                GROUP BY negative_movement.reference_id
+               HAVING pg_catalog.sum(
+                 CASE WHEN negative_movement.movement_type='reserve' THEN negative_movement.quantity
+                      WHEN negative_movement.movement_type='release_reservation' THEN -negative_movement.quantity
+                      ELSE 0 END
+               )<0
+             )
           ),false),
           'product_id',p.id,
           'item_code',p.item_code,
@@ -374,10 +410,31 @@ BEGIN
                   AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
                     WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale')
                 GROUP BY im.reference_id
-               HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
-                 WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
              ) active_batch_reservations
          ),0)
+    )
+    AND NOT EXISTS (
+      SELECT 1
+        FROM public.inventory_movements negative_movement
+        JOIN public.orders negative_order
+          ON negative_order.id=negative_movement.reference_id
+         AND negative_order.organization_id=v_org
+       WHERE negative_movement.reference_type='order'
+         AND negative_movement.product_id=g.product_id
+         AND negative_movement.movement_type IN ('reserve','release_reservation')
+         AND negative_order.status IN ('confirmed','processing')
+         AND NOT EXISTS (
+           SELECT 1 FROM public.inventory_movements sale
+            WHERE sale.reference_type='order'
+              AND sale.reference_id=negative_order.id
+              AND sale.movement_type='sale'
+         )
+       GROUP BY negative_movement.reference_id,negative_movement.inventory_batch_id
+      HAVING pg_catalog.sum(
+        CASE WHEN negative_movement.movement_type='reserve' THEN negative_movement.quantity
+             WHEN negative_movement.movement_type='release_reservation' THEN -negative_movement.quantity
+             ELSE 0 END
+      )<0
     ),
     'reservation_balance_ledger_matches',
     NOT EXISTS(
@@ -401,9 +458,6 @@ BEGIN
                  AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
                    WHERE sale.reference_type='order' AND sale.reference_id=active_order.id AND sale.movement_type='sale')
                GROUP BY unbatched_ledger.warehouse_id,unbatched_ledger.reference_id
-              HAVING pg_catalog.sum(CASE WHEN unbatched_ledger.movement_type='reserve' THEN unbatched_ledger.quantity
-                WHEN unbatched_ledger.movement_type='release_reservation' THEN -unbatched_ledger.quantity
-                ELSE 0 END)>0
             ) active_by_order
            GROUP BY active_by_order.warehouse_id
         ) active_warehouses
@@ -434,10 +488,31 @@ BEGIN
                   AND NOT EXISTS(SELECT 1 FROM public.inventory_movements sale
                     WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale')
                 GROUP BY im.reference_id
-               HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
-                 WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
              ) active_balance_reservations
          ),0)
+    )
+    AND NOT EXISTS (
+      SELECT 1
+        FROM public.inventory_movements negative_movement
+        JOIN public.orders negative_order
+          ON negative_order.id=negative_movement.reference_id
+         AND negative_order.organization_id=v_org
+       WHERE negative_movement.reference_type='order'
+         AND negative_movement.product_id=g.product_id
+         AND negative_movement.movement_type IN ('reserve','release_reservation')
+         AND negative_order.status IN ('confirmed','processing')
+         AND NOT EXISTS (
+           SELECT 1 FROM public.inventory_movements sale
+            WHERE sale.reference_type='order'
+              AND sale.reference_id=negative_order.id
+              AND sale.movement_type='sale'
+         )
+       GROUP BY negative_movement.reference_id,negative_movement.warehouse_id
+      HAVING pg_catalog.sum(
+        CASE WHEN negative_movement.movement_type='reserve' THEN negative_movement.quantity
+             WHEN negative_movement.movement_type='release_reservation' THEN -negative_movement.quantity
+             ELSE 0 END
+      )<0
     ),
     'replacement_available_quantity',(
       SELECT coalesce(pg_catalog.sum(b.quantity_on_hand-b.quantity_reserved),0)::numeric(15,3)::text
@@ -551,6 +626,47 @@ BEGIN
   PERFORM b.id FROM public.inventory_batches b WHERE b.organization_id=v_org AND b.product_id=v_product
    ORDER BY b.expiry_date ASC NULLS LAST,b.received_at,b.warehouse_id,b.id FOR UPDATE OF b;
 
+  IF EXISTS (
+    SELECT 1
+      FROM public.inventory_movements im
+      JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+     WHERE im.reference_type='order'
+       AND im.product_id=v_product
+       AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.inventory_movements sale
+          WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale'
+       )
+     GROUP BY im.reference_id,im.inventory_batch_id
+    HAVING pg_catalog.sum(
+      CASE WHEN im.movement_type='reserve' THEN im.quantity
+           WHEN im.movement_type='release_reservation' THEN -im.quantity
+           ELSE 0 END
+    )<0
+  ) OR EXISTS (
+    SELECT 1
+      FROM public.inventory_movements im
+      JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+     WHERE im.reference_type='order'
+       AND im.product_id=v_product
+       AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.inventory_movements sale
+          WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale'
+       )
+     GROUP BY im.reference_id,im.warehouse_id
+    HAVING pg_catalog.sum(
+      CASE WHEN im.movement_type='reserve' THEN im.quantity
+           WHEN im.movement_type='release_reservation' THEN -im.quantity
+           ELSE 0 END
+    )<0
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='40001',
+      MESSAGE='negative active order reservation movement ledger; repair refused';
+  END IF;
+
   IF EXISTS(
    SELECT 1 FROM public.inventory_batches b WHERE b.organization_id=v_org AND b.product_id=v_product
     AND b.quantity_reserved IS DISTINCT FROM coalesce((
@@ -560,7 +676,6 @@ BEGIN
       WHERE im.reference_type='order' AND im.inventory_batch_id=b.id AND im.movement_type IN ('reserve','release_reservation')
        AND ao.status IN ('confirmed','processing')
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
-      GROUP BY im.reference_id HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
      ) x
     ),0)
   ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved quantity is below active order movement ledger'; END IF;
@@ -575,7 +690,6 @@ BEGIN
        AND im.movement_type IN ('reserve','release_reservation')
        AND ao.status IN ('confirmed','processing')
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
-     GROUP BY im.reference_id HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
     ) x
    ),0)
   ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved quantity is below active order movement ledger'; END IF;
@@ -721,6 +835,47 @@ BEGIN
   PERFORM b.id FROM public.inventory_batches b WHERE b.organization_id=v_org AND b.product_id=v_product
    ORDER BY b.id FOR UPDATE OF b;
 
+  IF EXISTS (
+    SELECT 1
+      FROM public.inventory_movements im
+      JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+     WHERE im.reference_type='order'
+       AND im.product_id=v_product
+       AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.inventory_movements sale
+          WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale'
+       )
+     GROUP BY im.reference_id,im.inventory_batch_id
+    HAVING pg_catalog.sum(
+      CASE WHEN im.movement_type='reserve' THEN im.quantity
+           WHEN im.movement_type='release_reservation' THEN -im.quantity
+           ELSE 0 END
+    )<0
+  ) OR EXISTS (
+    SELECT 1
+      FROM public.inventory_movements im
+      JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+     WHERE im.reference_type='order'
+       AND im.product_id=v_product
+       AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.inventory_movements sale
+          WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale'
+       )
+     GROUP BY im.reference_id,im.warehouse_id
+    HAVING pg_catalog.sum(
+      CASE WHEN im.movement_type='reserve' THEN im.quantity
+           WHEN im.movement_type='release_reservation' THEN -im.quantity
+           ELSE 0 END
+    )<0
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='40001',
+      MESSAGE='negative active order reservation movement ledger; repair refused';
+  END IF;
+
   IF EXISTS(
    SELECT 1 FROM public.inventory_batches b WHERE b.organization_id=v_org AND b.product_id=v_product
     AND b.quantity_reserved IS DISTINCT FROM coalesce((
@@ -731,8 +886,6 @@ BEGIN
       WHERE im.reference_type='order' AND im.inventory_batch_id=b.id AND im.movement_type IN ('reserve','release_reservation')
        AND ao.status IN ('confirmed','processing')
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
-      GROUP BY im.reference_id HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
-       WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
      ) x
     ),0)
   ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='batch reserved quantity is below active order movement ledger'; END IF;
@@ -747,8 +900,6 @@ BEGIN
        AND im.movement_type IN ('reserve','release_reservation')
        AND ao.status IN ('confirmed','processing')
        AND NOT EXISTS(SELECT 1 FROM public.inventory_movements s WHERE s.reference_type='order' AND s.reference_id=ao.id AND s.movement_type='sale')
-      GROUP BY im.reference_id HAVING pg_catalog.sum(CASE WHEN im.movement_type='reserve' THEN im.quantity
-       WHEN im.movement_type='release_reservation' THEN -im.quantity ELSE 0 END)>0
      ) x
     ),0)
   ) THEN RAISE EXCEPTION USING ERRCODE='40001',MESSAGE='aggregate reserved quantity is below active order movement ledger'; END IF;
@@ -1222,6 +1373,47 @@ BEGIN
      FOR UPDATE OF b;
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+      FROM public.inventory_movements im
+      JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+     WHERE im.reference_type='order'
+       AND im.product_id=ANY(v_product_ids)
+       AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.inventory_movements sale
+          WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale'
+       )
+     GROUP BY im.product_id,im.reference_id,im.inventory_batch_id
+    HAVING pg_catalog.sum(
+      CASE WHEN im.movement_type='reserve' THEN im.quantity
+           WHEN im.movement_type='release_reservation' THEN -im.quantity
+           ELSE 0 END
+    )<0
+  ) OR EXISTS (
+    SELECT 1
+      FROM public.inventory_movements im
+      JOIN public.orders ao ON ao.id=im.reference_id AND ao.organization_id=v_org
+     WHERE im.reference_type='order'
+       AND im.product_id=ANY(v_product_ids)
+       AND im.movement_type IN ('reserve','release_reservation')
+       AND ao.status IN ('confirmed','processing')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.inventory_movements sale
+          WHERE sale.reference_type='order' AND sale.reference_id=ao.id AND sale.movement_type='sale'
+       )
+     GROUP BY im.product_id,im.reference_id,im.warehouse_id
+    HAVING pg_catalog.sum(
+      CASE WHEN im.movement_type='reserve' THEN im.quantity
+           WHEN im.movement_type='release_reservation' THEN -im.quantity
+           ELSE 0 END
+    )<0
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='40001',
+      MESSAGE='negative active order reservation movement ledger; FEFO reallocation refused';
+  END IF;
+
   FOR v_expired IN
     SELECT
       b.id AS inventory_batch_id,
@@ -1278,11 +1470,6 @@ BEGIN
                AND sale.movement_type='sale'
           )
         GROUP BY im.reference_id
-        HAVING pg_catalog.sum(
-          CASE WHEN im.movement_type='reserve' THEN im.quantity
-               WHEN im.movement_type='release_reservation' THEN -im.quantity
-               ELSE 0 END
-        )>0
       ) active_batch_reservations;
 
     IF v_batch_reserved IS NULL OR v_batch_reserved IS DISTINCT FROM v_active_batch_reserved THEN
@@ -1320,11 +1507,6 @@ BEGIN
                AND sale.movement_type='sale'
           )
         GROUP BY im.reference_id
-        HAVING pg_catalog.sum(
-          CASE WHEN im.movement_type='reserve' THEN im.quantity
-               WHEN im.movement_type='release_reservation' THEN -im.quantity
-               ELSE 0 END
-        )>0
       ) active_balance_reservations;
 
     IF v_balance_reserved IS NULL OR v_balance_reserved IS DISTINCT FROM v_active_balance_reserved THEN
@@ -1418,11 +1600,6 @@ BEGIN
                  AND sale.movement_type='sale'
             )
           GROUP BY im.reference_id
-          HAVING pg_catalog.sum(
-            CASE WHEN im.movement_type='reserve' THEN im.quantity
-                 WHEN im.movement_type='release_reservation' THEN -im.quantity
-                 ELSE 0 END
-          )>0
         ) active_batch_reservations;
       IF v_batch_reserved IS DISTINCT FROM v_active_batch_reserved THEN
         RAISE EXCEPTION USING ERRCODE='40001',
@@ -1456,11 +1633,6 @@ BEGIN
                  AND sale.movement_type='sale'
             )
           GROUP BY im.reference_id
-          HAVING pg_catalog.sum(
-            CASE WHEN im.movement_type='reserve' THEN im.quantity
-                 WHEN im.movement_type='release_reservation' THEN -im.quantity
-                 ELSE 0 END
-          )>0
         ) active_balance_reservations;
       IF v_balance_reserved IS NULL OR v_balance_reserved IS DISTINCT FROM v_active_balance_reserved THEN
         RAISE EXCEPTION USING ERRCODE='40001',
@@ -1676,12 +1848,29 @@ BEGIN
                         AND sale.movement_type='sale'
                    )
                  GROUP BY reservation_movement.reference_id
-                HAVING pg_catalog.sum(
-                  CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
-                       WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
-                       ELSE 0 END
-                )>0
               ) active_batch_reservations
+          ) AND NOT EXISTS (
+            SELECT 1
+              FROM public.inventory_movements negative_movement
+              JOIN public.orders negative_order
+                ON negative_order.id=negative_movement.reference_id
+               AND negative_order.organization_id=v_org
+             WHERE negative_movement.reference_type='order'
+               AND negative_movement.inventory_batch_id=l.batch_id
+               AND negative_movement.movement_type IN ('reserve','release_reservation')
+               AND negative_order.status IN ('confirmed','processing')
+               AND NOT EXISTS (
+                 SELECT 1 FROM public.inventory_movements sale
+                  WHERE sale.reference_type='order'
+                    AND sale.reference_id=negative_order.id
+                    AND sale.movement_type='sale'
+               )
+             GROUP BY negative_movement.reference_id
+            HAVING pg_catalog.sum(
+              CASE WHEN negative_movement.movement_type='reserve' THEN negative_movement.quantity
+                   WHEN negative_movement.movement_type='release_reservation' THEN -negative_movement.quantity
+                   ELSE 0 END
+            )<0
           ),
           'reservation_matches_balance',coalesce((
             SELECT balance.quantity_reserved IS NOT DISTINCT FROM (
@@ -1708,15 +1897,34 @@ BEGIN
                           AND sale.movement_type='sale'
                      )
                    GROUP BY reservation_movement.reference_id
-                  HAVING pg_catalog.sum(
-                    CASE WHEN reservation_movement.movement_type='reserve' THEN reservation_movement.quantity
-                         WHEN reservation_movement.movement_type='release_reservation' THEN -reservation_movement.quantity
-                         ELSE 0 END
-                  )>0
                 ) active_balance_reservations
             )
               FROM public.inventory_balances balance
              WHERE balance.product_id=l.product_id AND balance.warehouse_id=l.warehouse_id
+              AND NOT EXISTS (
+               SELECT 1
+                 FROM public.inventory_movements negative_movement
+                 JOIN public.orders negative_order
+                   ON negative_order.id=negative_movement.reference_id
+                  AND negative_order.organization_id=v_org
+                WHERE negative_movement.reference_type='order'
+                  AND negative_movement.product_id=l.product_id
+                  AND negative_movement.warehouse_id=l.warehouse_id
+                  AND negative_movement.movement_type IN ('reserve','release_reservation')
+                  AND negative_order.status IN ('confirmed','processing')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM public.inventory_movements sale
+                     WHERE sale.reference_type='order'
+                       AND sale.reference_id=negative_order.id
+                       AND sale.movement_type='sale'
+                  )
+                GROUP BY negative_movement.reference_id
+               HAVING pg_catalog.sum(
+                 CASE WHEN negative_movement.movement_type='reserve' THEN negative_movement.quantity
+                      WHEN negative_movement.movement_type='release_reservation' THEN -negative_movement.quantity
+                      ELSE 0 END
+               )<0
+             )
           ),false),
           'product_id',p.id,
           'item_code',p.item_code,
