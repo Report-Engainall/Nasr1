@@ -52,13 +52,13 @@ export interface DailyDecisionFilters {
 
 export function normalizeDailyDecisionSearch(value: string): string {
   return value.normalize("NFKC")
-    .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, "")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
     .replace(/[أإآٱ]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
     .toLocaleLowerCase("ar")
     .trim()
-    .replace(/\\s+/g, " ");
+    .replace(/\s+/g, " ");
 }
 
 export function filterDailyDecisionRecords(
@@ -385,7 +385,7 @@ export function DailyDecisionBoard({
         <div>
           <h2 id="daily-decision-board-title" className="text-lg font-semibold">لوحة متابعة القرارات اليومية</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            أعلى عشرة قرارات محفوظة؛ الأولوية المحفوظة أولاً ثم الأثر القابل للمقارنة داخل العملة والوحدة، ثم الاستحقاق وحالة التنفيذ.
+            ابحث وصفِّ كامل القرارات المحمّلة قبل عرض أعلى عشرة نتائج مطابقة؛ الترتيب يقدّم الأولوية المحفوظة ثم الأثر القابل للمقارنة داخل العملة والوحدة ثم الاستحقاق وحالة التنفيذ.
           </p>
         </div>
         <span role="status" aria-live="polite" className="w-fit max-w-full rounded-full border px-3 py-1 text-xs break-words">
