@@ -2285,7 +2285,7 @@ async function main() {
       externalId:"ONYX-YER-DESCRIPTION-LIMIT-001",
       fields:statementEntryFields({
         entry_reference:"DESCRIPTION-LIMIT-001",entry_date:statementToday,entry_type:"adjustment",
-        debit_amount:"0",credit_amount:"0",description:"Bounded statement description",
+        debit_amount:"0",credit_amount:"0",description:"D".repeat(500),
       }),
       disposition:"updated",
     },
@@ -2295,6 +2295,11 @@ async function main() {
   assert.ok(yerAfterDescriptionRepair);
   assert.equal(yerAfterDescriptionRepair.entry_count,5);
   assert.equal(Number(yerAfterDescriptionRepair.closing_balance),81);
+  assert.equal(
+    yerAfterDescriptionRepair.entries.find(row=>row.entry_reference==="DESCRIPTION-LIMIT-001")?.description.length,
+    500,
+    "the exact 500-character description boundary remains accepted",
+  );
 
   await stageCustomerStatementPage("YER",7,[
     {
@@ -2317,7 +2322,7 @@ async function main() {
       externalId:"ONYX-YER-DOCUMENT-LIMIT-001",
       fields:statementEntryFields({
         entry_reference:"DOCUMENT-LIMIT-001",entry_date:statementToday,entry_type:"adjustment",
-        debit_amount:"0",credit_amount:"0",source_document_number:"ERP-DOCUMENT-160",
+        debit_amount:"0",credit_amount:"0",source_document_number:"N".repeat(160),
       }),
       disposition:"updated",
     },
@@ -2326,6 +2331,11 @@ async function main() {
   const yerAfterDocumentRepair = afterDocumentRepair.external_statement.currencies.find(row=>row.currency_code==="YER");
   assert.ok(yerAfterDocumentRepair);
   assert.equal(Number(yerAfterDocumentRepair.closing_balance),81);
+  assert.equal(
+    yerAfterDocumentRepair.entries.find(row=>row.entry_reference==="DOCUMENT-LIMIT-001")?.source_document_number.length,
+    160,
+    "the exact 160-character source-document boundary remains accepted",
+  );
 
   await stageCustomerStatementPage("YER",9,[
     {
@@ -2358,6 +2368,42 @@ async function main() {
   assert.ok(yerAfterDateRepair);
   assert.equal(Number(yerAfterDateRepair.closing_balance),81);
   assert.equal(yerAfterDateRepair.entries.some(row=>row.entry_reference==="INVALID-CALENDAR-DATE-001"),true);
+
+  await stageCustomerStatementPage("YER",11,[
+    {
+      externalId:"ONYX-YER-INVALID-DUE-DATE-001",
+      fields:statementEntryFields({
+        entry_reference:"INVALID-DUE-DATE-001",entry_date:statementToday,due_date:"2026-02-31",
+        entry_type:"adjustment",debit_amount:"0",credit_amount:"0",
+      }),
+      disposition:"created",
+    },
+  ]);
+  await expectFailure(
+    "customer statement rejects impossible due dates with a controlled integrity error",
+    rpc(customerDb,"select public.get_customer_account_statement() as result"),
+    "55000",
+    "ERP customer statement contains rejected or invalid records",
+  );
+  await stageCustomerStatementPage("YER",12,[
+    {
+      externalId:"ONYX-YER-INVALID-DUE-DATE-001",
+      fields:statementEntryFields({
+        entry_reference:"INVALID-DUE-DATE-001",entry_date:statementToday,due_date:statementToday,
+        entry_type:"adjustment",debit_amount:"0",credit_amount:"0",
+      }),
+      disposition:"updated",
+    },
+  ]);
+  const afterDueDateRepair = await rpc(customerDb,"select public.get_customer_account_statement() as result");
+  const yerAfterDueDateRepair = afterDueDateRepair.external_statement.currencies.find(row=>row.currency_code==="YER");
+  assert.ok(yerAfterDueDateRepair);
+  assert.equal(Number(yerAfterDueDateRepair.closing_balance),81);
+  assert.equal(
+    yerAfterDueDateRepair.entries.find(row=>row.entry_reference==="INVALID-DUE-DATE-001")?.due_date,
+    statementToday,
+    "a corrected due date becomes visible only after its later committed version",
+  );
 
   await db.unsafe(
     "delete from public.customer_financial_source_statement_scopes " +
