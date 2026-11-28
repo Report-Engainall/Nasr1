@@ -106,7 +106,6 @@ BEGIN
   IF v_provider IS NULL THEN RETURN; END IF;
 
   FOREACH v_currency IN ARRAY v_sync.currency_codes LOOP
-    v_checkpoint:=NULL;
     EXECUTE
       'SELECT scope_key,provider,company_external_id,branch_external_id,' ||
       'warehouse_external_id,currency_code,object_type,version,cursor_ciphertext,' ||

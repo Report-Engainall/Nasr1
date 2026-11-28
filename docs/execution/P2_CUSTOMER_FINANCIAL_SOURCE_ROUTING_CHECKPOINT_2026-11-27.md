@@ -326,3 +326,10 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - External reads require a current binding, recent source evidence, one complete scope per evidenced currency, an exact matching P4 checkpoint, a final completed page receipt, no active cursor/pending watermark, and no rejected/conflicted/invalid customer rows. Each currency is totaled independently; the full-ledger running balance is computed before limiting display detail to 500 rows per currency.
 - No customer, company, branch or raw ERP identifiers are exposed in the customer DTO. The adapter fails closed if P4 staging is absent, stale, partial, conflicted or not yet mapped; it never falls back to APP_ONLY.
 - Deployment order is safe either way: the P2 migration can install without the P4 schema, and its conditional trigger is attached when the P4 checkpoint table exists. Exact-head PostgreSQL 17 runtime acceptance is still pending; no production migration or data write was performed.
+
+
+### External statement precondition regression test
+
+- After a fresh ONYX sync watermark is recorded, isolated PostgreSQL 17 acceptance calls the customer statement RPC again. It must report the missing P4 staging prerequisite when those tables are absent, or reject an unmapped currency scope when staging exists but has not completed. Both paths are SQLSTATE 55000 and prohibit APP_ONLY fallback.
+- After an approved return cutover, the final customer statement response must explicitly identify `source_mode=APP_ONLY` while preserving the pre-cutover ledger summary.
+- Removed a redundant assignment to an untyped PL/pgSQL `record` target; an empty dynamic SELECT INTO naturally nulls the record and yields row count zero.

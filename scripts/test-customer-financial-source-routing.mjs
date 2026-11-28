@@ -1887,6 +1887,28 @@ async function main() {
   assert.deepEqual(syncEvidenceAfter,syncEvidenceBefore,
     "rejected provider evidence mutations leave the original sync evidence byte-for-byte unchanged");
 
+  const p4StatementTables = await db.unsafe(
+    "select " +
+      "to_regclass('public.erp_sync_checkpoints') is not null as checkpoints," +
+      "to_regclass('public.erp_sync_page_receipts') is not null as receipts," +
+      "to_regclass('public.erp_sync_page_record_outcomes') is not null as outcomes",
+  );
+  if (!p4StatementTables[0].checkpoints || !p4StatementTables[0].receipts || !p4StatementTables[0].outcomes) {
+    await expectFailure(
+      "fresh ONYX sync evidence cannot make an uninstalled ERP statement adapter fall back to APP_ONLY",
+      rpc(customerDb, "select public.get_customer_account_statement() as result"),
+      "55000",
+      "ERP statement staging is not installed; app ledger fallback is prohibited",
+    );
+  } else {
+    await expectFailure(
+      "fresh ONYX sync evidence still requires complete currency scopes before customer statement read",
+      rpc(customerDb, "select public.get_customer_account_statement() as result"),
+      "55000",
+      "one or more ERP customer statement currency scopes are incomplete",
+    );
+  }
+
   const syncStateBeforeFuture = await serviceDb.unsafe(
     "select source_as_of,last_synced_at,source_evidence_sha256 " +
     "from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",
@@ -2241,7 +2263,10 @@ async function main() {
   assert.equal(finalStaffInvoiceItemRows.length, 1,
     "staff invoice line access returns only after approved APP_ONLY cutover");
   const finalStatement = await rpc(customerDb, "select public.get_customer_account_statement() as result");
-  assert.equal(JSON.stringify(finalStatement.summary), initialSummary, "source cutover must not synthesize or alter the app ledger");
+  assert.equal(finalStatement.source_mode, "APP_ONLY",
+    "approved return exposes the internal customer ledger as the selected source again");
+  assert.equal(JSON.stringify(finalStatement.summary), initialSummary,
+    "source cutover must not synthesize or alter the app ledger");
 
   const singlePaymentReplayAfterReturn = await rpc(accountantDb,
     "select public.record_customer_payment($1::uuid,1.00::numeric,'cash',$2::uuid," +
