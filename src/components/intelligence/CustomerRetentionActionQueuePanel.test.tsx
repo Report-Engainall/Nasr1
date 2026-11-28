@@ -63,6 +63,12 @@ describe("customer retention action triage", () => {
 
     expect(normalizeCustomerRetentionSearch("إِجْرَاء  مُؤَجَّل"))
       .toBe(normalizeCustomerRetentionSearch("اجراء مؤجل"));
+    expect(normalizeCustomerRetentionSearch("١١٢")).toBe("112");
+    expect(normalizeCustomerRetentionSearch("۱۱۲")).toBe("112");
+    expect(filterCustomerRetentionActions(actions, "١١٢", "ALL", "ALL")
+      .map(item => item.customerRef)).toEqual(["customer-1234567890"]);
+    expect(filterCustomerRetentionActions(actions, "۱۱۲", "ALL", "ALL")
+      .map(item => item.customerRef)).toEqual(["customer-1234567890"]);
     expect(filterCustomerRetentionActions(actions, "تأخر الطلب", "ALL", "PREVENT_CHURN")
       .map(item => item.customerRef)).toEqual(["customer-medium"]);
     expect(filterCustomerRetentionActions(actions, "", "HIGH", "ALL")
