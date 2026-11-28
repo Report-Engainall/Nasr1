@@ -21,6 +21,60 @@ const actionLabels = {
 
 export type CustomerRetentionPriorityFilter = "ALL" | CustomerRetentionActionPriority;
 export type CustomerRetentionKindFilter = "ALL" | CustomerRetentionActionKind;
+export type CustomerRetentionRecencyFilter =
+  | "ALL" | "0_30" | "31_60" | "61_90" | "OVER_90" | "UNKNOWN";
+
+export interface CustomerRetentionRecencySummary {
+  within30Days: number;
+  days31To60: number;
+  days61To90: number;
+  over90Days: number;
+  unknownAge: number;
+}
+
+function validDaysSinceLastOrder(value: number | null): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function matchesCustomerRetentionRecency(
+  action: CustomerRetentionAction,
+  filter: CustomerRetentionRecencyFilter,
+): boolean {
+  if (filter === "ALL") return true;
+  const days = validDaysSinceLastOrder(action.daysSinceLastOrder);
+  if (filter === "UNKNOWN") return days === null;
+  if (days === null) return false;
+  if (filter === "0_30") return days <= 30;
+  if (filter === "31_60") return days >= 31 && days <= 60;
+  if (filter === "61_90") return days >= 61 && days <= 90;
+  return days > 90;
+}
+
+export function summarizeCustomerRetentionRecency(
+  actions: CustomerRetentionAction[],
+): CustomerRetentionRecencySummary {
+  const summary: CustomerRetentionRecencySummary = {
+    within30Days: 0,
+    days31To60: 0,
+    days61To90: 0,
+    over90Days: 0,
+    unknownAge: 0,
+  };
+  for (const action of actions) {
+    const days = validDaysSinceLastOrder(action.daysSinceLastOrder);
+    if (days === null) summary.unknownAge += 1;
+    else if (days <= 30) summary.within30Days += 1;
+    else if (days <= 60) summary.days31To60 += 1;
+    else if (days <= 90) summary.days61To90 += 1;
+    else summary.over90Days += 1;
+  }
+  return summary;
+}
+
+function daysSinceLastOrderLabel(value: number | null): string {
+  const days = validDaysSinceLastOrder(value);
+  return days === null ? "مدة الانقطاع غير موثقة" : "منذ " + days + " يوماً";
+}
 
 export function normalizeCustomerRetentionSearch(value: string): string {
   return value.normalize("NFKC")
@@ -38,12 +92,14 @@ export function filterCustomerRetentionActions(
   query: string,
   priority: CustomerRetentionPriorityFilter,
   kind: CustomerRetentionKindFilter,
+  recency: CustomerRetentionRecencyFilter = "ALL",
 ): CustomerRetentionAction[] {
   const normalizedQuery = normalizeCustomerRetentionSearch(query);
   const rank: Record<CustomerRetentionActionPriority, number> = { HIGH: 0, MEDIUM: 1, REVIEW: 2 };
   return actions
     .filter(item => priority === "ALL" || item.priority === priority)
     .filter(item => kind === "ALL" || item.action === kind)
+    .filter(item => matchesCustomerRetentionRecency(item, recency))
     .filter(item => !normalizedQuery || normalizeCustomerRetentionSearch([
       item.customerRef,
       item.reason,
@@ -54,7 +110,8 @@ export function filterCustomerRetentionActions(
     ].join(" ")).includes(normalizedQuery))
     .sort((left, right) =>
       rank[left.priority] - rank[right.priority] ||
-      (right.daysSinceLastOrder ?? -1) - (left.daysSinceLastOrder ?? -1) ||
+      (validDaysSinceLastOrder(right.daysSinceLastOrder) ?? -1) -
+        (validDaysSinceLastOrder(left.daysSinceLastOrder) ?? -1) ||
       left.customerRef.localeCompare(right.customerRef),
     );
 }
@@ -160,6 +217,7 @@ export function CustomerRetentionActionQueuePanel({
   const [searchText, setSearchText] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<CustomerRetentionPriorityFilter>("ALL");
   const [actionFilter, setActionFilter] = useState<CustomerRetentionKindFilter>("ALL");
+  const [recencyFilter, setRecencyFilter] = useState<CustomerRetentionRecencyFilter>("ALL");
   const [page, setPage] = useState(0);
 
   if (loading) {
@@ -192,9 +250,10 @@ export function CustomerRetentionActionQueuePanel({
   const high = queue.actions.filter(item => item.priority === "HIGH").length;
   const medium = queue.actions.filter(item => item.priority === "MEDIUM").length;
   const review = queue.actions.filter(item => item.priority === "REVIEW").length;
+  const recencySummary = summarizeCustomerRetentionRecency(queue.actions);
 
   const filteredActions = filterCustomerRetentionActions(
-    queue.actions, searchText, priorityFilter, actionFilter,
+    queue.actions, searchText, priorityFilter, actionFilter, recencyFilter,
   );
   const pageView = paginateCustomerRetentionActions(filteredActions, page);
   async function createCustomerDecision(action: CustomerRetentionAction) {
@@ -231,6 +290,14 @@ export function CustomerRetentionActionQueuePanel({
     { value: "PREVENT_CHURN", label: actionLabels.PREVENT_CHURN },
     { value: "REENGAGE", label: actionLabels.REENGAGE },
     { value: "VERIFY_ORDER_HISTORY", label: actionLabels.VERIFY_ORDER_HISTORY },
+  ];
+  const recencyOptions: Array<{ value: CustomerRetentionRecencyFilter; label: string }> = [
+    { value: "ALL", label: "كل مدد الانقطاع" },
+    { value: "0_30", label: "0–30 يوماً" },
+    { value: "31_60", label: "31–60 يوماً" },
+    { value: "61_90", label: "61–90 يوماً" },
+    { value: "OVER_90", label: "أكثر من 90 يوماً" },
+    { value: "UNKNOWN", label: "مدة غير موثقة" },
   ];
   function exportFilteredActions(){
     if (!filteredActions.length) return;
@@ -276,8 +343,31 @@ export function CustomerRetentionActionQueuePanel({
       </div>
 
       {queue.actions.length > 0 ? (
+        <section className="space-y-2" aria-label="شرائح مدة الانقطاع عن الشراء">
+          <p className="text-xs text-muted-foreground">التقسيم حسب عدد الأيام منذ آخر طلب؛ هذه شرائح تشغيلية وليست توقعاً مؤكداً لفقدان العميل.</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+            <button type="button" aria-label="عرض العملاء الذين طلبوا خلال 30 يوماً" aria-pressed={recencyFilter === "0_30"}
+              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setRecencyFilter(recencyFilter === "0_30" ? "ALL" : "0_30"); setPage(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><span className="block text-xs text-muted-foreground">0–30 يوماً</span><strong className="text-lg tabular-nums">{recencySummary.within30Days}</strong></button>
+            <button type="button" aria-label="عرض العملاء المنقطعين من 31 إلى 60 يوماً" aria-pressed={recencyFilter === "31_60"}
+              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setRecencyFilter(recencyFilter === "31_60" ? "ALL" : "31_60"); setPage(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><span className="block text-xs text-muted-foreground">31–60 يوماً</span><strong className="text-lg tabular-nums">{recencySummary.days31To60}</strong></button>
+            <button type="button" aria-label="عرض العملاء المنقطعين من 61 إلى 90 يوماً" aria-pressed={recencyFilter === "61_90"}
+              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setRecencyFilter(recencyFilter === "61_90" ? "ALL" : "61_90"); setPage(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><span className="block text-xs text-muted-foreground">61–90 يوماً</span><strong className="text-lg tabular-nums">{recencySummary.days61To90}</strong></button>
+            <button type="button" aria-label="عرض العملاء المنقطعين لأكثر من 90 يوماً" aria-pressed={recencyFilter === "OVER_90"}
+              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setRecencyFilter(recencyFilter === "OVER_90" ? "ALL" : "OVER_90"); setPage(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><span className="block text-xs text-muted-foreground">أكثر من 90 يوماً</span><strong className="text-lg tabular-nums">{recencySummary.over90Days}</strong></button>
+            <button type="button" aria-label="عرض العملاء بمدة انقطاع غير موثقة" aria-pressed={recencyFilter === "UNKNOWN"}
+              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setRecencyFilter(recencyFilter === "UNKNOWN" ? "ALL" : "UNKNOWN"); setPage(0); }}
+              className="rounded-lg border p-2 text-start hover:bg-muted/50"><span className="block text-xs text-muted-foreground">مدة غير موثقة</span><strong className="text-lg tabular-nums">{recencySummary.unknownAge}</strong></button>
+          </div>
+        </section>
+      ) : null}
+
+      {queue.actions.length > 0 ? (
         <section className="space-y-3 rounded-lg border p-3" aria-label="تصفية إجراءات متابعة العملاء">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <label className="space-y-1 text-sm">
               <span className="block">البحث في المرجع أو سبب التوصية</span>
               <input
@@ -311,14 +401,25 @@ export function CustomerRetentionActionQueuePanel({
                 {actionOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
+            <label className="space-y-1 text-sm">
+              <span className="block">مدة الانقطاع عن الشراء</span>
+              <select
+                aria-label="تصفية مدة الانقطاع عن الشراء"
+                value={recencyFilter}
+                onChange={event => { setRecencyFilter(event.target.value as CustomerRetentionRecencyFilter); setPage(0); }}
+                className="w-full rounded-lg border bg-background px-3 py-2"
+              >
+                {recencyOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>يعرض {filteredActions.length} من {queue.actions.length} إجراء محمّل · إجمالي الإجراءات المؤهلة: {queue.totalActionable}</span>
             <button
               type="button"
               className="rounded-lg border px-3 py-2"
-              disabled={!searchText && priorityFilter === "ALL" && actionFilter === "ALL"}
-              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setPage(0); }}
+              disabled={!searchText && priorityFilter === "ALL" && actionFilter === "ALL" && recencyFilter === "ALL"}
+              onClick={() => { setSearchText(""); setPriorityFilter("ALL"); setActionFilter("ALL"); setRecencyFilter("ALL"); setPage(0); }}
             >
               مسح التصفية
             </button>
@@ -346,7 +447,7 @@ export function CustomerRetentionActionQueuePanel({
               <p className="mt-2 text-sm">{action.reason}</p>
               <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                 <span>مرجع العميل: <bdi dir="ltr">{customerReference(action.customerRef)}</bdi></span>
-                <span>آخر طلب: {dateLabel(action.lastOrderAt)}{action.daysSinceLastOrder === null ? "" : " · منذ " + action.daysSinceLastOrder + " يوماً"}</span>
+                <span>آخر طلب: {dateLabel(action.lastOrderAt)} · {daysSinceLastOrderLabel(action.daysSinceLastOrder)}</span>
                 <span>طلبات الفترة الحالية: {action.orderCountCurrent}</span>
                 <span>طلبات الفترة السابقة: {action.orderCountPrevious}</span>
                 <span>أدلة مرتبطة: {action.evidenceIds.length}</span>
