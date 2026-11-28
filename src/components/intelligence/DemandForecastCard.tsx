@@ -1,4 +1,5 @@
 import type { DemandForecastResult, DemandTrend } from "@/lib/intelligence/demand-forecast";
+import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 
 export interface DemandForecastCardProps {
   result: DemandForecastResult | null;
@@ -41,9 +42,20 @@ export function DemandForecastCard({ result, state, onRetry }: DemandForecastCar
           <h2 className="font-semibold">توقع الطلب حسب المنتج</h2>
           <p className="report-note">توقع حتمي من متوسط كميات بنود الطلب المؤكدة في فترتين متجاورتين متساويتين؛ لا يمثل مبيعات مسلّمة أو وعداً بالطلب القادم.</p>
         </div>
-        <span className="rounded-full border px-3 py-1 text-xs">
-          {result.status === "VERIFIED" ? "مصدر مكتمل" : "بحاجة إلى مراجعة"}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border px-3 py-1 text-xs">
+            {result.status === "VERIFIED" ? "مصدر مكتمل" : "بحاجة إلى مراجعة"}
+          </span>
+          {result.forecasts.length > 0 || result.withheld.length > 0 ? (
+            <button
+              type="button"
+              className="btn secondary btn-sm"
+              onClick={() => downloadIntelligenceCsv(buildDemandForecastCsv(result), "aghbari-demand-forecast.csv")}
+            >
+              تصدير توقعات الطلب CSV
+            </button>
+          ) : null}
+        </div>
       </header>
 
       <div className="text-xs text-muted-foreground">
