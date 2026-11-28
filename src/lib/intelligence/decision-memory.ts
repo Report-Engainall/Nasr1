@@ -110,7 +110,7 @@ export interface DecisionMemoryPrecedentMatch {
 }
 
 export type DecisionMemoryPrecedentFilter =
-  | "ALL" | DecisionMemoryPrecedentMatch["comparisonStatus"];
+  | "ALL" | "SAME_RULE" | DecisionMemoryPrecedentMatch["comparisonStatus"];
 
 export interface DecisionMemoryPrecedentSummary {
   total: number;
@@ -125,6 +125,7 @@ export function filterDecisionMemoryPrecedents(
 ): DecisionMemoryPrecedentMatch[] {
   if (!Array.isArray(matches)) throw new Error("decision_memory_precedent_filter_invalid");
   if (filter === "ALL") return matches;
+  if (filter === "SAME_RULE") return matches.filter(match => match.matchReasons.includes("نفس قاعدة القرار"));
   return matches.filter(match => match.comparisonStatus === filter);
 }
 
@@ -225,6 +226,14 @@ export function searchSimilarDecisionMemory(input: {
       const candidateTokens = new Set(decisionSearchTokens(decisionRecordSearchText(candidate)));
       const matchedTerms = targetTokens.filter(token => candidateTokens.has(token));
       const sameRule = Boolean(targetRule) && candidate.ruleId.trim().toLowerCase() === targetRule;
+      const sameRuleVersion = sameRule &&
+        Boolean(target.ruleVersion.trim()) &&
+        target.ruleVersion.trim() === candidate.ruleVersion.trim();
+      const ruleDifferences = !sameRule
+        ? ["قاعدة القرار مختلفة أو غير محددة"]
+        : !sameRuleVersion
+          ? ["إصدار قاعدة القرار مختلف أو غير محدد"]
+          : [];
       const matchReasons = [
         ...(sameRule ? ["نفس قاعدة القرار"] : []),
         ...(matchedTerms.length ? ["مصطلحات وسياق مشترك"] : []),
@@ -245,7 +254,7 @@ export function searchSimilarDecisionMemory(input: {
         candidate.metricComparison.status !== "VERIFIED" ||
         !expectedLeft || !expectedRight || !actualLeft || !actualRight
           ? "OUTCOME_UNVERIFIED"
-          : actualDifferences.length || expectedDifferences.length
+          : actualDifferences.length || expectedDifferences.length || ruleDifferences.length
             ? "NOT_COMPARABLE"
             : "COMPARABLE";
       return {
@@ -253,7 +262,7 @@ export function searchSimilarDecisionMemory(input: {
         matchedTerms,
         matchReasons,
         comparisonStatus,
-        contextDifferences: [...actualDifferences, ...expectedDifferences],
+        contextDifferences: [...actualDifferences, ...expectedDifferences, ...ruleDifferences],
         ranking: (sameRule ? 100 : 0) + matchedTerms.length * 4 +
           (candidate.state === "MEASURED" && candidate.metricComparison.status === "VERIFIED" && actualRight ? 2 : 0),
       };
