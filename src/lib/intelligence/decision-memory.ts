@@ -138,7 +138,7 @@ const REVIEW_KIND_ORDER: Record<DecisionReviewQueueKind, number> = {
 };
 
 function decisionDayOrdinal(value: string): number | null {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const timestamp = Date.parse(value + "T00:00:00.000Z");
   if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== value) return null;
   return Math.floor(timestamp / DAY_MILLISECONDS);
@@ -146,7 +146,7 @@ function decisionDayOrdinal(value: string): number | null {
 
 function scheduledReviewDay(value: string | null): string | null {
   if (typeof value !== "string" ||
-      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-](?:(?:0\\d|1[0-3]):[0-5]\\d|14:00))$/.test(value) ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/.test(value) ||
       !Number.isFinite(Date.parse(value))) return null;
   const day = value.slice(0, 10);
   return decisionDayOrdinal(day) === null ? null : day;
@@ -366,7 +366,11 @@ function normalizeDecisionSearchText(value: string): string {
 function decisionSearchTokens(value: string): string[] {
   const normalized = normalizeDecisionSearchText(value);
   const tokens = normalized.match(/[\p{L}\p{N}]{2,}/gu) ?? [];
-  return [...new Set(tokens.filter(token => !decisionSearchStopwords.has(token)))].slice(0, 240);
+  // Match the common Arabic definite-article form without weakening token-boundary search.
+  const canonicalTokens = tokens.map(token =>
+    token.startsWith("ال") && token.length > 4 ? token.slice(2) : token,
+  );
+  return [...new Set(canonicalTokens.filter(token => !decisionSearchStopwords.has(token)))].slice(0, 240);
 }
 
 function decisionRecordSearchText(record: DecisionMemoryRecord): string {
