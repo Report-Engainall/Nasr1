@@ -1,6 +1,8 @@
 import type { DemandForecastResult } from "./demand-forecast";
 import type { DeadStockReport } from "./dead-stock";
 import type { ReplenishmentRecommendation } from "./replenishment";
+import type { SupplierPerformanceResult } from "./supplier-performance";
+import type { ProcessBottleneckResult } from "./process-bottlenecks";
 
 export type IntelligenceCsvCell = string | number | boolean | null | undefined;
 
@@ -197,5 +199,80 @@ export function buildDeadStockCsv(report: DeadStockReport): string {
     ...itemRows,
     ...currencyRows,
     ...(report.warnings.length ? [["REPORT_WARNINGS", "", "", null, null, null, null, null, "", null, "", "", "", "", "", report.warnings.join(" | ")] as IntelligenceCsvCell[]] : []),
+  ]);
+}
+
+export function buildSupplierPerformanceCsv(result: SupplierPerformanceResult, suppliers = result.suppliers): string {
+  const supplierRows = suppliers.map(supplier => [
+    "SUPPLIER", supplier.supplierId, supplier.supplierName, supplier.supplierCode,
+    supplier.purchaseOrderCount, supplier.completedOrderCount, supplier.openOrderCount,
+    supplier.inconsistentReceivedCount, supplier.backlogLineCount, supplier.leadTimeSampleCount,
+    supplier.averageLeadDays, supplier.medianLeadDays, supplier.p90LeadDays,
+    supplier.promisedDeliverySampleCount, supplier.onTimeCount, supplier.onTimePercent,
+    supplier.completedWithoutPromiseCount, "", "", "", "", null, null, null, null, null, null,
+  ] satisfies IntelligenceCsvCell[]);
+  const orderRows = suppliers.flatMap(supplier => supplier.recentOrders.map(order => [
+    "PURCHASE_ORDER", supplier.supplierId, supplier.supplierName, supplier.supplierCode,
+    "", "", order.status, "", order.pendingLineCount, "", null, null, null,
+    order.promisedDeliveryDays === null ? 0 : 1, order.onTime === true ? 1 : 0, null, "",
+    order.purchaseOrderId, order.purchaseOrderNumber, order.submittedAt, order.lastReceivedAt,
+    order.lineCount, order.pendingLineCount, order.receiptCount, order.actualLeadDays,
+    order.promisedDeliveryDays, order.onTime,
+  ] satisfies IntelligenceCsvCell[]));
+  return serializeIntelligenceCsv([
+    ["تقرير", "أداء الموردين والتزام التوريد"],
+    ["الفترة", result.period.from, result.period.to, "UTC"],
+    ["وقت اللقطة", result.asOf],
+    ["حالة التغطية", result.state],
+    ["الموردون المحملون", suppliers.length],
+    ["الموردون المعادون من المصدر", result.returnedSupplierCount],
+    ["إجمالي الموردين المعروف للمصدر", result.totalSupplierCount],
+    ["اكتمال المجتمع", result.completePopulation ? "نعم" : "لا"],
+    ["ملاحظة التغطية", result.completePopulation ? "القائمة كاملة حسب عقد المصدر." : "الملف يضم الموردين المحملين فقط؛ توجد سجلات موردين خارج حد المصدر."],
+    ["حدود القياس", "زمن التوريد والالتزام بالموعد يعتمدان على العينات المؤهلة؛ قلة العينة لا تُحوّل إلى تقييم."],
+    ["حدود البيانات", "لا يتضمن الملف أسعار الشراء أو أرصدة الموردين أو المدفوعات أو تصنيف جودة غير موجود في المصدر."],
+    [],
+    ["نوع السطر","معرف المورد","اسم المورد","رمز المورد","أوامر الشراء","مكتمل الاستلام","مفتوح","استلام غير متسق",
+      "سطور معلقة","عينة زمن التوريد","متوسط التوريد بالأيام","وسيط التوريد بالأيام","P90 التوريد بالأيام",
+      "عينة الموعد الموعود","عدد الالتزام بالموعد","نسبة الالتزام بالمئة","مكتمل بلا موعد موعود",
+      "معرف أمر الشراء","رقم أمر الشراء","تاريخ الإرسال","آخر استلام","عدد السطور","سطور متبقية",
+      "عدد سندات الاستلام","زمن التوريد الفعلي بالأيام","المدة الموعودة بالأيام","ضمن الموعد"],
+    ...supplierRows, ...orderRows,
+    ...(result.withheldReasons.length ? [["SOURCE_CAVEAT","","","",null,null,null,null,null,null,null,null,null,null,null,null,"","","","","",null,null,null,null,null,result.withheldReasons.join(" | ")] as IntelligenceCsvCell[]] : []),
+  ]);
+}
+
+export function buildProcessBottlenecksCsv(result: ProcessBottleneckResult): string {
+  const queueRows = result.queues.map(item => [
+    "OPEN_QUEUE", item.processKey, "", "", null, item.openCount, item.oldestOpenedAt,
+    item.oldestAgeMinutes, result.asOf, "", "", "", "", "",
+  ] satisfies IntelligenceCsvCell[]);
+  const findingRows = result.findings.map(item => [
+    "BOTTLENECK", item.processKey, item.stageKey, item.waitClass, item.sampleCount, null,
+    "", null, result.asOf, item.averageMinutes, item.medianMinutes, item.p90Minutes,
+    item.recommendation, "",
+  ] satisfies IntelligenceCsvCell[]);
+  const comparisonRows = result.comparisons.map(item => [
+    "PERIOD_COMPARISON", item.processKey, item.stageKey, "", null, null, "", null, result.asOf,
+    item.currentMedianMinutes, item.baselineMedianMinutes, item.changeMinutes, item.note, item.changePercent,
+  ] satisfies IntelligenceCsvCell[]);
+  const coverageRows = result.sourceCoverage.map(item => [
+    "SOURCE_COVERAGE", item.key, "", item.status, item.sampleCount, null, item.period?.from ?? "",
+    null, item.asOf ?? "", null, null, null, item.message, item.completePopulation,
+  ] satisfies IntelligenceCsvCell[]);
+  return serializeIntelligenceCsv([
+    ["تقرير", "اختناقات العمليات وزمن دورة العمل"],
+    ["حالة التقرير", result.state], ["وقت اللقطة", result.asOf],
+    ["الفترة الحالية", result.period.from, result.period.to, result.period.timeZone],
+    ["فترة الأساس", result.baselinePeriod?.from ?? "", result.baselinePeriod?.to ?? ""],
+    ["عدد الطوابير", result.queues.length], ["عدد الاختناقات المرصودة", result.findings.length],
+    ["عدد المقارنات", result.comparisons.length], ["إعادة فتح المهام", result.reopenedTasks],
+    ["حدود التفسير", "الزمن المرصود لا يحدد وحده الطرف المتسبب أو وقت العمل الفعلي، ولا ينسب التحسن إلى إجراء بعينه."],
+    [],
+    ["نوع السطر","العملية","المرحلة","تصنيف الانتظار/حالة المصدر","حجم العينة","عدد المفتوح","أقدم بداية",
+      "عمر الأقدم بالدقائق","وقت المصدر","متوسط الدقائق / الحالي","وسيط الدقائق / الأساس","P90 أو فرق الوسيط",
+      "التوصية أو الملاحظة","نسبة التغير المئوية أو اكتمال المجتمع"],
+    ...queueRows, ...findingRows, ...comparisonRows, ...coverageRows,
+    ...(result.withheldReasons.length ? [["WITHHELD","","","",null,null,"",null,result.asOf,null,null,null,result.withheldReasons.join(" | "),""] as IntelligenceCsvCell[]] : []),
   ]);
 }
