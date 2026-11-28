@@ -436,7 +436,8 @@ BEGIN
        OR v_checkpoint.warehouse_external_id IS NOT NULL
        OR v_checkpoint.currency_code IS DISTINCT FROM v_scope.currency_code
        OR v_checkpoint.object_type IS DISTINCT FROM 'customer_statement_entries'
-       OR v_checkpoint.version<v_scope.checkpoint_version
+       OR v_checkpoint.version IS DISTINCT FROM v_scope.checkpoint_version
+       OR v_checkpoint.completed_watermark IS DISTINCT FROM v_scope.completed_watermark
        OR v_checkpoint.cursor_ciphertext IS NOT NULL
        OR v_checkpoint.pending_watermark IS NOT NULL
        OR v_checkpoint.completed_watermark IS NULL

@@ -1893,6 +1893,19 @@ async function main() {
       "to_regclass('public.erp_sync_page_receipts') is not null as receipts," +
       "to_regclass('public.erp_sync_page_record_outcomes') is not null as outcomes",
   );
+  const statementReaderDefinition = await db.unsafe(
+    "select pg_catalog.pg_get_functiondef(" +
+      "'public.get_customer_account_statement()'::regprocedure) as definition",
+  );
+  assert.equal(statementReaderDefinition.length, 1,
+    "the source-routed customer statement reader must be installed");
+  assert.match(statementReaderDefinition[0].definition,
+    /v_checkpoint\.version\s+IS\s+DISTINCT\s+FROM\s+v_scope\.checkpoint_version/i,
+    "external statement reader must reject a checkpoint version that differs from its registered customer/currency scope");
+  assert.match(statementReaderDefinition[0].definition,
+    /v_checkpoint\.completed_watermark\s+IS\s+DISTINCT\s+FROM\s+v_scope\.completed_watermark/i,
+    "external statement reader must reject a completion watermark that differs from its registered currency snapshot");
+
   const bindingScopeTrigger = await db.unsafe(
     "select exists (select 1 from pg_catalog.pg_trigger where " +
       "tgname='customer_financial_source_statement_scope_from_binding' " +

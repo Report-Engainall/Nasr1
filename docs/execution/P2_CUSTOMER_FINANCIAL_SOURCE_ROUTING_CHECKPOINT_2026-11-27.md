@@ -342,3 +342,12 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - The customer statement RPC must reject with SQLSTATE `55000` and the explicit `app ledger fallback is prohibited` guard when MUTAKAMEL's own source-sync evidence or the P4 statement staging prerequisite is absent. This proves the resolver cannot alias an external customer statement to APP_ONLY merely because no external ledger has been staged.
 - This is an isolated PostgreSQL acceptance assertion; it does not create synthetic ERP rows or mutate production, customer balances, payments, invoices, journals or inventory.
 - New exact-head P1/P2 and PostgreSQL 17 acceptance is still required. Previous workflow results do not transfer to the updated SHA.
+
+
+## 2026-11-28 — Exact checkpoint/scope version binding for external statements
+
+- Tightened `get_customer_account_statement()`: every registered customer/currency scope must match the current P4 checkpoint version **exactly**, and its captured `completed_watermark` must match the current checkpoint watermark exactly. A checkpoint newer than its customer-scope registration is no longer accepted based on `version >= scope_version`.
+- This prevents a lagging or stale currency-scope registration from being used against a newer P4 page receipt or staged ledger. The scope refresh trigger must first record the exact completed checkpoint; otherwise the customer statement fails closed with SQLSTATE `55000`.
+- Added PostgreSQL acceptance introspection on the installed statement reader definition for both exact comparisons. Existing runtime checks still prove missing/unmapped P4 staging rejects rather than falling back to APP_ONLY. A full positive P4→P2→customer statement acceptance still requires both migrations and source rows in the same isolated PG17 environment.
+- Changed paths: `supabase/migrations/20261128043000_customer_erp_statement_staging_reader.sql`, `scripts/test-customer-financial-source-routing.mjs`, this checkpoint. No APP_ONLY invoices/payments, customer balances, journals, inventory rows, production database or live ERP were touched.
+- New exact-head PG17/P1/P2 checks are required; prior SHA results are not transferred.
