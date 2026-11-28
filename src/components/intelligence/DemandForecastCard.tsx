@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { buildDemandScenario } from "@/lib/intelligence/demand-forecast";
-import type { DemandForecastResult, DemandTrend } from "@/lib/intelligence/demand-forecast";
+import type { DemandForecastResult, DemandScenarioResult, DemandTrend } from "@/lib/intelligence/demand-forecast";
 import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 
 export interface DemandForecastCardProps {
   result: DemandForecastResult | null;
   state: "loading" | "ready" | "unavailable" | "error";
   onRetry?: () => void;
+  onSaveScenario?: (scenario: DemandScenarioResult) => Promise<boolean>;
 }
 
 const trendLabels: Record<DemandTrend, string> = {
@@ -20,16 +21,34 @@ const trendLabels: Record<DemandTrend, string> = {
 const formatQuantity = (value: number, unit: string) =>
   new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 6 }).format(value) + " " + unit;
 
-function DemandScenarioLab({ result }: { result: DemandForecastResult }) {
+function DemandScenarioLab({ result, onSaveScenario }: { result: DemandForecastResult; onSaveScenario?: (scenario: DemandScenarioResult) => Promise<boolean> }) {
   const firstProduct = result.forecasts[0] ?? null;
   const [selectedProductRef, setSelectedProductRef] = useState(firstProduct?.productRef ?? "");
   const [changePercent, setChangePercent] = useState(0);
+  const [savingScenario, setSavingScenario] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const selectedProduct = result.forecasts.find((item) => item.productRef === selectedProductRef) ?? firstProduct;
   const scenario = selectedProduct
     ? buildDemandScenario({ forecast: result, productRef: selectedProduct.productRef, changePercent })
     : null;
 
   if (!selectedProduct || !scenario) return null;
+
+  async function saveScenario() {
+    if (!onSaveScenario || !scenario || scenario.status !== "SIMULATED" || savingScenario) return;
+    setSavingScenario(true);
+    setSaveMessage(null);
+    try {
+      const saved = await onSaveScenario(scenario);
+      setSaveMessage(saved
+        ? "تم تأكيد إرسال السيناريو إلى دورة القرارات كمقترح يحتاج مراجعة؛ لم يُعتمد أو يُنفذ."
+        : "لم يتأكد حفظ السيناريو؛ راجع دورة القرارات وحالة الاتصال قبل إعادة المحاولة.");
+    } catch {
+      setSaveMessage("تعذر تأكيد حفظ السيناريو؛ راجع دورة القرارات قبل إعادة المحاولة.");
+    } finally {
+      setSavingScenario(false);
+    }
+  }
 
   const withheldReasons: Record<string, string> = {
     ASSUMPTION_OUT_OF_BOUNDS: "النسبة خارج النطاق المسموح من ‎-100% إلى ‎+300%.",
@@ -140,6 +159,21 @@ function DemandScenarioLab({ result }: { result: DemandForecastResult }) {
           {withheldReasons[scenario.reason ?? ""] ?? "تعذر التحقق من مدخلات السيناريو؛ لم تُعرض نتيجة افتراضية."}
         </p>
       )}
+
+          {onSaveScenario ? (
+            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void saveScenario()}
+                disabled={savingScenario || scenario.status !== "SIMULATED"}
+              >
+                {savingScenario ? "جارٍ حفظ المقترح..." : "حفظ السيناريو في دورة القرارات"}
+              </button>
+              <span className="text-xs text-muted-foreground">يحفظ كسجل مقترح قابل للمراجعة، ولا يغيّر أي سجل تجاري.</span>
+            </div>
+          ) : null}
+          {saveMessage ? <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{saveMessage}</p> : null}
       <p className="text-xs text-muted-foreground">
         الافتراض يدوي وغير محفوظ كحقيقة محاسبية. لا يغيّر الطلبات أو المخزون أو أوامر الشراء أو الأسعار أو الحسابات.
       </p>
@@ -267,7 +301,7 @@ export function DemandForecastCard({ result, state, onRetry }: DemandForecastCar
           </ul>
         </details>
       ) : null}
-      {result.forecasts.length > 0 ? <DemandScenarioLab result={result} /> : null}
+      {result.forecasts.length > 0 ? <DemandScenarioLab result={result} onSaveScenario={onSaveScenario} /> : null}
       {onRetry ? <button type="button" className="btn secondary" onClick={onRetry}>تحديث التوقع</button> : null}
     </section>
   );

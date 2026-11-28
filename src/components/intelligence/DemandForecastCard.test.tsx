@@ -102,6 +102,30 @@ describe("DemandForecastCard", () => {
     expect(within(lab).queryByTestId("demand-scenario-expected-7")).not.toBeInTheDocument();
   });
 
+  it("saves an evidence-backed simulation only through the supplied decision-cycle action", async () => {
+    const onSaveScenario = vi.fn().mockResolvedValue(true);
+    render(<DemandForecastCard result={forecast} state="ready" onSaveScenario={onSaveScenario} />);
+    const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
+    fireEvent.change(within(lab).getByRole("slider", { name: "نسبة تغير الطلب المفترضة" }), { target: { value: "20" } });
+    fireEvent.click(within(lab).getByRole("button", { name: "حفظ السيناريو في دورة القرارات" }));
+    await waitFor(() => expect(onSaveScenario).toHaveBeenCalledTimes(1));
+    expect(onSaveScenario.mock.calls[0][0]).toMatchObject({
+      status: "SIMULATED",
+      changePercent: 20,
+      evidenceIds: ["current-evidence", "baseline-evidence"],
+      accountingFact: false,
+    });
+    expect(await screen.findByText(/تم تأكيد إرسال السيناريو إلى دورة القرارات/)).toBeInTheDocument();
+  });
+
+  it("does not claim a save when the decision-cycle service rejects the scenario", async () => {
+    const onSaveScenario = vi.fn().mockResolvedValue(false);
+    render(<DemandForecastCard result={forecast} state="ready" onSaveScenario={onSaveScenario} />);
+    const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
+    fireEvent.click(within(lab).getByRole("button", { name: "حفظ السيناريو في دورة القرارات" }));
+    expect(await screen.findByText(/لم يتأكد حفظ السيناريو/)).toBeInTheDocument();
+  });
+
   it("does not render a forecast when the source is unavailable", () => {
     render(<DemandForecastCard result={null} state="unavailable" />);
     expect(screen.getByText("مصدر توقع الطلب غير متاح؛ لم تُنشأ توقعات بديلة.")).toBeInTheDocument();

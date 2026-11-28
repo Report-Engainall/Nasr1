@@ -19,6 +19,7 @@ import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
+import { buildDemandScenarioDecisionCandidate } from "@/lib/intelligence/demand-scenario-decision";
 import { fetchProductGrossMargin, type ProductGrossMarginFetchResult } from "@/lib/intelligence/product-gross-margin-client";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
@@ -1861,6 +1862,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
               state={retentionLoading ? "loading" : demandForecastResult ? "ready"
                 : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
               onRetry={() => setRefreshKey((value) => value + 1)}
+              onSaveScenario={user?.profileId && canManage ? async scenario => {
+                const candidate = buildDemandScenarioDecisionCandidate(scenario);
+                return candidate ? persistEvidenceBackedAction(candidate, candidate.id) : false;
+              } : undefined}
             />
             <GrowthOpportunityRadar
               result={growthRadarResult}
