@@ -77,10 +77,16 @@ export function buildDemandScenarioDecisionCandidate(
   ].join("|");
   const candidateId = "demand.whatif:" + fingerprint64(identity);
   const what = boundedText("محاكاة تغير الطلب — " + scenario.productLabel + " (" + assumption + "%)", 500);
+  const horizonSummary = orderedHorizons.map((horizon) =>
+    horizon.days + " يوماً: " + horizon.baselineExpectedQuantity + " → " +
+    horizon.scenarioExpectedQuantity + " " + scenario.unitOfMeasure +
+    " (فرق " + (horizon.expectedDeltaQuantity > 0 ? "+" : "") + horizon.expectedDeltaQuantity + ")"
+  ).join("؛ ");
   const why = boundedText(
     "افتراض إداري يدوي بتغير معدل الطلب بنسبة " + assumption + "%، مطبق على توقع موثق للمنتج " +
     scenario.productLabel + " للفترة " + scenario.period.from + " إلى " + scenario.period.to +
-    ". هذه نتيجة سيناريو وليست طلباً محققاً أو مبيعات أو كمية شحن.",
+    ". نتائج الأساس مقابل السيناريو: " + horizonSummary +
+    ". هذه نتائج افتراضية وليست طلباً محققاً أو مبيعات أو كمية شحن.",
     2000,
   );
   const soWhat = boundedText(
@@ -88,7 +94,7 @@ export function buildDemandScenarioDecisionCandidate(
     2000,
   );
   const whatNext = boundedText(
-    "راجع الفرضية مع مسؤول المبيعات والمخزون، وقارن النتيجة بالطلب الفعلي اللاحق قبل أي اعتماد أو أمر شراء.",
+    "راجع الفرضية مع مسؤول المبيعات والمخزون، وسجّل مراجعة مستقلة للطلب الفعلي بعد اكتمال الأفق؛ لا تنفذ شراءً أو تغيير مخزون من هذه المحاكاة وحدها.",
     2000,
   );
 
@@ -115,7 +121,7 @@ export function buildDemandScenarioDecisionCandidate(
       ])],
     },
     owner: "مدير المبيعات والمخزون",
-    expectedOutcome: "مراجعة موثقة لفرضية الطلب ونتيجتها قبل اتخاذ أي إجراء تشغيلي.",
+    expectedOutcome: boundedText("نتيجة السيناريو المسجلة — " + horizonSummary + ". المطلوب مراجعة الفرضية مقابل الطلب الفعلي قبل أي إجراء.", 2000),
     createdAt: scenario.asOf,
     expiresAt: null,
   };

@@ -49,6 +49,9 @@ describe("demand scenario decision candidate", () => {
     });
     expect(candidate?.id).toMatch(/^demand\.whatif:[0-9a-f]{16}$/);
     expect(candidate?.why).toContain("+20%");
+    expect(candidate?.why).toContain("7 يوماً: 28 → 33.6 EA");
+    expect(candidate?.expectedOutcome).toContain("30 يوماً: 120 → 144 EA");
+    expect(candidate?.expectedOutcome).toContain("90 يوماً: 360 → 432 EA");
   });
 
   it("uses the same id for an exact replay and a different id for a changed assumption", () => {
