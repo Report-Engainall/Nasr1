@@ -349,6 +349,73 @@ async function main() {
   assert.equal(futureWatermarkReceipts.total, 0,
     "future completed watermark must not create a page receipt");
 
+  const missingStatementCurrencyScope = {
+    ...baseScope,
+    warehouseExternalId: null,
+    currencyCode: null,
+    objectType: "customer_statement_entries",
+    branchExternalId: "branch-statement-currency-required",
+  };
+  await expectSql(
+    "ERP financial statement checkpoints require an explicit currency scope",
+    () => loadCheckpoint(missingStatementCurrencyScope),
+    "22023",
+  );
+  const missingCurrencyCheckpoint = await db.unsafe(
+    "select count(*)::integer as count from public.erp_sync_checkpoints where organization_id=$1::uuid and scope_key=$2::text",
+    [missingStatementCurrencyScope.organizationId, scopeKey(missingStatementCurrencyScope)],
+  );
+  assert.equal(missingCurrencyCheckpoint[0].count, 0,
+    "a financial checkpoint with no currency scope must not be initialized");
+
+  const statementScope = {
+    ...baseScope,
+    warehouseExternalId: null,
+    currencyCode: "YER",
+    objectType: "customer_statement_entries",
+    branchExternalId: "branch-statement-currency-exact",
+  };
+  const statementCheckpoint = await loadCheckpoint(statementScope);
+  assert.equal(statementCheckpoint.version, 0);
+  const currencyMismatchPage = {
+    ...page({
+      expectedVersion: 0,
+      label: "statement-currency-mismatch",
+      records: [financialRecord(
+        "ONYX-STATEMENT-CURRENCY-0001",
+        timestamp1,
+        {
+          external_customer_id: "ONYX-CUSTOMER-0001",
+          entry_reference: "JV-CURRENCY-0001",
+          entry_date: "2026-11-27",
+          currency_code: "USD",
+          entry_type: "invoice",
+          debit_amount: "10.00",
+          credit_amount: "0",
+        },
+      )],
+      nextCursor: cursorCiphertext("currency-mismatch-must-not-advance"),
+      pendingWatermark: timestamp1,
+    }),
+    scope: statementScope,
+  };
+  await expectSql(
+    "ERP statement staging rejects a record whose currency differs from its exact checkpoint scope",
+    () => persistPage(currencyMismatchPage),
+    "22023",
+  );
+  const afterCurrencyMismatch = await loadCheckpoint(statementScope);
+  const currencyMismatchRows = await previewStagedRecords(statementScope);
+  const currencyMismatchReceipts = await previewPageReceipts(statementScope);
+  assert.equal(afterCurrencyMismatch.version, 0,
+    "currency mismatch must not advance the financial checkpoint");
+  assert.equal(afterCurrencyMismatch.cursor_ciphertext, null,
+    "currency mismatch must not persist a continuation cursor");
+  assert.equal(currencyMismatchRows.total, 0,
+    "currency mismatch must not stage an external financial row");
+  assert.equal(currencyMismatchReceipts.total, 0,
+    "currency mismatch must not create a page receipt");
+
   const invalidSensitivePage = page({
     expectedVersion: 0,
     label: "sensitive-field-rejected",

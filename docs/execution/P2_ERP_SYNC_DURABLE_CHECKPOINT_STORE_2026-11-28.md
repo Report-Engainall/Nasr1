@@ -51,3 +51,13 @@ The P2 PostgreSQL 17 suite is required on the exact resulting commit SHA. Queued
 - The RPC must raise SQLSTATE `22023` before persisting the continuation cursor. Assertions prove checkpoint version remains zero, pending watermark and cursor remain NULL, and no page receipt is created.
 - This complements the existing future record timestamp and future completed-watermark cases, covering both branches of the SQL future-watermark guard.
 - The new test is not a PASS result until the dedicated P4 PostgreSQL 17 job runs on the final branch SHA. No vendor endpoint, production database, inventory, finance, secret or deployment was used.
+
+
+## 2026-11-28 — Enforce financial currency at the P4 staging boundary
+
+- Customer financial checkpoint initialization now requires an explicit ISO-4217 currency for `customer_financial_documents`, `customer_payment_receipts` and `customer_statement_entries`; a missing currency is rejected before creating the checkpoint.
+- Every financial source record must match the checkpoint's exact `p_currency_code`. A record carrying USD inside a YER scope raises SQLSTATE `22023` before checkpoint locks or staging mutations.
+- PostgreSQL 17 acceptance proves both rejection paths. It asserts that a missing-currency financial checkpoint creates no row, and a mismatched statement entry creates no staged record, page receipt, continuation cursor or checkpoint version advance.
+- This complements P2's customer statement currency guard: P4 rejects bad currency at ingestion, and P2 independently rechecks accepted outcomes before presenting a customer ledger.
+- Changed paths: `supabase/migrations/20261128010000_erp_sync_durable_checkpoint_staging.sql`, `scripts/test-erp-sync-checkpoint-store.mjs`, this checkpoint. No ERP endpoint, live customer account, finance journal, inventory row, production database, secret or deployment was used.
+- New exact-head P1/P2 and dedicated PG17 acceptance is required; earlier CI results are not transferable.
