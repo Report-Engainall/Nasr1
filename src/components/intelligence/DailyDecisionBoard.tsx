@@ -33,6 +33,15 @@ const steps: Array<{ state: DecisionMemoryRecord["state"]; label: string }> = [
   { state: "MEASURED", label: "قياس" },
 ];
 
+function metricSearchText(metric: DecisionMemoryMetricResult | null): string {
+  if (!metric) return "";
+  return [
+    metric.metricKey, metric.value, metric.unit, metric.currency ?? "",
+    metric.unitOfMeasure ?? "", metric.period.from, metric.period.to, metric.asOf,
+    metric.formulaId, metric.formulaVersion, metric.evidenceIds.join(" "),
+  ].join(" ");
+}
+
 function metricValue(metric: DecisionMemoryMetricResult | null): string {
   if (!metric) return "غير متاح من المصدر";
   const amount = new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 2 }).format(metric.value);
@@ -96,6 +105,7 @@ export function filterDailyDecisionRecords(
       record.problem ?? "", record.actionTaken ?? "", record.reviewAt ?? "",
       candidate?.what ?? "", candidate?.why ?? "", candidate?.risk ?? "",
       candidate?.whatNext ?? "", candidate?.expectedOutcome ?? "",
+      metricSearchText(record.metricComparison.expected), metricSearchText(record.metricComparison.actual),
       record.events.map(event => [event.type, event.actorRole, event.reason ?? ""].join(" ")).join(" "),
       record.facts.map(item => item.text + " " + item.evidenceIds.join(" ")).join(" "),
       record.hypotheses.map(item => item.text + " " + item.evidenceIds.join(" ")).join(" "),

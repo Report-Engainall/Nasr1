@@ -105,6 +105,44 @@ describe("daily decision queue search and filters", () => {
     }, now)).toEqual([record]);
   });
 
+  it("searches measured results by metric, amount, period, formula and evidence reference", () => {
+    const actual = {
+      metricKey: "receivables.customer_overdue",
+      value: 420,
+      unit: "CURRENCY" as const,
+      currency: "YER",
+      unitOfMeasure: null,
+      period: { from: "2026-11-01", to: "2026-11-27" },
+      asOf: "2026-11-28T00:00:00.000Z",
+      formulaId: "receivables.customer-aging",
+      formulaVersion: "1.2.0",
+      evidenceIds: ["invoice:late-01", "allocation:partial-02"],
+    };
+    const record = decision({
+      decisionId: "measured-receivables",
+      state: "MEASURED",
+      metricComparison: {
+        status: "WITHHELD",
+        expected: null,
+        actual,
+        difference: null,
+        differencePercent: null,
+        reason: "لا يوجد خط أساس متوافق",
+      },
+    });
+
+    for (const searchText of [
+      "receivables.customer_overdue",
+      "420 YER",
+      "invoice:late-01",
+      "allocation:partial-02",
+      "receivables.customer-aging",
+      "2026-11-01",
+    ]) {
+      expect(filterDailyDecisionRecords([record], { ...allFilters, searchText }, now)).toEqual([record]);
+    }
+  });
+
   it("filters by exact state and only saved priorities, preserving unranked legacy decisions", () => {
     const proposed = decision({ decisionId: "proposed", state: "PROPOSED" });
     const inReview = decision({ decisionId: "review", state: "IN_REVIEW", candidateSnapshot: null });
