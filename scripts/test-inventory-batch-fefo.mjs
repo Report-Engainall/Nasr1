@@ -794,6 +794,7 @@ async function main(){
  assert.ok(negativePeerIncomplete,"negative-net order must appear as incomplete reservation");
  assert.equal(negativePeerIncomplete.lines[0].reservation_batch_ledger_matches,false);
  assert.equal(negativePeerIncomplete.lines[0].reservation_balance_ledger_matches,false);
+ await db.unsafe("reset role");
  const negativePeerBatchBefore=(await db.unsafe(
   "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]
  ))[0];
@@ -805,6 +806,7 @@ async function main(){
   "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=ANY($1::uuid[]) and movement_type in ('reserve','release_reservation')",
   [[ledgerOrderA,ledgerOrderB]]
  ))[0].count;
+ await as(manager);
  await assert.rejects(
   ()=>status(manager,ledgerOrderA,"shipped"),
   error=>String(error?.code)==="40001" && String(error?.message).includes("negative active order reservation movement ledger"),
@@ -827,6 +829,7 @@ async function main(){
   error=>String(error?.code)==="40001" && String(error?.message).includes("negative active order reservation movement ledger"),
   "FEFO reallocation must reject negative net on any active peer order before releasing source stock"
  );
+ await db.unsafe("reset role");
  const negativePeerBatchAfter=(await db.unsafe(
   "select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]
  ))[0];
@@ -978,6 +981,7 @@ async function main(){
  assert.ok(aggregateOnlyIncomplete);
  assert.equal(aggregateOnlyIncomplete.lines[0].reservation_batch_ledger_matches,true);
  assert.equal(aggregateOnlyIncomplete.lines[0].reservation_balance_ledger_matches,false);
+ await db.unsafe("reset role");
  const balanceBeforeAggregateOnlyReject=(await db.unsafe(
   "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
   [product,warehouse],
@@ -986,6 +990,7 @@ async function main(){
   "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
   [ledgerOrderA],
  ))[0].count;
+ await as(manager);
  await assert.rejects(
   () => rpc(
    "select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
@@ -994,6 +999,7 @@ async function main(){
   error => String(error?.code)==="40001" && String(error?.message).includes("aggregate reserved quantity differs"),
   "reallocation must reject aggregate-only reserved-counter under-reporting before the source lot is released",
  );
+ await db.unsafe("reset role");
  const balanceAfterAggregateOnlyReject=(await db.unsafe(
   "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
   [product,warehouse],
@@ -1025,6 +1031,7 @@ async function main(){
  await withReservationLedgerDriftFixture(async()=>{
   await db.unsafe("update public.inventory_batches set quantity_reserved=quantity_reserved+1 where id=$1::uuid",[ledgerBatchId]);
  });
+ await as(manager);
  const batchOverExpired=(await rpc("select public.list_orders_with_expired_fefo_reservations(50,0) result"))
   .orders.find(value=>value.order_id===ledgerOrderA);
  assert.ok(batchOverExpired);
@@ -1035,17 +1042,20 @@ async function main(){
  assert.ok(batchOverIncomplete);
  assert.equal(batchOverIncomplete.lines[0].reservation_batch_ledger_matches,false);
  assert.equal(batchOverIncomplete.lines[0].reservation_balance_ledger_matches,true);
+ await db.unsafe("reset role");
  const batchOverBefore=(await db.unsafe("select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]))[0];
  const batchOverMovementsBefore=(await db.unsafe(
   "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
   [ledgerOrderA]
  ))[0].count;
+ await as(manager);
  await assert.rejects(
   ()=>rpc("select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
    [ledgerOrderA,"fefo-batch-over-"+randomUUID().replaceAll("-",""),"Reject over-reported batch counter"]),
   error=>String(error?.code)==="40001" && String(error?.message).includes("batch reserved quantity differs"),
   "reallocation must reject an over-reported batch counter before releasing an expired reservation"
  );
+ await db.unsafe("reset role");
  const batchOverAfter=(await db.unsafe("select quantity_reserved::text reserved from public.inventory_batches where id=$1::uuid",[ledgerBatchId]))[0];
  const batchOverMovementsAfter=(await db.unsafe(
   "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
@@ -1065,6 +1075,7 @@ async function main(){
    [product,warehouse]
   );
  });
+ await as(manager);
  const balanceOverExpired=(await rpc("select public.list_orders_with_expired_fefo_reservations(50,0) result"))
   .orders.find(value=>value.order_id===ledgerOrderA);
  assert.ok(balanceOverExpired);
@@ -1075,6 +1086,7 @@ async function main(){
  assert.ok(balanceOverIncomplete);
  assert.equal(balanceOverIncomplete.lines[0].reservation_batch_ledger_matches,true);
  assert.equal(balanceOverIncomplete.lines[0].reservation_balance_ledger_matches,false);
+ await db.unsafe("reset role");
  const balanceOverBefore=(await db.unsafe(
   "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
   [product,warehouse]
@@ -1083,12 +1095,14 @@ async function main(){
   "select count(*)::integer count from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type in ('reserve','release_reservation')",
   [ledgerOrderA]
  ))[0].count;
+ await as(manager);
  await assert.rejects(
   ()=>rpc("select public.reallocate_expired_order_reservations($1::uuid,$2::text,$3::text) result",
    [ledgerOrderA,"fefo-balance-over-"+randomUUID().replaceAll("-",""),"Reject over-reported warehouse aggregate"]),
   error=>String(error?.code)==="40001" && String(error?.message).includes("aggregate reserved quantity differs"),
   "reallocation must reject an over-reported warehouse counter before releasing an expired reservation"
  );
+ await db.unsafe("reset role");
  const balanceOverAfter=(await db.unsafe(
   "select quantity_reserved::text reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
   [product,warehouse]
