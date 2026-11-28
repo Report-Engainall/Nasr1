@@ -143,8 +143,8 @@ export function summarizeDecisionMemoryPrecedents(
 
 function decisionMemoryCsvCell(value: string | number | null | undefined): string {
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
-  const text = String(value ?? "").replace(/\\r\\n?/g, "\\n");
-  const protectedText = /^[\\s\\u0000-\\u001F]*[=+\\-@]/.test(text) ? "'" + text : text;
+  const text = String(value ?? "").replace(/\r\n?/g, "\n");
+  const protectedText = /^[\s\u0000-\u001F]*[=+\-@]/.test(text) ? "'" + text : text;
   return "\"" + protectedText.replace(/"/g, '""') + "\"";
 }
 
@@ -236,7 +236,7 @@ export function buildDecisionMemoryPrecedentCsv(input: {
       coverageNotice,
     ].map(decisionMemoryCsvCell).join(",");
   });
-  return "\\uFEFF" + [headers.map(decisionMemoryCsvCell).join(","), ...rows].join("\\r\\n");
+  return "\uFEFF" + [headers.map(decisionMemoryCsvCell).join(","), ...rows].join("\r\n");
 }
 
 const decisionSearchStopwords = new Set([
