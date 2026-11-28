@@ -2046,7 +2046,7 @@ describe("customer quote workspace tenant boundary", () => {
     expect(sourceReads).toBe(3);
     expect(statementReads).toBe(1);
     expect(host?.textContent).not.toContain("INV-FOREGROUND-PAYMENT-STALE");
-    expect(host?.textContent).toContain("لا تتوفر قراءة مصرح بها لمصدر الحساب");
+    expect(host?.textContent).toContain("مصدر الحساب المحدد: المتكامل.");
     expect(host?.querySelector('[aria-label="ترقيم سندات قبض العميل"]')).toBeNull();
   });
 
