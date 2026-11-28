@@ -55,7 +55,7 @@ export type DailyDecisionDueFilter = "ALL" | "OVERDUE" | "DUE_24H" | "DUE_7_DAYS
 export interface DailyDecisionFilters {
   searchText: string;
   state: DailyDecisionStateFilter;
-  owner: string;
+  owner?: string;
   priority: DailyDecisionPriorityFilter;
   due: DailyDecisionDueFilter;
 }
@@ -81,7 +81,8 @@ export function filterDailyDecisionRecords(
   const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
   return records.filter(record => {
     if (filters.state !== "ALL" && record.state !== filters.state) return false;
-    if (filters.owner !== "ALL" && (record.owner.trim() || "غير معيّن") !== filters.owner) return false;
+    if ((filters.owner ?? "ALL") !== "ALL" &&
+        (record.owner.trim() || "غير معيّن") !== filters.owner) return false;
     const savedPriority = record.candidateSnapshot?.priority ?? null;
     if (filters.priority === "UNRANKED" && savedPriority !== null) return false;
     if (filters.priority !== "ALL" && filters.priority !== "UNRANKED" && savedPriority !== filters.priority) return false;
