@@ -509,6 +509,42 @@ describe("decision memory evidence engine", () => {
     expect(matches[0].contextDifferences).toContain("خط الأساس المتوقع: " + reason);
   });
 
+  it("withholds comparison when the decision rule version differs", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    if (!older) throw new Error("older precedent fixture missing");
+    older.ruleVersion = "2.0.0";
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("NOT_COMPARABLE");
+    expect(matches[0].contextDifferences).toContain("إصدار قاعدة القرار مختلف أو غير محدد");
+    expect(filterDecisionMemoryPrecedents(matches, "SAME_RULE")).toHaveLength(1);
+  });
+
+  it("withholds comparison when a precedent uses a different decision rule", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    const target = records.find(record => record.decisionId === "target-decision");
+    if (!older || !target) throw new Error("precedent fixtures missing");
+    older.ruleId = "different-decision-rule";
+    older.proposedResult = target.proposedResult;
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("NOT_COMPARABLE");
+    expect(matches[0].contextDifferences).toContain("قاعدة القرار مختلفة أو غير محددة");
+    expect(filterDecisionMemoryPrecedents(matches, "SAME_RULE")).toHaveLength(0);
+  });
+
   it("does not call a precedent comparable when either expected metric is missing", () => {
     const records = precedentSearchRecords();
     const older = records.find(record => record.decisionId === "older-decision");
@@ -561,6 +597,7 @@ describe("decision memory evidence engine", () => {
     });
     expect(filterDecisionMemoryPrecedents(mixed, "NOT_COMPARABLE")).toHaveLength(1);
     expect(filterDecisionMemoryPrecedents(mixed, "OUTCOME_UNVERIFIED")).toHaveLength(1);
+    expect(filterDecisionMemoryPrecedents(mixed, "SAME_RULE")).toHaveLength(4);
     expect(filterDecisionMemoryPrecedents(mixed, "ALL")).toHaveLength(4);
     expect(mixed).toHaveLength(4);
   });
