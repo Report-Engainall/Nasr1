@@ -7,9 +7,23 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 ## Current source pointers
 - Latest observed main HEAD: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only execution directive refresh).
 - Latest code-bearing main SHA recorded in the shared execution state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
-- Latest P2 code/test head before this checkpoint update: `181acdf7410f4b57557b2f2b7a2afa5b3d2b1458`. Do not describe CI as accepted until the exact-head jobs below become terminal SUCCESS.
+- Latest P2 code/test head before this checkpoint refresh: `cb0c21defb647595ff9b1519dfb4d7a879d210bc`. This exact code/test content is now included in the updated PR head; no CI PASS is carried forward from earlier SHAs.
 - PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
 - No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
+
+
+## Return-credit journal source boundary extension — 2026-11-28
+
+- Current PR head when this checkpoint refresh began: `07be63007c0f5bce231e0bb8c7a909e5b73f8029`; base `main`: `12b0db37a97128a19073f907ba12fb700251802b`. PR #697 remains Draft and mergeable; P2 has not merged it.
+- Added `assert_customer_app_only_credit_memo_journal_source(uuid,text,text)` and BEFORE INSERT/UPDATE/DELETE triggers on `accounting_journal_entries` and `accounting_journal_lines`. The helper resolves original `customer_return_credit_memo` references and the reversal `adjustment` reference prefix to the owning credit memo, then uses the existing APP_ONLY source-binding lock. It returns false only for unrelated journal source types.
+- Journal header source identity is immutable once source-linked; a caller cannot detach a credit-memo journal by rewriting `source_type`/`source_reference`. Journal lines cannot move away from their source-bound parent. All source-linked header and line writes, including deletes and attempts to post by updating status, fail closed unless the customer's server-selected binding is active APP_ONLY.
+- Journal-line parent lookups now use `FOR SHARE` before source resolution. This serializes line insertion/update/delete with concurrent header changes; the helper then locks the parent memo and financial-source binding for the remainder of the transaction.
+- Added real local acceptance fixtures: a return request, draft return-credit memo, journal header and journal line using the receipt/return seeder's explicit `E2E_RETURN_RECEIVABLE_ACCOUNT_ID` (not an arbitrary account lookup). Assertions verify ONYX and MUTAKAMEL deny header/line writes with SQLSTATE `55000`, the persisted source/header/line projections remain unchanged, and the source binding cannot be upgraded to `FOR UPDATE NOWAIT` while an APP_ONLY journal-line write is in flight.
+- After maker/checker restores APP_ONLY, acceptance verifies legitimate header/line updates work again and a source-linked journal cannot be detached from its immutable source identity. The identity-detachment assertion runs under APP_ONLY so it proves the immutability guard itself rather than merely the external-source guard.
+- The existing `p2-playwright-critical-paths.yml` local PostgreSQL 17 job already invokes `scripts/test-customer-financial-source-routing.mjs` exactly once after `seed-p2-local-playwright.mjs`; the acceptance script reads the seeder's run-scoped receivables account ID from `GITHUB_ENV`. No duplicate step remains.
+- Relevant source/test commits: migration + journal guards `3bff3b2a44143ee81098c128c2ea5539ca765c2e`, concurrency-lock follow-up `c386d9cac92f4b80f881743cbdee803a2caf6b73`; source test + fixture follow-ups `896b216b98c19611f16aab04a2278e9d64c34f06`, `f5268ee9f0ccf83d5245048059d267b8ce671a90`, and final assertion correction `cb0c21defb647595ff9b1519dfb4d7a879d210bc`. API/OPS contract was updated in commit `07be63007c0f5bce231e0bb8c7a909e5b73f8029`.
+- Static JavaScript parsing of the current P2 acceptance script succeeded after stripping its ESM imports/top-level invocation. This is only a syntax check, not a PostgreSQL run. The local execution container has no `psql` or Docker daemon and cannot resolve raw GitHub, so it did not run the migration or test.
+- Exact-head CI status: workflow run `46086630986` checked out superseded SHA `896b216b98c19611f16aab04a2278e9d64c34f06` and ended `CANCELLED`; it is not acceptance evidence. The current PR head at checkpoint refresh (`07be6300...`) had no Actions run or commit status returned at inspection. PostgreSQL 17, P2 and browser acceptance therefore remain NOT PROVEN; no PASS is claimed.
 
 ## Implemented P2 contract
 - One source binding per organization/customer: `APP_ONLY`, `ONYX`, or `MUTAKAMEL`. Existing/new customers are assigned APP_ONLY without inventing opening balances.
@@ -65,7 +79,7 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 - Release remains NO-GO until the complete business path, authorized external transport, required security/finance/inventory gates, post-merge checks and runtime verification are proven.
 
 ## Immediate next action
-Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2`; treat every queued, running or skipped job as non-success. Require isolated PostgreSQL 17 migration plus Customer financial source routing PostgreSQL 17 acceptance PASS, P2 critical paths, P1/admin verification, public Chromium and infrastructure checks. Fix only failures reproduced on the current head; after any migration/test change, rerun acceptance on the resulting exact SHA. P1 owns final integration and merge; P2 must not merge or deploy.
+Fetch the exact-head workflow runs for the final PR #697 head after this checkpoint commit; require the isolated local PostgreSQL 17 financial-source script, P2 local Supabase acceptance and applicable browser gates to finish terminal SUCCESS on that same SHA. The current status is unproven; do not transfer `CANCELLED`, `QUEUED`, `SKIPPED` or prior-SHA results. P1 owns final integration and merge; P2 must not merge or deploy.
 
 ## Latest result-first execution — 2026-11-28
 
