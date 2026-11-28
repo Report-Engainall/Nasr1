@@ -122,6 +122,43 @@ describe("CustomerServicePortal financial service requests", () => {
     expect(mocks.createCase).not.toHaveBeenCalled();
   });
 
+  it("creates a document-review service case from a validated external statement deep link", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/service-cases?request=document_review&document=INV-001&reference=JV-001&currency=YER&type=invoice",
+    );
+    const user = userEvent.setup();
+    render(<CustomerServicePortal />);
+
+    expect(await screen.findByText(/طلب مراجعة المستند المحدد: INV-001/)).toBeInTheDocument();
+    expect(screen.getByLabelText("موضوع الحالة")).toHaveValue("طلب مراجعة المستند INV-001");
+    await user.click(screen.getByRole("button", { name: "إرسال الطلب المالي" }));
+
+    await waitFor(() => expect(mocks.createCase).toHaveBeenCalledTimes(1));
+    expect(mocks.createCase).toHaveBeenCalledWith(expect.objectContaining({
+      caseType: "service_request",
+      subject: "طلب مراجعة المستند INV-001",
+      description: expect.stringContaining("المستند المحدد: INV-001\nمرجع الحركة: JV-001\nالعملة: YER\nنوع الحركة: فاتورة"),
+    }));
+    expect(mocks.createCase.mock.calls[0][0].description).toContain("لا يغيّر هذا الطلب الرصيد");
+  });
+
+  it("rejects malformed or oversized document-review deep links without creating a financial request", async () => {
+    const oversizedDocument = "INV-" + "X".repeat(110);
+    window.history.replaceState(
+      {},
+      "",
+      "/service-cases?request=document_review&document=" + oversizedDocument + "&reference=JV-001&currency=YER&type=invoice",
+    );
+    render(<CustomerServicePortal />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("رابط مراجعة المستند غير صالح أو ناقص");
+    expect(screen.getByLabelText("موضوع الحالة")).toHaveValue("");
+    expect(screen.queryByText(/طلب مراجعة المستند المحدد:/)).not.toBeInTheDocument();
+    expect(mocks.createCase).not.toHaveBeenCalled();
+  });
+
   it("does not expose financial request creation without the existing service-case permission", async () => {
     mocks.fetchContext.mockResolvedValue({ ...customerContext, canCreate: false });
     render(<CustomerServicePortal />);

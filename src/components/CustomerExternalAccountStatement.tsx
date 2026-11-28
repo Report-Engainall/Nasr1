@@ -8,6 +8,20 @@ type Props = { statement: CustomerExternalStatement };
 
 const providerLabels = { ONYX: "Onyx Pro", MUTAKAMEL: "المتكامل" } as const;
 
+function documentReviewHref(
+  entry: CustomerExternalStatement["currencies"][number]["entries"][number],
+  currencyCode: string,
+): string {
+  const params = new URLSearchParams({
+    request: "document_review",
+    document: entry.source_document_number?.trim() || entry.entry_reference,
+    reference: entry.entry_reference,
+    currency: currencyCode,
+    type: entry.entry_type,
+  });
+  return "/service-cases?" + params.toString();
+}
+
 export function CustomerExternalAccountStatement({ statement }: Props) {
   const totalEntries = statement.currencies.reduce((sum, currency) => sum + currency.entry_count, 0);
   return (
@@ -74,7 +88,19 @@ export function CustomerExternalAccountStatement({ statement }: Props) {
                   <tr key={entry.entry_reference + ":" + index} style={{ borderTop: "1px solid #edf2f3" }}>
                     <td style={{ padding: 10, whiteSpace: "nowrap" }}>{entry.entry_date}</td>
                     <td><strong>{entry.entry_reference}</strong></td>
-                    <td>{entry.source_document_number ?? "—"}</td>
+                    <td>
+                      <div style={{ display: "grid", justifyItems: "start", gap: 5 }}>
+                        <span>{entry.source_document_number ?? "—"}</span>
+                        <a
+                          className="btn secondary"
+                          href={documentReviewHref(entry, currency.currency_code)}
+                          aria-label={"طلب مراجعة الحركة " + (entry.source_document_number ?? entry.entry_reference)}
+                          style={{ textDecoration: "none", fontSize: 12, padding: "4px 8px" }}
+                        >
+                          طلب مراجعة الحركة
+                        </a>
+                      </div>
+                    </td>
                     <td>{customerExternalStatementEntryTypeLabel(entry.entry_type)}</td>
                     <td>{entry.due_date ?? "—"}</td>
                     <td>{formatCustomerExternalStatementAmount(entry.debit_amount, currency.currency_code)}</td>

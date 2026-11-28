@@ -66,6 +66,19 @@ describe("customer external account statement workspace", () => {
     expect(screen.getByText("INV-001")).toBeInTheDocument();
     expect(screen.queryByText(/دفتر متجر الأغبري الكامل/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/الرصيد الختامي/)).toHaveLength(2);
+    const reviewLinks = screen.getAllByRole("link", { name: /طلب مراجعة الحركة/ });
+    expect(reviewLinks).toHaveLength(2);
+    const yerReview = new URL(reviewLinks[0].getAttribute("href") ?? "", "http://localhost");
+    expect(yerReview.pathname).toBe("/service-cases");
+    expect(yerReview.searchParams.get("request")).toBe("document_review");
+    expect(yerReview.searchParams.get("document")).toBe("INV-001");
+    expect(yerReview.searchParams.get("reference")).toBe("JV-001");
+    expect(yerReview.searchParams.get("currency")).toBe("YER");
+    expect(yerReview.searchParams.get("type")).toBe("invoice");
+    const usdReview = new URL(reviewLinks[1].getAttribute("href") ?? "", "http://localhost");
+    expect(usdReview.searchParams.get("document")).toBe("JV-USD-001");
+    expect(usdReview.searchParams.get("currency")).toBe("USD");
+    expect(usdReview.searchParams.get("type")).toBe("opening_balance");
   });
 
   it("labels capped details while preserving server totals and closing balance", () => {

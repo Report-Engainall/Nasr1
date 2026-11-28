@@ -186,3 +186,18 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Added a route regression with a valid APP_ONLY invoice/payment projection followed by a server-side APP_ONLY-to-MUTAKAMEL change at XLSX preflight. It asserts the previous invoice reference and amount disappear and the workbook builder is never called.
 - This regression is authored and requires terminal P1 Vitest/strict TypeScript and P2 Playwright on the final current PR SHA; no pass is inferred from a previous or pending head.
 - No database/schema, financial posting, stock update, production access, live ERP call, secret, deployment or paid service was added.
+
+
+## P1 follow-up — external statement entry to customer document-review case (2026-11-28)
+
+- Added a direct customer action to every approved external statement entry: open the existing service portal with the source document number (or entry reference when no document number exists), entry reference, currency and approved entry type prefilled.
+- The service portal accepts only the existing allowlisted statement entry types, three-uppercase-letter currency code, non-empty printable document/reference values up to 100 characters each. Malformed or oversized deep links are rejected visibly and do not create a financial request.
+- The server-side customer-scoped service-case RPC remains the only create path; organization/customer identity and permissions remain derived by the server. The payload is a review request only and explicitly states it does not change balances, create a payment or post an accounting journal. It does not expose additional ERP rows or account identifiers.
+- Added UI tests for YER/USD document references, reference fallback for opening-balance rows, deep-link prefill and creation, and malformed/oversized-link rejection. Tests are authored; exact-head CI is still required and no PASS is claimed.
+- Changed paths: src/components/CustomerExternalAccountStatement.tsx, paired component test, src/components/CustomerServicePortal.tsx, paired portal test. No migration, financial/inventory write, production access, live ERP call, secret, deployment or paid service.
+
+### Acceptance boundary
+
+- Exact document/reference/currency/type must survive the route handoff without becoming an authorization input; the server continues to derive customer, company and create permission.
+- Invalid parameters must not preselect a document-review intent. This flow creates only a service case; it must never post a journal or perform an invoice/payment mutation.
+- The new regression cases require terminal P1 Vitest/strict TypeScript and applicable P2 browser acceptance on the same final branch SHA.
