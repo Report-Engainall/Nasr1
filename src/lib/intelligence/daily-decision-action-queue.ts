@@ -24,8 +24,6 @@ export interface DailyDecisionActionQueuePage<T> {
   countsByPriority: Record<DecisionPriority, number>;
 }
 
-const priorities: DecisionPriority[] = ["P0", "P1", "P2", "P3"];
-
 /** Normalize Arabic text for merchant search without changing the source snapshot. */
 export function normalizeDailyDecisionActionSearch(value: string): string {
   return value

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, vi } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DailyDecisionActionQueue } from "./DailyDecisionActionQueue";
 import type { DailyDecisionActionEnvelope } from "@/lib/intelligence/daily-decisions";
