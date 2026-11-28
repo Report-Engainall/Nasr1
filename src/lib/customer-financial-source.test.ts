@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
-import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
+import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
 const appOnly = { source_mode:"APP_ONLY", source_status:"active", source_as_of:null, last_synced_at:null, verified_at:null, revision:1, is_stale:false, can_read_app_ledger:true };
 describe("customer financial source contract", () => {
   it("allows the app ledger only when the server confirms APP_ONLY and active status", () => {
@@ -204,5 +204,105 @@ describe("customer financial source export revalidation", () => {
   it("blocks export when the source resolver becomes unavailable", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "resolver unavailable" } });
     await expect(revalidateMyCustomerFinancialSource(parseCustomerFinancialSource(appOnly))).rejects.toThrow();
+  });
+});
+
+
+describe("customer financial source change requests", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+
+  const customerId = "11111111-1111-4111-8111-111111111111";
+  const idempotencyKey = "customer360_12345678901234567890";
+
+  it("submits a scoped Onyx cutover request with exact revision and all three ERP identities", async () => {
+    const requestId = "33333333-3333-4333-8333-333333333333";
+    mocks.rpc.mockResolvedValue({
+      data: { request_id: requestId, status: "pending_reconciliation", replayed: false, target_source_mode: "ONYX" },
+      error: null,
+    });
+    const result = await requestCustomerFinancialSourceChange({
+      customerId,
+      targetSourceMode: "ONYX",
+      externalAccountRef: "ONYX-CUST-0001",
+      companyExternalRef: "ONYX-COMPANY-01",
+      branchExternalRef: "ONYX-BRANCH-01",
+      reason: "توحيد حساب العميل مع سجل Onyx Pro",
+      idempotencyKey,
+      expectedBindingRevision: 4,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("request_customer_financial_source_change", {
+      p_customer_id: customerId,
+      p_target_source_mode: "ONYX",
+      p_target_external_account_ref: "ONYX-CUST-0001",
+      p_reason: "توحيد حساب العميل مع سجل Onyx Pro",
+      p_idempotency_key: idempotencyKey,
+      p_expected_binding_revision: 4,
+      p_target_company_external_ref: "ONYX-COMPANY-01",
+      p_target_branch_external_ref: "ONYX-BRANCH-01",
+    });
+    expect(result).toEqual({
+      request_id: requestId,
+      status: "pending_reconciliation",
+      replayed: false,
+      changed: true,
+    });
+  });
+
+  it("sends APP_ONLY requests without ERP identity references", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { request_id: "44444444-4444-4444-8444-444444444444", status: "pending_reconciliation", replayed: false },
+      error: null,
+    });
+    const result = await requestCustomerFinancialSourceChange({
+      customerId,
+      targetSourceMode: "APP_ONLY",
+      externalAccountRef: null,
+      companyExternalRef: null,
+      branchExternalRef: null,
+      reason: "إعادة الدفتر الداخلي بعد اكتمال المطابقة",
+      idempotencyKey,
+      expectedBindingRevision: 8,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("request_customer_financial_source_change", expect.objectContaining({
+      p_target_source_mode: "APP_ONLY",
+      p_target_external_account_ref: null,
+      p_target_company_external_ref: null,
+      p_target_branch_external_ref: null,
+    }));
+    expect(result.changed).toBe(true);
+  });
+
+  it("rejects missing or unsafe ERP identity before issuing the RPC", async () => {
+    await expect(requestCustomerFinancialSourceChange({
+      customerId, targetSourceMode: "MUTAKAMEL", externalAccountRef: "MUT-C-1",
+      companyExternalRef: "https://invalid.example", branchExternalRef: "MUT-B-1",
+      reason: "ربط الحساب مع نظام المتكامل", idempotencyKey, expectedBindingRevision: 1,
+    })).rejects.toThrow(/غير آمن/);
+    await expect(requestCustomerFinancialSourceChange({
+      customerId, targetSourceMode: "ONYX", externalAccountRef: "ONYX-C-1",
+      companyExternalRef: "ONYX-CO-1", reason: "ربط الحساب مع Onyx Pro",
+      idempotencyKey, expectedBindingRevision: 1,
+    })).rejects.toThrow(/الشركة والفرع/);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects stale or incomplete request metadata and malformed server responses", async () => {
+    await expect(requestCustomerFinancialSourceChange({
+      customerId, targetSourceMode: "APP_ONLY", reason: "رجوع",
+      idempotencyKey, expectedBindingRevision: 0,
+    })).rejects.toThrow(/غير مكتملة/);
+    mocks.rpc.mockResolvedValue({ data: { request_id: "not-a-uuid", status: "pending_reconciliation", replayed: false }, error: null });
+    await expect(requestCustomerFinancialSourceChange({
+      customerId, targetSourceMode: "APP_ONLY", reason: "إعادة الدفتر الداخلي",
+      idempotencyKey, expectedBindingRevision: 2,
+    })).rejects.toThrow(/حالة موثوقة/);
+  });
+
+  it("does not report success when the server rejects a request", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "permission denied" } });
+    await expect(requestCustomerFinancialSourceChange({
+      customerId, targetSourceMode: "APP_ONLY", reason: "إعادة الدفتر الداخلي",
+      idempotencyKey, expectedBindingRevision: 2,
+    })).rejects.toThrow(/تعذر إنشاء طلب تغيير/);
   });
 });

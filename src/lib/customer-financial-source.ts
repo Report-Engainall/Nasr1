@@ -114,6 +114,100 @@ export async function fetchStaffCustomerFinancialSource(customerId: string): Pro
 }
 
 
+
+export type CustomerFinancialSourceChangeRequestResult = {
+  request_id: string | null;
+  status: "pending_reconciliation" | "pending_approval" | "approved" | "rejected" | "cancelled" | "unchanged";
+  replayed: boolean;
+  changed: boolean;
+};
+
+export type CustomerFinancialSourceChangeRequestInput = {
+  customerId: string;
+  targetSourceMode: CustomerFinancialSourceMode;
+  externalAccountRef?: string | null;
+  companyExternalRef?: string | null;
+  branchExternalRef?: string | null;
+  reason: string;
+  idempotencyKey: string;
+  expectedBindingRevision: number;
+};
+
+const requestStatuses = new Set([
+  "pending_reconciliation",
+  "pending_approval",
+  "approved",
+  "rejected",
+  "cancelled",
+]);
+
+export async function requestCustomerFinancialSourceChange(
+  input: CustomerFinancialSourceChangeRequestInput,
+): Promise<CustomerFinancialSourceChangeRequestResult> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.customerId) ||
+      !Number.isSafeInteger(input.expectedBindingRevision) || input.expectedBindingRevision < 1 ||
+      input.reason.trim().length < 5 || input.reason.trim().length > 500 ||
+      input.idempotencyKey.trim().length < 16 || input.idempotencyKey.trim().length > 128 ||
+      !["APP_ONLY", "ONYX", "MUTAKAMEL"].includes(input.targetSourceMode)) {
+    throw new Error("بيانات طلب تغيير مصدر الحساب غير مكتملة أو غير صالحة.");
+  }
+
+  let externalAccountRef: string | null = null;
+  let companyExternalRef: string | null = null;
+  let branchExternalRef: string | null = null;
+  if (input.targetSourceMode === "APP_ONLY") {
+    if ([input.externalAccountRef, input.companyExternalRef, input.branchExternalRef]
+      .some((value) => typeof value === "string" && value.trim().length > 0)) {
+      throw new Error("لا ترسل مراجع ERP عند طلب العودة إلى دفتر التطبيق.");
+    }
+  } else {
+    externalAccountRef = parseExternalReference(input.externalAccountRef, "external_account_ref", 160);
+    companyExternalRef = parseExternalReference(input.companyExternalRef, "company_external_ref", 256);
+    branchExternalRef = parseExternalReference(input.branchExternalRef, "branch_external_ref", 256);
+    if (!externalAccountRef || !companyExternalRef || !branchExternalRef) {
+      throw new Error("يتطلب مصدر ERP معرف حساب العميل والشركة والفرع.");
+    }
+  }
+
+  const { data, error } = await supabase.rpc("request_customer_financial_source_change", {
+    p_customer_id: input.customerId,
+    p_target_source_mode: input.targetSourceMode,
+    p_target_external_account_ref: externalAccountRef,
+    p_reason: input.reason.trim(),
+    p_idempotency_key: input.idempotencyKey.trim(),
+    p_expected_binding_revision: input.expectedBindingRevision,
+    p_target_company_external_ref: companyExternalRef,
+    p_target_branch_external_ref: branchExternalRef,
+  });
+  if (error) {
+    throw new Error("تعذر إنشاء طلب تغيير مصدر الحساب. تحقق من صلاحية طلب التغيير ومن حالة ربط العميل ثم أعد المحاولة.");
+  }
+
+  const row = asRecord(data);
+  if (!row || typeof row.replayed !== "boolean") {
+    throw new Error("استجابة طلب تغيير مصدر الحساب غير صالحة.");
+  }
+  if (row.changed === false) {
+    if (row.source_mode !== input.targetSourceMode ||
+        typeof row.revision !== "number" || row.revision !== input.expectedBindingRevision) {
+      throw new Error("تغير ربط مصدر الحساب أثناء الطلب؛ أعد تحميل ملف العميل.");
+    }
+    return { request_id: null, status: "unchanged", replayed: false, changed: false };
+  }
+
+  if (typeof row.request_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.request_id) ||
+      typeof row.status !== "string" || !requestStatuses.has(row.status)) {
+    throw new Error("لم يُرجع الخادم حالة موثوقة لطلب تغيير مصدر الحساب.");
+  }
+  return {
+    request_id: row.request_id,
+    status: row.status as CustomerFinancialSourceChangeRequestResult["status"],
+    replayed: row.replayed,
+    changed: true,
+  };
+}
+
 /**
  * Bind one customer ledger response to the same server-selected financial-source
  * revision that authorized its request. Revisions are monotonic across cutovers.

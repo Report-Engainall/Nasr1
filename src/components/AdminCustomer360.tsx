@@ -17,7 +17,7 @@ import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retent
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
 import { CustomerAssetsPanel } from '@/components/CustomerAssetsPanel';
 import { CustomerFinancialSourceNotice } from '@/components/CustomerFinancialSourceNotice';
-import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, type CustomerFinancialSource } from '@/lib/customer-financial-source';
+import { canReadCustomerAppLedger, fetchStaffCustomerFinancialSource, requestCustomerFinancialSourceChange, type CustomerFinancialSource, type CustomerFinancialSourceMode } from '@/lib/customer-financial-source';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -857,6 +857,156 @@ function Customer360Interactions({
   );
 }
 
+
+function CustomerFinancialSourceChangeRequestPanel({
+  customerId,
+  source,
+}: {
+  customerId: string;
+  source: CustomerFinancialSource;
+}) {
+  const [targetMode, setTargetMode] = useState<CustomerFinancialSourceMode>(
+    source.source_mode === "APP_ONLY" ? "ONYX" : source.source_mode,
+  );
+  const [accountRef, setAccountRef] = useState(source.external_account_ref ?? "");
+  const [companyRef, setCompanyRef] = useState(source.company_external_ref ?? "");
+  const [branchRef, setBranchRef] = useState(source.branch_external_ref ?? "");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createCustomerInteractionIdempotencyKey());
+
+  useEffect(() => {
+    setTargetMode(source.source_mode === "APP_ONLY" ? "ONYX" : source.source_mode);
+    setAccountRef(source.external_account_ref ?? "");
+    setCompanyRef(source.company_external_ref ?? "");
+    setBranchRef(source.branch_external_ref ?? "");
+    setReason("");
+    setError("");
+    setNotice("");
+    setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+  }, [
+    customerId,
+    source.revision,
+    source.source_mode,
+    source.external_account_ref,
+    source.company_external_ref,
+    source.branch_external_ref,
+  ]);
+
+  const isExternalTarget = targetMode !== "APP_ONLY";
+  const requestReady = reason.trim().length >= 5 &&
+    (!isExternalTarget || Boolean(accountRef.trim() && companyRef.trim() && branchRef.trim()));
+
+  function resetIdempotency() {
+    setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+    setNotice("");
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!requestReady || saving) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await requestCustomerFinancialSourceChange({
+        customerId,
+        targetSourceMode: targetMode,
+        externalAccountRef: isExternalTarget ? accountRef : null,
+        companyExternalRef: isExternalTarget ? companyRef : null,
+        branchExternalRef: isExternalTarget ? branchRef : null,
+        reason,
+        idempotencyKey,
+        expectedBindingRevision: source.revision,
+      });
+      if (!result.changed) {
+        setNotice("مصدر الحساب هو بالفعل المصدر المحدد؛ لم يُنشأ طلب مكرر.");
+      } else {
+        setNotice(
+          (result.replayed ? "تم استرجاع طلب سابق بنفس مفتاح التكرار. " : "أُنشئ طلب تغيير المصدر. ") +
+          "الحالة: " + result.status + " · رقم الطلب: " + result.request_id,
+        );
+      }
+      setReason("");
+      setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر إنشاء طلب تغيير مصدر الحساب.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="panel" aria-label="طلب تغيير مصدر الحساب المالي">
+      <h3>إدارة مصدر الحساب المالي</h3>
+      <p className="report-note">
+        يرسل هذا النموذج طلب تغيير موثقًا فقط. لا ينقل الأرصدة ولا يفعّل المصدر الجديد قبل اكتمال المطابقة وتسجيل أدلة المزامنة واعتماد صاحب الصلاحية.
+      </p>
+      <form onSubmit={(event) => { void submit(event); }} style={{ display: "grid", gap: 10 }}>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span>المصدر المالي المطلوب</span>
+          <select
+            value={targetMode}
+            disabled={saving}
+            onChange={(event) => {
+              setTargetMode(event.target.value as CustomerFinancialSourceMode);
+              resetIdempotency();
+              if (event.target.value === "APP_ONLY") {
+                setAccountRef("");
+                setCompanyRef("");
+                setBranchRef("");
+              }
+            }}
+          >
+            <option value="APP_ONLY">دفتر متجر الأغبري (APP_ONLY)</option>
+            <option value="ONYX">Onyx Pro</option>
+            <option value="MUTAKAMEL">المتكامل</option>
+          </select>
+        </label>
+        {isExternalTarget ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span>مرجع الشركة في ERP</span>
+              <input value={companyRef} maxLength={256} required disabled={saving} dir="ltr"
+                onChange={(event) => { setCompanyRef(event.target.value); resetIdempotency(); }}
+                placeholder="COMPANY-001" />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span>مرجع الفرع في ERP</span>
+              <input value={branchRef} maxLength={256} required disabled={saving} dir="ltr"
+                onChange={(event) => { setBranchRef(event.target.value); resetIdempotency(); }}
+                placeholder="BRANCH-001" />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span>مرجع حساب العميل في ERP</span>
+              <input value={accountRef} maxLength={160} required disabled={saving} dir="ltr"
+                onChange={(event) => { setAccountRef(event.target.value); resetIdempotency(); }}
+                placeholder="CUSTOMER-001" />
+            </label>
+          </div>
+        ) : (
+          <p className="report-note">سيُطلب الرجوع إلى دفتر متجر الأغبري. لن يتم فتح دفتر APP_ONLY قبل اعتماد التحويل.</p>
+        )}
+        <label style={{ display: "grid", gap: 5 }}>
+          <span>سبب تغيير المصدر</span>
+          <textarea value={reason} maxLength={500} minLength={5} rows={3} required disabled={saving}
+            onChange={(event) => { setReason(event.target.value); resetIdempotency(); }}
+            placeholder="اذكر سبب طلب التغيير ومرجع مستند المطابقة أو التكليف الداخلي." />
+        </label>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button disabled={saving || !requestReady}>
+            {saving ? "جارٍ إرسال الطلب…" : "إرسال طلب تغيير مصدر الحساب"}
+          </Button>
+        </div>
+      </form>
+      {notice && <p className="customer-360-interaction-notice" role="status">{notice}</p>}
+      {error && <ErrorBox message={error} />}
+    </section>
+  );
+}
+
 export function AdminCustomer360({ customer, onClose }: { customer: Pick<Customer, "id">; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
@@ -1008,6 +1158,13 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
         onPrint={printCustomer360}
       />
       <CustomerFinancialSourceNotice source={currentFinancialSource} loading={currentCustomerLoading} error={currentFinancialSourceError} />
+      {currentFinancialSource && !currentCustomerLoading ? (
+        <CustomerFinancialSourceChangeRequestPanel
+          key={customer.id}
+          customerId={customer.id}
+          source={currentFinancialSource}
+        />
+      ) : null}
       {currentFinancialSource && currentFinancialSource.source_mode !== 'APP_ONLY' ? (
         <section className="report-note" role="note" aria-label="نطاق الحساب في النظام المحاسبي الخارجي">
           <strong>هوية حساب العميل في النظام المحاسبي الخارجي</strong>
