@@ -316,3 +316,13 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - The same guard rejects request deletion with SQLSTATE `55000`. Workflow result fields (status, latest evidence, reviewer and review timestamps) remain mutable for the existing reconciliation/review RPCs; no new direct DML grant was added.
 - Acceptance attempts a target-mode/reason rewrite and a DELETE against the real isolated request, expects both to fail, then compares the complete request identity and current workflow projection before/after.
 - API/OPS contract synchronized. Exact-head PG17/P2/P1 runs must execute on the new SHA; no runtime PASS is claimed. No hosted database, live ERP, payment, balance, inventory or journal write occurred.
+
+
+## 2026-11-28 — Customer ERP statement routing over completed P4 scopes
+
+- Added `customer_financial_source_statement_scopes`, keyed by organization/customer/currency and bound to the exact approved source identity, P2 binding revision, and server-generated P4 `scope_key`.
+- Scope registration is automatic from two order-independent server events: P2 provider-sync evidence and P4 completion of a `customer_statement_entries` checkpoint. It registers a currency only when the provider, company, branch, currency, full-completion watermark and binding identity match. The table has RLS enabled/forced and no direct grants.
+- `get_customer_account_statement()` now returns the original internal ledger shape plus `source_mode=APP_ONLY` for internal accounts. For ONYX/MUTAKAMEL it returns an independent `external_statement.currencies[]` ledger from latest accepted P4 outcomes; it does not convert ERP entries into internal invoices/payments or post any accounting/stock records.
+- External reads require a current binding, recent source evidence, one complete scope per evidenced currency, an exact matching P4 checkpoint, a final completed page receipt, no active cursor/pending watermark, and no rejected/conflicted/invalid customer rows. Each currency is totaled independently; the full-ledger running balance is computed before limiting display detail to 500 rows per currency.
+- No customer, company, branch or raw ERP identifiers are exposed in the customer DTO. The adapter fails closed if P4 staging is absent, stale, partial, conflicted or not yet mapped; it never falls back to APP_ONLY.
+- Deployment order is safe either way: the P2 migration can install without the P4 schema, and its conditional trigger is attached when the P4 checkpoint table exists. Exact-head PostgreSQL 17 runtime acceptance is still pending; no production migration or data write was performed.
