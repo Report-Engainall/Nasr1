@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CustomerExternalAccountStatement } from "./CustomerExternalAccountStatement";
 import type { CustomerExternalStatement } from "@/lib/customer-external-statement";
 
-afterEach(cleanup);
+const originalPrintDescriptor = Object.getOwnPropertyDescriptor(window, "print");
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  document.body.removeAttribute("data-print-mode");
+  if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
+  else Reflect.deleteProperty(window, "print");
+});
 
 const statement: CustomerExternalStatement = {
   source_mode: "ONYX",
@@ -81,6 +89,32 @@ describe("customer external account statement workspace", () => {
     expect(usdReview.searchParams.get("document")).toBe("JV-USD-001");
     expect(usdReview.searchParams.get("currency")).toBe("USD");
     expect(usdReview.searchParams.get("type")).toBe("opening_balance");
+  });
+
+  it("prints only the source-stamped external statement and restores the previous print mode", () => {
+    const nativePrint = vi.fn();
+    Object.defineProperty(window, "print", { configurable: true, writable: true, value: nativePrint });
+    document.body.setAttribute("data-print-mode", "previous-print-mode");
+
+    render(<CustomerExternalAccountStatement statement={statement} />);
+    fireEvent.click(screen.getByRole("button", { name: "طباعة كشف الحساب الخارجي" }));
+
+    expect(nativePrint).toHaveBeenCalledOnce();
+    expect(document.body).toHaveAttribute("data-print-mode", "customer-external-statement");
+    window.dispatchEvent(new Event("afterprint"));
+    expect(document.body).toHaveAttribute("data-print-mode", "previous-print-mode");
+  });
+
+  it("restores the page print mode and reports an unsupported print failure", () => {
+    const nativePrint = vi.fn(() => { throw new Error("print unavailable"); });
+    Object.defineProperty(window, "print", { configurable: true, writable: true, value: nativePrint });
+
+    render(<CustomerExternalAccountStatement statement={statement} />);
+    fireEvent.click(screen.getByRole("button", { name: "طباعة كشف الحساب الخارجي" }));
+
+    expect(nativePrint).toHaveBeenCalledOnce();
+    expect(document.body).not.toHaveAttribute("data-print-mode");
+    expect(screen.getByRole("alert")).toHaveTextContent("تعذر فتح طباعة كشف الحساب");
   });
 
   it("labels capped details while preserving server totals and closing balance", () => {

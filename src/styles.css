@@ -1547,3 +1547,87 @@
     font-size: 5.8pt;
   }
 }
+
+
+/* Customer external ERP statements — source-stamped Arabic RTL print / Save as PDF. */
+.customer-external-account-statement { page: aghbariCustomerExternalStatement; }
+@page aghbariCustomerExternalStatement { size: A4 landscape; margin: 9mm; }
+@media print {
+  body[data-print-mode="customer-external-statement"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body[data-print-mode="customer-external-statement"] * {
+    visibility: hidden !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement,
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement * {
+    visibility: visible !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
+    direction: rtl !important;
+    font: 9pt Arial, sans-serif !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement .panel {
+    color: #111 !important;
+    background: #fff !important;
+    border: 1px solid #bbb !important;
+    box-shadow: none !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-statement-print-controls,
+  body[data-print-mode="customer-external-statement"] .customer-external-statement-document-action {
+    display: none !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-statement-table-wrap {
+    overflow: visible !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement table {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+    font-size: 7.5pt !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement th,
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement td {
+    border: 1px solid #888 !important;
+    padding: 4px !important;
+    color: #111 !important;
+    text-align: right !important;
+    vertical-align: top !important;
+    overflow-wrap: anywhere !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement th {
+    background: #efefef !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement .report-metric {
+    border: 1px solid #bbb !important;
+    background: #fff !important;
+    color: #111 !important;
+    box-shadow: none !important;
+  }
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement a,
+  body[data-print-mode="customer-external-statement"] .customer-external-account-statement small {
+    color: #111 !important;
+    text-decoration: none !important;
+  }
+}

@@ -210,3 +210,11 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - The generated service-case narrative labels the provider and exact snapshot as what was visible in the customer link, so accounting staff can identify the view being reported. Client query values are untrusted descriptive metadata, never proof of source identity, authorization inputs or a lookup path.
 - Added regression assertions for the source mode/watermark round-trip and rejection of invalid watermark values. A further guard rejects duplicate critical query parameters as ambiguous. Test outcomes remain pending exact-head P1/P2 acceptance.
 - No source reader, database RPC, ledger data, payment posting or ERP write was added.
+
+
+## P1 follow-up — external ERP statement print (2026-11-28)
+
+- Added a real browser print / Save as PDF action to the existing external customer statement. It prints the server-stamped ONYX/MUTAKAMEL snapshot, retains separate per-currency totals and the source timestamp, preserves the disclosure when details are capped at 500 rows, and hides interactive review links from the printed copy.
+- Print mode is scoped to the statement and restores the page's previous print-mode attribute after the browser fires `afterprint`; unsupported/throwing print implementations restore the page state and show an error. No financial RPC, payment, ledger, or source data is mutated by printing.
+- Added component regressions for successful print lifecycle and failed-print cleanup. The original invoice document itself is not represented as printable content in the current external statement DTO; invoice entries continue to use the existing audited document-review request rather than fabricating an ERP invoice copy.
+- Acceptance is pending the P1/Vitest and browser workflows on the resulting exact PR head; no PASS is transferred from an earlier SHA.
