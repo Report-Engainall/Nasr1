@@ -504,6 +504,15 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         <p><strong>السياق المرجعي:</strong> {searchTarget.proposedResult} · {searchTarget.ruleId}@{searchTarget.ruleVersion}</p>
         {searchTarget.problem?<p className="mt-1">المشكلة: {searchTarget.problem}</p>:null}
         <p className="mt-1">تاريخ القرار: {searchTarget.createdAt} · فترة لقطة القرار: {searchTarget.snapshot?.period.from??"غير متاحة"} — {searchTarget.snapshot?.period.to??"غير متاحة"} · كما في {searchTarget.snapshot?.asOf??"غير متاح"}</p>
+        {searchTarget.metricComparison.expected||searchTarget.metricComparison.actual
+          ?<div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {searchTarget.metricComparison.expected?metricLine("خط الأساس المتوقع للقرار المرجعي",searchTarget.metricComparison.expected):null}
+            {searchTarget.metricComparison.actual?metricLine("النتيجة الفعلية للقرار المرجعي",searchTarget.metricComparison.actual):null}
+          </div>
+          :<p className="mt-2 text-xs text-muted-foreground">لا يوجد خط أساس ونتيجة فعلية موثقان لهذا القرار؛ لن يُستنتج سياق بديل للمقارنة.</p>}
+        {searchTarget.metricComparison.status!=="VERIFIED"&&searchTarget.metricComparison.reason
+          ?<p className="mt-1 text-xs text-amber-700">مقارنة القرار المرجعي محجوبة: {searchTarget.metricComparison.reason}</p>
+          :null}
       </div>:null}
       {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">تنبيه: البحث مقصور على {result.loadedCount} قراراً محملاً من أصل {result.totalCount}. قد توجد سوابق أقدم خارج هذه الصفحة؛ عدم ظهور نتيجة لا يثبت عدم وجودها.</p>:null}
       {visiblePrecedentMatches.length?<ol className="space-y-2">
