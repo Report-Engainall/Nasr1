@@ -828,6 +828,7 @@ describe("ERP customer financial projections", () => {
   async function readFinancialProjection(
     objectType: ErpSyncScope["objectType"],
     fields: Record<string, string | number | boolean | null>,
+    scopeCurrencyCode: string | null = typeof fields.currency_code === "string" ? fields.currency_code : null,
   ) {
     const contract: ErpReadContract = {
       ...productContract,
@@ -850,7 +851,7 @@ describe("ERP customer financial projections", () => {
     const result = await runIncrementalReadOnlySync({
       connector,
       store,
-      scope: { ...scope, objectType },
+      scope: { ...scope, objectType, currencyCode: scopeCurrencyCode },
       maxPages: 1,
       maxRecords: 10,
     });
@@ -913,6 +914,35 @@ describe("ERP customer financial projections", () => {
     expect(result.status).toBe("complete");
     expect(store.committed[0].records[0].fields.currency_code).toBe("USD");
     expect(store.committed[0].records[0].fields.amount).toBe("50.0000");
+  });
+
+
+  it("rejects a financial record whose currency differs from its checkpoint scope", async () => {
+    await expect(readFinancialProjection("customer_statement_entries", {
+      external_customer_id: "ONYX-CUSTOMER-001",
+      entry_reference: "ENTRY-WRONG-CURRENCY",
+      entry_date: "2026-11-28",
+      currency_code: "USD",
+      entry_type: "invoice",
+      debit_amount: "100.00",
+      credit_amount: "0",
+    }, "YER")).rejects.toMatchObject({
+      code: "ERP_FINANCIAL_CURRENCY_SCOPE_MISMATCH",
+    });
+  });
+
+  it("requires each financial object checkpoint to declare an ISO currency scope", async () => {
+    await expect(readFinancialProjection("customer_statement_entries", {
+      external_customer_id: "ONYX-CUSTOMER-001",
+      entry_reference: "ENTRY-NO-CURRENCY-SCOPE",
+      entry_date: "2026-11-28",
+      currency_code: "YER",
+      entry_type: "invoice",
+      debit_amount: "100.00",
+      credit_amount: "0",
+    }, null)).rejects.toMatchObject({
+      code: "ERP_FINANCIAL_CURRENCY_SCOPE_REQUIRED",
+    });
   });
 
   it("rejects a statement entry that debits and credits the same amount", async () => {

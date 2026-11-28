@@ -1152,6 +1152,13 @@ function validateCanonicalCandidate(record: ErpCanonicalRecord, scope: ErpSyncSc
     }
   }
   validateFinancialProjection(scope.objectType, fields);
+  if (["customer_financial_documents", "customer_payment_receipts", "customer_statement_entries"].includes(scope.objectType) &&
+      fields.currency_code !== scope.currencyCode) {
+    throw new ErpConnectorError(
+      "ERP_FINANCIAL_CURRENCY_SCOPE_MISMATCH",
+      "عملة سجل ERP لا تطابق عملة نطاق المزامنة؛ رُفض السجل قبل حفظه.",
+    );
+  }
   if (scope.objectType === "stock_balances") {
     const onHand = fields.quantity_on_hand;
     const reserved = fields.quantity_reserved;
@@ -1306,6 +1313,14 @@ export async function runIncrementalReadOnlySync(input: {
       ? null
       : cleanIdentity(input.scope.currencyCode, "currency_code", 12).toLocaleUpperCase("en"),
   };
+
+  if (["customer_financial_documents", "customer_payment_receipts", "customer_statement_entries"].includes(scope.objectType) &&
+      !/^[A-Z]{3}$/.test(scope.currencyCode ?? "")) {
+    throw new ErpConnectorError(
+      "ERP_FINANCIAL_CURRENCY_SCOPE_REQUIRED",
+      "يتطلب كائن البيانات المالية نطاق مزامنة بعملة واحدة ورمز ISO ثلاثي الأحرف.",
+    );
+  }
 
   let checkpoint = validateCheckpoint(await input.store.loadCheckpoint(scope));
   let pagesCommitted = 0;
