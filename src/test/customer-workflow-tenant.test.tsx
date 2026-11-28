@@ -1586,6 +1586,7 @@ describe("customer quote workspace tenant boundary", () => {
       });
       expect(sourceReads).toBe(3);
       expect(host?.textContent).toContain("تغير مصدر الحساب؛ أوقفنا طباعة كشف الدفتر السابق.");
+      expect(host?.textContent).not.toContain("ONYX-JV-MICRO-001");
       expect(printSpy).not.toHaveBeenCalled();
 
       await act(async () => {

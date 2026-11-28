@@ -1345,6 +1345,15 @@ function Statement() {
   const [externalStatement, setExternalStatement] = useState<CustomerExternalStatement | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
   const statementReadSequenceRef = useRef(0);
+  const clearStatementProjection = useCallback(() => {
+    setInvoices([]);
+    setPayments([]);
+    setCredits([]);
+    setStatementSummary(undefined);
+    setExternalStatement(null);
+    setSummaryAsOfUtc("");
+    setCreditDetailsAvailable(false);
+  }, []);
   const load = useCallback(async () => {
     const requestId = ++statementReadSequenceRef.current;
     const isCurrentRequest = () => statementReadSequenceRef.current === requestId;
@@ -1548,6 +1557,7 @@ function Statement() {
       isSameCustomerExternalStatementSourceAsOf(externalStatement.source_as_of, sourceSnapshot.source_as_of),
     );
     if (!appOnlySnapshot && !externalSnapshotMatches) {
+      clearStatementProjection();
       setFinancialSourceError("توقيت لقطة كشف ERP لا يطابق ربط الحساب الحالي بدقة؛ حدّث الكشف قبل التصدير.");
       return;
     }
@@ -1558,18 +1568,21 @@ function Statement() {
       try { sourceCheck = await revalidateMyCustomerFinancialSourceSnapshot(sourceSnapshot); }
       catch (cause) {
         setFinancialSource(null);
+        clearStatementProjection();
         setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تصدير كشف Excel؛ أوقفنا التصدير.");
         throw cause;
       }
       if (requestId !== statementReadSequenceRef.current) return;
       if (!sourceCheck.unchanged) {
         setFinancialSource(sourceCheck.source);
+        clearStatementProjection();
         setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا تصدير كشف Excel من الدفتر السابق.");
         throw new Error("تغير مصدر الحساب؛ حدّث كشف الحساب ثم أعد التصدير.");
       }
       if (!appOnlySnapshot && (!externalStatement ||
           externalStatement.source_mode !== sourceSnapshot.source_mode ||
           !isSameCustomerExternalStatementSourceAsOf(externalStatement.source_as_of, sourceSnapshot.source_as_of))) {
+        clearStatementProjection();
         setFinancialSourceError("تغيرت لقطة كشف ERP أثناء التصدير؛ أوقفنا إخراج التفاصيل القديمة.");
         throw new Error("تغيرت لقطة كشف ERP؛ حدّث الكشف ثم أعد التصدير.");
       }
@@ -1594,7 +1607,7 @@ function Statement() {
     } finally {
       setXlsxBusy(false);
     }
-  }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable, financialSource, externalStatement]);
+  }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable, financialSource, externalStatement, clearStatementProjection]);
 
   const printStatement = useCallback(async () => {
     const sourceSnapshot = financialSource;
@@ -1607,6 +1620,7 @@ function Statement() {
       isSameCustomerExternalStatementSourceAsOf(externalStatement.source_as_of, sourceSnapshot.source_as_of),
     );
     if (!appOnlySnapshot && !externalSnapshotMatches) {
+      clearStatementProjection();
       setFinancialSourceError("توقيت لقطة كشف ERP لا يطابق ربط الحساب الحالي بدقة؛ حدّث الكشف قبل الطباعة.");
       return;
     }
@@ -1614,23 +1628,26 @@ function Statement() {
     try { sourceCheck = await revalidateMyCustomerFinancialSourceSnapshot(sourceSnapshot); }
     catch {
       setFinancialSource(null);
+      clearStatementProjection();
       setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل الطباعة؛ أوقفنا إخراج المستند.");
       return;
     }
     if (requestId !== statementReadSequenceRef.current) return;
     if (!sourceCheck.unchanged) {
       setFinancialSource(sourceCheck.source);
+      clearStatementProjection();
       setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا طباعة كشف الدفتر السابق.");
       return;
     }
     if (!appOnlySnapshot && (!externalStatement ||
         externalStatement.source_mode !== sourceSnapshot.source_mode ||
         !isSameCustomerExternalStatementSourceAsOf(externalStatement.source_as_of, sourceSnapshot.source_as_of))) {
+      clearStatementProjection();
       setFinancialSourceError("تغيرت لقطة كشف ERP أثناء الطباعة؛ أوقفنا إخراج التفاصيل القديمة.");
       return;
     }
     window.print();
-  }, [financialSource, externalStatement]);
+  }, [financialSource, externalStatement, clearStatementProjection]);
 
   useEffect(() => {
     void load();
