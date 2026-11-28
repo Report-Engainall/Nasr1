@@ -1290,6 +1290,45 @@ async function main() {
   assert.equal(pendingRequestRecord.reconciliation_result, null);
   assert.equal(pendingRequestRecord.can_review, false,
     "maker cannot review their own source-change request even when the actor has finance request capability");
+  const requestIdentityBefore = await db.unsafe(
+    "select id::text,organization_id::text,customer_id::text,current_source_mode,target_source_mode," +
+    "target_external_account_ref,target_company_external_ref,target_branch_external_ref," +
+    "expected_binding_revision,idempotency_key,request_fingerprint,reason,requested_by::text," +
+    "requested_at,status,latest_evidence_id::text from public.customer_financial_source_change_requests " +
+    "where id=$1::uuid",
+    [requestId],
+  );
+  assert.equal(requestIdentityBefore.length,1,
+    "one source-change request audit identity exists after creation");
+  await expectFailure(
+    "source-change request target and reason cannot be rewritten",
+    db.unsafe(
+      "update public.customer_financial_source_change_requests " +
+      "set target_source_mode='MUTAKAMEL',reason=reason || ' TAMPERED' where id=$1::uuid",
+      [requestId],
+    ),
+    "55000",
+    "identity and intent are immutable",
+  );
+  await expectFailure(
+    "source-change request audit row cannot be deleted",
+    db.unsafe(
+      "delete from public.customer_financial_source_change_requests where id=$1::uuid",
+      [requestId],
+    ),
+    "55000",
+    "cannot be deleted",
+  );
+  const requestIdentityAfter = await db.unsafe(
+    "select id::text,organization_id::text,customer_id::text,current_source_mode,target_source_mode," +
+    "target_external_account_ref,target_company_external_ref,target_branch_external_ref," +
+    "expected_binding_revision,idempotency_key,request_fingerprint,reason,requested_by::text," +
+    "requested_at,status,latest_evidence_id::text from public.customer_financial_source_change_requests " +
+    "where id=$1::uuid",
+    [requestId],
+  );
+  assert.deepEqual(requestIdentityAfter,requestIdentityBefore,
+    "rejected request rewrite/delete leaves immutable request identity and workflow state unchanged");
   await expectFailure(
     "finance source history cannot cross tenant boundaries",
     rpc(managerDb,
@@ -2442,6 +2481,7 @@ async function main() {
         sourceEvidenceAndFreshness: true,
         syncReplayAndMonotonicWatermark: true,
         sourceEvidenceAppendOnly: true,
+        sourceChangeRequestIntentImmutable: true,
         makerChecker: true,
         financialPaymentWriteGuards: true,
         appOnlyPaymentWritesRestored: true,

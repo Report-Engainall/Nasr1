@@ -124,6 +124,54 @@ CREATE UNIQUE INDEX customer_financial_source_one_pending_change
   ON public.customer_financial_source_change_requests(organization_id,customer_id)
   WHERE status IN ('pending_reconciliation','pending_approval');
 
+-- The requested customer/source/revision/intent is the immutable audit identity.
+-- Only the workflow result fields may advance after creation; a request cannot be
+-- rewritten into a different target or erased after a reviewer has seen it.
+CREATE OR REPLACE FUNCTION public.enforce_customer_financial_source_change_request_integrity()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path=''
+AS $function$
+BEGIN
+  IF TG_OP='DELETE' THEN
+    RAISE EXCEPTION USING ERRCODE='55000',
+      MESSAGE='customer financial source change requests cannot be deleted';
+  END IF;
+
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+     OR NEW.customer_id IS DISTINCT FROM OLD.customer_id
+     OR NEW.current_source_mode IS DISTINCT FROM OLD.current_source_mode
+     OR NEW.target_source_mode IS DISTINCT FROM OLD.target_source_mode
+     OR NEW.target_external_account_ref IS DISTINCT FROM OLD.target_external_account_ref
+     OR NEW.target_company_external_ref IS DISTINCT FROM OLD.target_company_external_ref
+     OR NEW.target_branch_external_ref IS DISTINCT FROM OLD.target_branch_external_ref
+     OR NEW.expected_binding_revision IS DISTINCT FROM OLD.expected_binding_revision
+     OR NEW.idempotency_key IS DISTINCT FROM OLD.idempotency_key
+     OR NEW.request_fingerprint IS DISTINCT FROM OLD.request_fingerprint
+     OR NEW.reason IS DISTINCT FROM OLD.reason
+     OR NEW.requested_by IS DISTINCT FROM OLD.requested_by
+     OR NEW.requested_at IS DISTINCT FROM OLD.requested_at
+  THEN
+    RAISE EXCEPTION USING ERRCODE='55000',
+      MESSAGE='customer financial source change request identity and intent are immutable';
+  END IF;
+
+  RETURN NEW;
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.enforce_customer_financial_source_change_request_integrity()
+  FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE TRIGGER customer_financial_source_change_request_integrity
+  BEFORE UPDATE OR DELETE ON public.customer_financial_source_change_requests
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_customer_financial_source_change_request_integrity();
+
+COMMENT ON TABLE public.customer_financial_source_change_requests IS
+  'Append-only change-request identity and intent. Workflow status/evidence/reviewer fields advance only through approved RPCs; the request cannot be deleted.';
+
 -- Keep the bounded source-change history tenant/customer scoped and already ordered.
 -- A partial pending-only index cannot serve the full audit timeline.
 CREATE INDEX customer_financial_source_change_history_page_idx

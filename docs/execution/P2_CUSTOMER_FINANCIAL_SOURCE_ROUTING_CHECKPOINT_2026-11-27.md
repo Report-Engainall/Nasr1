@@ -308,3 +308,11 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - The shared trigger raises SQLSTATE `55000` with an explicit append-only message. Direct table DML remains revoked from `PUBLIC`, `anon`, `authenticated` and `service_role`; the trigger additionally protects against accidental owner-level UPDATE/DELETE.
 - Extended the PostgreSQL acceptance test to attempt UPDATE and DELETE against both evidence tables, then compare the complete selected evidence projection before/after to prove a rejected mutation left the source evidence unchanged.
 - Synchronized the API/OPS contract. Exact-head PostgreSQL 17/P2/P1 execution is still required for the new SHA; no runtime PASS is claimed. No production database, live ERP endpoint, customer balance, payment, inventory or journal was modified.
+
+
+## 2026-11-28 — Immutable source-change request identity and intent
+
+- Added a PostgreSQL trigger on `customer_financial_source_change_requests`: after creation, the request ID, tenant/customer, current and target source modes, external target identity, expected binding revision, idempotency key/fingerprint, reason, maker and request timestamp cannot be rewritten.
+- The same guard rejects request deletion with SQLSTATE `55000`. Workflow result fields (status, latest evidence, reviewer and review timestamps) remain mutable for the existing reconciliation/review RPCs; no new direct DML grant was added.
+- Acceptance attempts a target-mode/reason rewrite and a DELETE against the real isolated request, expects both to fail, then compares the complete request identity and current workflow projection before/after.
+- API/OPS contract synchronized. Exact-head PG17/P2/P1 runs must execute on the new SHA; no runtime PASS is claimed. No hosted database, live ERP, payment, balance, inventory or journal write occurred.
