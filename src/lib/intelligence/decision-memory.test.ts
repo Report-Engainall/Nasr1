@@ -525,6 +525,21 @@ describe("decision memory evidence engine", () => {
     expect(matches[0].contextDifferences).toContain("خط الأساس المتوقع غير متاح في أحد القرارين");
   });
 
+  it("withholds comparable classification when either decision comparison is not verified", () => {
+    const records = precedentSearchRecords();
+    const older = records.find(record => record.decisionId === "older-decision");
+    if (!older) throw new Error("older precedent fixture missing");
+    older.metricComparison.status = "WITHHELD";
+
+    const matches = searchSimilarDecisionMemory({
+      records,
+      decisionId: "target-decision",
+      query: "تحصيل متأخر",
+    });
+
+    expect(matches[0].comparisonStatus).toBe("OUTCOME_UNVERIFIED");
+  });
+
   it("summarizes and filters precedent comparison statuses without changing the matches", () => {
     const matches = searchSimilarDecisionMemory({
       records: precedentSearchRecords(),
