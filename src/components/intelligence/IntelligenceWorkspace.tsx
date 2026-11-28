@@ -1835,9 +1835,12 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                   canCreateDecision={canManage && Boolean(user?.profileId) &&
                     Boolean(retentionResult?.ok && retentionResult.growthInputs.sourceSnapshotVerified)}
                   onCreateDecisionProposal={async action => {
-                    const candidateId = "customer.retention:" + action.customerRef + ":" +
-                      (retentionResult?.ok ? retentionResult.data.asOf.slice(0, 10) : "");
-                    const candidate = customerRetentionDecisionActions.find(item => item.candidateId === candidateId);
+                    const candidate = customerRetentionDecisionActions.find(item =>
+                      item.decision.proof.evidenceIds.length === action.evidenceIds.length &&
+                      item.decision.proof.evidenceIds.every(id => action.evidenceIds.includes(id)) &&
+                      item.decision.proof.metricKeys.length === action.metricKeys.length &&
+                      item.decision.proof.metricKeys.every(key => action.metricKeys.includes(key))
+                    );
                     return candidate
                       ? persistEvidenceBackedAction(candidate.decision, candidate.candidateId)
                       : false;
