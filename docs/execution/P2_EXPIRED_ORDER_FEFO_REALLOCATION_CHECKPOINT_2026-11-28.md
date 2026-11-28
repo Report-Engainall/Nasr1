@@ -152,3 +152,11 @@ The PostgreSQL 17 script now creates a separate two-unit processing order, reduc
 - Shipment additionally retains the per-product order-line/net-reservation equality check and expired-lot guard. Cancellation settles only the positive remaining net reserve-minus-release quantity. The new regression asserts that shipment of one order is refused while a peer order has a negative shared-lot net, the order stays in `processing`, and no sale movement is posted.
 - Test fixture sets the shared lot expiry to yesterday in the negative-peer case so it exercises the expired FEFO queue, and restores batch/warehouse counters plus the peer order's reservation net before the existing under-report/over-report cases.
 - Exact-head PostgreSQL 17 / Playwright / P1 checks must be inspected on the resulting branch head. No local PostgreSQL execution or CI PASS is claimed. No production writes, live ERP calls or merge to `main`.
+
+
+## 2026-11-28 — Cross-action idempotency namespace isolation
+
+- Final review found that shortage reconciliation and excess-release commands share the same private idempotency table. The excess-release payload already included `operation='release_excess'`, while shortage reconciliation had only `order_id` and `reason`; reusing the same organization key/order/reason across commands could therefore be mistaken for a same-action replay.
+- Added `operation='reconcile_missing'` to the shortage-reconciliation payload fingerprint. The two commands continue to share the organization-scoped key table and advisory-lock namespace, but payload equality now proves the action as well as the order and reason.
+- Added a PostgreSQL 17 assertion that reuses an already-consumed excess-release key and identical reason against the shortage-reconciliation RPC; the call must fail with SQLSTATE `22023` idempotency payload conflict instead of returning the release result.
+- This is a source change and regression fixture only. Exact-head CI must validate the SQL and runtime behavior; no local PostgreSQL or acceptance PASS is claimed.
