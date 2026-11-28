@@ -1133,6 +1133,61 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.querySelector('[aria-label="تنزيل Excel"]')).toBeNull();
   });
 
+  it("clears the APP_ONLY statement projection when the source changes before PDF download", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return {
+          data: sourceReads <= 2
+            ? { source_mode: "APP_ONLY", source_status: "active", source_as_of: null, last_synced_at: null, verified_at: null, revision: 51, is_stale: false, can_read_app_ledger: true }
+            : { source_mode: "ONYX", source_status: "active", source_as_of: "2026-11-28T00:00:00Z", last_synced_at: "2026-11-28T00:00:00Z", verified_at: "2026-11-28T00:00:00Z", revision: 52, is_stale: false, can_read_app_ledger: false },
+          error: null,
+        };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            source_mode: "APP_ONLY",
+            invoices: [{
+              id: "51111111-1111-4111-8111-111111111111",
+              invoice_number: "INV-PDF-CUTOVER-STALE",
+              order_id: "52222222-2222-4222-8222-222222222222",
+              customer_id: "53333333-3333-4333-8333-333333333333",
+              status: "issued", issued_at: "2026-11-27T00:00:00Z",
+              due_at: null, currency: "YER",
+            }],
+            payments: [], credits: [], summary: null,
+            summary_as_of_utc: "2026-11-28T00:00:00Z",
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/statement");
+    expect(sourceReads).toBe(2);
+    expect(host?.textContent).toContain("INV-PDF-CUTOVER-STALE");
+    const pdfButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("تنزيل PDF عربي"));
+    expect(pdfButton).toBeDefined();
+
+    await act(async () => {
+      pdfButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(3);
+    expect(host?.textContent).toContain("تغير مصدر الحساب المالي؛ أوقفنا إنشاء كشف من الدفتر السابق.");
+    expect(host?.textContent).not.toContain("INV-PDF-CUTOVER-STALE");
+    expect(host?.querySelector('[aria-label="تنزيل PDF عربي"]')).toBeNull();
+  });
+
   it("renders and prints a source-routed ONYX statement as separate customer currency ledgers", async () => {
     mocks.user = {
       id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
