@@ -196,6 +196,7 @@ export function CustomerExternalFinanceEntries({
                   <th>مدين</th>
                   <th>دائن</th>
                   <th>الرصيد الجاري</th>
+                  <th>البيان</th>
                   <th />
                 </tr>
               </thead>
@@ -210,6 +211,7 @@ export function CustomerExternalFinanceEntries({
                     <td>{formatCustomerExternalStatementAmount(entry.debit_amount, currency.currency_code)}</td>
                     <td>{formatCustomerExternalStatementAmount(entry.credit_amount, currency.currency_code)}</td>
                     <td><strong>{formatCustomerExternalStatementAmount(entry.running_balance, currency.currency_code)}</strong></td>
+                    <td style={{ minWidth: 160 }}>{entry.description || "—"}</td>
                     <td className="no-print">
                       <a
                         href={documentReviewHref(entry, currency.currency_code, statement.source_mode, statement.source_as_of)}
