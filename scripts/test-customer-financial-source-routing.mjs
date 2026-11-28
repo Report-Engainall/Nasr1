@@ -2034,8 +2034,11 @@ async function main() {
   async function stageCustomerStatementPage(currencyCode, version, rows) {
     const scopeKey = statementScopeKeys[currencyCode];
     const fingerprint = hash("P2-statement-" + currencyCode + "-page-" + version);
-    const createdCount = rows.filter(row => row.disposition === "created" || row.disposition === "updated").length;
+    const createdCount = rows.filter(row => row.disposition === "created").length;
+    const updatedCount = rows.filter(row => row.disposition === "updated").length;
+    const unchangedCount = rows.filter(row => row.disposition === "unchanged").length;
     const rejectedCount = rows.filter(row => row.disposition === "rejected").length;
+    const conflictedCount = rows.filter(row => row.disposition === "conflicted").length;
     await db.unsafe(
       "insert into public.erp_sync_page_receipts(" +
         "organization_id,scope_key,page_fingerprint,response_sha256,next_cursor_present," +
@@ -2043,9 +2046,9 @@ async function main() {
         "records_received,created_count,updated_count,unchanged_count,rejected_count," +
         "conflicted_count,completed,committed_version" +
       ") values($1::uuid,$2::text,$3::text,$4::text,false,200,null,null,$5::timestamptz," +
-        "$6::integer,$7::integer,0,0,$8::integer,0,true,$9::bigint)",
+        "$6::integer,$7::integer,$8::integer,$9::integer,$10::integer,$11::integer,true,$12::bigint)",
       [orgId,scopeKey,fingerprint,hash("P2-statement-response-" + currencyCode + "-" + version),
-        statementWatermark,rows.length,createdCount,rejectedCount,version],
+        statementWatermark,rows.length,createdCount,updatedCount,unchangedCount,rejectedCount,conflictedCount,version],
     );
     for (const row of rows) {
       await db.unsafe(

@@ -372,3 +372,5 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - It then injects a USD row into the YER scope and confirms SQLSTATE 55000, writes a newer corrected YER version of that same provider record, and confirms the recovered YER closing balance is 81.00. A final rejected row with no customer identity blocks publication of the statement instead of silently omitting an unassignable transaction.
 - If the P4 migration is not part of the P2 PR branch, the test creates minimal temporary staging tables inside its isolated PG17 database and drops them after the test. If full P4 tables exist, the same records run against the real schema without replacing it.
 - No production database, live provider credentials, payment, invoice, inventory, or journal was touched.
+
+- The end-to-end PG17 fixture now writes page receipt disposition counters that match the exact `created`, `updated`, `unchanged`, `rejected` and `conflicted` outcomes instead of folding updates into the created count.
