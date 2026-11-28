@@ -82,3 +82,21 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - `main` remains `12b0db37a97128a19073f907ba12fb700251802b`.
 - No production DB writes/migrations, payment posting, stock movement, live ERP call, secrets, deployments or paid services were used.
 - PR #699 remains Draft and unmerged. Release remains **NO-GO** until exact-head UI, backend, PostgreSQL 17 and security gates are terminal SUCCESS.
+
+
+## P1 follow-up — render and export approved external customer statements (2026-11-28)
+
+- Closed a customer-facing gap in the existing `Statement` route: it previously fetched the authoritative account statement only after an APP_ONLY check, so ONYX/MUTAKAMEL accounts never invoked their server-approved external statement reader and were left without a usable statement view.
+- The route now calls the same authenticated `get_customer_account_statement` RPC for an active source, verifies the returned `source_mode` matches the server-selected binding, parses only the external statement DTO, then re-fetches the source binding and drops the result if its revision/source identity changed while the read was in flight.
+- ONYX and MUTAKAMEL now render separate currency ledgers from the accepted server projection: debit, credit, running/closing balance, entry references, dates, source document numbers and descriptions. No APP_ONLY invoice/payment rows are synthesized or merged into an external statement. Partial detail is labeled while server totals remain visible.
+- External statements now export to XLSX with a per-currency detail sheet and currency-separated summary; metadata explicitly says currency values are not combined and no currency conversion is applied. The existing server-generated APP_ONLY PDF stays restricted to APP_ONLY; external statements can use guarded browser print / Save as PDF after source revalidation.
+- Added a focused external statement workspace test covering multiple currency ledgers and the 500-row partial-detail label. Extended parser/XLSX tests for dynamic source timestamps, per-currency worksheet generation, and exclusion of raw tenant/account scope keys. Added the new component and tests to the P1 strict typecheck input set.
+- Changed paths: `src/components/CustomerWorkflows.tsx`, new `src/components/CustomerExternalAccountStatement.tsx` and paired test, `src/lib/customer-account-statement-xlsx.ts`, `src/lib/customer-external-statement.test.ts`, and `tsconfig.p1-typecheck.json`.
+- These are authored tests, not PASS evidence. Require terminal P1 Vitest/strict-TypeScript plus P2 exact-head UI checks. Financial source selection, RLS and ERP staging remain owned by P2/P4; no direct customer or tenant identifier is exposed in the returned UI model.
+- No production DB, payment, stock, journal, live ERP endpoint, secret, deployment, or paid service was used. PR #699 remains unmerged; P1 does not merge to main.
+
+### Acceptance boundary
+
+- The UI must fail closed when the source mode differs, the external payload is invalid/stale, the current binding changed during fetch/print/export, or the server cannot confirm the source.
+- External XLSX/print does not invoke the APP_ONLY PDF API, post ledger rows, or merge currency totals.
+- Exact final-head P1 and P2 workflows are required. Queued, pending, skipped, cancelled or absent jobs do not count as acceptance.

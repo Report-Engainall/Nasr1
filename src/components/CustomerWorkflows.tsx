@@ -53,8 +53,13 @@ import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintAc
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { CustomerPaymentReceiptSelfServiceActions } from "@/components/CustomerPaymentReceiptSelfServiceActions";
 import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
+import { CustomerExternalAccountStatement } from "@/components/CustomerExternalAccountStatement";
 import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, revalidateMyCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
-import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
+import {
+  downloadCustomerAccountStatementWorkbookXlsx,
+  downloadCustomerExternalStatementWorkbookXlsx,
+} from "@/lib/customer-account-statement-xlsx";
+import { parseCustomerExternalStatement, type CustomerExternalStatement } from "@/lib/customer-external-statement";
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { downloadCustomerQuoteWorkbookXlsx } from "@/lib/customer-quote-xlsx";
@@ -606,6 +611,7 @@ function Invoices() {
   const [detailBusy, setDetailBusy] = useState(false);
   const [error, setError] = useState("");
   const [financialSource, setFinancialSource] = useState<CustomerFinancialSource | null>(null);
+  const [externalStatement, setExternalStatement] = useState<CustomerExternalStatement | null>(null);
   const [financialSourceError, setFinancialSourceError] = useState("");
   const invoiceReadSequenceRef = useRef(0);
   const invoiceDetailSequenceRef = useRef(0);
@@ -736,7 +742,7 @@ function Invoices() {
   }, [load]);
   async function open(i: Invoice) {
     const sourceSnapshot = financialSource;
-    if (!sourceSnapshot || !canReadCustomerAppLedger(sourceSnapshot)) return;
+    if (!sourceSnapshot || (!canReadCustomerAppLedger(sourceSnapshot) && !externalStatement)) return;
     const detailRequestId = ++invoiceDetailSequenceRef.current;
     setPrintError("");
     setChosen(i);
@@ -1347,6 +1353,7 @@ function Statement() {
     setError("");
     setXlsxError("");
     setFinancialSource(null);
+    setExternalStatement(null);
     setFinancialSourceError("");
     setInvoices([]);
     setPayments([]);
@@ -1365,18 +1372,49 @@ function Statement() {
         return;
       }
       setFinancialSource(source);
-      if (!canReadCustomerAppLedger(source)) return;
+      if (source.source_status !== "active") return;
+      if (source.source_mode === "APP_ONLY" && !canReadCustomerAppLedger(source)) return;
       const r = await supabase.rpc("get_customer_account_statement");
       if (!isCurrentRequest()) return;
-      if (r.error) throw new Error("تعذر قراءة كشف الحساب. تحقق من نشر مخطط المالية.");
+      if (r.error) throw new Error("تعذر قراءة كشف الحساب من المصدر المالي المعتمد. تحقق من صلاحية القراءة واكتمال المزامنة.");
       if (!r.data || typeof r.data !== "object") throw new Error("استجابة كشف الحساب غير مكتملة.");
       const payload = r.data as {
+        source_mode?: unknown;
         invoices?: unknown;
         payments?: unknown;
         credits?: unknown;
         summary?: unknown;
         summary_as_of_utc?: unknown;
+        external_statement?: unknown;
       };
+      if (payload.source_mode !== source.source_mode) {
+        throw new Error("مصدر كشف الحساب الذي أعاده الخادم لا يطابق ربط الحساب الحالي؛ أوقفنا العرض.");
+      }
+      if (source.source_mode === "ONYX" || source.source_mode === "MUTAKAMEL") {
+        const parsedExternal = parseCustomerExternalStatement(
+          payload.external_statement,
+          source.source_mode,
+          source.source_as_of,
+        );
+        confirmingSource = true;
+        const confirmedSource = await fetchMyCustomerFinancialSource();
+        confirmingSource = false;
+        if (!isCurrentRequest()) return;
+        if (!isSameCustomerFinancialSourceVersion(source, confirmedSource)) {
+          setFinancialSource(confirmedSource);
+          setFinancialSourceError("تغير مصدر الحساب المالي أثناء تحميل كشف ERP؛ أسقطنا اللقطة السابقة ولم نعتمدها.");
+          return;
+        }
+        setExternalStatement(parsedExternal);
+        setSummaryAsOfUtc(parsedExternal.source_as_of);
+        setInvoices([]);
+        setPayments([]);
+        setCredits([]);
+        setCreditDetailsAvailable(false);
+        setStatementSummary(undefined);
+        return;
+      }
+      if (!canReadCustomerAppLedger(source)) return;
       if (!Array.isArray(payload.invoices) || payload.invoices.length > 200 ||
           !Array.isArray(payload.payments) || payload.payments.length > 500) {
         throw new Error("تفاصيل كشف الحساب غير صالحة أو تجاوزت حدود القراءة.");
@@ -1411,6 +1449,7 @@ function Statement() {
       setInvoices([]);
       setPayments([]);
       setCredits([]);
+      setExternalStatement(null);
       setCreditDetailsAvailable(false);
       setSummaryAsOfUtc("");
       setStatementSummary(undefined);
@@ -1499,8 +1538,12 @@ function Statement() {
   }, [financialSource]);
 
   const downloadStatementXlsx = useCallback(async () => {
-    if (!financialSource || !canReadCustomerAppLedger(financialSource)) return;
     const sourceSnapshot = financialSource;
+    if (!sourceSnapshot) return;
+    const appOnlySnapshot = canReadCustomerAppLedger(sourceSnapshot);
+    if (!appOnlySnapshot && (!externalStatement ||
+        externalStatement.source_mode !== sourceSnapshot.source_mode ||
+        Date.parse(externalStatement.source_as_of) !== Date.parse(sourceSnapshot.source_as_of ?? ""))) return;
     setXlsxBusy(true);
     setXlsxError("");
     try {
@@ -1516,21 +1559,28 @@ function Statement() {
         setFinancialSourceError("تغير مصدر الحساب؛ أوقفنا تصدير كشف Excel من الدفتر السابق.");
         throw new Error("تغير مصدر الحساب؛ حدّث كشف الحساب ثم أعد التصدير.");
       }
-      downloadCustomerAccountStatementWorkbookXlsx({
-        invoices,
-        payments,
-        credits,
-        summary: statementSummary,
-        summaryAsOfUtc,
-        generatedAt: new Date().toISOString(),
-        creditDetailsAvailable,
-      });
+      if (appOnlySnapshot) {
+        downloadCustomerAccountStatementWorkbookXlsx({
+          invoices,
+          payments,
+          credits,
+          summary: statementSummary,
+          summaryAsOfUtc,
+          generatedAt: new Date().toISOString(),
+          creditDetailsAvailable,
+        });
+      } else if (externalStatement) {
+        downloadCustomerExternalStatementWorkbookXlsx({
+          statement: externalStatement,
+          generatedAt: new Date().toISOString(),
+        });
+      }
     } catch (cause) {
       setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لكشف الحساب.");
     } finally {
       setXlsxBusy(false);
     }
-  }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable, financialSource]);
+  }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable, financialSource, externalStatement]);
 
   const printStatement = useCallback(async () => {
     const sourceSnapshot = financialSource;
@@ -1548,18 +1598,23 @@ function Statement() {
       return;
     }
     window.print();
-  }, [financialSource]);
+  }, [financialSource, externalStatement]);
 
   useEffect(() => {
     void load();
     return () => { statementReadSequenceRef.current += 1; };
   }, [load]);
   const appLedgerAvailable = canReadCustomerAppLedger(financialSource);
+  const externalLedgerAvailable = Boolean(externalStatement);
   const totals = useMemo(
     () => summarizeAccount(invoices as InvoiceAmount[], payments, statementSummary),
     [invoices, payments, statementSummary],
   );
   const statementMayBePartial = isCustomerStatementPossiblyPartial(invoices.length, payments.length, credits.length);
+  const statementPrintable = appLedgerAvailable || externalLedgerAvailable;
+  const statementXlsxAvailable = appLedgerAvailable
+    ? totals.valid && statementSummary !== undefined && Boolean(summaryAsOfUtc) && creditDetailsAvailable
+    : externalLedgerAvailable;
   return (
     <WorkspaceShell title="كشف الحساب" subtitle="ملخص من مصدر الحساب المالي الذي يحدده الخادم.">
       <CustomerFinancialSourceNotice source={financialSource} loading={loading && !financialSourceError} error={financialSourceError} />
@@ -1567,17 +1622,19 @@ function Statement() {
         className="no-print"
         style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginBottom: 12 }}
       >
-        <button style={primary} onClick={() => void downloadStatementPdf()} disabled={!appLedgerAvailable || pdfBusy || loading}>
-          <FileText size={15} /> {pdfBusy ? "جارٍ إنشاء PDF..." : "تنزيل PDF عربي"}
-        </button>
+        {appLedgerAvailable && (
+          <button style={primary} onClick={() => void downloadStatementPdf()} disabled={pdfBusy || loading}>
+            <FileText size={15} /> {pdfBusy ? "جارٍ إنشاء PDF..." : "تنزيل PDF عربي"}
+          </button>
+        )}
         <button
           style={secondary}
           onClick={downloadStatementXlsx}
-          disabled={!appLedgerAvailable || loading || xlsxBusy || !totals.valid || statementSummary === undefined || !summaryAsOfUtc || !creditDetailsAvailable}
+          disabled={!statementXlsxAvailable || loading || xlsxBusy}
         >
           <FileSpreadsheet size={15} /> {xlsxBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel"}
         </button>
-        <button style={secondary} onClick={() => void printStatement()} disabled={!appLedgerAvailable || loading}>
+        <button style={secondary} onClick={() => void printStatement()} disabled={!statementPrintable || loading}>
           <Printer size={15} /> طباعة من المتصفح
         </button>
         <a href="/service-cases?request=statement_period" style={{...secondary,textDecoration:"none"}}>طلب كشف حساب لفترة</a>
@@ -1586,15 +1643,17 @@ function Statement() {
       {error && <ErrorBox message={error} retry={() => void load()} />}
       {pdfError && <ErrorBox message={pdfError} retry={() => void downloadStatementPdf()} />}
       {xlsxError && <ErrorBox message={xlsxError} retry={downloadStatementXlsx} />}
-      {!loading && !creditDetailsAvailable && (
+      {appLedgerAvailable && !loading && !creditDetailsAvailable && (
         <p role="note" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
           تنزيل Excel غير متاح حتى يعيد الخادم تفاصيل الإشعارات الدائنة مع ملخص دفتر العميل الكامل.
         </p>
       )}
       {loading ? (
         <p role="status">جارٍ التحقق من المصدر وتحميل كشف الحساب...</p>
+      ) : externalStatement ? (
+        <CustomerExternalAccountStatement statement={externalStatement} />
       ) : !appLedgerAvailable ? (
-        <p role="status">لا نعرض دفتر متجر الأغبري لهذا الحساب؛ تُعرض البيانات فقط عندما يؤكد الخادم أن مصدره APP_ONLY أو تتوفر قراءة مصرح بها للمصدر الخارجي.</p>
+        <p role="status">لا تتوفر قراءة مصرح بها لمصدر الحساب المحدد حاليًا. لا نستخدم دفتر التطبيق بديلًا عن المصدر الخارجي.</p>
       ) : (
         <>
           {!totals.valid && (

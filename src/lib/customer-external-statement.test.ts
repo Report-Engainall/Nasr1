@@ -4,15 +4,17 @@ import {
   formatCustomerExternalStatementAmount,
   parseCustomerExternalStatement,
 } from "./customer-external-statement";
+import { buildCustomerExternalStatementWorkbookXlsx } from "./customer-account-statement-xlsx";
 
-const sourceAsOf = "2026-11-28T00:00:00Z";
+const sourceAsOf = new Date(Date.now() - 10 * 60_000).toISOString();
+const currencyAsOf = new Date(Date.now() - 5 * 60_000).toISOString();
 const base = {
   source_mode: "ONYX",
   source_as_of: sourceAsOf,
   details_limit_per_currency: 500,
   currencies: [{
     currency_code: "YER",
-    source_as_of: "2026-11-28T00:05:00Z",
+    source_as_of: currencyAsOf,
     entry_count: 2,
     total_debit: "1500.0000",
     total_credit: "500.0000",
@@ -90,6 +92,23 @@ describe("customer external ERP statement contract", () => {
     partial.currencies[0].entry_count = 501;
     partial.currencies[0].details_partial = true;
     expect(() => parseCustomerExternalStatement(partial, "ONYX", sourceAsOf)).toThrow();
+  });
+
+  it("builds an external XLSX with independent currency sheets and no cross-currency conversion", () => {
+    const parsed = parseCustomerExternalStatement(base, "ONYX", sourceAsOf);
+    const bytes = buildCustomerExternalStatementWorkbookXlsx({
+      statement: parsed,
+      generatedAt: new Date().toISOString(),
+    });
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(bytes.length).toBeGreaterThan(1200);
+    const archiveText = new TextDecoder().decode(bytes);
+    expect(archiveText).toContain("كشف الحساب الخارجي");
+    expect(archiveText).toContain("حركات YER");
+    expect(archiveText).toContain("الأرصدة حسب العملة");
+    expect(archiveText).toContain("لا تجمع العملات");
+    expect(archiveText).not.toContain("external_customer_id");
+    expect(archiveText).not.toContain("scope_key");
   });
 
   it("maps external statement entry types into customer-safe Arabic labels", () => {
