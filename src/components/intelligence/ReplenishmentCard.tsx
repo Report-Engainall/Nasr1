@@ -2,6 +2,7 @@ import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishme
 import type { ProductDemandForecast } from "@/lib/intelligence/demand-forecast";
 import { useEffect, useRef, useState } from "react";
 import { fetchProducts } from "@/lib/api";
+import { buildReplenishmentCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import { ReplenishmentPurchaseDraft } from "./ReplenishmentPurchaseDraft";
 import { EvidenceReferences, EvidenceStatusLabel, EvidenceWarnings, formatEvidenceNumber, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 
@@ -118,13 +119,26 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry, c
           <h3 className="font-semibold">توصيات إعادة التوريد</h3>
           <span className="text-xs text-muted-foreground">يُخصم الوارد المؤكد من أوامر الشراء قبل التوصية؛ لا ينشئ هذا العرض أمر شراء تلقائيًا.</span>
         </div>
-        {canManagePurchases ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">المحدد للمسودة: {selectedRecommendations.length}</span>
-            <button type="button" className="btn primary btn-sm" disabled={!selectedRecommendations.length}
-              onClick={() => setDraftOpen(true)}>إنشاء مسودة من المحدد</button>
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="btn secondary btn-sm"
+            disabled={!visibleRecommendations.length}
+            onClick={() => downloadIntelligenceCsv(
+              buildReplenishmentCsv(visibleRecommendations, productNames, sourceRecommendations.length),
+              "aghbari-replenishment.csv",
+            )}
+          >
+            تصدير نتائج التوريد CSV ({visibleRecommendations.length})
+          </button>
+          {canManagePurchases ? (
+            <>
+              <span className="text-xs text-muted-foreground">المحدد للمسودة: {selectedRecommendations.length}</span>
+              <button type="button" className="btn primary btn-sm" disabled={!selectedRecommendations.length}
+                onClick={() => setDraftOpen(true)}>إنشاء مسودة من المحدد</button>
+            </>
+          ) : null}
+        </div>
       </header>
       <section className="space-y-2 rounded-lg border p-3" aria-label="فرز توصيات التوريد">
         <label className="grid gap-1 text-sm">
