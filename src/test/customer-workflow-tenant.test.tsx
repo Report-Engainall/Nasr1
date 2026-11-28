@@ -1727,4 +1727,110 @@ describe("customer quote workspace tenant boundary", () => {
     }
   });
 
+
+  it("refreshes the customer statement after returning to the foreground and supports explicit refresh", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const externalAsOf = new Date(Date.now() - 2 * 60_000).toISOString();
+    const currencyAsOf = new Date(Date.now() - 60_000).toISOString();
+    const appSource = {
+      source_mode: "APP_ONLY", source_status: "active", source_as_of: null,
+      last_synced_at: null, verified_at: null, revision: 91, is_stale: false,
+      can_read_app_ledger: true,
+    };
+    const externalSource = {
+      source_mode: "ONYX", source_status: "active", source_as_of: externalAsOf,
+      last_synced_at: externalAsOf, verified_at: externalAsOf, revision: 92,
+      is_stale: false, can_read_app_ledger: false,
+    };
+    const externalStatement = {
+      source_mode: "ONYX", source_as_of: externalAsOf, details_limit_per_currency: 500,
+      currencies: [{
+        currency_code: "YER", source_as_of: currencyAsOf, entry_count: 1,
+        total_debit: "20.0000", total_credit: "0", closing_balance: "20.0000",
+        details_partial: false,
+        entries: [{
+          entry_reference: "EXT-NEW-001", entry_date: "2026-11-28", due_date: null,
+          entry_type: "invoice", debit_amount: "20.0000", credit_amount: "0",
+          running_balance: "20.0000", source_document_number: "EXT-INV-001",
+          description: "فاتورة من مصدر الحساب الجديد",
+        }],
+      }],
+    };
+    let sourceReads = 0;
+    let statementReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return { data: sourceReads <= 2 ? appSource : externalSource, error: null };
+      }
+      if (name === "get_customer_account_statement") {
+        statementReads += 1;
+        if (statementReads === 1) {
+          return {
+            data: {
+              source_mode: "APP_ONLY",
+              invoices: [{
+                id: "91111111-1111-4111-8111-111111111111",
+                invoice_number: "INV-FOREGROUND-STALE",
+                order_id: "92222222-2222-4222-8222-222222222222",
+                customer_id: "93333333-3333-4333-8333-333333333333",
+                status: "issued", issued_at: "2026-11-27T00:00:00Z", due_at: null,
+                currency: "YER", subtotal: "100.00", tax_amount: "0.00", total_amount: "100.00",
+              }],
+              payments: [], credits: [],
+              summary: [{
+                currency: "YER", invoiced: "100.00", paid: "0.00", credited: "0.00",
+                outstanding: "100.00", overdue_outstanding: "0.00", overdue_invoice_count: 0,
+                unknown_due_date_outstanding: "0.00", unknown_due_date_invoice_count: 0,
+              }],
+              summary_as_of_utc: "2026-11-28T00:00:00Z",
+            },
+            error: null,
+          };
+        }
+        return {
+          data: {
+            source_mode: "ONYX", invoices: [], payments: [], credits: [],
+            summary: null, summary_as_of_utc: externalAsOf, external_statement: externalStatement,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    await mountQuoteWorkspace("/statement");
+    expect(sourceReads).toBe(2);
+    expect(statementReads).toBe(1);
+    expect(host?.textContent).toContain("INV-FOREGROUND-STALE");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      // A browser may also emit visibilitychange for the same foreground transition.
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(sourceReads).toBe(4);
+    expect(statementReads).toBe(2);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-STALE");
+    expect(host?.textContent).toContain("كشف الحساب الخارجي");
+    expect(host?.textContent).toContain("EXT-NEW-001");
+
+    const refreshButton = host?.querySelector<HTMLButtonElement>('button[aria-label="تحديث كشف الحساب"]');
+    expect(refreshButton).toBeDefined();
+    expect(refreshButton).toBeEnabled();
+    await act(async () => {
+      refreshButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(sourceReads).toBe(6);
+    expect(statementReads).toBe(3);
+    expect(host?.textContent).not.toContain("INV-FOREGROUND-STALE");
+    expect(host?.textContent).toContain("EXT-NEW-001");
+  });
+
 });

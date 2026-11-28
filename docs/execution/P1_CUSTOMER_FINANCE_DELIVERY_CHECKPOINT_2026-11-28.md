@@ -157,3 +157,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Route-level regression now runs as two independent Vitest cases (PDF and Excel): it loads an APP_ONLY invoice and its actual detail payload, transitions the server-owned source to ONYX at output preflight, then asserts that the invoice reference, monetary amount and detail dialog are removed and the source-cutover warning is visible.
 - Tests are authored and require terminal P1 Vitest/strict TypeScript and P2 Playwright on the same final PR SHA. No PASS is claimed from queued/pending or prior-head runs.
 - No migration, production DB access, financial/inventory write, live ERP call, credential, secret or deployment was introduced.
+
+
+## P1 follow-up — foreground source refresh for customer statements (2026-11-28)
+
+- Added foreground revalidation to the existing customer Statement route. Returning to a visible/focused browser window reloads the server-selected source and the matching statement; this prevents the prior APP_ONLY/ERP projection from lingering after a source cutover while the customer is away.
+- Focus and visibility-change events are deduplicated within 30 seconds, and foreground refresh is skipped while a statement read is already running. The existing request sequence prevents late responses from replacing the current view.
+- Added an explicit "تحديث كشف الحساب" action; it calls the existing source-resolved statement loader, with a disabled/loading state and no alternate data path.
+- Added a route-level regression: start with an APP_ONLY invoice, switch the server source to ONYX while the page is in the background, return to the foreground, and assert the old invoice disappears and the new currency-separated external statement replaces it. The test also triggers the explicit refresh and confirms both source resolution and statement RPC are called again.
+- Acceptance is pending exact-head P1 Vitest/strict-TypeScript and P2 Playwright; the test is authored, not a PASS. No migration, payment, inventory, production DB, live ERP, credential or deployment was introduced.

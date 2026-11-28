@@ -1534,6 +1534,26 @@ function Statement() {
     }
   }, []);
 
+  const lastForegroundRefreshAtRef = useRef(0);
+  const refreshStatementOnForeground = useCallback(() => {
+    if (document.visibilityState !== "visible" || loading) return;
+    const now = Date.now();
+    // Browsers commonly emit both focus and visibilitychange for one return.
+    // Deduplicate that pair and avoid repeated source/statement reads on focus churn.
+    if (now - lastForegroundRefreshAtRef.current < 30_000) return;
+    lastForegroundRefreshAtRef.current = now;
+    void load();
+  }, [load, loading]);
+
+  useEffect(() => {
+    window.addEventListener("focus", refreshStatementOnForeground);
+    document.addEventListener("visibilitychange", refreshStatementOnForeground);
+    return () => {
+      window.removeEventListener("focus", refreshStatementOnForeground);
+      document.removeEventListener("visibilitychange", refreshStatementOnForeground);
+    };
+  }, [refreshStatementOnForeground]);
+
   const downloadStatementPdf = useCallback(async () => {
     const requestId = statementReadSequenceRef.current;
     const isCurrentRequest = () => statementReadSequenceRef.current === requestId;
@@ -1751,6 +1771,14 @@ function Statement() {
         className="no-print"
         style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginBottom: 12 }}
       >
+        <button
+          style={secondary}
+          onClick={() => void load()}
+          disabled={loading}
+          aria-label="تحديث كشف الحساب"
+        >
+          <RefreshCw size={15} /> {loading ? "جارٍ تحديث كشف الحساب..." : "تحديث كشف الحساب"}
+        </button>
         {appLedgerAvailable && (
           <button style={primary} onClick={() => void downloadStatementPdf()} disabled={pdfBusy || loading}>
             <FileText size={15} /> {pdfBusy ? "جارٍ إنشاء PDF..." : "تنزيل PDF عربي"}
