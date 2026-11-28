@@ -234,4 +234,89 @@ describe("CustomerPaymentReceiptSelfServiceActions", () => {
     expect(screen.queryByText(/تم تجهيز سند القبض/)).not.toBeInTheDocument();
   });
 
+
+  it("revalidates the server source at the final delayed print boundary", async () => {
+    let delayedPrint: (() => void | Promise<void>) | undefined;
+    const originalSetTimeout = window.setTimeout.bind(window);
+    vi.spyOn(window, "setTimeout").mockImplementation((handler: TimerHandler, timeout?: number) => {
+      if (timeout === 180 && typeof handler === "function") {
+        delayedPrint = handler as () => void | Promise<void>;
+        return 1;
+      }
+      return originalSetTimeout(handler, timeout);
+    });
+
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: printPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse(otherSource) as never);
+
+    const popup = new JSDOM("<!doctype html><html><head></head><body></body></html>");
+    const popupWindow = popup.window as unknown as Window;
+    const closeSpy = vi.spyOn(popupWindow, "close");
+    const printSpy = vi.fn();
+    Object.assign(popupWindow, { print: printSpy });
+    vi.spyOn(window, "open").mockReturnValue(popupWindow);
+
+    render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
+    await screen.findByRole("option", { name: /سند-000123/ });
+    await userEvent.click(screen.getByRole("button", { name: /طباعة سند القبض/ }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("تم تجهيز سند القبض"));
+
+    expect(delayedPrint).toBeTypeOf("function");
+    await act(async () => { await delayedPrint?.(); });
+
+    expect(rpc).toHaveBeenNthCalledWith(7, "get_my_customer_financial_source");
+    expect(printSpy).not.toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("تغير مصدر الحساب المالي قبل الطباعة النهائية");
+    expect(screen.queryByText(/تم تجهيز سند القبض/)).not.toBeInTheDocument();
+    popup.window.close();
+  });
+
+  it("closes the delayed print window when final source revalidation is unavailable", async () => {
+    let delayedPrint: (() => void | Promise<void>) | undefined;
+    const originalSetTimeout = window.setTimeout.bind(window);
+    vi.spyOn(window, "setTimeout").mockImplementation((handler: TimerHandler, timeout?: number) => {
+      if (timeout === 180 && typeof handler === "function") {
+        delayedPrint = handler as () => void | Promise<void>;
+        return 1;
+      }
+      return originalSetTimeout(handler, timeout);
+    });
+
+    rpc.mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: optionsPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: printPayload(), error: null } as never)
+      .mockResolvedValueOnce(sourceResponse() as never)
+      .mockResolvedValueOnce({ data: null, error: { message: "offline" } } as never);
+
+    const popup = new JSDOM("<!doctype html><html><head></head><body></body></html>");
+    const popupWindow = popup.window as unknown as Window;
+    const closeSpy = vi.spyOn(popupWindow, "close");
+    const printSpy = vi.fn();
+    Object.assign(popupWindow, { print: printSpy });
+    vi.spyOn(window, "open").mockReturnValue(popupWindow);
+
+    render(<CustomerPaymentReceiptSelfServiceActions source={appOnly} />);
+    await screen.findByRole("option", { name: /سند-000123/ });
+    await userEvent.click(screen.getByRole("button", { name: /طباعة سند القبض/ }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("تم تجهيز سند القبض"));
+
+    expect(delayedPrint).toBeTypeOf("function");
+    await act(async () => { await delayedPrint?.(); });
+
+    expect(rpc).toHaveBeenNthCalledWith(7, "get_my_customer_financial_source");
+    expect(printSpy).not.toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("تعذر إعادة التحقق من مصدر الحساب المالي قبل الطباعة النهائية");
+    expect(screen.queryByText(/تم تجهيز سند القبض/)).not.toBeInTheDocument();
+    popup.window.close();
+  });
+
 });

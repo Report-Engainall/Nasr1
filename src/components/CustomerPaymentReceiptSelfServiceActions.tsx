@@ -38,6 +38,8 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
   const [notice, setNotice] = useState("");
   const sourceRef = useRef(source);
   sourceRef.current = source;
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
   const optionsRequestSequenceRef = useRef(0);
   const printRequestSequenceRef = useRef(0);
 
@@ -161,8 +163,40 @@ export function CustomerPaymentReceiptSelfServiceActions({ source }: Props) {
       renderCustomerPaymentReceiptDocument(printWindow.document, payload, options.organization_name);
       printWindow.focus();
       printWindow.onafterprint = () => closePrintWindow(printWindow);
-      window.setTimeout(() => {
-        if (printWindow && !printWindow.closed && requestId === printRequestSequenceRef.current) printWindow.print();
+      window.setTimeout(async () => {
+        const isCurrentPrint = () =>
+          requestId === printRequestSequenceRef.current &&
+          selectedIdRef.current === selectedReceiptId;
+
+        if (!printWindow || printWindow.closed || !isCurrentPrint()) {
+          closePrintWindow(printWindow);
+          return;
+        }
+
+        try {
+          // The receipt RPC transaction has ended by now. Re-read the server-owned
+          // binding at the actual print boundary so an external source cutover
+          // during the 180ms browser delay cannot print an APP_ONLY document.
+          const finalSource = await revalidateMyCustomerFinancialSource(sourceSnapshot);
+          if (!isCurrentPrint() || !printWindow || printWindow.closed) {
+            closePrintWindow(printWindow);
+            return;
+          }
+          if (!finalSource.unchanged || !canReadCustomerAppLedger(sourceRef.current)) {
+            closePrintWindow(printWindow);
+            setNotice("");
+            setError("تغير مصدر الحساب المالي قبل الطباعة النهائية؛ أوقفنا الطباعة وأغلقنا النافذة.");
+            return;
+          }
+
+          printWindow.print();
+        } catch {
+          closePrintWindow(printWindow);
+          if (isCurrentPrint()) {
+            setNotice("");
+            setError("تعذر إعادة التحقق من مصدر الحساب المالي قبل الطباعة النهائية؛ أوقفنا الطباعة وأغلقنا النافذة.");
+          }
+        }
       }, 180);
       setNotice("تم تجهيز سند القبض المحفوظ من رأس السند وتخصيصات الفواتير الفعلية.");
     } catch (cause) {
