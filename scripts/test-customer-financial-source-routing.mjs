@@ -1297,9 +1297,27 @@ async function main() {
     "outside the active finance organization",
   );
   await expectFailure(
+    "cursor source history cannot cross tenant boundaries",
+    rpc(managerDb,
+      "select public.get_customer_financial_source_change_history_page(" +
+        "$1::uuid,10,NULL::timestamptz,NULL::uuid) as result",
+      [foreignCustomerId]),
+    "42501",
+    "outside the active finance organization",
+  );
+  await expectFailure(
     "customer cannot read internal source-change approval history",
     rpc(customerDb,
       "select public.get_customer_financial_source_change_history($1::uuid,10) as result",
+      [customerId]),
+    "42501",
+    "finance capability required",
+  );
+  await expectFailure(
+    "customer cannot read the cursor source-history RPC",
+    rpc(customerDb,
+      "select public.get_customer_financial_source_change_history_page(" +
+        "$1::uuid,10,NULL::timestamptz,NULL::uuid) as result",
       [customerId]),
     "42501",
     "finance capability required",
@@ -2257,18 +2275,56 @@ async function main() {
     "select public.get_customer_financial_source_change_history($1::uuid,1) as result",
     [customerId]);
   assert.equal(oneRowHistory.records.length,1,
-    "source history page size of one returns exactly one record");
+    "legacy source history RPC remains compatible as a bounded first-page reader");
   assert.equal(oneRowHistory.total,sourceHistory.total,
     "source history total is consistent across bounded page sizes");
+
+  const sourceHistoryPageOne = await rpc(managerDb,
+    "select public.get_customer_financial_source_change_history_page(" +
+      "$1::uuid,1,NULL::timestamptz,NULL::uuid) as result",
+    [customerId]);
+  assert.equal(sourceHistoryPageOne.records.length,1);
+  assert.equal(sourceHistoryPageOne.has_more,true,
+    "source history exposes another page when older changes remain");
+  assert.equal(sourceHistoryPageOne.next_cursor.request_id,
+    sourceHistoryPageOne.records[0].request_id,
+    "source history cursor identifies the last visible row");
+  const sourceHistoryPageTwo = await rpc(managerDb,
+    "select public.get_customer_financial_source_change_history_page(" +
+      "$1::uuid,1,$2::timestamptz,$3::uuid) as result",
+    [customerId,sourceHistoryPageOne.next_cursor.requested_at,
+      sourceHistoryPageOne.next_cursor.request_id]);
+  assert.equal(sourceHistoryPageTwo.records.length,1,
+    "source history cursor returns the next record");
+  assert.notEqual(sourceHistoryPageTwo.records[0].request_id,
+    sourceHistoryPageOne.records[0].request_id,
+    "keyset pagination does not repeat the previous record");
+  assert.equal(sourceHistoryPageTwo.total,sourceHistory.total,
+    "keyset pages preserve the tenant/customer history total");
+  await expectFailure(
+    "source history rejects an incomplete cursor pair",
+    rpc(managerDb,
+      "select public.get_customer_financial_source_change_history_page(" +
+        "$1::uuid,1,$2::timestamptz,NULL::uuid) as result",
+      [customerId,new Date().toISOString()]),
+    "22023",
+    "cursor timestamp and request ID must be supplied together",
+  );
   const historyPrivileges = await db.unsafe(
     "select " +
       "has_function_privilege('authenticated','public.get_customer_financial_source_change_history(uuid,integer)','EXECUTE') as authenticated_execute," +
       "has_function_privilege('anon','public.get_customer_financial_source_change_history(uuid,integer)','EXECUTE') as anon_execute," +
-      "(select prosecdef from pg_catalog.pg_proc where oid='public.get_customer_financial_source_change_history(uuid,integer)'::regprocedure) as security_definer",
+      "(select prosecdef from pg_catalog.pg_proc where oid='public.get_customer_financial_source_change_history(uuid,integer)'::regprocedure) as security_definer," +
+      "has_function_privilege('authenticated','public.get_customer_financial_source_change_history_page(uuid,integer,timestamp with time zone,uuid)','EXECUTE') as page_authenticated_execute," +
+      "has_function_privilege('anon','public.get_customer_financial_source_change_history_page(uuid,integer,timestamp with time zone,uuid)','EXECUTE') as page_anon_execute," +
+      "(select prosecdef from pg_catalog.pg_proc where oid='public.get_customer_financial_source_change_history_page(uuid,integer,timestamp with time zone,uuid)'::regprocedure) as page_security_definer",
   );
   assert.equal(historyPrivileges[0].authenticated_execute,true);
   assert.equal(historyPrivileges[0].anon_execute,false);
   assert.equal(historyPrivileges[0].security_definer,true);
+  assert.equal(historyPrivileges[0].page_authenticated_execute,true);
+  assert.equal(historyPrivileges[0].page_anon_execute,false);
+  assert.equal(historyPrivileges[0].page_security_definer,true);
 
   const audit = await db.unsafe(
     "select action,count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and entity_id=$2::uuid and action like 'customer.financial_source.%' group by action order by action",
