@@ -7,7 +7,7 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 ## Current source pointers
 - Latest observed main HEAD: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only execution directive refresh).
 - Latest code-bearing main SHA recorded in the shared execution state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
-- Latest P2 code/test head before the current performance hardening: `5de82604c9f94329600fcc23b7897b9dfac63c3e`. It includes the bounded source-history RPC tests, safe response allowlist and installed/valid compound history-index assertions. Source-posting + RLS guard commits remain `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
+- Latest P2 code/test head before the keyset-pagination batch: `fdac0dd430cf0d0db9c616b0f7fc0272a0f40616`. It includes safe source-history DTO allowlist assertions, valid compound history-index checks, and direct cursor traversal without duplicate rows. Source-posting + RLS guard commits remain `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
 - PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
 - No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
 
@@ -276,3 +276,12 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 - The PostgreSQL acceptance now checks through `pg_catalog.pg_index` that the history index exists, is valid, and exposes the exact tenant/customer newest-first ordering required by the reader.
 - Migration commit: `e0142a005d77dd79cf047947a7056c18375ca674`; test commit: `5de82604c9f94329600fcc23b7897b9dfac63c3e`. This is a read-path performance index only; no source binding, reconciliation, payment, receipt, invoice, journal or inventory row is modified.
 - The previous exact-head P1/P2 jobs were attached to SHA `9ed8e66509fb41c677b95ff443c0cfb4c7dd6583`; their results do not transfer to this updated SHA. Require new exact-head PG17/P2 and P1 terminal-success evidence before acceptance. No PG17 PASS is claimed.
+
+
+## 2026-11-28 — Keyset-paginated finance source history
+
+- Extended the source-history migration with `get_customer_financial_source_change_history_page(uuid,integer,timestamptz,uuid)`. It retains the existing finance capability, active-profile and approved same-tenant customer checks, plus strict pairing of cursor timestamp/request ID.
+- The page reader fetches at most `p_limit + 1` rows using the indexed tuple predicate `(requested_at,id) < (cursor_requested_at,cursor_request_id)`, ordered newest first. It returns the documented safe DTO, total count, `has_more`, and the last visible row's composite cursor. No OFFSET scan and no repeated timestamp ambiguity.
+- Preserved `get_customer_financial_source_change_history(uuid,integer)` as the existing first-page compatibility wrapper. Authenticated-only grants remain; anonymous execute is revoked on both functions.
+- Test commit `fdac0dd430cf0d0db9c616b0f7fc0272a0f40616` now proves first/second-page continuity, no duplicate request IDs, missing-cursor-pair rejection, old-wrapper compatibility, tenant/customer denial, and both functions' grants/SECURITY DEFINER flags. The composite history index is checked valid in `pg_catalog.pg_index`.
+- API/OPS contract updated in commit `671f1c6e8c28882a954da1d34c9b9d7e78e10725`. Exact-head PostgreSQL 17 and P1/P2 workflows are required on the next SHA; no runtime PASS is claimed.
