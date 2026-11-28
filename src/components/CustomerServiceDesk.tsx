@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button, Empty, ErrorBox, Loading } from "@/components/AdminPages";
 import { useAuth } from "@/lib/auth";
+import { CustomerServiceCaseDescription } from "@/components/CustomerServiceCaseDescription";
 import { CustomerServiceConversation } from "@/components/CustomerServiceConversation";
 import { CustomerServiceSlaPolicyPanel } from "@/components/CustomerServiceSlaPolicyPanel";
 import { fetchOperationalTaskAssignees } from "@/lib/api";
@@ -164,7 +165,7 @@ function DeskCaseCard({ item, canManage, assignees, onRefresh, onOpenTask, onNot
       </div>
       <span className={"customer-service-desk-status status-" + item.status}>{statusLabels[item.status]}</span>
     </div>
-    <p className="customer-service-desk-description">{item.description}</p>
+    <CustomerServiceCaseDescription description={item.description} />
     <div className="customer-service-desk-deadlines">
       <div className={responseOverdue ? "is-overdue" : ""}>
         <span>الاستجابة الأولى</span><strong>{formatDateTime(item.response_due_at)}</strong>
