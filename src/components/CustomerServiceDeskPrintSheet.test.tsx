@@ -70,6 +70,7 @@ describe("CustomerServiceDeskPrintSheet", () => {
     expect(screen.getByText("INV-2026-014")).not.toBeNull();
     expect(screen.getByText("ERP-INV-014")).not.toBeNull();
     expect(screen.getByText("مرجع عميل غير معتمد")).not.toBeNull();
+    expect(screen.getByText(/لقطة الكشف:.*UTC/)).not.toBeNull();
   });
 
   it("does not show the continuation warning after the loaded queue is complete", () => {

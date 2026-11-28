@@ -69,6 +69,24 @@ const typeLabels: Record<CustomerServiceDeskCase["case_type"], string> = {
 
 type Row = Record<string, unknown>;
 
+function documentReviewSummary(
+  description: unknown,
+): Omit<CustomerDocumentReviewReference, "customerMessage"> | null {
+  if (typeof description !== "string") return null;
+  const reference = parseCustomerDocumentReviewReference(description);
+  if (!reference) return null;
+  return {
+    documentNumber: reference.documentNumber,
+    entryReference: reference.entryReference,
+    currencyCode: reference.currencyCode,
+    sourceMode: reference.sourceMode,
+    sourceLabel: reference.sourceLabel,
+    sourceAsOf: reference.sourceAsOf,
+    entryType: reference.entryType,
+    entryTypeLabel: reference.entryTypeLabel,
+  };
+}
+
 function object(value: unknown, label: string): Row {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("بيانات " + label + " غير صالحة في كشف خدمة العملاء.");
@@ -238,14 +256,7 @@ export function projectCustomerServiceDeskPrintDocument(input: {
       assignedToName: requiredText(row.assigned_to_name, "المسؤول", 240),
       taskDueAt: nullableDate(row.task_due_at, "استحقاق المهمة"),
       hasLinkedTask: taskId !== null,
-      documentReview: typeof row.description === "string"
-        ? (() => {
-            const reference = parseCustomerDocumentReviewReference(row.description as string);
-            if (!reference) return null;
-            const { customerMessage: _customerMessage, ...approvedReference } = reference;
-            return approvedReference;
-          })()
-        : null,
+      documentReview: documentReviewSummary(row.description),
     };
   });
 

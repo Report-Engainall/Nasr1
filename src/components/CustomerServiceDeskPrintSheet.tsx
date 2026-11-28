@@ -8,6 +8,17 @@ function date(value: string | null): string {
     : "—";
 }
 
+function dateUtc(value: string): string {
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime())
+    ? new Intl.DateTimeFormat("ar-YE", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      }).format(parsed) + " UTC"
+    : "—";
+}
+
 export function CustomerServiceDeskPrintSheet({
   document,
 }: {
@@ -60,7 +71,7 @@ export function CustomerServiceDeskPrintSheet({
                   <small>مرجع الحركة: {row.documentReview.entryReference}</small>
                   <small>{row.documentReview.sourceLabel} · {row.documentReview.currencyCode}</small>
                   <small>{row.documentReview.entryTypeLabel}</small>
-                  <small>لقطة الكشف: {date(row.documentReview.sourceAsOf)}</small>
+                  <small>لقطة الكشف: {dateUtc(row.documentReview.sourceAsOf)}</small>
                   <small>مرجع عميل غير معتمد</small>
                 </>
               ) : "—"}</td>

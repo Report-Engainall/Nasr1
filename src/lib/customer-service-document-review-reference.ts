@@ -63,7 +63,8 @@ function isValidSourceTimestamp(value: string): boolean {
 
   const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
   const daysByMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  if (day < 1 || day > daysByMonth[month - 1]) return false;
+  const daysInMonth = daysByMonth[month - 1];
+  if (daysInMonth === undefined || day < 1 || day > daysInMonth) return false;
 
   const offset = match[7];
   if (offset !== "Z") {
