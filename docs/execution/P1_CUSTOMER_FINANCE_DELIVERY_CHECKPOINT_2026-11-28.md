@@ -147,3 +147,13 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Files changed in this follow-up: `src/components/CustomerWorkflows.tsx` and `src/test/customer-workflow-tenant.test.tsx`. The test is included in the existing P1 strict TypeScript/test path; no schema, server RPC or production behavior was changed.
 - These checks are authored, not run/pass evidence. Require P1 Vitest/strict TypeScript and P2 Playwright on the final branch SHA. Queued, pending, cancelled, skipped or prior-SHA results are not acceptance.
 - No production DB, financial mutation, stock mutation, live ERP call, secret, deployment, paid service or merge was performed.
+
+## P1 follow-up — invoice PDF/XLSX stale-projection cutover (2026-11-28)
+
+- Added one invoice-projection invalidation path that drops the invoice list and selected invoice detail, line items, customer identity/tier, amounts, order summary and transient document actions; it also invalidates outstanding detail requests.
+- Invoice PDF now verifies the selected invoice identity and detail-request sequence after each asynchronous boundary. A source resolver failure, APP_ONLY source revision change, or a newer invoice selection prevents a stale PDF response from downloading.
+- Invoice XLSX now snapshots the selected invoice/customer/line/financial payload before its asynchronous source check, then verifies that the same invoice selection and sequence are still active before workbook generation. Resolver failure or source change clears the complete invoice projection.
+- The existing invoice-detail close and list-refresh paths now reset or invalidate document work so an older PDF request cannot leave the UI in a permanent busy state.
+- Route-level regression now runs as two independent Vitest cases (PDF and Excel): it loads an APP_ONLY invoice and its actual detail payload, transitions the server-owned source to ONYX at output preflight, then asserts that the invoice reference, monetary amount and detail dialog are removed and the source-cutover warning is visible.
+- Tests are authored and require terminal P1 Vitest/strict TypeScript and P2 Playwright on the same final PR SHA. No PASS is claimed from queued/pending or prior-head runs.
+- No migration, production DB access, financial/inventory write, live ERP call, credential, secret or deployment was introduced.
