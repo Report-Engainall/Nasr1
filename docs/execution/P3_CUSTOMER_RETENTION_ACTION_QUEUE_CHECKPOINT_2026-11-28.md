@@ -19,6 +19,8 @@
 - Regression coverage includes a short phone-like reference in CSV and decision output, plus a long reference in the UI and decision output; none is copied into customer-facing labels or decision display text.
 - Residual privacy boundary: the established decision ID still uses an unkeyed deterministic 64-bit customer-reference fingerprint for same-day idempotency. It is pseudonymous, not encryption or an authorization token; source metric/evidence identifiers also remain intact for traceability. Do not claim cryptographic anonymization until a server-managed opaque/keyed identity contract and coordinated idempotency migration are delivered.
 - Demand what-if projections cover 7/30/90-day scenarios against matched verified ATP and forecast evidence; incoming purchase quantities are excluded without receipt-date proof, and no purchase/inventory side effect is created.
+- `a119918f08f49ff875d777655b0f142e722ef933` added per-horizon reorder-point pressure labels; equality is now described as `at or above`, never incorrectly as strictly above.
+- `048553fb81dfec51193aeebd1a542ae098287e21` hardens scenario stock projections: malformed scenario horizons and inventory rows are withheld, scenario/product/unit/formula identity is validated, and forecast evidence must also be present in the recommendation's complete evidence list.
 
 ## Acceptance
 

@@ -39,7 +39,7 @@ function validLabel(value: unknown, maxLength = 256): value is string {
 }
 const withheld = (scenario: DemandScenarioResult | null | undefined, reason: string): DemandScenarioStockImpact => ({
   status: "WITHHELD", reason,
-  productRef: validLabel(scenario?.productRef, 200) ? scenario.productRef : "",
+  productRef: scenario && validLabel(scenario.productRef, 200) ? scenario.productRef : "",
   quantityUnit: null,
   availableToPromise: null, reorderPoint: null, leadTime: null, horizons: [],
   inventoryEvidenceIds: [], inventoryFormulaId: null, inventoryFormulaVersion: null,
