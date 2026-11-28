@@ -54,7 +54,7 @@ import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPayment
 import { CustomerPaymentReceiptSelfServiceActions } from "@/components/CustomerPaymentReceiptSelfServiceActions";
 import { CustomerFinancialSourceNotice } from "@/components/CustomerFinancialSourceNotice";
 import { CustomerExternalAccountStatement } from "@/components/CustomerExternalAccountStatement";
-import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, revalidateMyCustomerFinancialSource, type CustomerFinancialSource } from "@/lib/customer-financial-source";
+import { canReadCustomerAppLedger, fetchMyCustomerFinancialSource, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, revalidateMyCustomerFinancialSource, revalidateMyCustomerFinancialSourceSnapshot, type CustomerFinancialSource } from "@/lib/customer-financial-source";
 import {
   downloadCustomerAccountStatementWorkbookXlsx,
   downloadCustomerExternalStatementWorkbookXlsx,
@@ -1548,7 +1548,7 @@ function Statement() {
     setXlsxError("");
     try {
       let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
-      try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+      try { sourceCheck = await revalidateMyCustomerFinancialSourceSnapshot(sourceSnapshot); }
       catch (cause) {
         setFinancialSource(null);
         setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل تصدير كشف Excel؛ أوقفنا التصدير.");
@@ -1586,7 +1586,7 @@ function Statement() {
     const sourceSnapshot = financialSource;
     if (!sourceSnapshot || (!canReadCustomerAppLedger(sourceSnapshot) && !externalStatement)) return;
     let sourceCheck: Awaited<ReturnType<typeof revalidateMyCustomerFinancialSource>>;
-    try { sourceCheck = await revalidateMyCustomerFinancialSource(sourceSnapshot); }
+    try { sourceCheck = await revalidateMyCustomerFinancialSourceSnapshot(sourceSnapshot); }
     catch {
       setFinancialSource(null);
       setFinancialSourceError("تعذر التحقق من مصدر الحساب قبل الطباعة؛ أوقفنا إخراج المستند.");

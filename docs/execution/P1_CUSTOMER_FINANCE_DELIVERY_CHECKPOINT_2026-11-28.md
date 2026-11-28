@@ -100,3 +100,13 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - The UI must fail closed when the source mode differs, the external payload is invalid/stale, the current binding changed during fetch/print/export, or the server cannot confirm the source.
 - External XLSX/print does not invoke the APP_ONLY PDF API, post ledger rows, or merge currency totals.
 - Exact final-head P1 and P2 workflows are required. Queued, pending, skipped, cancelled or absent jobs do not count as acceptance.
+
+
+## P1 follow-up — external statement print/export source revalidation
+
+- The source-version comparator now includes exact `source_as_of`, `last_synced_at` and `verified_at` timestamps in addition to revision, mode, status, stale and read flags. A fresh snapshot cannot silently replace the statement snapshot without invalidating an in-flight action.
+- Kept `revalidateMyCustomerFinancialSource` APP_ONLY-only for existing invoice/payment document callers. Added `revalidateMyCustomerFinancialSourceSnapshot` for source-routed statement actions: APP_ONLY retains its existing read permission; ONYX/MUTAKAMEL require active status, non-stale state and a source-as-of timestamp, then must match the exact saved snapshot.
+- External Statement XLSX and browser print use the source-routed snapshot validator. If the account moves, becomes stale/suspended, or the source watermark changes during the action, the action is rejected. The server-generated APP_ONLY PDF remains behind its original APP_ONLY-only validator.
+- Added three tests for successful external snapshot validation, stale/suspended/changed-watermark denial, and preservation of the APP_ONLY-only helper.
+- Authored tests still require exact-head P1 Vitest/strict TypeScript and P2 browser acceptance; no PASS is claimed.
+- No production database, financial ledger, inventory, live ERP endpoint, secret or deployment was touched.

@@ -2,8 +2,65 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
-import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchCustomerFinancialSourceChangeHistoryPage, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource } from "./customer-financial-source";
+import { canReadCustomerAppLedger, fetchCustomerFinancialSourceChangeHistory, fetchCustomerFinancialSourceChangeHistoryPage, fetchStaffCustomerFinancialSource, isSameCustomerFinancialSourceVersion, parseCustomerFinancialSource, requestCustomerFinancialSourceChange, reviewCustomerFinancialSourceChange, revalidateMyCustomerFinancialSource, revalidateMyCustomerFinancialSourceSnapshot } from "./customer-financial-source";
 const appOnly = { source_mode:"APP_ONLY", source_status:"active", source_as_of:null, last_synced_at:null, verified_at:null, revision:1, is_stale:false, can_read_app_ledger:true };
+describe("customer financial source snapshot revalidation", () => {
+  beforeEach(() => mocks.rpc.mockReset());
+
+  const external = {
+    source_mode: "ONYX",
+    source_status: "active",
+    source_as_of: "2026-11-28T00:00:00Z",
+    last_synced_at: "2026-11-28T00:05:00Z",
+    verified_at: "2026-11-28T00:05:00Z",
+    revision: 3,
+    is_stale: false,
+    can_read_app_ledger: false,
+  };
+
+  it("allows printing/export revalidation for the exact active non-stale external source snapshot", async () => {
+    mocks.rpc.mockResolvedValue({ data: external, error: null });
+    const expected = parseCustomerFinancialSource(external);
+    const result = await revalidateMyCustomerFinancialSourceSnapshot(expected);
+    expect(mocks.rpc).toHaveBeenCalledWith("get_my_customer_financial_source");
+    expect(result.unchanged).toBe(true);
+    expect(result.source.source_mode).toBe("ONYX");
+    expect(canReadCustomerAppLedger(result.source)).toBe(false);
+  });
+
+  it("rejects external print/export revalidation when the source becomes stale, suspended or moves its watermark", async () => {
+    const expected = parseCustomerFinancialSource(external);
+
+    mocks.rpc.mockResolvedValue({
+      data: { ...external, is_stale: true },
+      error: null,
+    });
+    await expect(revalidateMyCustomerFinancialSourceSnapshot(expected))
+      .resolves.toMatchObject({ unchanged: false, source: { is_stale: true } });
+
+    mocks.rpc.mockResolvedValue({
+      data: { ...external, source_status: "suspended" },
+      error: null,
+    });
+    await expect(revalidateMyCustomerFinancialSourceSnapshot(expected))
+      .resolves.toMatchObject({ unchanged: false, source: { source_status: "suspended" } });
+
+    mocks.rpc.mockResolvedValue({
+      data: { ...external, source_as_of: "2026-11-28T00:10:00Z" },
+      error: null,
+    });
+    await expect(revalidateMyCustomerFinancialSourceSnapshot(expected))
+      .resolves.toMatchObject({ unchanged: false, source: { source_as_of: "2026-11-28T00:10:00Z" } });
+  });
+
+  it("does not broaden the existing APP_ONLY-specific document revalidator", async () => {
+    mocks.rpc.mockResolvedValue({ data: external, error: null });
+    const expected = parseCustomerFinancialSource(external);
+    await expect(revalidateMyCustomerFinancialSource(expected))
+      .resolves.toMatchObject({ unchanged: false });
+  });
+});
+
 describe("customer financial source contract", () => {
   it("allows the app ledger only when the server confirms APP_ONLY and active status", () => {
     const source=parseCustomerFinancialSource(appOnly);

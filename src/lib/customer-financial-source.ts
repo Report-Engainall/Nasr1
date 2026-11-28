@@ -424,6 +424,9 @@ export function isSameCustomerFinancialSourceVersion(
   return expected.revision === actual.revision &&
     expected.source_mode === actual.source_mode &&
     expected.source_status === actual.source_status &&
+    expected.source_as_of === actual.source_as_of &&
+    expected.last_synced_at === actual.last_synced_at &&
+    expected.verified_at === actual.verified_at &&
     expected.is_stale === actual.is_stale &&
     expected.can_read_app_ledger === actual.can_read_app_ledger;
 }
@@ -440,5 +443,24 @@ export async function revalidateMyCustomerFinancialSource(
     source,
     unchanged: canReadCustomerAppLedger(source) &&
       isSameCustomerFinancialSourceVersion(expected, source),
+  };
+}
+
+/**
+ * Revalidate the current source binding for a source-routed statement. APP_ONLY
+ * keeps its existing invoice/payment read rule; ONYX/MUTAKAMEL are accepted only
+ * while active, non-stale, and bound to the exact same revision and source
+ * watermarks. This does not authorize local writes or APP_ONLY document APIs.
+ */
+export async function revalidateMyCustomerFinancialSourceSnapshot(
+  expected: CustomerFinancialSource,
+): Promise<{ source: CustomerFinancialSource; unchanged: boolean }> {
+  const source = await fetchMyCustomerFinancialSource();
+  const readable = source.source_mode === "APP_ONLY"
+    ? canReadCustomerAppLedger(source)
+    : source.source_status === "active" && !source.is_stale && source.source_as_of !== null;
+  return {
+    source,
+    unchanged: readable && isSameCustomerFinancialSourceVersion(expected, source),
   };
 }
