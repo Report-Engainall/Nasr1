@@ -639,17 +639,17 @@ export function DailyDecisionBoard({
       {result.records.length > 0 ? (
         <section className="space-y-2" aria-label="مؤشرات قائمة القرارات المحمّلة">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            <button type="button" aria-label="عرض القرارات المتأخرة" onClick={() => { setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("OVERDUE"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات المتأخرة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("OVERDUE"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">متأخرة</p><strong className="text-lg tabular-nums">{queueSummary.overdue}</strong></button>
-            <button type="button" aria-label="عرض القرارات المستحقة خلال 24 ساعة" onClick={() => { setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_24H"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات المستحقة خلال 24 ساعة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_24H"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">خلال 24 ساعة</p><strong className="text-lg tabular-nums">{queueSummary.dueWithin24Hours}</strong></button>
-            <button type="button" aria-label="عرض القرارات المستحقة خلال 7 أيام" onClick={() => { setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_7_DAYS"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات المستحقة خلال 7 أيام" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("DUE_7_DAYS"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">خلال 7 أيام</p><strong className="text-lg tabular-nums">{queueSummary.dueWithinSevenDays}</strong></button>
-            <button type="button" aria-label="عرض القرارات غير المجدولة" onClick={() => { setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("UNSCHEDULED"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات غير المجدولة" onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("UNSCHEDULED"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">غير مجدولة</p><strong className="text-lg tabular-nums">{queueSummary.unscheduled}</strong></button>
-            <button type="button" aria-label="عرض القرارات قيد المراجعة" onClick={() => { setStateFilter("IN_REVIEW"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات قيد المراجعة" onClick={() => { setSearchText(""); setStateFilter("IN_REVIEW"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">قيد المراجعة</p><strong className="text-lg tabular-nums">{queueSummary.inReview}</strong></button>
-            <button type="button" aria-label="عرض القرارات بانتظار القياس" onClick={() => { setStateFilter("EXECUTED"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
+            <button type="button" aria-label="عرض القرارات بانتظار القياس" onClick={() => { setSearchText(""); setStateFilter("EXECUTED"); setPriorityFilter("ALL"); setDueFilter("ALL"); setRequestedPageIndex(0); }}
               className="rounded-lg border p-2 text-start hover:bg-muted/50"><p className="text-xs text-muted-foreground">بانتظار القياس</p><strong className="text-lg tabular-nums">{queueSummary.awaitingMeasurement}</strong></button>
           </div>
           <p className="text-xs text-muted-foreground">المؤشرات أعلاه محسوبة من {result.loadedCount} قراراً محمّلاً فقط.</p>
