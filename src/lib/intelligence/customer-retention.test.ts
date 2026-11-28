@@ -399,7 +399,7 @@ describe("customer retention daily decision integration", () => {
     expect(queue.status).toBe("VERIFIED");
     expect(decisions).toHaveLength(2);
     expect(decisions.every(item => item.id.length <= 150)).toBe(true);
-    expect(decisions.every(item => /^customer\\.retention:[0-9a-f]{16}:\\d{4}-\\d{2}-\\d{2}$/.test(item.id))).toBe(true);
+    expect(decisions.every(item => /^customer\.retention:[0-9a-f]{16}:\d{4}-\d{2}-\d{2}$/.test(item.id))).toBe(true);
     expect(new Set(decisions.map(item => item.id)).size).toBe(2);
     expect(decisions.map(item => item.id)).toEqual(repeated.map(item => item.id));
     expect(decisions.some(item => item.id.includes(longA) || item.id.includes(longB))).toBe(false);
