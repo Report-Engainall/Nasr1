@@ -119,6 +119,12 @@ describe("customer external ERP statement contract", () => {
     expect(() => parseCustomerExternalStatement(root, "ONYX", expected)).toThrow(/توقيت مصدر ERP/);
   });
 
+  it("accepts equivalent source instants expressed with different valid offsets", () => {
+    const expected = new Date(Date.parse(sourceAsOf) + 3 * 60 * 60 * 1000)
+      .toISOString().replace(/Z$/, "+03:00");
+    expect(() => parseCustomerExternalStatement(base, "ONYX", expected)).not.toThrow();
+  });
+
   it("rejects sub-microsecond timestamps and offsets beyond ISO 8601 bounds", () => {
     const tooPrecise = structuredClone(base);
     tooPrecise.source_as_of = sourceAsOf.replace(/Z$/, "1234567Z");
@@ -164,6 +170,10 @@ describe("customer external ERP statement contract", () => {
     expect(result.currencies[0].details_partial).toBe(true);
     expect(result.currencies[0].entry_count).toBe(501);
     expect(result.currencies[0].total_debit).toBe("9000.0000");
+    const brokenPartialTotals = structuredClone(partial);
+    brokenPartialTotals.currencies[0].total_credit = "7999.0000";
+    expect(() => parseCustomerExternalStatement(brokenPartialTotals, "ONYX", sourceAsOf))
+      .toThrow(/إجمالي المدين والدائن لا يطابق الرصيد الختامي/);
   });
 
   it("maps external statement entry types into customer-safe Arabic labels", () => {

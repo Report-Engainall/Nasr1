@@ -156,6 +156,12 @@ function validateCurrencyLedger(input: {
     throw new Error("كشف ERP بلا حركات لكنه يعرض رصيدًا ختاميًا غير صفري.");
   }
 
+  // The totals and closing balance always cover the full server-side account,
+  // even when only the newest 500 detail rows are returned to the browser.
+  if (totalDebit - totalCredit !== closingBalance) {
+    throw new Error("إجمالي المدين والدائن لا يطابق الرصيد الختامي المعتمد.");
+  }
+
   if (!input.detailsPartial) {
     const entriesDebit = input.entries.reduce((sum, entry) => sum + decimalToScale4(entry.debit_amount), 0n);
     const entriesCredit = input.entries.reduce((sum, entry) => sum + decimalToScale4(entry.credit_amount), 0n);
