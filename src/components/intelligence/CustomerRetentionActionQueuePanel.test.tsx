@@ -168,6 +168,12 @@ describe("CustomerRetentionActionQueuePanel", () => {
     expect(await screen.findByText(/حُفظ قرار متابعة العميل بالخادم/)).toBeInTheDocument();
   });
 
+  it("does not render a dead decision button without a workspace persistence handler", () => {
+    render(<CustomerRetentionActionQueuePanel queue={verifiedQueue} loading={false} canCreateDecision />);
+
+    expect(screen.queryByRole("button", { name: "حفظ كقرار إداري للمتابعة" })).not.toBeInTheDocument();
+  });
+
   it("does not expose decision creation when the parent workspace denies it", () => {
     const onCreateDecisionProposal = vi.fn();
     render(<CustomerRetentionActionQueuePanel
