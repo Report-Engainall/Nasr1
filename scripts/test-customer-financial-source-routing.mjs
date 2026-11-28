@@ -1953,6 +1953,288 @@ async function main() {
     );
   }
 
+
+  // Positive P4 -> P2 -> authenticated customer statement acceptance.
+  // P2's branch does not require P4's migration to be merged. When all P4 statement
+  // tables are absent, create a minimal isolated test surface, exercise the real
+  // P2 statement RPC, then remove that temporary surface.
+  const p4HarnessInstalled = Boolean(
+    p4StatementTables[0].checkpoints && p4StatementTables[0].receipts && p4StatementTables[0].outcomes
+  );
+  const p4HarnessAbsent = Boolean(
+    !p4StatementTables[0].checkpoints && !p4StatementTables[0].receipts && !p4StatementTables[0].outcomes
+  );
+  if (!p4HarnessInstalled && !p4HarnessAbsent) {
+    throw new Error("ERP statement acceptance found a partial P4 schema; refusing a mixed staging surface.");
+  }
+  if (p4HarnessAbsent) {
+    await db.unsafe(
+      "CREATE TABLE public.erp_sync_checkpoints (" +
+      "organization_id uuid NOT NULL,scope_key text NOT NULL,provider text NOT NULL," +
+      "company_external_id text NOT NULL,branch_external_id text NOT NULL,warehouse_external_id text," +
+      "currency_code text,object_type text NOT NULL,version bigint NOT NULL DEFAULT 0," +
+      "cursor_ciphertext text,pending_watermark timestamptz,completed_watermark timestamptz," +
+      "created_at timestamptz NOT NULL DEFAULT statement_timestamp()," +
+      "updated_at timestamptz NOT NULL DEFAULT statement_timestamp()," +
+      "PRIMARY KEY (organization_id,scope_key))",
+    );
+    await db.unsafe(
+      "CREATE TABLE public.erp_sync_page_receipts (" +
+      "organization_id uuid NOT NULL,scope_key text NOT NULL,page_fingerprint text NOT NULL," +
+      "response_sha256 text NOT NULL,next_cursor_present boolean NOT NULL,http_status integer NOT NULL," +
+      "external_request_id text,pending_watermark timestamptz,completed_watermark timestamptz," +
+      "records_received integer NOT NULL,created_count integer NOT NULL,updated_count integer NOT NULL," +
+      "unchanged_count integer NOT NULL,rejected_count integer NOT NULL,conflicted_count integer NOT NULL," +
+      "completed boolean NOT NULL,committed_version bigint NOT NULL," +
+      "recorded_at timestamptz NOT NULL DEFAULT statement_timestamp()," +
+      "PRIMARY KEY (organization_id,scope_key,page_fingerprint))",
+    );
+    await db.unsafe(
+      "CREATE TABLE public.erp_sync_page_record_outcomes (" +
+      "organization_id uuid NOT NULL,scope_key text NOT NULL,page_fingerprint text NOT NULL," +
+      "external_id text NOT NULL,source_updated_at timestamptz NOT NULL,fields jsonb NOT NULL," +
+      "disposition text NOT NULL,disposition_reason text," +
+      "recorded_at timestamptz NOT NULL DEFAULT statement_timestamp()," +
+      "PRIMARY KEY (organization_id,scope_key,page_fingerprint,external_id))",
+    );
+  }
+
+  const statementBindingRows = await db.unsafe(
+    "select source_mode,source_status,revision,source_as_of,external_account_ref," +
+      "company_external_ref,branch_external_ref " +
+    "from public.customer_financial_source_bindings " +
+    "where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId,customerId],
+  );
+  assert.equal(statementBindingRows.length,1);
+  const statementBinding = statementBindingRows[0];
+  assert.equal(statementBinding.source_mode,"ONYX");
+  assert.equal(statementBinding.source_status,"active");
+  assert.equal(statementBinding.external_account_ref,"ONYX-CUST-0001");
+  assert.equal(statementBinding.company_external_ref,"ONYX-COMPANY-01");
+  assert.equal(statementBinding.branch_external_ref,"ONYX-BRANCH-01");
+  const statementWatermark = statementBinding.source_as_of;
+  const statementScopeKeys = {
+    YER: hash("P2-positive-customer-statement-YER"),
+    USD: hash("P2-positive-customer-statement-USD"),
+  };
+
+  for (const currencyCode of ["YER","USD"]) {
+    await db.unsafe(
+      "insert into public.erp_sync_checkpoints(" +
+        "organization_id,scope_key,provider,company_external_id,branch_external_id," +
+        "warehouse_external_id,currency_code,object_type,version,cursor_ciphertext," +
+        "pending_watermark,completed_watermark" +
+      ") values($1::uuid,$2::text,'onyx_pro','ONYX-COMPANY-01','ONYX-BRANCH-01'," +
+        "null,$3::text,'customer_statement_entries',0,null,null,null)",
+      [orgId,statementScopeKeys[currencyCode],currencyCode],
+    );
+  }
+
+  async function stageCustomerStatementPage(currencyCode, version, rows) {
+    const scopeKey = statementScopeKeys[currencyCode];
+    const fingerprint = hash("P2-statement-" + currencyCode + "-page-" + version);
+    const createdCount = rows.filter(row => row.disposition === "created" || row.disposition === "updated").length;
+    const rejectedCount = rows.filter(row => row.disposition === "rejected").length;
+    await db.unsafe(
+      "insert into public.erp_sync_page_receipts(" +
+        "organization_id,scope_key,page_fingerprint,response_sha256,next_cursor_present," +
+        "http_status,external_request_id,pending_watermark,completed_watermark," +
+        "records_received,created_count,updated_count,unchanged_count,rejected_count," +
+        "conflicted_count,completed,committed_version" +
+      ") values($1::uuid,$2::text,$3::text,$4::text,false,200,null,null,$5::timestamptz," +
+        "$6::integer,$7::integer,0,0,$8::integer,0,true,$9::bigint)",
+      [orgId,scopeKey,fingerprint,hash("P2-statement-response-" + currencyCode + "-" + version),
+        statementWatermark,rows.length,createdCount,rejectedCount,version],
+    );
+    for (const row of rows) {
+      await db.unsafe(
+        "insert into public.erp_sync_page_record_outcomes(" +
+          "organization_id,scope_key,page_fingerprint,external_id,source_updated_at," +
+          "fields,disposition,disposition_reason" +
+        ") values($1::uuid,$2::text,$3::text,$4::text,$5::timestamptz,$6::jsonb,$7::text,$8::text)",
+        [orgId,scopeKey,fingerprint,row.externalId,statementWatermark,
+          JSON.stringify(row.fields),row.disposition,row.dispositionReason ?? null],
+      );
+    }
+    await db.unsafe(
+      "update public.erp_sync_checkpoints set version=$3::bigint," +
+        "cursor_ciphertext=null,pending_watermark=null,completed_watermark=$4::timestamptz," +
+        "updated_at=statement_timestamp() " +
+      "where organization_id=$1::uuid and scope_key=$2::text",
+      [orgId,scopeKey,version,statementWatermark],
+    );
+    await db.unsafe(
+      "select public.refresh_customer_financial_source_statement_scopes($1::uuid,$2::uuid)",
+      [orgId,customerId],
+    );
+  }
+
+  const statementToday = new Date().toISOString().slice(0,10);
+  const statementYesterday = new Date(Date.now()-24*60*60*1000).toISOString().slice(0,10);
+  const statementEntryFields = (overrides) => ({
+    external_customer_id:"ONYX-CUST-0001",
+    currency_code:"YER",
+    entry_reference:"ENTRY-DEFAULT",
+    entry_date:statementToday,
+    due_date:null,
+    entry_type:"adjustment",
+    debit_amount:"0",
+    credit_amount:"0",
+    source_document_number:null,
+    description:"P2 isolated customer statement acceptance",
+    ...overrides,
+  });
+  await stageCustomerStatementPage("YER",1,[
+    {
+      externalId:"ONYX-YER-INVOICE-001",
+      fields:statementEntryFields({
+        entry_reference:"JV-YER-001",entry_date:statementYesterday,entry_type:"invoice",
+        debit_amount:"100.00",source_document_number:"INV-ERP-YER-001",description:"فاتورة YER",
+      }),
+      disposition:"created",
+    },
+    {
+      externalId:"ONYX-YER-PAYMENT-001",
+      fields:statementEntryFields({
+        entry_reference:"RC-YER-001",entry_date:statementToday,entry_type:"payment",
+        credit_amount:"20.00",source_document_number:"RC-ERP-YER-001",description:"سداد YER",
+      }),
+      disposition:"created",
+    },
+  ]);
+  await stageCustomerStatementPage("USD",1,[
+    {
+      externalId:"ONYX-USD-OPENING-001",
+      fields:statementEntryFields({
+        currency_code:"USD",entry_reference:"OB-USD-001",entry_date:statementYesterday,
+        entry_type:"opening_balance",debit_amount:"5.50",
+        source_document_number:"OPEN-ERP-USD-001",description:"رصيد افتتاحي USD",
+      }),
+      disposition:"created",
+    },
+  ]);
+
+  const mappedStatementScopes = await db.unsafe(
+    "select currency_code,scope_key,binding_revision,checkpoint_version,completed_watermark " +
+    "from public.customer_financial_source_statement_scopes " +
+    "where organization_id=$1::uuid and customer_id=$2::uuid order by currency_code",
+    [orgId,customerId],
+  );
+  assert.deepEqual(mappedStatementScopes.map(row=>row.currency_code),["USD","YER"],
+    "completed P4 checkpoints and P2 sync evidence map both customer currency scopes");
+  assert.ok(mappedStatementScopes.every(row=>row.binding_revision===statementBinding.revision &&
+    Number(row.checkpoint_version)===1 &&
+    new Date(row.completed_watermark).getTime()===new Date(statementWatermark).getTime()),
+    "each currency scope pins the exact binding revision, checkpoint version and watermark");
+
+  const positiveExternalStatement = await rpc(
+    customerDb,"select public.get_customer_account_statement() as result",
+  );
+  assert.equal(positiveExternalStatement.source_mode,"ONYX");
+  assert.deepEqual(positiveExternalStatement.invoices,[]);
+  assert.deepEqual(positiveExternalStatement.payments,[]);
+  assert.deepEqual(positiveExternalStatement.credits,[]);
+  assert.equal(positiveExternalStatement.summary,null);
+  const positiveCurrencies = Object.fromEntries(
+    positiveExternalStatement.external_statement.currencies.map(row=>[row.currency_code,row]),
+  );
+  assert.deepEqual(Object.keys(positiveCurrencies).sort(),["USD","YER"]);
+  assert.equal(positiveCurrencies.YER.entry_count,2);
+  assert.equal(Number(positiveCurrencies.YER.total_debit),100);
+  assert.equal(Number(positiveCurrencies.YER.total_credit),20);
+  assert.equal(Number(positiveCurrencies.YER.closing_balance),80);
+  assert.equal(positiveCurrencies.YER.details_partial,false);
+  const yerRunning = Object.fromEntries(
+    positiveCurrencies.YER.entries.map(row=>[row.entry_reference,Number(row.running_balance)]),
+  );
+  assert.equal(yerRunning["JV-YER-001"],100);
+  assert.equal(yerRunning["RC-YER-001"],80);
+  assert.equal(positiveCurrencies.USD.entry_count,1);
+  assert.equal(Number(positiveCurrencies.USD.total_debit),5.5);
+  assert.equal(Number(positiveCurrencies.USD.total_credit),0);
+  assert.equal(Number(positiveCurrencies.USD.closing_balance),5.5);
+  assert.equal(Number(positiveCurrencies.USD.entries[0].running_balance),5.5);
+  const externalDtoText = JSON.stringify(positiveExternalStatement.external_statement);
+  for (const privateValue of [
+    "ONYX-CUST-0001","ONYX-COMPANY-01","ONYX-BRANCH-01",
+    statementScopeKeys.YER,statementScopeKeys.USD,"external_customer_id",
+  ]) {
+    assert.equal(externalDtoText.includes(privateValue),false,
+      "customer statement does not expose raw provider or scope identity " + privateValue);
+  }
+
+  await stageCustomerStatementPage("YER",2,[
+    {
+      externalId:"ONYX-YER-WRONG-CURRENCY-001",
+      fields:statementEntryFields({
+        currency_code:"USD",entry_reference:"WRONG-CURRENCY-001",
+        entry_type:"invoice",debit_amount:"1.00",
+        description:"Deliberately malformed isolated test fixture",
+      }),
+      disposition:"created",
+    },
+  ]);
+  await expectFailure(
+    "customer statement refuses a corrupted ERP row whose currency differs from its scope",
+    rpc(customerDb,"select public.get_customer_account_statement() as result"),
+    "55000",
+    "ERP customer statement contains rejected or invalid records",
+  );
+
+  await stageCustomerStatementPage("YER",3,[
+    {
+      externalId:"ONYX-YER-WRONG-CURRENCY-001",
+      fields:statementEntryFields({
+        currency_code:"YER",entry_reference:"ADJ-YER-001",
+        entry_type:"adjustment",debit_amount:"1.00",
+        description:"Corrected source currency after provider re-export",
+      }),
+      disposition:"updated",
+    },
+  ]);
+  const correctedExternalStatement = await rpc(
+    customerDb,"select public.get_customer_account_statement() as result",
+  );
+  const correctedYer = correctedExternalStatement.external_statement.currencies.find(
+    row=>row.currency_code==="YER",
+  );
+  assert.equal(correctedYer.entry_count,3);
+  assert.equal(Number(correctedYer.total_debit),101);
+  assert.equal(Number(correctedYer.total_credit),20);
+  assert.equal(Number(correctedYer.closing_balance),81);
+
+  await stageCustomerStatementPage("YER",4,[
+    {
+      externalId:"ONYX-YER-UNATTRIBUTABLE-001",
+      fields:{
+        currency_code:"YER",entry_reference:"UNATTRIBUTABLE-001",
+        entry_date:statementToday,due_date:null,entry_type:"invoice",
+        debit_amount:"1.00",credit_amount:"0",source_document_number:null,
+        description:"Rejected row without a customer identity",
+      },
+      disposition:"rejected",
+      dispositionReason:"same_timestamp_payload_mismatch",
+    },
+  ]);
+  await expectFailure(
+    "customer statement refuses an unattributable rejected ERP row instead of publishing an incomplete balance",
+    rpc(customerDb,"select public.get_customer_account_statement() as result"),
+    "55000",
+    "ERP customer statement contains rejected or invalid records",
+  );
+
+  await db.unsafe(
+    "delete from public.customer_financial_source_statement_scopes " +
+    "where organization_id=$1::uuid and customer_id=$2::uuid",
+    [orgId,customerId],
+  );
+  if (p4HarnessAbsent) {
+    await db.unsafe("drop table public.erp_sync_page_record_outcomes");
+    await db.unsafe("drop table public.erp_sync_page_receipts");
+    await db.unsafe("drop table public.erp_sync_checkpoints");
+  }
+
   const syncStateBeforeFuture = await serviceDb.unsafe(
     "select source_as_of,last_synced_at,source_evidence_sha256 " +
     "from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid",

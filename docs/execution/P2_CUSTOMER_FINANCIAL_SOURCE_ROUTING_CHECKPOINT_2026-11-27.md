@@ -363,3 +363,12 @@ Fetch the exact-head workflow runs for the final PR #697 head after this checkpo
 
 - The P2 customer statement reader now treats a rejected/conflicted row with a missing, blank, or malformed external customer identity as a scope-level integrity failure. It refuses to publish any customer's balance from that currency scope until the provider data is corrected and a complete clean snapshot is committed.
 - This prevents a malformed provider row from being silently excluded from one customer's statement when the row cannot be reliably attributed to any customer.
+
+
+## 2026-11-28 — Positive PostgreSQL 17 customer ERP statement acceptance
+
+- The isolated P2 PostgreSQL acceptance now creates a real two-currency P4 staging fixture and executes the authenticated customer statement RPC. YER invoice 100.00 less payment 20.00 yields 80.00; USD opening balance remains 5.50 in a separate currency ledger.
+- The test proves the external DTO contains no internal invoice/payment rows, raw ERP customer/company/branch references, or P4 scope keys.
+- It then injects a USD row into the YER scope and confirms SQLSTATE 55000, writes a newer corrected YER version of that same provider record, and confirms the recovered YER closing balance is 81.00. A final rejected row with no customer identity blocks publication of the statement instead of silently omitting an unassignable transaction.
+- If the P4 migration is not part of the P2 PR branch, the test creates minimal temporary staging tables inside its isolated PG17 database and drops them after the test. If full P4 tables exist, the same records run against the real schema without replacing it.
+- No production database, live provider credentials, payment, invoice, inventory, or journal was touched.
