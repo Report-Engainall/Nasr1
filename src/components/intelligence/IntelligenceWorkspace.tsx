@@ -1446,39 +1446,46 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     await loadDecisionMemoryCollection();
   };
 
-  const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string) => {
-    if (!user?.profileId || outcomeBusyId !== null) return;
+  const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string): Promise<boolean> => {
+    if (!user?.profileId || outcomeBusyId !== null) return false;
     setOutcomeBusyId("candidate:" + candidateId.slice(0,60));
     setOutcomeMessage(null);
-    const candidateSnapshot = {
-      schemaVersion:"1.0.0" as const,candidateId,ruleId:decision.ruleId,ruleVersion:decision.ruleVersion,
-      priority:decision.priority,priorityScore:decision.priorityScore,what:decision.what,why:decision.why,
-      risk:decision.soWhat,soWhat:decision.soWhat,whatNext:decision.whatNext,owner:decision.owner,
-      expectedOutcome:decision.expectedOutcome,
-      impact:decision.impact ? {...decision.impact,currency:decision.impact.currency??null} : null,
-      impactStatus:decision.impactStatus,
-      impactReason:decision.impactReason,proof:decision.proof,createdAt:decision.createdAt,expiresAt:decision.expiresAt,
-    };
-    const created = await createDecisionOutcomeProposal({
-      candidateId,
-      ruleId: decision.ruleId,
-      ruleVersion: decision.ruleVersion,
-      ownerProfileId: user.profileId,
-      expectedOutcome: decision.expectedOutcome,
-      reason: decision.why.slice(0, 2000),
-      candidateSnapshot,
-    });
-    setOutcomeBusyId(null);
-    if (!created.ok) {
-      setOutcomeMessage(created.message);
-      return;
+    try {
+      const candidateSnapshot = {
+        schemaVersion:"1.0.0" as const,candidateId,ruleId:decision.ruleId,ruleVersion:decision.ruleVersion,
+        priority:decision.priority,priorityScore:decision.priorityScore,what:decision.what,why:decision.why,
+        risk:decision.soWhat,soWhat:decision.soWhat,whatNext:decision.whatNext,owner:decision.owner,
+        expectedOutcome:decision.expectedOutcome,
+        impact:decision.impact ? {...decision.impact,currency:decision.impact.currency??null} : null,
+        impactStatus:decision.impactStatus,
+        impactReason:decision.impactReason,proof:decision.proof,createdAt:decision.createdAt,expiresAt:decision.expiresAt,
+      };
+      const created = await createDecisionOutcomeProposal({
+        candidateId,
+        ruleId: decision.ruleId,
+        ruleVersion: decision.ruleVersion,
+        ownerProfileId: user.profileId,
+        expectedOutcome: decision.expectedOutcome,
+        reason: decision.why.slice(0, 2000),
+        candidateSnapshot,
+      });
+      if (!created.ok) {
+        setOutcomeMessage(created.message);
+        return false;
+      }
+      setOutcomeMessage(created.duplicate
+        ? "هذا الإجراء محفوظ مسبقاً؛ تم استرجاع نسخته الحالية."
+        : "تم حفظ الإجراء المقترح وسجل حدثه على الخادم.");
+      if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
+      else await loadOutcomes();
+      await loadDecisionMemoryCollection();
+      return true;
+    } catch {
+      setOutcomeMessage("تعذر تأكيد العملية أو تحديث العرض؛ راجع دورة القرارات قبل إعادة المحاولة.");
+      return false;
+    } finally {
+      setOutcomeBusyId(null);
     }
-    setOutcomeMessage(created.duplicate
-      ? "هذا الإجراء محفوظ مسبقاً؛ تم استرجاع نسخته الحالية."
-      : "تم حفظ الإجراء المقترح وسجل حدثه على الخادم.");
-    if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
-    else await loadOutcomes();
-    await loadDecisionMemoryCollection();
   };
 
   const runTransition = async (
@@ -1825,6 +1832,16 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 <CustomerRetentionActionQueuePanel
                   queue={retentionResult?.ok ? retentionResult.actionQueue : null}
                   loading={retentionLoading}
+                  canCreateDecision={canManage && Boolean(user?.profileId) &&
+                    Boolean(retentionResult?.ok && retentionResult.growthInputs.sourceSnapshotVerified)}
+                  onCreateDecisionProposal={async action => {
+                    const candidateId = "customer.retention:" + action.customerRef + ":" +
+                      (retentionResult?.ok ? retentionResult.data.asOf.slice(0, 10) : "");
+                    const candidate = customerRetentionDecisionActions.find(item => item.candidateId === candidateId);
+                    return candidate
+                      ? persistEvidenceBackedAction(candidate.decision, candidate.candidateId)
+                      : false;
+                  }}
                 />
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </>
