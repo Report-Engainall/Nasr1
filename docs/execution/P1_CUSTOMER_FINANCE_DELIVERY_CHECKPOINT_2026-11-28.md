@@ -206,7 +206,7 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 ## P1 follow-up — bind document-review handoff to the statement snapshot (2026-11-28)
 
 - Extended the review deep link with the server-accepted statement source mode and exact source watermark in addition to document number, entry reference, currency and entry type.
-- The portal validates the provider allowlist and checks the timestamp with the same strict microsecond-aware comparator used by external statement output. Missing or malformed watermark/provider metadata rejects the prefilled intent.
-- The generated service-case narrative preserves the selected provider and exact statement snapshot time, so accounting staff can identify the view the customer is reporting. These query values remain descriptive metadata, never authorization inputs or a lookup path.
-- Added regression assertions for the source mode/watermark round-trip and rejection of invalid watermark values. Test outcomes remain pending exact-head P1/P2 acceptance.
+- The portal validates the provider allowlist and timestamp syntax with the same strict microsecond-aware comparator used by external statement output. These values are client-carried descriptive metadata only; they do not prove or authorize the provider/source on the server. Missing or malformed watermark/provider metadata rejects the prefilled intent.
+- The generated service-case narrative labels the provider and exact snapshot as what was visible in the customer link, so accounting staff can identify the view being reported. Client query values are untrusted descriptive metadata, never proof of source identity, authorization inputs or a lookup path.
+- Added regression assertions for the source mode/watermark round-trip and rejection of invalid watermark values. A further guard rejects duplicate critical query parameters as ambiguous. Test outcomes remain pending exact-head P1/P2 acceptance.
 - No source reader, database RPC, ledger data, payment posting or ERP write was added.

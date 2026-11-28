@@ -139,7 +139,7 @@ describe("CustomerServicePortal financial service requests", () => {
     expect(mocks.createCase).toHaveBeenCalledWith(expect.objectContaining({
       caseType: "service_request",
       subject: "طلب مراجعة المستند INV-001",
-      description: expect.stringContaining("المستند المحدد: INV-001\nمرجع الحركة: JV-001\nالعملة: YER\nالمصدر المعتمد: Onyx Pro\nتاريخ لقطة المصدر: 2026-11-27T20:00:00Z\nنوع الحركة: فاتورة"),
+      description: expect.stringContaining("المستند المحدد: INV-001\nمرجع الحركة: JV-001\nالعملة: YER\nالمصدر الظاهر في الكشف: Onyx Pro\nتوقيت لقطة الكشف الظاهرة: 2026-11-27T20:00:00Z\nنوع الحركة: فاتورة"),
     }));
     expect(mocks.createCase.mock.calls[0][0].description).toContain("لا يغيّر هذا الطلب الرصيد");
   });
@@ -164,6 +164,19 @@ describe("CustomerServicePortal financial service requests", () => {
       {},
       "",
       "/service-cases?request=document_review&document=INV-001&reference=JV-001&currency=YER&type=invoice&source_mode=ONYX&source_as_of=invalid",
+    );
+    render(<CustomerServicePortal />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("رابط مراجعة المستند غير صالح أو ناقص");
+    expect(screen.getByLabelText("موضوع الحالة")).toHaveValue("");
+    expect(mocks.createCase).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate document-review query parameters as ambiguous", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/service-cases?request=document_review&document=INV-001&document=INV-002&reference=JV-001&currency=YER&type=invoice&source_mode=ONYX&source_as_of=2026-11-27T20%3A00%3A00Z",
     );
     render(<CustomerServicePortal />);
 

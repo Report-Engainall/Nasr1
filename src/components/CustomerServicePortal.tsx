@@ -34,6 +34,8 @@ function readCustomerDocumentReviewContext(searchStr: string): CustomerDocumentR
  const query=searchStr.startsWith("?")?searchStr.slice(1):searchStr;
  const params=new URLSearchParams(query);
  if(params.get("request")!=="document_review")return null;
+ const requiredKeys=["request","document","reference","currency","source_mode","source_as_of","type"];
+ if(requiredKeys.some(key=>params.getAll(key).length!==1))return null;
  const documentNumber=(params.get("document")??"").trim();
  const entryReference=(params.get("reference")??"").trim();
  const currencyCode=(params.get("currency")??"").trim();
@@ -117,7 +119,7 @@ function Workspace(){
  const location=useLocation();
  const linkedCaseCode=getCustomerServiceCaseCodeFromSearch(location.searchStr);
  const requestedDocumentReview=readCustomerDocumentReviewContext(location.searchStr);
- const documentReviewLinkRequested=new URLSearchParams(location.searchStr.startsWith("?")?location.searchStr.slice(1):location.searchStr).get("request")==="document_review";
+ const documentReviewLinkRequested=new URLSearchParams(location.searchStr.startsWith("?")?location.searchStr.slice(1):location.searchStr).getAll("request").includes("document_review");
  const requestedFinancialIntent=readCustomerFinancialRequestIntent(location.searchStr);
  const[company,setCompany]=useState(""),[canCreate,setCanCreate]=useState(false),[canReply,setCanReply]=useState(false),[cases,setCases]=useState<CustomerServicePortalCase[]>([]);
  const[totalCount,setTotalCount]=useState(0),[page,setPage]=useState(0),[hasMore,setHasMore]=useState(false);
@@ -146,7 +148,7 @@ function Workspace(){
   const intent=readCustomerFinancialRequestIntent(location.searchStr);
   const documentReview=readCustomerDocumentReviewContext(location.searchStr);
   const params=new URLSearchParams(location.searchStr.startsWith("?")?location.searchStr.slice(1):location.searchStr);
-  const invalidDocumentReview=params.get("request")==="document_review"&&!documentReview;
+  const invalidDocumentReview=params.getAll("request").includes("document_review")&&!documentReview;
   setFinancialRequestIntent(intent);
   setDocumentReviewContext(documentReview);
   setInvalidDocumentReviewLink(invalidDocumentReview);
@@ -201,8 +203,8 @@ function Workspace(){
    description+="\n\nالمستند المحدد: "+documentReviewContext.documentNumber+
     "\nمرجع الحركة: "+documentReviewContext.entryReference+
     "\nالعملة: "+documentReviewContext.currencyCode+
-    "\nالمصدر المعتمد: "+statementSourceLabels[documentReviewContext.sourceMode]+
-    "\nتاريخ لقطة المصدر: "+documentReviewContext.sourceAsOf+
+    "\nالمصدر الظاهر في الكشف: "+statementSourceLabels[documentReviewContext.sourceMode]+
+    "\nتوقيت لقطة الكشف الظاهرة: "+documentReviewContext.sourceAsOf+
     "\nنوع الحركة: "+statementEntryTypeLabels[documentReviewContext.entryType]+"."+
     "\nمراجعة فقط؛ لا يغيّر هذا الطلب الرصيد ولا ينشئ دفعة أو يرحّل قيدًا محاسبيًا.";
   }
@@ -236,7 +238,7 @@ function Workspace(){
    <div role="group" aria-label="طلبات الحساب المالي" style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
     <button type="button" className={financialRequestIntent==="balance_review"?"btn primary":"btn secondary"} aria-pressed={financialRequestIntent==="balance_review"} disabled={saving} onClick={()=>chooseFinancialRequest("balance_review")}>طلب مراجعة الرصيد</button>
     <button type="button" className={financialRequestIntent==="statement_period"?"btn primary":"btn secondary"} aria-pressed={financialRequestIntent==="statement_period"} disabled={saving} onClick={()=>chooseFinancialRequest("statement_period")}>طلب كشف حساب لفترة</button>
-    {financialRequestIntent==="document_review"&&documentReviewContext&&<span role="status" className="customer-service-portal-notice">طلب مراجعة المستند المحدد: {documentReviewContext.documentNumber} · {documentReviewContext.currencyCode} · {statementSourceLabels[documentReviewContext.sourceMode]} · {documentReviewContext.sourceAsOf}</span>}
+    {financialRequestIntent==="document_review"&&documentReviewContext&&<span role="status" className="customer-service-portal-notice">طلب مراجعة المستند المحدد: {documentReviewContext.documentNumber} · {documentReviewContext.currencyCode} · الظاهر: {statementSourceLabels[documentReviewContext.sourceMode]} · {documentReviewContext.sourceAsOf}</span>}
     {financialRequestIntent&&<button type="button" className="btn secondary" disabled={saving} onClick={clearFinancialRequest}>طلب خدمة عام</button>}
    </div>
    <form onSubmit={e=>{void create(e);}}><div className="customer-service-portal-form-grid">
