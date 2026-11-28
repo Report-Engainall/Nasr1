@@ -134,6 +134,28 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
   return left.decisionId < right.decisionId ? -1 : left.decisionId > right.decisionId ? 1 : 0;
 }
 
+export interface DailyDecisionBoardSelection {
+  records: DecisionMemoryRecord[];
+  matchedCount: number;
+  omittedCount: number;
+}
+
+export function selectDailyDecisionBoardRows(
+  records: DecisionMemoryRecord[],
+  filters: DailyDecisionFilters,
+  now: number,
+  limit = 10,
+): DailyDecisionBoardSelection {
+  const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 50 ? limit : 10;
+  const matching = filterDailyDecisionRecords(records, filters, now)
+    .sort((left, right) => compareOrder(left, right, now));
+  return {
+    records: matching.slice(0, safeLimit),
+    matchedCount: matching.length,
+    omittedCount: Math.max(0, matching.length - safeLimit),
+  };
+}
+
 function decisionDue(record: DecisionMemoryRecord, now: number): string {
   if (record.reviewDisposition === "NOT_REQUIRED") return "لا تتطلب مراجعة مجدولة";
   if (record.reviewDisposition === "NOT_SCHEDULED") return "لم يُحدد موعد مراجعة";
@@ -372,12 +394,11 @@ export function DailyDecisionBoard({
   const [stateFilter, setStateFilter] = useState<DailyDecisionStateFilter>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<DailyDecisionPriorityFilter>("ALL");
   const [dueFilter, setDueFilter] = useState<DailyDecisionDueFilter>("ALL");
-  const filteredRecords = filterDailyDecisionRecords(result.records, {
+  const selection = selectDailyDecisionBoardRows(result.records, {
     searchText, state: stateFilter, priority: priorityFilter, due: dueFilter,
   }, now);
-  const sortedRecords = [...filteredRecords].sort((left, right) => compareOrder(left, right, now));
-  const records = sortedRecords.slice(0, 10);
-  const omittedCount = Math.max(0, sortedRecords.length - records.length);
+  const records = selection.records;
+  const omittedCount = selection.omittedCount;
   const hasFilters = Boolean(searchText) || stateFilter !== "ALL" || priorityFilter !== "ALL" || dueFilter !== "ALL";
   return (
     <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
@@ -463,7 +484,7 @@ export function DailyDecisionBoard({
             </label>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span>يعرض {records.length} من {filteredRecords.length} نتيجة مطابقة ضمن {result.loadedCount} قراراً محمّلاً</span>
+            <span>يعرض {records.length} من {selection.matchedCount} نتيجة مطابقة ضمن {result.loadedCount} قراراً محمّلاً</span>
             <button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40"
               disabled={!hasFilters}
               onClick={() => { setSearchText(""); setStateFilter("ALL"); setPriorityFilter("ALL"); setDueFilter("ALL"); }}>
@@ -480,7 +501,7 @@ export function DailyDecisionBoard({
         </div>
       ) : result.records.length === 0 ? (
         <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.</p>
-      ) : filteredRecords.length === 0 ? (
+      ) : selection.matchedCount === 0 ? (
         <p className="rounded-lg border p-3 text-sm text-muted-foreground" role="status">لا توجد قرارات تطابق البحث والتصفية الحالية.</p>
       ) : (
         <ol className="min-w-0 space-y-3" aria-label="قرارات محفوظة مرتبة للمتابعة">
@@ -492,7 +513,7 @@ export function DailyDecisionBoard({
         </ol>
       )}
       {omittedCount > 0 ? (
-        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {sortedRecords.length} نتيجة مطابقة؛ {omittedCount} نتيجة مطابقة أخرى ضمن السجلات المحمّلة. وسّع التصفية لعرضها.</p>
+        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {selection.matchedCount} نتيجة مطابقة؛ {omittedCount} نتيجة مطابقة أخرى ضمن السجلات المحمّلة. وسّع التصفية لعرضها.</p>
       ) : null}
       {result.status === "PARTIAL" || result.loadedCount < result.totalCount ? (
         <p className="text-xs text-muted-foreground" role="status">
