@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import postgres from "postgres";
+
+const statementReaderMigration = await readFile(new URL("../supabase/migrations/20261128043000_customer_erp_statement_staging_reader.sql", import.meta.url), "utf8");
+const readerMigrationCommits = [...statementReaderMigration.matchAll(/^\\s*COMMIT;\\s*$/gim)];
+assert.equal(readerMigrationCommits.length, 1, "ERP statement reader migration must contain exactly one terminal COMMIT");
+assert.equal(
+  statementReaderMigration.slice(readerMigrationCommits[0].index + readerMigrationCommits[0][0].length).trim(),
+  "",
+  "ERP statement reader migration must not contain SQL after its transaction COMMIT",
+);
 
 const connectionString = requiredEnv("TEST_DATABASE_URL");
 const customerEmail = requiredEnv("E2E_EMAIL").toLowerCase();
