@@ -138,3 +138,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Added a Vitest regression to `src/lib/customer-external-statement.test.ts` that builds an APP_ONLY XLSX from a valid invoice and authoritative per-currency summary and asserts a valid ZIP/XLSX signature.
 - Exact-head acceptance is pending for the resulting PR #699 SHA. The regression is authored, not yet run; no PASS is claimed.
 - Next: inspect the new exact-head P1 Vitest/strict-TypeScript and P2 Playwright workflow results; repair any reproduced failure on that same branch.
+
+## P1 follow-up — clear APP_ONLY statement state on PDF source cutover (2026-11-28)
+
+- Customer statement PDF generation now captures the current statement-read sequence and checks it after each asynchronous boundary (source revalidation, session lookup, PDF fetch and blob read). A later statement load invalidates an older in-flight PDF request before it can download.
+- If the APP_ONLY source cannot be revalidated or changes to ONYX/MUTAKAMEL before or after PDF generation, the page clears invoices, payments, credit memos, external statement rows, summary and watermark before presenting the source warning. The APP_ONLY PDF path remains unavailable to external-source customers.
+- A new route-level regression in `src/test/customer-workflow-tenant.test.tsx` loads a customer APP_ONLY statement, changes the server-selected source on the PDF preflight read, and asserts that the old invoice reference and APP_ONLY PDF action disappear.
+- Files changed in this follow-up: `src/components/CustomerWorkflows.tsx` and `src/test/customer-workflow-tenant.test.tsx`. The test is included in the existing P1 strict TypeScript/test path; no schema, server RPC or production behavior was changed.
+- These checks are authored, not run/pass evidence. Require P1 Vitest/strict TypeScript and P2 Playwright on the final branch SHA. Queued, pending, cancelled, skipped or prior-SHA results are not acceptance.
+- No production DB, financial mutation, stock mutation, live ERP call, secret, deployment, paid service or merge was performed.
