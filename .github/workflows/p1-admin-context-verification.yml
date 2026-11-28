@@ -423,6 +423,7 @@ on:
       - "src/components/CustomerMyDevicesPage.tsx"
       - "src/components/CustomerAssetsPanel.tsx"
       - "src/components/CustomerAssetsPanel.test.tsx"
+      - "src/components/CustomerAssetsPanel.replacement.test.tsx"
       - "src/test/customer-my-devices-pagination.test.tsx"
       - "src/components/TaskCenter.tsx"
       - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"

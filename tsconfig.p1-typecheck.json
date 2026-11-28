@@ -24,6 +24,8 @@
     "src/components/CashExpenseCommitmentWorkspace.tsx",
     "src/components/Customer360PrintSheet.tsx",
     "src/components/CustomerAccountPasswordPage.tsx",
+    "src/components/CustomerAssetsPanel.tsx",
+    "src/components/CustomerAssetsPanel.replacement.test.tsx",
     "src/components/CustomerNotificationCenter.tsx",
     "src/components/CustomerOrders.tsx",
     "src/components/CustomerServiceDesk.tsx",
