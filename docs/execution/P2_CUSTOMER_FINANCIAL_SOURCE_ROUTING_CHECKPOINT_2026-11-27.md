@@ -7,7 +7,7 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 ## Current source pointers
 - Latest observed main HEAD: `12b0db37a97128a19073f907ba12fb700251802b` (documentation-only execution directive refresh).
 - Latest code-bearing main SHA recorded in the shared execution state: `9c51f65f16aad1be300444cc37f5a0457b3dccb1`.
-- Latest P2 code/test head after invoice/payment journal and append-only source-posting coverage: `d75e342bb31ecc4029f9bfcf2fcf3f3606e5f769`. The current migration guard commit is `a460aedce461b4e790074430ffa19d427d229917`; no CI PASS is carried forward from earlier SHAs.
+- Latest P2 code/test head after source-bound journals, append-only posting evidence and restrictive staff RLS read isolation: `96d9cda3c2d29ad5078784eb6653d8263f878546`. Migration source-posting + RLS guard commits are `484327faf7ab20af9ee2b1771a7563b652f05596` and `6be9a1e39ed8a2dff3f028229197ab3bf8e8dc30`; no CI PASS is carried forward from earlier SHAs.
 - PR: [#697](https://github.com/Report-Engainall/Nasr1/pull/697), still Draft. Do not mark ready or merge until exact-head PostgreSQL 17 and P2 gates are terminal SUCCESS.
 - No production database identity was used, no remote migration/data write/deployment occurred, and no ERP credentials or live ERP calls were used.
 
@@ -36,6 +36,15 @@ Branch: `p2/customer-financial-source-routing-pg17-20261127`
 - The same PostgreSQL 17 test continues to cover credit memo originals and reversal adjustments, the receipt/allocation ledger, invoice/RLS reads, Customer 360, statement fallback denial, company/branch evidence and source-sync monotonicity. The P2 workflow invokes the script once after the run-scoped fixture seeder.
 - Migration source update: `98188dfeb2c0e457235d08430e15d9100ae518d4` (invoice/payment generic journals); append-only source-posting guard: `a460aedce461b4e790074430ffa19d427d229917`; exact test/fixture update: `d75e342bb31ecc4029f9bfcf2fcf3f3606e5f769`.
 - Static JavaScript syntax check passed on the 1,995-line acceptance script; this is not a PostgreSQL execution. Exact-head P2 run `46087745271` and P1 run `46087745283` are QUEUED on `d75e342...`; neither is PASS. Previous run `46087648186` on `4429f...` was CANCELLED after new source/test commits superseded it. Do not transfer any prior result.
+
+
+## Restrictive staff read isolation for customer-source finance records — 2026-11-28
+
+- Added SECURITY DEFINER, boolean-only `staff_customer_app_only_customer_journal_read_allowed(uuid,text,text)`. It scopes to the current active staff organization, resolves the persisted customer from invoice/payment/credit-memo sources (including the adjustment reversal prefix), and checks/locks the exact binding `FOR SHARE`. Unlinked/missing customer documents fail closed; unrelated manual/non-customer journals retain their existing role/tenant policies.
+- Added `staff_customer_app_only_journal_line_read_allowed(uuid,uuid)`, which resolves and locks the parent journal header before delegating to the customer-source guard.
+- Added seven `AS RESTRICTIVE` SELECT policies to journal headers, journal lines, customer source-posting links, return-credit memo headers/items, and return-credit posting/reversal links. Existing permissive finance role and tenant policies remain in place; the restrictive source predicates can only narrow access, never widen it.
+- Acceptance now proves manager visibility of four persisted source-linked journal headers (invoice, payment, original credit memo, credit memo reversal), their lines, two invoice/payment source-posting evidence rows and the return-credit memo while APP_ONLY. It asserts all seven policy catalog rows exist and are restrictive. After ONYX and MUTAKAMEL cutovers, those same finance-staff queries return zero rows; after Maker/Checker approves APP_ONLY return, the rows are visible again. Write-side guards and append-only posting evidence tests remain in the same test.
+- Static JS parse passed on the 2,219-line test script; it is not PostgreSQL execution. Exact-head P2 run `46088046943` and P1 run `46088046901` were pending/queued on the code/test head `96d9cda3...` when queried. They will be superseded by the final documentation commit SHA below; no queued or prior-SHA result is PASS.
 
 ## Implemented P2 contract
 - One source binding per organization/customer: `APP_ONLY`, `ONYX`, or `MUTAKAMEL`. Existing/new customers are assigned APP_ONLY without inventing opening balances.
