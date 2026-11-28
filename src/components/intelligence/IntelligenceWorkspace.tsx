@@ -1862,6 +1862,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
               state={retentionLoading ? "loading" : demandForecastResult ? "ready"
                 : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
               onRetry={() => setRefreshKey((value) => value + 1)}
+              replenishmentRecommendations={replenishmentDemandForecast ? replenishmentReport?.recommendations ?? null : null}
               onSaveScenario={user?.profileId && canManage ? async scenario => {
                 const candidate = buildDemandScenarioDecisionCandidate(scenario);
                 return candidate ? persistEvidenceBackedAction(candidate, candidate.id) : false;

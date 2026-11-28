@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { buildDemandScenario } from "@/lib/intelligence/demand-forecast";
+import { buildDemandScenarioStockImpact } from "@/lib/intelligence/demand-scenario-stock-impact";
+import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
 import type { DemandForecastResult, DemandScenarioResult, DemandTrend } from "@/lib/intelligence/demand-forecast";
 import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 
@@ -8,6 +10,7 @@ export interface DemandForecastCardProps {
   state: "loading" | "ready" | "unavailable" | "error";
   onRetry?: () => void;
   onSaveScenario?: (scenario: DemandScenarioResult) => Promise<boolean>;
+  replenishmentRecommendations?: ReplenishmentRecommendation[] | null;
 }
 
 const trendLabels: Record<DemandTrend, string> = {
@@ -21,7 +24,7 @@ const trendLabels: Record<DemandTrend, string> = {
 const formatQuantity = (value: number, unit: string) =>
   new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 6 }).format(value) + " " + unit;
 
-function DemandScenarioLab({ result, onSaveScenario }: { result: DemandForecastResult; onSaveScenario?: (scenario: DemandScenarioResult) => Promise<boolean> }) {
+function DemandScenarioLab({ result, onSaveScenario, replenishmentRecommendations }: { result: DemandForecastResult; onSaveScenario?: (scenario: DemandScenarioResult) => Promise<boolean>; replenishmentRecommendations?: ReplenishmentRecommendation[] | null }) {
   const firstProduct = result.forecasts[0] ?? null;
   const [selectedProductRef, setSelectedProductRef] = useState(firstProduct?.productRef ?? "");
   const [changePercent, setChangePercent] = useState(0);
@@ -30,6 +33,9 @@ function DemandScenarioLab({ result, onSaveScenario }: { result: DemandForecastR
   const selectedProduct = result.forecasts.find((item) => item.productRef === selectedProductRef) ?? firstProduct;
   const scenario = selectedProduct
     ? buildDemandScenario({ forecast: result, productRef: selectedProduct.productRef, changePercent })
+    : null;
+  const stockImpact = scenario
+    ? buildDemandScenarioStockImpact({ scenario, recommendations: replenishmentRecommendations })
     : null;
 
   if (!selectedProduct || !scenario) return null;
@@ -160,7 +166,57 @@ function DemandScenarioLab({ result, onSaveScenario }: { result: DemandForecastR
         </p>
       )}
 
-          {onSaveScenario ? (
+          {stockImpact ? (
+        <section className="rounded-lg border p-3 space-y-3" aria-label="أثر السيناريو على تغطية المخزون">
+          <div>
+            <h4 className="font-semibold">أثر السيناريو على تغطية المخزون</h4>
+            <p className="text-xs text-muted-foreground">
+              إسقاط تحليلي على كمية المتاح للتخصيص (ATP) ونقطة إعادة الطلب من لقطة المخزون المطابقة؛ لا تُحتسب أوامر الشراء الواردة لعدم وجود تاريخ استلام موثوق في هذا الملخص.
+            </p>
+          </div>
+          {stockImpact.status === "READY" ? (
+            <>
+              <div className="grid gap-2 sm:grid-cols-3 text-sm">
+                <div className="rounded-md bg-muted/40 p-2"><span className="text-xs text-muted-foreground">المتاح للتخصيص</span><strong className="block">{formatQuantity(stockImpact.availableToPromise ?? 0, stockImpact.quantityUnit ?? "")}</strong></div>
+                <div className="rounded-md bg-muted/40 p-2"><span className="text-xs text-muted-foreground">نقطة إعادة الطلب</span><strong className="block">{formatQuantity(stockImpact.reorderPoint ?? 0, stockImpact.quantityUnit ?? "")}</strong></div>
+                <div className="rounded-md bg-muted/40 p-2"><span className="text-xs text-muted-foreground">أدلة المخزون/الطلب</span><strong className="block">{stockImpact.inventoryEvidenceIds.length} / {stockImpact.demandEvidenceIds.length}</strong></div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[620px] text-xs">
+                  <thead><tr className="border-b text-right">
+                    <th className="p-2">الأفق</th><th className="p-2">طلب الأساس</th><th className="p-2">طلب السيناريو</th>
+                    <th className="p-2">المتبقي الأساسي من ATP</th><th className="p-2">المتبقي في السيناريو</th><th className="p-2">العجز المحتمل</th>
+                  </tr></thead>
+                  <tbody>{stockImpact.horizons.map(item => (
+                    <tr key={item.days} className="border-b last:border-0">
+                      <td className="p-2 font-medium">{item.days} يوم</td>
+                      <td className="p-2">{formatQuantity(item.baselineDemand.expected, stockImpact.quantityUnit ?? "")}</td>
+                      <td className="p-2 font-semibold">{formatQuantity(item.scenarioDemand.expected, stockImpact.quantityUnit ?? "")}</td>
+                      <td className="p-2">{formatQuantity(item.baselineRemainingAtp, stockImpact.quantityUnit ?? "")}</td>
+                      <td className="p-2">{formatQuantity(item.scenarioRemainingAtp, stockImpact.quantityUnit ?? "")}</td>
+                      <td className="p-2">{formatQuantity(item.scenarioPotentialShortfall, stockImpact.quantityUnit ?? "")}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {stockImpact.leadTime ? (
+                <p className="text-xs">
+                  <strong>مهلة المورد (ضمن أفق {stockImpact.leadTime.sourceHorizonDays} يوم):</strong>
+                  طلب الأساس {formatQuantity(stockImpact.leadTime.baselineDemand.expected, stockImpact.quantityUnit ?? "")}،
+                  والسيناريو {formatQuantity(stockImpact.leadTime.scenarioDemand.expected, stockImpact.quantityUnit ?? "")}،
+                  والمتبقي من ATP {formatQuantity(stockImpact.leadTime.scenarioRemainingAtp, stockImpact.quantityUnit ?? "")}،
+                  والعجز المحتمل {formatQuantity(stockImpact.leadTime.scenarioPotentialShortfall, stockImpact.quantityUnit ?? "")}.
+                  {stockImpact.leadTime.belowReorderPoint ? " يتراجع المتبقي دون نقطة إعادة الطلب." : " المتبقي لا يقل عن نقطة إعادة الطلب في هذا الإسقاط."}
+                </p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">الأدلة متطابقة مع توقع المنتج واللقطة المستخدمة في محرك إعادة التوريد. هذه حساسية افتراضية وليست رصيداً مرحلاً أو تأكيد نفاد؛ ولا تنشئ أمر شراء.</p>
+            </>
+          ) : (
+            <p role="status" className="text-sm text-muted-foreground">حُجب إسقاط المخزون: {stockImpact.reason}. يلزم تطابق المنتج والوحدة وأدلة الطلب ومؤشراته مع لقطة مخزون موثقة.</p>
+          )}
+        </section>
+      ) : null}
+      {onSaveScenario ? (
             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
               <button
                 type="button"
@@ -181,7 +237,7 @@ function DemandScenarioLab({ result, onSaveScenario }: { result: DemandForecastR
   );
 }
 
-export function DemandForecastCard({ result, state, onRetry, onSaveScenario }: DemandForecastCardProps) {
+export function DemandForecastCard({ result, state, onRetry, onSaveScenario, replenishmentRecommendations }: DemandForecastCardProps) {
   if (state !== "ready" || !result) {
     return (
       <section dir="rtl" className="panel space-y-2" aria-label="توقع الطلب">
@@ -301,7 +357,7 @@ export function DemandForecastCard({ result, state, onRetry, onSaveScenario }: D
           </ul>
         </details>
       ) : null}
-      {result.forecasts.length > 0 ? <DemandScenarioLab result={result} onSaveScenario={onSaveScenario} /> : null}
+      {result.forecasts.length > 0 ? <DemandScenarioLab result={result} onSaveScenario={onSaveScenario} replenishmentRecommendations={replenishmentRecommendations} /> : null}
       {onRetry ? <button type="button" className="btn secondary" onClick={onRetry}>تحديث التوقع</button> : null}
     </section>
   );

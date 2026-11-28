@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DemandForecastResult, DemandScenarioResult } from "@/lib/intelligence/demand-forecast";
+import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
 import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import { DemandForecastCard } from "./DemandForecastCard";
 
@@ -49,6 +50,20 @@ const forecast: DemandForecastResult = {
   warnings: [],
 };
 
+const stockRecommendation: ReplenishmentRecommendation = {
+  productRef: "7f8d9c11-1234-4abc-8abc-1234567890ab",
+  status: "VERIFIED", action: "RECOMMEND", quantityUnit: "EA",
+  availableToPromise: 100, incomingPurchaseQuantity: 500, coveredAfterIncoming: 600, reorderPoint: 20,
+  dailyDemand: 4, leadTimeDemand: 28, targetStock: 28, recommendedQuantity: 0,
+  formulaId: "inventory.replenishment-target", formulaVersion: "1.2.0",
+  evidenceIds: ["stock-evidence", "current-evidence", "baseline-evidence"],
+  warnings: [], automaticPurchase: false, demandSource: "FORECAST", demandTrend: "INCREASING",
+  forecastLeadTimeDemand: { horizonDays: 7, lowQuantity: 21, expectedQuantity: 28, highQuantity: 28 },
+  forecastEvidenceIds: ["current-evidence", "baseline-evidence"],
+  forecastMetricKeys: ["product.order_items.quantity", "product.orders.sample_count"],
+  forecastFormulaVersions: ["quantity@1", "sample@1"],
+};
+
 describe("DemandForecastCard", () => {
   afterEach(() => cleanup());
 
@@ -92,6 +107,28 @@ describe("DemandForecastCard", () => {
     expect(within(lab).getByTestId("demand-scenario-expected-90")).toHaveAttribute("data-value", "432");
     expect(forecast.forecasts[0].horizons[0].expectedQuantity).toBe(28);
     expect(within(lab).getByText(/لا يغيّر الطلبات أو المخزون/)).toBeInTheDocument();
+  });
+
+  it("projects scenario demand against matched verified ATP and lead-time inventory evidence", () => {
+    render(<DemandForecastCard result={forecast} state="ready" replenishmentRecommendations={[stockRecommendation]} />);
+    const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
+    fireEvent.change(within(lab).getByRole("slider", { name: "نسبة تغير الطلب المفترضة" }), { target: { value: "50" } });
+    const impact = within(lab).getByRole("region", { name: "أثر السيناريو على تغطية المخزون" });
+    expect(impact).toHaveTextContent("المتاح للتخصيص");
+    expect(impact).toHaveTextContent("100");
+    expect(impact).toHaveTextContent("90 يوم");
+    expect(impact).toHaveTextContent("العجز المحتمل");
+    expect(impact).toHaveTextContent("لا تُحتسب أوامر الشراء الواردة");
+  });
+
+  it("withholds stock projections when inventory used historical demand rather than the same forecast", () => {
+    render(<DemandForecastCard result={forecast} state="ready" replenishmentRecommendations={[
+      { ...stockRecommendation, demandSource: "HISTORICAL" },
+    ]} />);
+    const lab = screen.getByRole("region", { name: "مختبر ماذا لو" });
+    const impact = within(lab).getByRole("region", { name: "أثر السيناريو على تغطية المخزون" });
+    expect(impact).toHaveTextContent("حُجب إسقاط المخزون");
+    expect(impact).not.toHaveTextContent("المتبقي في السيناريو");
   });
 
   it("withholds what-if results whenever the forecast needs review", () => {
