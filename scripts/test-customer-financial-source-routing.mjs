@@ -1000,6 +1000,59 @@ async function main() {
     ") values($1::uuid,$2::uuid,1,$3::uuid,1.00,0.00,'Financial-source source-bound reversal line fixture')",
     [orgId,sourceTestCreditMemoReversalJournalId,returnReceivableAccountId],
   );
+
+  const sourceBoundCustomerJournalIds = [
+    sourceTestInvoiceJournalId,
+    sourceTestPaymentJournalId,
+    sourceTestCreditMemoJournalId,
+    sourceTestCreditMemoReversalJournalId,
+  ];
+  const appOnlyJournalHeaders = await managerDb.unsafe(
+    "select id::text as id from public.accounting_journal_entries " +
+    "where organization_id=$1::uuid and id=any($2::uuid[]) order by id",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.deepEqual(appOnlyJournalHeaders.map(row=>row.id).sort(),[...sourceBoundCustomerJournalIds].sort(),
+    "finance staff can read all four APP_ONLY customer journal source types");
+  const appOnlyJournalLines = await managerDb.unsafe(
+    "select journal_entry_id::text as journal_entry_id from public.accounting_journal_lines " +
+    "where organization_id=$1::uuid and journal_entry_id=any($2::uuid[]) order by journal_entry_id",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.equal(appOnlyJournalLines.length,4,
+    "finance staff can read source-bound journal lines while APP_ONLY");
+  const appOnlyCustomerPostingRows = await managerDb.unsafe(
+    "select id::text as id,source_type from public.accounting_customer_source_postings " +
+    "where organization_id=$1::uuid and source_id=any($2::uuid[]) order by source_type",
+    [orgId,[sourceTestInvoiceId,sourceTestSinglePaymentId]],
+  );
+  assert.equal(appOnlyCustomerPostingRows.length,2,
+    "finance staff can read both APP_ONLY customer invoice/payment posting-evidence rows");
+  const appOnlyReturnCreditRows = await managerDb.unsafe(
+    "select id::text as id from public.customer_return_credit_memos " +
+    "where organization_id=$1::uuid and id=$2::uuid",
+    [orgId,sourceTestCreditMemoId],
+  );
+  assert.equal(appOnlyReturnCreditRows.length,1,
+    "finance staff can read the APP_ONLY return-credit memo header");
+
+  const sourceReadPolicies = await db.unsafe(
+    "select p.polname,p.polpermissive from pg_catalog.pg_policy p " +
+    "join pg_catalog.pg_class c on c.oid=p.polrelid " +
+    "join pg_catalog.pg_namespace n on n.oid=c.relnamespace " +
+    "where n.nspname='public' and p.polname in (" +
+      "'accounting_journal_entries_customer_source_read_guard'," +
+      "'accounting_journal_lines_customer_source_read_guard'," +
+      "'accounting_customer_source_postings_customer_source_read_guard'," +
+      "'customer_return_credit_memos_customer_source_read_guard'," +
+      "'customer_return_credit_memo_items_customer_source_read_guard'," +
+      "'accounting_return_credit_memo_postings_customer_source_read_guard'," +
+      "'accounting_return_credit_memo_reversals_customer_source_read_guard')",
+  );
+  assert.equal(sourceReadPolicies.length,7,
+    "all seven customer-ledger journal, posting and credit-memo tables have source read guards");
+  assert.ok(sourceReadPolicies.every(policy=>policy.polpermissive===false),
+    "all customer source read guards are RESTRICTIVE and cannot be ORed away by existing permissive finance policies");
   async function assertCreditMemoJournalWritesDenied(sourceLabel) {
     const headerBefore = await db.unsafe(
       "select organization_id::text as organization_id,source_type,source_reference,status,description " +
@@ -1458,6 +1511,35 @@ async function main() {
 
   await assertCreditMemoJournalWritesDenied("ONYX");
   await assertInvoicePaymentJournalsDenied("ONYX");
+
+  const onyxJournalHeadersHidden = await managerDb.unsafe(
+    "select id from public.accounting_journal_entries " +
+    "where organization_id=$1::uuid and id=any($2::uuid[])",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.equal(onyxJournalHeadersHidden.length,0,
+    "staff journal-header RLS hides invoice/payment/credit-memo APP_ONLY rows after ONYX cutover");
+  const onyxJournalLinesHidden = await managerDb.unsafe(
+    "select journal_entry_id from public.accounting_journal_lines " +
+    "where organization_id=$1::uuid and journal_entry_id=any($2::uuid[])",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.equal(onyxJournalLinesHidden.length,0,
+    "staff journal-line RLS hides all APP_ONLY customer source lines after ONYX cutover");
+  const onyxPostingRowsHidden = await managerDb.unsafe(
+    "select id from public.accounting_customer_source_postings " +
+    "where organization_id=$1::uuid and source_id=any($2::uuid[])",
+    [orgId,[sourceTestInvoiceId,sourceTestSinglePaymentId]],
+  );
+  assert.equal(onyxPostingRowsHidden.length,0,
+    "staff RLS hides customer invoice/payment posting evidence after ONYX cutover");
+  const onyxCreditMemoHidden = await managerDb.unsafe(
+    "select id from public.customer_return_credit_memos " +
+    "where organization_id=$1::uuid and id=$2::uuid",
+    [orgId,sourceTestCreditMemoId],
+  );
+  assert.equal(onyxCreditMemoHidden.length,0,
+    "staff RLS hides APP_ONLY return-credit memo data after ONYX cutover");
   const [paymentLedgerAfterOnyxDenial,receiptLedgerAfterOnyxDenial] = await Promise.all([
     db.unsafe(
       "select count(*)::integer as count,coalesce(sum(amount),0)::numeric(15,2)::text as total " +
@@ -1707,6 +1789,35 @@ async function main() {
   await assertCreditMemoJournalWritesDenied("MUTAKAMEL");
   await assertInvoicePaymentJournalsDenied("MUTAKAMEL");
 
+  const mutakamelJournalHeadersHidden = await managerDb.unsafe(
+    "select id from public.accounting_journal_entries " +
+    "where organization_id=$1::uuid and id=any($2::uuid[])",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.equal(mutakamelJournalHeadersHidden.length,0,
+    "staff journal-header RLS hides APP_ONLY customer source rows after MUTAKAMEL cutover");
+  const mutakamelJournalLinesHidden = await managerDb.unsafe(
+    "select journal_entry_id from public.accounting_journal_lines " +
+    "where organization_id=$1::uuid and journal_entry_id=any($2::uuid[])",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.equal(mutakamelJournalLinesHidden.length,0,
+    "staff journal-line RLS hides APP_ONLY customer lines after MUTAKAMEL cutover");
+  const mutakamelPostingRowsHidden = await managerDb.unsafe(
+    "select id from public.accounting_customer_source_postings " +
+    "where organization_id=$1::uuid and source_id=any($2::uuid[])",
+    [orgId,[sourceTestInvoiceId,sourceTestSinglePaymentId]],
+  );
+  assert.equal(mutakamelPostingRowsHidden.length,0,
+    "staff RLS hides APP_ONLY invoice/payment posting evidence after MUTAKAMEL cutover");
+  const mutakamelCreditMemoHidden = await managerDb.unsafe(
+    "select id from public.customer_return_credit_memos " +
+    "where organization_id=$1::uuid and id=$2::uuid",
+    [orgId,sourceTestCreditMemoId],
+  );
+  assert.equal(mutakamelCreditMemoHidden.length,0,
+    "staff RLS hides APP_ONLY return-credit memo data after MUTAKAMEL cutover");
+
   await expectFailure(
     "MUTAKAMEL customer cannot list APP_ONLY receipts through the customer RPC",
     rpc(customerDb, "select public.get_my_customer_payment_receipt_print_options(50,0) as result"),
@@ -1760,6 +1871,35 @@ async function main() {
   const appOnlyApproved = await reviewSource(accountantDb, appOnlyRequest.request_id, "approve", "all external balances reconciled to the app ledger before cutover");
   assert.equal(appOnlyApproved.source_mode, "APP_ONLY");
   assert.equal(appOnlyApproved.revision, 4);
+
+  const restoredJournalHeaders = await managerDb.unsafe(
+    "select id::text as id from public.accounting_journal_entries " +
+    "where organization_id=$1::uuid and id=any($2::uuid[]) order by id",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.deepEqual(restoredJournalHeaders.map(row=>row.id).sort(),[...sourceBoundCustomerJournalIds].sort(),
+    "staff source-bound journal headers reappear only after approved APP_ONLY return");
+  const restoredJournalLines = await managerDb.unsafe(
+    "select journal_entry_id from public.accounting_journal_lines " +
+    "where organization_id=$1::uuid and journal_entry_id=any($2::uuid[])",
+    [orgId,sourceBoundCustomerJournalIds],
+  );
+  assert.equal(restoredJournalLines.length,4,
+    "staff customer journal lines reappear after APP_ONLY return");
+  const restoredCustomerPostingRows = await managerDb.unsafe(
+    "select id from public.accounting_customer_source_postings " +
+    "where organization_id=$1::uuid and source_id=any($2::uuid[])",
+    [orgId,[sourceTestInvoiceId,sourceTestSinglePaymentId]],
+  );
+  assert.equal(restoredCustomerPostingRows.length,2,
+    "staff invoice/payment posting evidence reappears after APP_ONLY return");
+  const restoredCreditMemoRows = await managerDb.unsafe(
+    "select id from public.customer_return_credit_memos " +
+    "where organization_id=$1::uuid and id=$2::uuid",
+    [orgId,sourceTestCreditMemoId],
+  );
+  assert.equal(restoredCreditMemoRows.length,1,
+    "staff return-credit memo header reappears after APP_ONLY return");
 
 
   for (const fixture of customerSourcePostingFixtures) {
