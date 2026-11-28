@@ -80,9 +80,9 @@ export function filterDailyDecisionRecords(
         (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due > now)) return false;
     if (filters.due === "DUE_7_DAYS" &&
         (terminal || record.reviewDisposition !== "SCHEDULED" || !Number.isFinite(due) || due <= now || due > weekAhead)) return false;
-    if (filters.due === "UNSCHEDULED" &&
-        (terminal || record.reviewDisposition !== "NOT_SCHEDULED" &&
-          !(record.reviewDisposition === null && !record.reviewAt))) return false;
+    const genuinelyUnscheduled = !record.reviewAt &&
+      (record.reviewDisposition === "NOT_SCHEDULED" || record.reviewDisposition === null);
+    if (filters.due === "UNSCHEDULED" && (terminal || !genuinelyUnscheduled)) return false;
 
     if (!query) return true;
     const candidate = record.candidateSnapshot;
