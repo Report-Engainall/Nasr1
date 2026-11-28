@@ -113,7 +113,7 @@ export function buildDemandScenarioDecisionCandidate(
         item.days + " يوم " + item.scenarioRemainingAtp + " (عجز محتمل " + item.scenarioPotentialShortfall + ")"
       ).join("، ") +
       "؛ والتقدير المحسوب لمهلة المورد باستخدام أفق توقع " + stockImpact.leadTime.sourceHorizonDays + " يوم، العجز المحتمل " +
-      stockImpact.leadTime.scenarioPotentialShortfall + "."
+      stockImpact.leadTime.scenarioPotentialShortfall + ". هذا إسقاط محافظ ATP ناقص الطلب؛ يستبعد الوارد لعدم ثبوت تواريخ الاستلام، وليس رصيداً مرحّلاً."
     : "";
   const evidenceIds = [...new Set([
     ...scenario.evidenceIds,

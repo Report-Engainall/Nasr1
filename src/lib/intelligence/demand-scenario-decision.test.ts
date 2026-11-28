@@ -88,6 +88,7 @@ describe("demand scenario decision candidate", () => {
       },
     });
     expect(candidate?.why).toContain("ATP 40 EA");
+    expect(candidate?.why).toContain("يستبعد الوارد لعدم ثبوت تواريخ الاستلام");
     expect(candidate?.expectedOutcome).toContain("90 يوماً: 360 → 432 EA");
     expect(candidate?.id).not.toBe(buildDemandScenarioDecisionCandidate(scenario)?.id);
     expect(buildDemandScenarioDecisionCandidate(scenario, { ...stockImpact, productRef: "another-product" })).toBeNull();
