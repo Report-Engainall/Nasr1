@@ -74,7 +74,12 @@ export function DecisionOutcomeLifecycleControls({
     user?.profileId && Array.isArray(user.roles) &&
     (user.roles.includes("admin") || user.roles.includes("manager")),
   );
-  const assignmentProfileId = canAssignToSelf ? user?.profileId ?? null : null;
+  const assignedToDifferentUser = Boolean(
+    ownerProfileId && user?.profileId && ownerProfileId !== user.profileId,
+  );
+  const assignmentProfileId = canAssignToSelf && !assignedToDifferentUser
+    ? user?.profileId ?? null
+    : null;
   const events = allowedEvents(state, assignmentProfileId);
 
   async function loadMeasurementProof() {
@@ -279,7 +284,9 @@ export function DecisionOutcomeLifecycleControls({
           ))}
         </div>
         {pending ? <p className="text-xs text-muted-foreground">حُفظ مفتاح الأمر لهذه المحاولة؛ لا تغيّر السبب أو الإجراء حتى يؤكد الخادم النتيجة.</p> : null}
-      </> : state === "APPROVED" && !assignmentProfileId ? (
+      </> : state === "APPROVED" && assignedToDifferentUser ? (
+        <p className="text-sm text-muted-foreground">هذا القرار مسند بالفعل إلى مسؤول آخر. لا يتيح هذا المسار إعادة تعيين المسؤول؛ استخدم إجراء إعادة الإسناد المخوّل عند توفره.</p>
+      ) : state === "APPROVED" && !assignmentProfileId ? (
         <p className="text-sm text-muted-foreground">إسناد القرار إلى حسابك متاح للمدير أو المشرف المخول بعد تسجيل الدخول؛ اطلب من أحدهما إسناد القرار.</p>
       ) : state === "EXECUTED" ? (
         <div className="space-y-2 rounded-lg border p-3">
