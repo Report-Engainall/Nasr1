@@ -44,7 +44,12 @@ function metricValue(metric:MetricSnapshot|null|undefined,index:Map<string,Metri
  if(!metric)return {value:null,minorUnits:null,status:"UNAVAILABLE",warnings:["METRIC_NOT_SUPPLIED"]};
  const verified=index.get(metric.id);
  if(!verified)return {value:null,minorUnits:null,status:"UNVERIFIED",warnings:["METRIC_ID_AMBIGUOUS_OR_MISSING"]};
- if(verified.status!=="VERIFIED")return {value:null,minorUnits:null,status:verified.status,warnings:[...verified.warnings,"METRIC_NOT_VERIFIED"]};
+ if(verified.status!=="VERIFIED"){
+  const warnings=[...verified.warnings];
+  if(warnings.includes("METRIC_CALCULATED_AFTER_REPORT_GENERATION"))warnings.push("METRIC_CALCULATED_AFTER_GENERATION");
+  warnings.push("METRIC_NOT_VERIFIED");
+  return {value:null,minorUnits:null,status:verified.status,warnings:[...new Set(warnings)]};
+ }
  const calculatedAtMs=strictTimestamp(verified.lineage.calculatedAt);
  if(calculatedAtMs===null)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["METRIC_CALCULATION_TIMESTAMP_INVALID"]};
  if(calculatedAtMs>generatedAtMs)return {value:null,minorUnits:null,status:"NEEDS_REVIEW",warnings:["METRIC_CALCULATED_AFTER_GENERATION"]};
