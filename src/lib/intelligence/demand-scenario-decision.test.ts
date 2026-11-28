@@ -113,7 +113,7 @@ describe("demand scenario decision candidate", () => {
     })).toBeNull();
     expect(buildDemandScenarioDecisionCandidate(scenario, {
       ...stockImpact,
-      leadTime: { ...stockImpact.leadTime, scenarioPotentialShortfall: Number.NaN },
+      leadTime: { ...stockImpact.leadTime!, scenarioPotentialShortfall: Number.NaN },
     })).toBeNull();
     expect(buildDemandScenarioDecisionCandidate(scenario, {
       ...stockImpact,
@@ -129,7 +129,7 @@ describe("demand scenario decision candidate", () => {
     })).toBeNull();
     expect(buildDemandScenarioDecisionCandidate(scenario, {
       ...stockImpact,
-      leadTime: { ...stockImpact.leadTime, scenarioRemainingAtp: 999 },
+      leadTime: { ...stockImpact.leadTime!, scenarioRemainingAtp: 999 },
     })).toBeNull();
   });
 

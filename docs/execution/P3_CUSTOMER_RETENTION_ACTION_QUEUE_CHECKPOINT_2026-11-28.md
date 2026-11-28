@@ -21,6 +21,8 @@
 - Demand what-if projections cover 7/30/90-day scenarios against matched verified ATP and forecast evidence; incoming purchase quantities are excluded without receipt-date proof, and no purchase/inventory side effect is created.
 - `a119918f08f49ff875d777655b0f142e722ef933` added per-horizon reorder-point pressure labels; equality is now described as `at or above`, never incorrectly as strictly above.
 - `048553fb81dfec51193aeebd1a542ae098287e21` hardens scenario stock projections: malformed scenario horizons and inventory rows are withheld, scenario/product/unit/formula identity is validated, and forecast evidence must also be present in the recommendation's complete evidence list.
+- `d8481c02b8c6758f88b4d65c5a45bafd031fee04` independently validates the READY stock impact before it is promoted into a decision; malformed horizon/lead-time structures and unrelated demand evidence are rejected.
+- `4ebc90900bd21a4a1810c9f929fa587db07468ad` validates projected stock arithmetic against ATP for every horizon and lead time, including the reorder-point threshold flag; inconsistent remaining balance or shortfall prevents decision creation.
 
 ## Acceptance
 
