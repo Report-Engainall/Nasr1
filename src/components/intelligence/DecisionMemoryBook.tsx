@@ -3,7 +3,12 @@ import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
-import { buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
+import {
+  buildDecisionPolicyReviewSuggestions,
+  filterDecisionMemoryPrecedents,
+  searchSimilarDecisionMemory,
+  summarizeDecisionMemoryPrecedents,
+} from "@/lib/intelligence/decision-memory";
 import {
   commandDecisionPolicyLearningCandidate,
   createDecisionPolicyLearningCandidate,
@@ -13,6 +18,7 @@ import {
 } from "@/lib/intelligence/decision-policy-learning-client";
 import type {
   DecisionMemoryBookResult,
+  DecisionMemoryPrecedentFilter,
   DecisionMemoryRecord,
   DecisionMemoryMissingField,
   DecisionMemorySnapshot,
@@ -324,6 +330,7 @@ const learningStateLabels = {
 export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionMemoryBookProps){
   const [precedentTargetId,setPrecedentTargetId]=useState("");
   const [precedentQuery,setPrecedentQuery]=useState("");
+  const [precedentComparisonFilter,setPrecedentComparisonFilter]=useState<DecisionMemoryPrecedentFilter>("ALL");
   const [recordPage,setRecordPage]=useState(0);
   const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
   const [learningLoading,setLearningLoading]=useState(true);
@@ -449,6 +456,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const precedentMatches=searchTarget&&result
     ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:8})
     :[];
+  const precedentSummary=summarizeDecisionMemoryPrecedents(precedentMatches);
+  const visiblePrecedentMatches=filterDecisionMemoryPrecedents(precedentMatches,precedentComparisonFilter);
   const effective=state==="ready"&&!result?"unavailable":state;
   if(effective!=="ready")return <IntelligenceStatePanel state={effective} onRetry={onRetry} errorMessage="تعذر تحميل دفتر ذاكرة القرارات." />;
   if(!result)return <IntelligenceStatePanel state="unavailable" unavailableMessage="مصدر ذاكرة القرارات غير متاح؛ لم تُنشأ سجلات افتراضية." />;
@@ -461,30 +470,50 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <div><h3 className="font-semibold">البحث في القرارات السابقة المشابهة</h3>
         <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف الفترة والعملة والمعادلة. لا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-3">
         <label className="block space-y-1 text-sm">القرار المرجعي
-          <select className="w-full rounded-lg border bg-background p-2" value={searchTarget?.decisionId??""} onChange={event=>setPrecedentTargetId(event.target.value)}>
+          <select className="w-full rounded-lg border bg-background p-2" value={searchTarget?.decisionId??""} onChange={event=>{setPrecedentTargetId(event.target.value);setPrecedentComparisonFilter("ALL");}}>
             {referenceOptions.map(record=><option key={record.decisionId} value={record.decisionId}>{record.proposedResult.slice(0,100)} · {record.createdAt.slice(0,10)}</option>)}
           </select>
         </label>
         <label className="block space-y-1 text-sm">مصطلحات إضافية (اختياري)
           <input className="w-full rounded-lg border bg-background p-2" maxLength={500} value={precedentQuery} onChange={event=>setPrecedentQuery(event.target.value)} placeholder="مثال: نفاد مخزون، تأخر توريد، تحصيل"/>
         </label>
+        <label className="block space-y-1 text-sm">حالة قابلية المقارنة
+          <select
+            className="w-full rounded-lg border bg-background p-2"
+            aria-label="تصفية السوابق حسب قابلية مقارنة النتائج"
+            value={precedentComparisonFilter}
+            onChange={event=>setPrecedentComparisonFilter(event.target.value as DecisionMemoryPrecedentFilter)}
+          >
+            <option value="ALL">كل السوابق المطابقة</option>
+            <option value="COMPARABLE">سياق متوافق بالكامل</option>
+            <option value="NOT_COMPARABLE">اختلاف في سياق القياس</option>
+            <option value="OUTCOME_UNVERIFIED">قياس أو خط أساس غير مثبت</option>
+          </select>
+        </label>
       </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="ملخص قابلية مقارنة السوابق">
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">أفضل السوابق المطابقة</p><strong className="text-lg tabular-nums">{precedentSummary.total}</strong></article>
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">سياق متوافق</p><strong className="text-lg tabular-nums">{precedentSummary.comparable}</strong></article>
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">سياق مختلف</p><strong className="text-lg tabular-nums">{precedentSummary.notComparable}</strong></article>
+        <article className="rounded-lg border p-2"><p className="text-xs text-muted-foreground">غير مثبت</p><strong className="text-lg tabular-nums">{precedentSummary.outcomeUnverified}</strong></article>
+      </div>
+      <p className="text-xs text-muted-foreground">التصنيف يعتمد على توافق خط الأساس والنتيجة الفعلية معاً: المؤشر، الوحدة، العملة، الفترة، والمعادلة. العدّادات تخص أفضل 8 سوابق محملة فقط، ولا تعني اكتمال تاريخ المؤسسة.</p>
       {searchTarget?<div className="rounded-lg bg-muted/40 p-2 text-xs">
         <p><strong>السياق المرجعي:</strong> {searchTarget.proposedResult} · {searchTarget.ruleId}@{searchTarget.ruleVersion}</p>
         {searchTarget.problem?<p className="mt-1">المشكلة: {searchTarget.problem}</p>:null}
         <p className="mt-1">تاريخ القرار: {searchTarget.createdAt} · فترة لقطة القرار: {searchTarget.snapshot?.period.from??"غير متاحة"} — {searchTarget.snapshot?.period.to??"غير متاحة"} · كما في {searchTarget.snapshot?.asOf??"غير متاح"}</p>
       </div>:null}
       {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">تنبيه: البحث مقصور على {result.loadedCount} قراراً محملاً من أصل {result.totalCount}. قد توجد سوابق أقدم خارج هذه الصفحة؛ عدم ظهور نتيجة لا يثبت عدم وجودها.</p>:null}
-      {precedentMatches.length?<ol className="space-y-2">
-        {precedentMatches.map(match=><li key={match.record.decisionId} className="rounded-lg border p-3 space-y-2">
+      {visiblePrecedentMatches.length?<ol className="space-y-2">
+        {visiblePrecedentMatches.map(match=><li key={match.record.decisionId} className="rounded-lg border p-3 space-y-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div><h4 className="font-semibold text-sm">{match.record.proposedResult}</h4>
               <p className="text-xs text-muted-foreground" dir="ltr">{match.record.ruleId}@{match.record.ruleVersion} · {match.record.decisionId.slice(0,8)}</p>
               <p className="text-xs">الحالة: {states[match.record.state]} · تاريخ القرار: {match.record.createdAt}</p>
             </div>
-            <span className="text-xs">{match.comparisonStatus==="COMPARABLE"?"المقياس الفعلي قابل للمقارنة":match.comparisonStatus==="NOT_COMPARABLE"?"سياق القياس مختلف":"النتيجة غير مثبتة للمقارنة"}</span>
+            <span className="text-xs">{match.comparisonStatus==="COMPARABLE"?"الخط الأساس والنتيجة متوافقان":match.comparisonStatus==="NOT_COMPARABLE"?"سياق خط الأساس أو النتيجة مختلف":"خط الأساس أو النتيجة غير مثبتة"}</span>
           </div>
           <p className="text-xs"><strong>أساس التشابه:</strong> {match.matchReasons.join("، ")}{match.matchedTerms.length?" · المصطلحات: "+match.matchedTerms.join("، "):""}</p>
           {match.record.problem?<p className="text-sm"><strong>المشكلة المسجلة:</strong> {match.record.problem}</p>:null}
@@ -500,7 +529,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           </div>:null}
           <p className="text-xs text-muted-foreground">هذه سابقة تاريخية للمراجعة وليست قاعدة ملزمة أو دليلاً على أن الظروف الحالية مماثلة بالكامل.</p>
         </li>)}
-      </ol>:<p className="text-sm text-muted-foreground">لا توجد سابقة أقدم مطابقة ضمن السجلات المحملة حالياً. جرّب مصطلحات أوسع أو تحقق من نطاق الصفحة.</p>}
+      </ol>:precedentMatches.length
+        ?<p className="text-sm text-muted-foreground">لا توجد سوابق ضمن أفضل النتائج تطابق تصنيف المقارنة المحدد. غيّر مرشح قابلية المقارنة لعرض التصنيفات الأخرى.</p>
+        :<p className="text-sm text-muted-foreground">لا توجد سابقة أقدم مطابقة ضمن السجلات المحملة حالياً. جرّب مصطلحات أوسع أو تحقق من نطاق الصفحة.</p>}
     </section>:null}
     <section className="space-y-2 rounded-xl border p-3" aria-label="مقترحات مراجعة القواعد من نتائج القرارات">
       <div><h3 className="font-semibold">مقترحات مراجعة القواعد من نتائج القرارات</h3>
