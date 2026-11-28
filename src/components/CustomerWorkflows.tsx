@@ -1235,8 +1235,8 @@ function Invoices() {
       >
         <span style={quiet}>
           {externalStatement
-            ? externalStatement.currencies.reduce((sum, currency) => sum + currency.entries.filter(entry => ["invoice", "debit_note", "credit_note"].includes(entry.entry_type)).length, 0)
-            : rows.length} مستند{hasMoreInvoices ? " محمل" : ""}
+            ? externalStatement.currencies.reduce((sum, currency) => sum + currency.entries.filter(entry => ["invoice", "debit_note", "credit_note"].includes(entry.entry_type)).length, 0) + " مستند خارجي"
+            : rows.length + " فاتورة" + (hasMoreInvoices ? " محملة" : "")}
         </span>
         <button style={secondary} disabled={busy || loadingOlderInvoices} onClick={() => void load()}>
           <RefreshCw size={15} /> تحديث
@@ -2243,7 +2243,17 @@ function CustomerPayments() {
       subtitle="حركات الدفعات المسجلة في دفتر حسابك. هذه الشاشة للقراءة فقط ولا تنشئ دفعة أو إيصال سداد."
     >
       <CustomerFinancialSourceNotice source={financialSource} loading={loading && !financialSourceError} error={financialSourceError} />
-      {externalStatement && <CustomerExternalFinanceEntries statement={externalStatement} view="payments" />}
+      {externalStatement && (
+        <>
+          <div className="no-print" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+            <Link to="/statement" style={secondary}>كشف الحساب الكامل وتنزيل Excel</Link>
+            <button type="button" style={secondary} onClick={() => void load()} disabled={loading}>
+              <RefreshCw size={15} /> {loading ? "جارٍ التحديث..." : "تحديث حركات ERP"}
+            </button>
+          </div>
+          <CustomerExternalFinanceEntries statement={externalStatement} view="payments" />
+        </>
+      )}
       {appLedgerAvailable && <CustomerPaymentReceiptSelfServiceActions source={financialSource} />}
       <div hidden={!appLedgerAvailable} className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2329,9 +2339,11 @@ function CustomerPayments() {
           </table>
         </section>
       ) : null}
-      <p style={{ ...quiet, marginTop: 12 }}>
-        مصدر البيانات هو أمر قراءة كشف الحساب المصرّح به. لا تعرض الشاشة تفاصيل مالية لدفعة لا تتوفر فاتورتها ضمن تفاصيل القراءة المحمّلة.
-      </p>
+      {appLedgerAvailable && (
+        <p style={{ ...quiet, marginTop: 12 }}>
+          مصدر البيانات هو أمر قراءة كشف الحساب المصرّح به. لا تعرض الشاشة تفاصيل مالية لدفعة لا تتوفر فاتورتها ضمن تفاصيل القراءة المحمّلة.
+        </p>
+      )}
     </WorkspaceShell>
   );
 }
