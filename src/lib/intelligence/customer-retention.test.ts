@@ -364,6 +364,7 @@ describe("customer retention daily decision integration", () => {
     const queue = buildCustomerRetentionActionQueue(report);
     const decisions = buildCustomerRetentionDecisionCandidates({ asOf, queue });
     expect(queue.status).toBe("VERIFIED");
+    expect(queue.asOf).toBe(asOf);
     expect(decisions.map(item => [item.priority, item.ruleId])).toEqual([
       ["P1", "customers.retention.follow-up"], ["P1", "customers.retention.follow-up"],
     ]);
