@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
 import { parseTaskPerformanceScorecard } from "@/lib/intelligence/task-performance-scorecard";
 import { parseTaskQualityMetrics } from "@/lib/intelligence/task-quality-reviews";
+import { buildTaskPerformanceScorecardCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
+
+vi.mock("@/lib/intelligence/intelligence-csv", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/intelligence/intelligence-csv")>();
+  return { ...original, downloadIntelligenceCsv: vi.fn() };
+});
 
 const data = parseTaskPerformanceScorecard({
   status: "READY",
@@ -40,6 +46,15 @@ const data = parseTaskPerformanceScorecard({
 });
 
 describe("TaskPerformanceScorecard", () => {
+  it("exports the role-scoped scorecard from the existing panel", () => {
+    render(<TaskPerformanceScorecard scorecard={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "تصدير بطاقة أداء المهام CSV" }));
+    expect(downloadIntelligenceCsv).toHaveBeenCalledWith(
+      buildTaskPerformanceScorecardCsv(data!),
+      "aghbari-task-performance.csv",
+    );
+  });
+
   it("shows the audit limitation instead of translating observed reopens into a complete rate", () => {
     render(<TaskPerformanceScorecard scorecard={data} />);
     expect(screen.getByRole("heading", { name: "بطاقة أداء المهام" })).toBeInTheDocument();
