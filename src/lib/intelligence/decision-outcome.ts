@@ -8,15 +8,21 @@ export function createDecisionOutcome(input:{id:string;candidateId:string;propos
  if(!input.id.trim()||!input.candidateId.trim()||!input.proposedBy.id.trim()||!input.proposedBy.role.trim()||!input.owner.trim()||
   !input.expectedOutcome.trim()||timestamp(input.createdAt)===null)throw new Error("invalid_decision_outcome");
  return {id:input.id,candidateId:input.candidateId,version:1,state:"PROPOSED",proposedBy:input.proposedBy,owner:input.owner,
-  expectedOutcome:input.expectedOutcome,reason:null,createdAt:input.createdAt,approvedAt:null,approvedBy:null,assignedAt:null,
+  expectedOutcome:input.expectedOutcome,reason:null,createdAt:input.createdAt,proposedBy:{...input.proposedBy},approvedAt:null,approvedBy:null,assignedAt:null,
   executedAt:null,measuredOutcome:null,eventKeys:[],history:[]};
 }
 const transitions:Record<DecisionOutcomeState,DecisionOutcomeEventType[]>={
  PROPOSED:["SUBMIT_FOR_REVIEW"],IN_REVIEW:["APPROVE","REJECT","DEFER"],APPROVED:["ASSIGN"],REJECTED:[],DEFERRED:["RESUBMIT_FOR_REVIEW"],
  ASSIGNED:["START_EXECUTION"],EXECUTING:["COMPLETE_EXECUTION"],EXECUTED:["MEASURE"],MEASURED:[],
 };
+function snapshotMeasurement(measured:DecisionMeasuredOutcome):DecisionMeasuredOutcome {
+ return {...measured,period:measured.period?{...measured.period}:null,evidenceIds:[...measured.evidenceIds]};
+}
+function snapshotEvent(event:DecisionOutcomeEvent):DecisionOutcomeEvent {
+ return {...event,actor:{...event.actor},...(event.measuredOutcome?{measuredOutcome:snapshotMeasurement(event.measuredOutcome)}:{})};
+}
 function sameEvent(a:DecisionOutcomeEventRecord,b:DecisionOutcomeEvent):boolean {
- return a.id===b.id&&a.type===b.type&&a.actor.id===b.actor.id&&a.at===b.at&&a.reason===b.reason&&a.owner===b.owner&&
+ return a.id===b.id&&a.type===b.type&&a.actor.id===b.actor.id&&a.actor.role===b.actor.role&&a.at===b.at&&a.reason===b.reason&&a.owner===b.owner&&
   JSON.stringify(a.measuredOutcome??null)===JSON.stringify(b.measuredOutcome??null);
 }
 function isoDay(value:unknown):value is string {
@@ -69,10 +75,10 @@ export function transitionDecisionOutcome(outcome:DecisionOutcome,event:Decision
  if(event.type==="MEASURE"&&!validMeasurement(event.measuredOutcome,event.at))return {ok:false,outcome,reason:"INVALID_MEASUREMENT"};
  const next:Record<DecisionOutcomeEventType,DecisionOutcomeState>={SUBMIT_FOR_REVIEW:"IN_REVIEW",APPROVE:"APPROVED",REJECT:"REJECTED",DEFER:"DEFERRED",
   ASSIGN:"ASSIGNED",START_EXECUTION:"EXECUTING",COMPLETE_EXECUTION:"EXECUTED",MEASURE:"MEASURED",RESUBMIT_FOR_REVIEW:"IN_REVIEW"};
- return {ok:true,duplicate:false,outcome:{...outcome,version:outcome.version+1,state:next[event.type],
-  history:[...outcome.history,event],eventKeys:[...outcome.eventKeys,event.idempotencyKey],reason:event.reason??outcome.reason,
-  ...(event.type==="APPROVE"?{approvedAt:event.at,approvedBy:event.actor}:{}),
+ const recordedEvent=snapshotEvent(event);\n return {ok:true,duplicate:false,outcome:{...outcome,version:outcome.version+1,state:next[event.type],
+  history:[...outcome.history,recordedEvent],eventKeys:[...outcome.eventKeys,event.idempotencyKey],reason:event.reason??outcome.reason,
+  ...(event.type==="APPROVE"?{approvedAt:event.at,approvedBy:{...recordedEvent.actor}}:{}),
   ...(event.type==="ASSIGN"?{owner:event.owner as string,assignedAt:event.at}:{}),
   ...(event.type==="COMPLETE_EXECUTION"?{executedAt:event.at}:{}),
-  ...(event.type==="MEASURE"?{measuredOutcome:event.measuredOutcome as DecisionMeasuredOutcome}:{})}};
+  ...(event.type==="MEASURE"?{measuredOutcome:snapshotMeasurement(recordedEvent.measuredOutcome as DecisionMeasuredOutcome)}:{})}};
 }
