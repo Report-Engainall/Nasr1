@@ -112,6 +112,15 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - No production database, financial ledger, inventory, live ERP endpoint, secret or deployment was touched.
 
 
+
+## P1 follow-up — exact external statement output binding (2026-11-28)
+
+- Added `isSameCustomerExternalStatementSourceAsOf`, which compares valid source watermarks as exact PostgreSQL-microsecond instants, accepts equivalent valid timezone representations, and fails closed on malformed values.
+- External statement XLSX and browser print now require the displayed statement watermark and provider mode to match the currently selected server binding exactly. They also cancel if a new statement read supersedes an in-flight print/export.
+- Added a route regression for a real UI state transition: the first print revalidation observes a one-microsecond source cutover and updates the binding notice while the old external statement remains in the view; the second attempt must be rejected before invoking `window.print()`. Added direct comparator tests for equivalent offsets, one-microsecond difference and malformed input.
+- No source/ledger/inventory/ERP writes; no new migration. The change protects only customer statement presentation, printing and XLSX output.
+- Tests are authored and require exact-head P1 Vitest/strict TypeScript plus P2 browser acceptance; no PASS is claimed until the current SHA jobs finish.
+
 ## P1 route-level external statement acceptance — 2026-11-28
 
 - Added a customer route-level test for `/statement` that selects ONYX from the authenticated server resolver, reads the statement RPC, revalidates the binding after the read, and verifies separate YER/USD ledgers are rendered without APP_ONLY invoice rows.

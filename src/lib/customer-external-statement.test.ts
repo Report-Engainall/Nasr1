@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   customerExternalStatementEntryTypeLabel,
   formatCustomerExternalStatementAmount,
+  isSameCustomerExternalStatementSourceAsOf,
   parseCustomerExternalStatement,
 } from "./customer-external-statement";
 import { buildCustomerExternalStatementWorkbookXlsx } from "./customer-account-statement-xlsx";
@@ -123,6 +124,13 @@ describe("customer external ERP statement contract", () => {
     const expected = new Date(Date.parse(sourceAsOf) + 3 * 60 * 60 * 1000)
       .toISOString().replace(/Z$/, "+03:00");
     expect(() => parseCustomerExternalStatement(base, "ONYX", expected)).not.toThrow();
+  });
+
+  it("compares external statement source watermarks at exact microsecond precision", () => {
+    const actual = sourceAsOf.replace(/Z$/, "001Z");
+    expect(isSameCustomerExternalStatementSourceAsOf(actual, actual.replace(/Z$/, "+00:00"))).toBe(true);
+    expect(isSameCustomerExternalStatementSourceAsOf(actual, actual.replace(/001Z$/, "002Z"))).toBe(false);
+    expect(isSameCustomerExternalStatementSourceAsOf("invalid", actual)).toBe(false);
   });
 
   it("rejects sub-microsecond timestamps and offsets beyond ISO 8601 bounds", () => {

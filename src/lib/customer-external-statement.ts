@@ -114,6 +114,19 @@ function parseTimestamp(value: unknown, label: string): string {
   return value as string;
 }
 
+export function isSameCustomerExternalStatementSourceAsOf(
+  actual: string,
+  expected: string | null,
+): boolean {
+  if (!expected) return false;
+  try {
+    return timestampMicroseconds(actual, "actual_source_as_of") ===
+      timestampMicroseconds(expected, "expected_source_as_of");
+  } catch {
+    return false;
+  }
+}
+
 function decimalToScale4(value: string): bigint {
   const negative = value.startsWith("-");
   const unsigned = negative ? value.slice(1) : value;

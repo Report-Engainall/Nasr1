@@ -1522,4 +1522,83 @@ describe("customer quote workspace tenant boundary", () => {
     }
   });
 
+
+  it("blocks ERP statement printing when the displayed snapshot is one microsecond older than the current binding", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const sourceAsOf = new Date(Date.now() - 2 * 60_000).toISOString().replace(/Z$/, "001Z");
+    const changedSourceAsOf = sourceAsOf.replace(/001Z$/, "002Z");
+    const currencyAsOf = new Date(Date.now() - 60_000).toISOString();
+    const sourceFor = (watermark: string) => ({
+      source_mode: "ONYX", source_status: "active", source_as_of: watermark,
+      last_synced_at: watermark, verified_at: watermark,
+      revision: watermark === sourceAsOf ? 77 : 78,
+      is_stale: false, can_read_app_ledger: false,
+    });
+    const externalStatement = {
+      source_mode: "ONYX", source_as_of: sourceAsOf, details_limit_per_currency: 500,
+      currencies: [{
+        currency_code: "YER", source_as_of: currencyAsOf, entry_count: 1,
+        total_debit: "10.0000", total_credit: "0", closing_balance: "10.0000",
+        details_partial: false,
+        entries: [{
+          entry_reference: "ONYX-JV-MICRO-001", entry_date: "2026-11-28", due_date: null,
+          entry_type: "invoice", debit_amount: "10.0000", credit_amount: "0",
+          running_balance: "10.0000", source_document_number: "ONYX-INV-MICRO-001",
+          description: "قيد اختبار دقة توقيت المصدر",
+        }],
+      }],
+    };
+    let sourceReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return { data: sourceFor(sourceReads <= 2 ? sourceAsOf : changedSourceAsOf), error: null };
+      }
+      if (name === "get_customer_account_statement") {
+        return {
+          data: {
+            source_mode: "ONYX", invoices: [], payments: [], credits: [],
+            summary: null, summary_as_of_utc: sourceAsOf, external_statement: externalStatement,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    const printSpy = vi.fn();
+    const originalPrintDescriptor = Object.getOwnPropertyDescriptor(window, "print");
+    Object.defineProperty(window, "print", { configurable: true, value: printSpy });
+    try {
+      await mountQuoteWorkspace("/statement");
+      expect(sourceReads).toBe(2);
+      expect(host?.textContent).toContain("ONYX-JV-MICRO-001");
+      const printButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((button) => button.textContent?.includes("طباعة من المتصفح"));
+      expect(printButton).toBeDefined();
+
+      await act(async () => {
+        printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(sourceReads).toBe(3);
+      expect(host?.textContent).toContain("تغير مصدر الحساب؛ أوقفنا طباعة كشف الدفتر السابق.");
+      expect(printSpy).not.toHaveBeenCalled();
+
+      await act(async () => {
+        printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(sourceReads).toBe(3);
+      expect(host?.textContent).toContain("توقيت لقطة كشف ERP لا يطابق ربط الحساب الحالي بدقة");
+      expect(printSpy).not.toHaveBeenCalled();
+    } finally {
+      if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
+      else Reflect.deleteProperty(window, "print");
+    }
+  });
+
 });
