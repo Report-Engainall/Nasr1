@@ -255,7 +255,7 @@ export function searchSimilarDecisionMemory(input: {
         comparisonStatus,
         contextDifferences: [...actualDifferences, ...expectedDifferences],
         ranking: (sameRule ? 100 : 0) + matchedTerms.length * 4 +
-          (candidate.state === "MEASURED" && actualRight ? 2 : 0),
+          (candidate.state === "MEASURED" && candidate.metricComparison.status === "VERIFIED" && actualRight ? 2 : 0),
       };
     })
     .filter(match => match.matchReasons.length > 0)
