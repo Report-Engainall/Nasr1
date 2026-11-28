@@ -382,7 +382,7 @@ export function ErpReadSyncPanel({ canManage }: { canManage: boolean }) {
             <article key={task.objectType} style={{ border: "1px solid var(--border)", borderRadius: 9, padding: 10, display: "grid", gap: 7 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                 <strong>{task.label}</strong>
-                <span className="report-note" role="status">{TASK_STATUS_LABELS[task.status]}</span>
+                <span className="report-note">{TASK_STATUS_LABELS[task.status]}</span>
               </div>
               {task.result && (
                 <div className="report-note">

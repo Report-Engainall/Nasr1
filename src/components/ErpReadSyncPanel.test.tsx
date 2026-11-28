@@ -220,35 +220,41 @@ describe("ErpReadSyncPanel", () => {
     expect(screen.getByText(/لا تُرحّل إلى دفتر الحساب أو المخزون تلقائيًا/)).toBeInTheDocument();
   });
 
-  it("runs selected ERP streams independently and retries only the failed stream", async () => {
+  it("continues unrelated ERP streams after one fails and retries only that failed stream", async () => {
     mocks.runErpReadSync
       .mockResolvedValueOnce({ ...result, status: "continuation_required" })
       .mockRejectedValueOnce(new Error("تعذر اتصال مزود ERP"))
+      .mockResolvedValueOnce({ ...result, status: "complete" })
       .mockResolvedValueOnce({ ...result, status: "complete" });
 
     render(<ErpReadSyncPanel canManage />);
     fireEvent.change(screen.getByLabelText("معرّف الشركة في ERP"), { target: { value: "COMPANY-01" } });
     fireEvent.change(screen.getByLabelText("معرّف الفرع في ERP"), { target: { value: "BRANCH-01" } });
     fireEvent.click(screen.getByRole("checkbox", { name: "العملاء" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "المستودعات" }));
     fireEvent.click(screen.getByRole("button", { name: "تنفيذ المزامنة متعددة الأنواع" }));
 
-    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(3));
     expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(1, expect.objectContaining({
       object_type: "products", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
     }));
     expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(2, expect.objectContaining({
       object_type: "customers", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
     }));
+    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      object_type: "warehouses", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
+    }));
     expect(await screen.findByText("فشلت")).toBeInTheDocument();
     expect(screen.getByText("تحتاج استئنافًا")).toBeInTheDocument();
+    expect(screen.getAllByText("مكتملة")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "إعادة محاولة هذا النوع فقط" }));
-    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(3));
-    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(3, expect.objectContaining({
+    await waitFor(() => expect(mocks.runErpReadSync).toHaveBeenCalledTimes(4));
+    expect(mocks.runErpReadSync).toHaveBeenNthCalledWith(4, expect.objectContaining({
       object_type: "customers", company_external_id: "COMPANY-01", branch_external_id: "BRANCH-01",
     }));
-    expect(screen.getByText("مكتملة")).toBeInTheDocument();
-    expect(mocks.runErpReadSync).toHaveBeenCalledTimes(3);
+    expect(screen.getAllByText("مكتملة")).toHaveLength(2);
+    expect(mocks.runErpReadSync).toHaveBeenCalledTimes(4);
   });
 
   it("stops a multi-stream run after the current request without starting queued streams", async () => {

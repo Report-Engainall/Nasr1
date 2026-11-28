@@ -239,3 +239,10 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Corrected the scope-reset helper in the multi-stream ERP panel so provider/company/branch/warehouse/currency edits clear the active request, displayed result and per-stream outcomes without recursive invocation.
 - The customer-workflow test teardown now removes the transient statement print mode even if an assertion aborts before the simulated browser `afterprint` event.
 - Exact-head acceptance is pending for the updated P1 PR SHA; no results transfer from prior heads.
+
+
+## P1 acceptance refinement — multi-stream failure continuation (2026-11-28)
+
+- Tightened the ERP panel test to run products, customers and warehouses in one selected batch, deliberately fail customers, verify warehouses still completes, and prove only customers is retried. This covers the failure-isolation contract rather than only a terminal failure on the last selected stream.
+- Kept task labels out of the generic `role=status` region so the existing result/status accessibility assertions resolve to the actual selected stream result instead of an incidental per-row label.
+- Final P1 exact-head checks are still pending and must be tied to the current PR head.
