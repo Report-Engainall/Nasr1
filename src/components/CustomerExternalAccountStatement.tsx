@@ -136,3 +136,103 @@ export function CustomerExternalAccountStatement({ statement }: Props) {
     </section>
   );
 }
+
+
+type ExternalFinanceView = "invoices" | "payments";
+
+export function CustomerExternalFinanceEntries({
+  statement,
+  view,
+}: {
+  statement: CustomerExternalStatement;
+  view: ExternalFinanceView;
+}) {
+  const allowedTypes = view === "invoices"
+    ? new Set(["invoice", "debit_note", "credit_note"])
+    : new Set(["payment"]);
+  const currencies = statement.currencies
+    .map((currency) => ({
+      ...currency,
+      visibleEntries: currency.entries.filter((entry) => allowedTypes.has(entry.entry_type)),
+    }))
+    .filter((currency) => currency.visibleEntries.length > 0);
+  const visibleCount = currencies.reduce((sum, currency) => sum + currency.visibleEntries.length, 0);
+  const title = view === "invoices" ? "مستندات وفواتير الحساب" : "حركات السداد";
+  const headingId = view === "invoices" ? "external-customer-invoices-heading" : "external-customer-payments-heading";
+
+  return (
+    <section className="customer-external-finance-entries" dir="rtl" aria-labelledby={headingId} style={{ display: "grid", gap: 14 }}>
+      <header className="panel">
+        <h2 id={headingId} style={{ margin: 0 }}>{title} — {providerLabels[statement.source_mode]}</h2>
+        <p role="note" style={{ marginBottom: 0 }}>
+          هذه قيود قراءة فقط من كشف الحساب الخارجي المعتمد، وليست ملفات PDF الأصلية للمستندات أو إيصالات ERP.
+          لا نستخدم دفتر متجر الأغبري بديلًا، ولا نجمع العملات.
+          تاريخ لقطة المصدر: {new Date(statement.source_as_of).toLocaleString("ar-YE", { timeZone: "UTC" })}.
+          {" "}الحركات المعروضة: {visibleCount.toLocaleString("ar-YE")}.
+        </p>
+      </header>
+      {currencies.map((currency) => (
+        <section key={currency.currency_code} className="panel" aria-labelledby={"external-finance-" + view + "-" + currency.currency_code}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <h3 id={"external-finance-" + view + "-" + currency.currency_code} style={{ margin: 0 }}>
+              {title} بعملة {currency.currency_code}
+            </h3>
+            <small>اكتملت المزامنة: {new Date(currency.source_as_of).toLocaleString("ar-YE", { timeZone: "UTC" })}</small>
+          </div>
+          {currency.details_partial && (
+            <p role="status" style={{ color: "#9b4e22", margin: "10px 0" }}>
+              التفاصيل محدودة بأحدث 500 حركة لهذه العملة؛ لا تمثل القائمة كامل السجل.
+            </p>
+          )}
+          <div style={{ overflowX: "auto", marginTop: 10 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 880 }}>
+              <thead>
+                <tr style={{ textAlign: "right", background: "#f4f8f9" }}>
+                  <th style={{ padding: 10 }}>التاريخ</th>
+                  <th>مرجع الحركة</th>
+                  <th>المستند المصدر</th>
+                  <th>النوع</th>
+                  <th>الاستحقاق</th>
+                  <th>مدين</th>
+                  <th>دائن</th>
+                  <th>الرصيد الجاري</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {currency.visibleEntries.map((entry, index) => (
+                  <tr key={entry.entry_reference + ":" + index} style={{ borderTop: "1px solid #edf2f3" }}>
+                    <td style={{ padding: 10, whiteSpace: "nowrap" }}>{entry.entry_date}</td>
+                    <td><strong>{entry.entry_reference}</strong></td>
+                    <td>{entry.source_document_number ?? "—"}</td>
+                    <td>{customerExternalStatementEntryTypeLabel(entry.entry_type)}</td>
+                    <td>{entry.due_date ?? "—"}</td>
+                    <td>{formatCustomerExternalStatementAmount(entry.debit_amount, currency.currency_code)}</td>
+                    <td>{formatCustomerExternalStatementAmount(entry.credit_amount, currency.currency_code)}</td>
+                    <td><strong>{formatCustomerExternalStatementAmount(entry.running_balance, currency.currency_code)}</strong></td>
+                    <td className="no-print">
+                      <a
+                        href={documentReviewHref(entry, currency.currency_code, statement.source_mode, statement.source_as_of)}
+                        aria-label={"طلب مراجعة المستند " + (entry.source_document_number ?? entry.entry_reference)}
+                      >
+                        طلب مراجعة
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+      {visibleCount === 0 && (
+        <p className="panel" role="status">
+          لا توجد {view === "invoices" ? "فواتير أو إشعارات" : "حركات سداد"} من هذا النوع في لقطة ERP الحالية.
+        </p>
+      )}
+      <p className="report-note">
+        لإعادة طباعة النسخة الرسمية من Onyx Pro أو المتكامل، اطلب مراجعة المستند من السجل أعلاه؛ لا ينشئ هذا العرض مستندًا بديلًا.
+      </p>
+    </section>
+  );
+}
