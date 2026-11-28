@@ -1133,6 +1133,112 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.querySelector('[aria-label="تنزيل Excel"]')).toBeNull();
   });
 
+  it("renders and prints a source-routed ONYX statement as separate customer currency ledgers", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test",
+      name: "CI Customer", roles: ["customer"], isStaff: false,
+    };
+    const sourceAsOf = new Date(Date.now() - 2 * 60_000).toISOString();
+    const currencyAsOf = new Date(Date.now() - 60_000).toISOString();
+    const externalSource = {
+      source_mode: "ONYX", source_status: "active", source_as_of: sourceAsOf,
+      last_synced_at: sourceAsOf, verified_at: sourceAsOf, revision: 77,
+      is_stale: false, can_read_app_ledger: false,
+    };
+    const externalStatement = {
+      source_mode: "ONYX", source_as_of: sourceAsOf, details_limit_per_currency: 500,
+      currencies: [
+        {
+          currency_code: "YER", source_as_of: currencyAsOf, entry_count: 2,
+          total_debit: "1500.0000", total_credit: "500.0000", closing_balance: "1000.0000",
+          details_partial: false,
+          // The parser requires newest-first details and microsecond-exact running balances.
+          entries: [
+            {
+              entry_reference: "ONYX-RC-001", entry_date: "2026-11-28", due_date: null,
+              entry_type: "payment", debit_amount: "0", credit_amount: "500.0000",
+              running_balance: "1000.0000", source_document_number: "ONYX-RC-001",
+              description: "سداد جزئي",
+            },
+            {
+              entry_reference: "ONYX-JV-001", entry_date: "2026-11-27", due_date: null,
+              entry_type: "invoice", debit_amount: "1500.0000", credit_amount: "0",
+              running_balance: "1500.0000", source_document_number: "ONYX-INV-001",
+              description: "فاتورة من المصدر الخارجي",
+            },
+          ],
+        },
+        {
+          currency_code: "USD", source_as_of: currencyAsOf, entry_count: 1,
+          total_debit: "25.0000", total_credit: "0", closing_balance: "25.0000",
+          details_partial: false,
+          entries: [{
+            entry_reference: "ONYX-JV-USD-001", entry_date: "2026-11-27", due_date: null,
+            entry_type: "opening_balance", debit_amount: "25.0000", credit_amount: "0",
+            running_balance: "25.0000", source_document_number: null,
+            description: "رصيد افتتاحي بالدولار",
+          }],
+        },
+      ],
+    };
+    let sourceReads = 0;
+    let statementReads = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_my_customer_financial_source") {
+        sourceReads += 1;
+        return { data: externalSource, error: null };
+      }
+      if (name === "get_customer_account_statement") {
+        statementReads += 1;
+        return {
+          data: {
+            source_mode: "ONYX", invoices: [], payments: [], credits: [],
+            summary: null, summary_as_of_utc: sourceAsOf,
+            external_statement: externalStatement,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    const printSpy = vi.fn();
+    const originalPrintDescriptor = Object.getOwnPropertyDescriptor(window, "print");
+    Object.defineProperty(window, "print", { configurable: true, value: printSpy });
+    try {
+      await mountQuoteWorkspace("/statement");
+      expect(sourceReads).toBe(2);
+      expect(statementReads).toBe(1);
+      expect(host?.textContent).toContain("كشف الحساب الخارجي");
+      expect(host?.textContent).toContain("Onyx Pro");
+      expect(host?.textContent).toContain("كشف YER");
+      expect(host?.textContent).toContain("كشف USD");
+      expect(host?.textContent).toContain("ONYX-JV-001");
+      expect(host?.textContent).toContain("ONYX-JV-USD-001");
+      expect(host?.textContent).not.toContain("INV-APP-ONLY");
+      expect(host?.textContent).not.toContain("دفتر متجر الأغبري الكامل");
+
+      const buttons = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+      const pdfButton = buttons.find((button) => button.textContent?.includes("تنزيل PDF عربي"));
+      const excelButton = buttons.find((button) => button.textContent?.includes("تنزيل Excel"));
+      const printButton = buttons.find((button) => button.textContent?.includes("طباعة من المتصفح"));
+      expect(pdfButton).toBeUndefined();
+      expect(excelButton).toBeDefined();
+      expect(excelButton?.disabled).toBe(false);
+      expect(printButton).toBeDefined();
+
+      await act(async () => {
+        printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(sourceReads).toBe(3);
+      expect(printSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      if (originalPrintDescriptor) Object.defineProperty(window, "print", originalPrintDescriptor);
+      else Reflect.deleteProperty(window, "print");
+    }
+  });
+
   it("discards a payment history projection when its source revision changes before commit", async () => {
     mocks.user = {
       id: USER_ID,

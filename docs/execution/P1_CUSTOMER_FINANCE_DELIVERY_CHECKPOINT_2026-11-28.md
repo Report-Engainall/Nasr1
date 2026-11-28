@@ -110,3 +110,12 @@ PR: [#699](https://github.com/Report-Engainall/Nasr1/pull/699) — Draft; do not
 - Added three tests for successful external snapshot validation, stale/suspended/changed-watermark denial, and preservation of the APP_ONLY-only helper.
 - Authored tests still require exact-head P1 Vitest/strict TypeScript and P2 browser acceptance; no PASS is claimed.
 - No production database, financial ledger, inventory, live ERP endpoint, secret or deployment was touched.
+
+
+## P1 route-level external statement acceptance — 2026-11-28
+
+- Added a customer route-level test for `/statement` that selects ONYX from the authenticated server resolver, reads the statement RPC, revalidates the binding after the read, and verifies separate YER/USD ledgers are rendered without APP_ONLY invoice rows.
+- The fixture satisfies the strict parser contract: fresh timezone-qualified source/currency watermarks, newest-first chronological detail, exact microsecond-compatible running balances, and debit/credit totals that reconcile to the closing balance.
+- The test verifies the APP_ONLY PDF action is absent for ONYX, external XLSX remains enabled, and browser printing is reached only after a third source revalidation.
+- The implementation also includes the parallel correction commits `ad70dab048ec07450eb08f5678bcaa1f8c8af8e7` (microsecond-precision running balance comparison) and `f1dac9854da14a8b9bf550fe7d25e437be43af08` (partial-detail totals/closing balance reconciliation).
+- This test is authored acceptance evidence only. It must run on the final PR head under P1 Vitest/strict TypeScript; P2 Playwright must also finish on that same head. No PASS is claimed until those jobs complete.
