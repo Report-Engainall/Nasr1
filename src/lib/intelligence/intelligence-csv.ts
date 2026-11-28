@@ -3,6 +3,8 @@ import type { DeadStockReport } from "./dead-stock";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import type { SupplierPerformanceResult } from "./supplier-performance";
 import type { ProcessBottleneckResult } from "./process-bottlenecks";
+import type { TaskPerformanceScorecard } from "./task-performance-scorecard";
+import type { CustomerQuotePipelineResult } from "./customer-quote-pipeline";
 
 export type IntelligenceCsvCell = string | number | boolean | null | undefined;
 
@@ -274,5 +276,116 @@ export function buildProcessBottlenecksCsv(result: ProcessBottleneckResult): str
       "التوصية أو الملاحظة","نسبة التغير المئوية أو اكتمال المجتمع"],
     ...queueRows, ...findingRows, ...comparisonRows, ...coverageRows,
     ...(result.withheldReasons.length ? [["WITHHELD","","","",null,null,"",null,result.asOf,null,null,null,result.withheldReasons.join(" | "),""] as IntelligenceCsvCell[]] : []),
+  ]);
+}
+
+/** Export only role-visible task aggregates; unavailable metrics remain explicit rows, never zeros. */
+export function buildTaskPerformanceScorecardCsv(scorecard: TaskPerformanceScorecard): string {
+  const groupRows = scorecard.groups.map(group => [
+    "TASK_GROUP", group.taskType, group.taskRole, group.resolutionStatus, group.taskCount,
+    group.completedCount, group.resolutionSampleCount, group.resolutionExcludedCount,
+    group.medianResolutionMinutes, group.p90ResolutionMinutes, group.sourceLinkedTaskCount,
+    group.idempotencyKeyCount, group.traceableTaskCount, group.idempotencyKeyCoveragePercent,
+    group.traceabilityCoveragePercent,
+  ] satisfies IntelligenceCsvCell[]);
+  const unavailableRows = scorecard.unavailableMetrics.map(metric => [
+    "UNAVAILABLE_METRIC", metric, "", "UNAVAILABLE", null, null, null, null,
+    null, null, null, null, null, null, null,
+  ] satisfies IntelligenceCsvCell[]);
+  const qualityRows: IntelligenceCsvCell[][] = [];
+  const quality = scorecard.quality;
+  if (quality.status === "READY" || quality.status === "EMPTY") {
+    qualityRows.push(
+      ["QUALITY_ACTIONABILITY", "", "", quality.status, quality.scope.visibleTaskCount,
+        quality.scope.reviewedTaskCount, quality.actionability.reviewedCount, quality.actionability.rateDenominator,
+        quality.actionability.actionableCount, quality.actionability.notActionableCount,
+        quality.actionability.deferredCount, quality.actionability.actionableRatePercent, null, null, null],
+      ["QUALITY_DISPOSITION", "", "", quality.status, quality.scope.visibleTaskCount,
+        quality.scope.reviewedTaskCount, quality.disposition.reviewedCount, null,
+        quality.disposition.approvedCount, quality.disposition.rejectedCount,
+        quality.disposition.deferredCount, null, null, null, null],
+      ["QUALITY_ALERTS", "", "", quality.status, quality.scope.visibleTaskCount,
+        quality.scope.reviewedTaskCount, quality.alerts.reviewedCount, quality.alerts.falseAlarmDenominator,
+        quality.alerts.truePositiveCount, quality.alerts.falsePositiveCount,
+        quality.alerts.needsReviewCount, quality.alerts.falseAlarmRatePercent, null, null, null],
+    );
+    for (const item of [
+      ...quality.actionability.notActionableReasons,
+      ...quality.disposition.rejectionReasons,
+      ...quality.disposition.deferralReasons,
+    ]) qualityRows.push([
+      "QUALITY_REASON", item.reasonCode, "", quality.status, null, null, item.reviewCount,
+      null, item.affectedTaskCount, null, null, null, null, null, null,
+    ]);
+    for (const item of quality.repeatedCauses) qualityRows.push([
+      "REPEATED_CAUSE", item.reasonCode, "", quality.status, null, null, item.reviewCount,
+      null, item.affectedTaskCount, null, null, null, null, null, null,
+    ]);
+  } else {
+    qualityRows.push([
+      "QUALITY_WITHHELD", "", "", quality.status, null, null, null, null, null, null, null,
+      null, null, null, null,
+    ]);
+  }
+  return serializeIntelligenceCsv([
+    ["تقرير", "بطاقة أداء المهام"],
+    ["حالة المصدر", scorecard.status],
+    ["وقت اللقطة", scorecard.asOf],
+    ["الأدوار الظاهرة", scorecard.scope.visibleRoles.join(" | ")],
+    ["اكتمال مجتمع الأدوار المرئية", scorecard.scope.completePopulation ? "نعم" : "لا"],
+    ["عدد المهام المرئية", scorecard.scope.visibleTaskCount],
+    ["تغطية منع التكرار بالمئة", scorecard.coverage.idempotencyKeyCoveragePercent],
+    ["تغطية تتبع المصدر بالمئة", scorecard.coverage.traceabilityCoveragePercent],
+    ["مهام مرتبطة بمصدر", scorecard.coverage.sourceLinkedTaskCount],
+    ["مفاتيح منع التكرار", scorecard.coverage.idempotencyKeyCount],
+    ["سجلات قابلة للتتبع", scorecard.coverage.traceableTaskCount],
+    ["حالة زمن الإكمال", scorecard.resolution.status],
+    ["عينة زمن الإكمال", scorecard.resolution.sampleCount],
+    ["مكتملة", scorecard.resolution.completedTaskCount],
+    ["مستبعدة لزمن غير صالح", scorecard.resolution.excludedCount],
+    ["حالة اكتمال تدقيق إعادة الفتح", scorecard.audit.completeness],
+    ["أحداث إعادة الفتح", scorecard.audit.reopenEventCount],
+    ["المهام المعاد فتحها", scorecard.audit.reopenedTaskCount],
+    ["مقام معدل إعادة الفتح", scorecard.audit.firstCompletedTaskCount],
+    ["بداية نافذة التدقيق", scorecard.audit.windowStartedAt],
+    ["معدل إعادة الفتح بالمئة", scorecard.audit.reopenRatePercent],
+    ["مؤشرات الجودة", quality.status],
+    ["حدود النطاق", "المهام تخص الأدوار المرئية المسموح بها فقط؛ لا تمثل جميع مهام المؤسسة أو مقارنة بين الموظفين."],
+    ["حدود القياس", "المؤشرات غير المتاحة تظل معلنة كسجلات UNAVAILABLE ولا تفسر على أنها صفر."],
+    [],
+    ["نوع السطر","نوع المهمة أو المؤشر","الدور","الحالة","عدد المهام المرئية","مهام تمت مراجعتها أو مكتملة",
+      "حجم العينة","المقام","عدد أول","عدد ثان","عدد ثالث","نسبة مئوية","وسيط بالدقائق",
+      "P90 بالدقائق","تغطية المصدر بالمئة"],
+    ...groupRows, ...qualityRows, ...unavailableRows,
+  ]);
+}
+
+/** Export the customer quote cohort without conflating acceptance with order conversion. */
+export function buildCustomerQuotePipelineCsv(result: CustomerQuotePipelineResult): string {
+  const metrics = [
+    ["TOTAL_QUOTES", result.totalQuotes],
+    ["REQUESTED_FOR_PRICING", result.requestedForPricing],
+    ["AWAITING_CUSTOMER_RESPONSE", result.awaitingCustomerResponse],
+    ["ACCEPTED", result.accepted],
+    ["REJECTED", result.rejected],
+    ["EXPIRED", result.expired],
+    ["EXPLICIT_DECISIONS", result.decidedCount],
+  ];
+  return serializeIntelligenceCsv([
+    ["تقرير", "مسار عروض أسعار العملاء"],
+    ["حالة المصدر", result.state],
+    ["مصدر الخدمة", result.sourceRpc],
+    ["أساس المجموعة", result.cohortBasis],
+    ["الفترة", result.period.from, result.period.to, result.period.timeZone],
+    ["وقت الحالة", result.statusAsOf],
+    ["اكتمال مجتمع العروض", result.completePopulation ? "نعم" : "لا"],
+    ["معدل قبول القرارات الصريحة بالمئة", result.acceptanceRatePercent],
+    ["الإجابة", result.answer],
+    ["حدود التحويل", "قبول العرض لا يثبت إنشاء طلب بيع؛ لم يُحسب معدل تحويل إلى طلبات."],
+    ["حدود الزمن", "لا يحسب وقت التسعير أو استجابة العميل لأن المصدر لا يوفر وقت قرار مستقل."],
+    [],
+    ["نوع المؤشر","القيمة"],
+    ...metrics,
+    ...result.warnings.map(warning => ["SOURCE_WARNING", warning]),
   ]);
 }
