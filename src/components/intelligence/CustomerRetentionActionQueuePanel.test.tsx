@@ -7,6 +7,7 @@ afterEach(() => cleanup());
 import type { CustomerRetentionActionQueue } from "@/lib/intelligence/customer-retention";
 import {
   CustomerRetentionActionQueuePanel,
+  buildCustomerRetentionActionsCsv,
   filterCustomerRetentionActions,
   normalizeCustomerRetentionSearch,
   paginateCustomerRetentionActions,
@@ -61,6 +62,37 @@ describe("customer retention action triage", () => {
       .map(item => item.customerRef)).toEqual(["customer-medium"]);
     expect(filterCustomerRetentionActions(actions, "", "HIGH", "ALL")
       .map(item => item.customerRef)).toEqual(["customer-high-oldest", "customer-1234567890"]);
+  });
+
+  it("exports masked customer references with safe text, evidence lineage and honest coverage", () => {
+    const action = {
+      ...verifiedQueue.actions[0],
+      customerRef: "=HYPERLINK(\"https://example.invalid\")",
+      reason: "=SUM(1,2)",
+    };
+    const csv = buildCustomerRetentionActionsCsv({
+      actions: [action],
+      loadedCount: 1,
+      totalActionable: 4,
+      omittedCount: 3,
+      withheldCustomerCount: 2,
+    });
+
+    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv).toContain("'=HYPERLI…alid)");
+    expect(csv).toContain("'=SUM(1,2)");
+    expect(csv).toContain(",112,0,2,2,");
+    expect(csv).toContain("evidence_ids");
+    expect(csv).toContain("orders-current;orders-previous");
+    expect(csv).toContain("خارج حد المصدر 3");
+    expect(csv).not.toContain("customer full name");
+    expect(() => buildCustomerRetentionActionsCsv({
+      actions: [action],
+      loadedCount: 5,
+      totalActionable: 4,
+      omittedCount: 0,
+      withheldCustomerCount: 0,
+    })).toThrow("customer_retention_export_invalid");
   });
 
   it("paginates the whole loaded customer action set and clamps out-of-range pages", () => {
