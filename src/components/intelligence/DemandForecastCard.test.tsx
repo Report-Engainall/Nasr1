@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DemandForecastResult } from "@/lib/intelligence/demand-forecast";
+import { buildDemandForecastCsv, downloadIntelligenceCsv } from "@/lib/intelligence/intelligence-csv";
 import { DemandForecastCard } from "./DemandForecastCard";
+
+vi.mock("@/lib/intelligence/intelligence-csv", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/intelligence/intelligence-csv")>();
+  return { ...original, downloadIntelligenceCsv: vi.fn() };
+});
 
 const forecast: DemandForecastResult = {
   id: "demand-forecast:test",
@@ -55,6 +61,23 @@ describe("DemandForecastCard", () => {
     expect(within(region).getByText("90 يوم")).toBeInTheDocument();
     expect(within(region).getByText(/ليس فاصل ثقة إحصائياً/)).toBeInTheDocument();
     expect(within(region).getByText(/مصدر مكتمل/)).toBeInTheDocument();
+  });
+
+  it("exports every loaded forecast and withheld row with evidence lineage", () => {
+    const exportResult: DemandForecastResult = {
+      ...forecast,
+      withheld: [{
+        signalId: "withheld-signal",
+        productRef: "unavailable-product",
+        reason: "SAMPLE_INSUFFICIENT",
+      }],
+    };
+    render(<DemandForecastCard result={exportResult} state="ready" />);
+    fireEvent.click(screen.getByRole("button", { name: "تصدير توقعات الطلب CSV" }));
+    expect(downloadIntelligenceCsv).toHaveBeenCalledWith(
+      buildDemandForecastCsv(exportResult),
+      "aghbari-demand-forecast.csv",
+    );
   });
 
   it("does not render a forecast when the source is unavailable", () => {
