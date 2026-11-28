@@ -11,7 +11,7 @@ import { buildReplenishmentDecisionCandidates } from "@/lib/intelligence/repleni
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
-import { buildDailyDecisions, selectTopDailyDecisionActions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
+import { buildDailyDecisions, rankDailyDecisionActions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildClaimEvidencePassports } from "@/lib/intelligence/claim-evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
@@ -50,7 +50,7 @@ import {
   type DecisionOutcomeListResult,
 } from "@/lib/intelligence/decision-outcome-client";
 import {
-  ActionCard,
+  DailyDecisionActionQueue,
   CommercePolicyGovernancePanel,
   BusinessHealthMap,
   DecisionMemoryBook,
@@ -1291,26 +1291,20 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
   }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
 
-  const dailyDecisionActionSelection = useMemo(() => {
-    const selection = selectTopDailyDecisionActions(
-      [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
-        .map(action => ({ decision: action.decision, payload: action })),
-      10,
-    );
-    const omittedRetentionActions = retentionResult?.ok && evidencePassport &&
-        retentionResult.data.asOf === evidencePassport.asOf &&
-        retentionResult.growthInputs.sourceSnapshotVerified &&
-        retentionResult.actionQueue.status === "VERIFIED" &&
-        retentionResult.actionQueue.withheldCustomerCount === 0
-      ? retentionResult.actionQueue.omittedCount : 0;
-    return {
-      ...selection,
-      totalCandidates: selection.totalCandidates + omittedRetentionActions,
-      omittedCount: selection.omittedCount + omittedRetentionActions,
-    };
-  }, [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions,
-    customerRetentionDecisionActions, retentionResult, evidencePassport]);
-  const dailyDecisionActions = dailyDecisionActionSelection.actions.map(item => item.payload);
+  const dailyDecisionActionRanking = useMemo(() => rankDailyDecisionActions(
+    [...evidenceBackedActions, ...stockDecisionActions, ...replenishmentDecisionActions, ...customerRetentionDecisionActions]
+      .map(action => ({ decision: action.decision, payload: action })),
+  ), [evidenceBackedActions, stockDecisionActions, replenishmentDecisionActions, customerRetentionDecisionActions]);
+
+  const omittedRetentionActionCount = useMemo(() => (
+    retentionResult?.ok && evidencePassport &&
+    retentionResult.data.asOf === evidencePassport.asOf &&
+    retentionResult.growthInputs.sourceSnapshotVerified &&
+    retentionResult.actionQueue.status === "VERIFIED" &&
+    retentionResult.actionQueue.withheldCustomerCount === 0
+      ? retentionResult.actionQueue.omittedCount
+      : 0
+  ), [retentionResult, evidencePassport]);
   const inventoryViewState = inventoryLoading
     ? "loading"
     : inventoryResult?.ok
@@ -2048,31 +2042,21 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 state={loading ? "loading" : cashflowForecast ? (cashflowForecast.points.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
-              <div className="space-y-3">
-                {dailyDecisionActionSelection.totalCandidates > 0 ? (
-                  <p role="status" aria-live="polite" className="report-note">
-                    يعرض المركز {dailyDecisionActions.length} من {dailyDecisionActionSelection.totalCandidates} إجراءً مرتباً حسب الأولوية.
-                    {dailyDecisionActionSelection.omittedCount > 0
-                      ? " تم إرجاء " + dailyDecisionActionSelection.omittedCount + " إجراءً خارج القائمة المختصرة."
-                      : " جميع الإجراءات المستحقة ظاهرة."}
-                  </p>
-                ) : null}
-                {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
-                  <ActionCard
-                    key={candidateId}
-                    decision={decision}
-                    state="ready"
-                    ctaLabel="حفظ الإجراء في دورة القرارات"
-                    onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
-                  />
-                )) : (
-                  <ActionCard
-                    state={loading ? "loading" : data ? "empty" : cashflowDenied ? "error" : "unavailable"}
-                    errorMessage={result && !result.ok ? result.message : undefined}
-                    onRetry={() => setRefreshKey((value) => value + 1)}
-                  />
-                )}
-              </div>
+              <DailyDecisionActionQueue
+                actions={dailyDecisionActionRanking}
+                sourceOmittedCount={omittedRetentionActionCount}
+                state={dailyDecisionActionRanking.length > 0 ? "ready"
+                  : loading || inventoryLoading || retentionLoading ? "loading"
+                    : inventoryResult?.ok || retentionResult?.ok || data ? "empty"
+                      : (inventoryResult && !inventoryResult.ok && inventoryResult.status === "DENIED") ||
+                        (retentionResult && !retentionResult.ok && retentionResult.status === "DENIED") || cashflowDenied
+                        ? "error" : "unavailable"}
+                errorMessage={inventoryResult && !inventoryResult.ok ? inventoryResult.message
+                  : retentionResult && !retentionResult.ok ? retentionResult.message
+                    : result && !result.ok ? result.message : undefined}
+                onRetry={() => setRefreshKey((value) => value + 1)}
+                onPersist={persistEvidenceBackedAction}
+              />
             </div>
           </section>
 

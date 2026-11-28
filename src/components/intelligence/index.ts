@@ -1,4 +1,5 @@
 export { ActionCard } from "./ActionCard";
+export { DailyDecisionActionQueue } from "./DailyDecisionActionQueue";
 export type { ActionCardProps, ActionCardState } from "./ActionCard";
 export { EvidencePassport } from "./EvidencePassport";
 export { EvidenceSourceComparisonPanel } from "./EvidenceSourceComparisonPanel";
