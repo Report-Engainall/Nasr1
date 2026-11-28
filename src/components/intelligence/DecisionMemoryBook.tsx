@@ -705,6 +705,14 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
               </div>
             </details>
             {candidate.reviewReason?<p className="text-xs">سبب المراجعة: {candidate.reviewReason}</p>:null}
+            {pendingCommand && !(
+              (candidate.state==="DRAFT"&&pendingCommand.eventType==="SUBMIT_FOR_REVIEW")||
+              (candidate.state==="IN_REVIEW"&&(pendingCommand.eventType==="APPROVE"||pendingCommand.eventType==="REJECT"))
+            )?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+              disabled={learningBusy!==""}
+              onClick={()=>void transitionLearningCandidate(candidate,pendingCommand.eventType)}>
+              إعادة المحاولة بنفس الأمر ({eventLabels[pendingCommand.eventType]})
+            </button>:null}
             {candidate.state==="DRAFT"||candidate.state==="IN_REVIEW"?<>
               <label className="block space-y-1 text-xs">
                 سبب الإجراء (إلزامي)
