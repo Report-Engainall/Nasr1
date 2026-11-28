@@ -1,6 +1,15 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
+import {
+  buildCustomerRetentionDecisionCandidates,
+  type CustomerRetentionAction,
+  type CustomerRetentionActionQueue,
+} from "@/lib/intelligence/customer-retention";
+import {
+  createDecisionOutcomeProposal,
+  type DecisionCandidateSnapshot,
+} from "@/lib/intelligence/decision-outcome-client";
 import type {
-  CustomerRetentionAction,
   CustomerRetentionActionKind,
   CustomerRetentionActionPriority,
   CustomerRetentionActionQueue,
@@ -145,12 +154,21 @@ export function buildCustomerRetentionActionsCsv(input: {
 export interface CustomerRetentionActionQueuePanelProps {
   queue: CustomerRetentionActionQueue | null;
   loading: boolean;
+  onRetry?: () => void;
 }
 
 export function CustomerRetentionActionQueuePanel({
   queue,
   loading,
+  onRetry,
 }: CustomerRetentionActionQueuePanelProps) {
+  const { user } = useAuth();
+  const canCreateDecision = Boolean(
+    user && typeof user.profileId === "string" && user.profileId &&
+    Array.isArray(user.roles) && (user.roles.includes("admin") || user.roles.includes("manager")),
+  );
+  const [busyCustomerRef, setBusyCustomerRef] = useState<string | null>(null);
+  const [decisionMessages, setDecisionMessages] = useState<Record<string, string>>({});
   const [searchText, setSearchText] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<CustomerRetentionPriorityFilter>("ALL");
   const [actionFilter, setActionFilter] = useState<CustomerRetentionKindFilter>("ALL");
@@ -191,6 +209,85 @@ export function CustomerRetentionActionQueuePanel({
     queue.actions, searchText, priorityFilter, actionFilter,
   );
   const pageView = paginateCustomerRetentionActions(filteredActions, page);
+  async function createCustomerDecision(action: CustomerRetentionAction) {
+    if (!queue || queue.status !== "VERIFIED" || !queue.asOf ||
+        queue.withheldCustomerCount !== 0 || !canCreateDecision || !user?.profileId ||
+        busyCustomerRef !== null) return;
+
+    const candidates = buildCustomerRetentionDecisionCandidates({
+      asOf: queue.asOf,
+      queue: { ...queue, actions: [action], totalActionable: 1, omittedCount: 0 },
+    });
+    const candidate = candidates[0];
+    if (!candidate || candidate.id.length > 150 ||
+        candidate.proof.evidenceIds.length === 0 ||
+        candidate.proof.metricKeys.length === 0 ||
+        candidate.proof.formulaVersions.length === 0) {
+      setDecisionMessages(current => ({
+        ...current,
+        [action.customerRef]: "لم يُنشأ القرار: لا تتوفر لقطة مصدر مكتملة أو أن مرجع القرار يتجاوز حد الخادم.",
+      }));
+      return;
+    }
+
+    const expectedOutcome = candidate.expectedOutcome.slice(0, 2000);
+    const candidateSnapshot: DecisionCandidateSnapshot = {
+      schemaVersion: "1.0.0",
+      candidateId: candidate.id,
+      ruleId: candidate.ruleId,
+      ruleVersion: candidate.ruleVersion,
+      priority: candidate.priority,
+      priorityScore: candidate.priorityScore,
+      what: candidate.what.slice(0, 500),
+      why: candidate.why.slice(0, 2000),
+      risk: candidate.soWhat.slice(0, 2000),
+      soWhat: candidate.soWhat.slice(0, 2000),
+      whatNext: candidate.whatNext.slice(0, 2000),
+      owner: candidate.owner.slice(0, 150),
+      expectedOutcome,
+      impact: null,
+      impactStatus: "WITHHELD",
+      impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
+      proof: {
+        evidenceIds: [...candidate.proof.evidenceIds],
+        metricKeys: [...candidate.proof.metricKeys],
+        asOf: candidate.proof.asOf,
+        formulaVersions: [...candidate.proof.formulaVersions],
+      },
+      createdAt: candidate.createdAt,
+      expiresAt: candidate.expiresAt,
+    };
+
+    setBusyCustomerRef(action.customerRef);
+    setDecisionMessages(current => ({ ...current, [action.customerRef]: "" }));
+    try {
+      const saved = await createDecisionOutcomeProposal({
+        candidateId: candidate.id,
+        ruleId: candidate.ruleId,
+        ruleVersion: candidate.ruleVersion,
+        ownerProfileId: user.profileId,
+        expectedOutcome,
+        reason: candidate.why.slice(0, 2000),
+        candidateSnapshot,
+      });
+      setDecisionMessages(current => ({
+        ...current,
+        [action.customerRef]: saved.ok
+          ? saved.duplicate
+            ? "القرار محفوظ مسبقاً؛ أُعيد استخدام السجل دون إنشاء نسخة."
+            : "حُفظ قرار متابعة العميل بالخادم مع أولوية P1/P2/P3 وأدلته. لم يُعتمد أو يُنفذ تلقائياً."
+          : saved.message,
+      }));
+      if (saved.ok) onRetry?.();
+    } catch {
+      setDecisionMessages(current => ({
+        ...current,
+        [action.customerRef]: "تعذر تأكيد حفظ القرار من الخادم؛ لم تُعرض نتيجة نجاح غير مؤكدة. أعد المحاولة.",
+      }));
+    } finally {
+      setBusyCustomerRef(null);
+    }
+  }
   const priorityOptions: Array<{ value: CustomerRetentionPriorityFilter; label: string }> = [
     { value: "ALL", label: "كل الأولويات" },
     { value: "HIGH", label: "مرتفعة" },
@@ -323,6 +420,21 @@ export function CustomerRetentionActionQueuePanel({
                 <span>طلبات الفترة السابقة: {action.orderCountPrevious}</span>
                 <span>أدلة مرتبطة: {action.evidenceIds.length}</span>
               </div>
+              {canCreateDecision ? (
+                <div className="mt-3 border-t pt-3">
+                  <button
+                    type="button"
+                    className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+                    disabled={busyCustomerRef !== null || queue.status !== "VERIFIED" || !queue.asOf}
+                    onClick={() => void createCustomerDecision(action)}
+                  >
+                    {busyCustomerRef === action.customerRef ? "جارٍ حفظ قرار المتابعة…" : "حفظ كقرار إداري للمتابعة"}
+                  </button>
+                  {decisionMessages[action.customerRef] ? (
+                    <p role="status" className="mt-2 text-xs text-muted-foreground">{decisionMessages[action.customerRef]}</p>
+                  ) : null}
+                </div>
+              ) : null}
             </article>
           ))}
         </div>
