@@ -89,6 +89,23 @@ describe("DecisionOutcomeLifecycleControls", () => {
     expect(mocks.commandDecisionOutcome).not.toHaveBeenCalled();
   });
 
+  it("does not let a manager silently reassign a decision already owned by another profile", () => {
+    mocks.user = { profileId, roles: ["manager"] };
+    render(
+      <DecisionOutcomeLifecycleControls
+        outcomeId="223e4567-e89b-42d3-a456-426614174000"
+        state="APPROVED"
+        version={3}
+        ownerProfileId="323e4567-e89b-42d3-a456-426614174000"
+        expectedMetric={null}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "إسناد القرار إلى حسابي" })).not.toBeInTheDocument();
+    expect(screen.getByText(/مسند بالفعل إلى مسؤول آخر/)).toBeInTheDocument();
+    expect(mocks.commandDecisionOutcome).not.toHaveBeenCalled();
+  });
+
   it("does not expose an assignment command to an unauthenticated visitor", () => {
     mocks.user = null;
     render(
