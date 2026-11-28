@@ -137,6 +137,11 @@ describe("daily decision queue search and filters", () => {
       reviewDisposition: "SCHEDULED",
       reviewAt: "2026-11-28T00:00:00.000Z",
     });
+    const dueWithin24Hours = decision({
+      decisionId: "due-24h",
+      reviewDisposition: "SCHEDULED",
+      reviewAt: "2026-11-29T00:00:00.000Z",
+    });
     const upcoming = decision({
       decisionId: "upcoming",
       reviewDisposition: "SCHEDULED",
@@ -152,10 +157,12 @@ describe("daily decision queue search and filters", () => {
     const notRequired = decision({ decisionId: "not-required", reviewDisposition: "NOT_REQUIRED", reviewAt: null });
     const rejected = decision({ decisionId: "rejected", state: "REJECTED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
     const measured = decision({ decisionId: "measured", state: "MEASURED", reviewDisposition: "SCHEDULED", reviewAt: "2026-11-27T00:00:00.000Z" });
-    const records = [overdue, dueNow, upcoming, tooFar, unscheduled, inconsistentDated, notRequired, rejected, measured];
+    const records = [overdue, dueNow, dueWithin24Hours, upcoming, tooFar, unscheduled, inconsistentDated, notRequired, rejected, measured];
 
     expect(filterDailyDecisionRecords(records, { ...allFilters, due: "OVERDUE" }, now)
       .map(item => item.decisionId)).toEqual(["overdue", "due-now"]);
+    expect(filterDailyDecisionRecords(records, { ...allFilters, due: "DUE_24H" }, now)
+      .map(item => item.decisionId)).toEqual(["due-24h"]);
     expect(filterDailyDecisionRecords(records, { ...allFilters, due: "DUE_7_DAYS" }, now)
       .map(item => item.decisionId)).toEqual(["upcoming"]);
     expect(filterDailyDecisionRecords(records, { ...allFilters, due: "UNSCHEDULED" }, now)
@@ -195,6 +202,15 @@ describe("daily decision queue search and filters", () => {
     expect(searchedSelection.records.map(item => item.decisionId)).toEqual(["eleventh"]);
     expect(searchedSelection.matchedCount).toBe(1);
     expect(searchedSelection.omittedCount).toBe(0);
+
+    const secondPage = selectDailyDecisionBoardRows([...firstTen, eleventh], allFilters, now, 10, 10);
+    expect(secondPage.records.map(item => item.decisionId)).toEqual(["eleventh"]);
+    expect(secondPage.pageIndex).toBe(1);
+    expect(secondPage.pageCount).toBe(2);
+    expect(secondPage.omittedCount).toBe(0);
+    const outOfRange = selectDailyDecisionBoardRows([...firstTen, eleventh], allFilters, now, 10, 100);
+    expect(outOfRange.pageIndex).toBe(1);
+    expect(outOfRange.records.map(item => item.decisionId)).toEqual(["eleventh"]);
   });
 
   it("keeps the newest eight timeline events visible and preserves older events for expansion", () => {
