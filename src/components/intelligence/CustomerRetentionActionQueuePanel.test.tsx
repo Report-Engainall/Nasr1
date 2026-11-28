@@ -3,22 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, waitFor } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  auth: { user: null as null | { profileId: string; roles: string[] } },
-  createDecisionOutcomeProposal: vi.fn(),
-}));
-
-vi.mock("@/lib/auth", () => ({
-  useAuth: () => ({ user: mocks.auth.user }),
-}));
-
-vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
-  createDecisionOutcomeProposal: mocks.createDecisionOutcomeProposal,
-}));
-
 afterEach(() => {
   cleanup();
-  mocks.auth.user = null;
   vi.clearAllMocks();
 });
 import type { CustomerRetentionActionQueue } from "@/lib/intelligence/customer-retention";
@@ -167,62 +153,46 @@ describe("CustomerRetentionActionQueuePanel", () => {
     expect(screen.getByText(/يعرض 1 من 2 إجراء محمّل/)).toBeInTheDocument();
   });
 
-  it("creates a durable decision proposal only for an authorized manager and refreshes after server confirmation", async () => {
-    mocks.auth.user = { profileId: "123e4567-e89b-42d3-a456-426614174000", roles: ["manager"] };
-    mocks.createDecisionOutcomeProposal.mockResolvedValue({
-      ok: true,
-      duplicate: false,
-      outcome: {} as never,
-    });
-    const onRetry = vi.fn();
-    render(<CustomerRetentionActionQueuePanel queue={verifiedQueue} loading={false} onRetry={onRetry} />);
+  it("delegates customer decision persistence to the workspace and confirms only a successful save", async () => {
+    const onCreateDecisionProposal = vi.fn().mockResolvedValue(true);
+    render(<CustomerRetentionActionQueuePanel
+      queue={verifiedQueue}
+      loading={false}
+      canCreateDecision
+      onCreateDecisionProposal={onCreateDecisionProposal}
+    />);
 
     fireEvent.click(screen.getByRole("button", { name: "حفظ كقرار إداري للمتابعة" }));
 
-    await waitFor(() => expect(mocks.createDecisionOutcomeProposal).toHaveBeenCalledTimes(1));
-    const request = mocks.createDecisionOutcomeProposal.mock.calls[0][0];
-    expect(request).toMatchObject({
-      candidateId: "customer.retention:customer-1234567890:2026-11-26",
-      ruleId: "customers.retention.follow-up",
-      ruleVersion: "1.0.0",
-      ownerProfileId: "123e4567-e89b-42d3-a456-426614174000",
-      candidateSnapshot: {
-        priority: "P1",
-        priorityScore: 300,
-        impact: null,
-        impactStatus: "WITHHELD",
-        impactReason: "CUSTOMER_FINANCIAL_VALUE_NOT_AVAILABLE",
-        proof: {
-          asOf: verifiedQueue.asOf,
-          evidenceIds: ["orders-current", "orders-previous"],
-          metricKeys: ["customer.orders.current", "customer.orders.previous"],
-        },
-      },
-    });
-    expect(onRetry).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onCreateDecisionProposal).toHaveBeenCalledWith(verifiedQueue.actions[0]));
     expect(await screen.findByText(/حُفظ قرار متابعة العميل بالخادم/)).toBeInTheDocument();
   });
 
-  it("does not expose decision creation to an unauthenticated customer", () => {
-    mocks.auth.user = null;
-    render(<CustomerRetentionActionQueuePanel queue={verifiedQueue} loading={false} />);
+  it("does not expose decision creation when the parent workspace denies it", () => {
+    const onCreateDecisionProposal = vi.fn();
+    render(<CustomerRetentionActionQueuePanel
+      queue={verifiedQueue}
+      loading={false}
+      canCreateDecision={false}
+      onCreateDecisionProposal={onCreateDecisionProposal}
+    />);
 
     expect(screen.queryByRole("button", { name: "حفظ كقرار إداري للمتابعة" })).not.toBeInTheDocument();
-    expect(mocks.createDecisionOutcomeProposal).not.toHaveBeenCalled();
+    expect(onCreateDecisionProposal).not.toHaveBeenCalled();
   });
 
-  it("shows server denials without pretending the customer decision was saved", async () => {
-    mocks.auth.user = { profileId: "123e4567-e89b-42d3-a456-426614174000", roles: ["admin"] };
-    mocks.createDecisionOutcomeProposal.mockResolvedValue({
-      ok: false,
-      status: "DENIED",
-      message: "تتطلب إدارة دورة القرارات صلاحية الإدارة المالية.",
-    });
-    render(<CustomerRetentionActionQueuePanel queue={verifiedQueue} loading={false} />);
+  it("does not claim that a failed workspace save created a customer decision", async () => {
+    const onCreateDecisionProposal = vi.fn().mockResolvedValue(false);
+    render(<CustomerRetentionActionQueuePanel
+      queue={verifiedQueue}
+      loading={false}
+      canCreateDecision
+      onCreateDecisionProposal={onCreateDecisionProposal}
+    />);
 
     fireEvent.click(screen.getByRole("button", { name: "حفظ كقرار إداري للمتابعة" }));
 
-    expect(await screen.findByText("تتطلب إدارة دورة القرارات صلاحية الإدارة المالية.")).toBeInTheDocument();
+    expect(await screen.findByText(/لم يتم تأكيد حفظ القرار/)).toBeInTheDocument();
     expect(screen.queryByText(/حُفظ قرار متابعة العميل بالخادم/)).not.toBeInTheDocument();
   });
 
