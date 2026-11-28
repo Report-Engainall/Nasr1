@@ -1,4 +1,5 @@
 import type { DemandForecastResult } from "./demand-forecast";
+import type { DeadStockReport } from "./dead-stock";
 import type { ReplenishmentRecommendation } from "./replenishment";
 
 export type IntelligenceCsvCell = string | number | boolean | null | undefined;
@@ -138,4 +139,63 @@ export function downloadIntelligenceCsv(contents: string, filename: string): voi
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
   }
+}
+
+/** Export stock-movement observations and financial exposure without cross-currency conversion. */
+export function buildDeadStockCsv(report: DeadStockReport): string {
+  const itemRows = report.items.map(item => [
+    "PRODUCT",
+    item.productRef,
+    item.classification,
+    item.daysSinceMovement,
+    item.lowTurnover,
+    item.turnoverRatio,
+    item.availableQuantity,
+    item.unitCost,
+    item.currency,
+    item.financialExposure,
+    item.exposureStatus,
+    item.movementStatus,
+    item.formulaId,
+    item.formulaVersion,
+    item.evidenceIds.join(" | "),
+    item.warnings.join(" | "),
+  ] satisfies IntelligenceCsvCell[]);
+  const currencyRows = report.totalsByCurrency.map(total => [
+    "CURRENCY_TOTAL",
+    "",
+    "",
+    null,
+    null,
+    null,
+    null,
+    null,
+    total.currency,
+    total.exposure,
+    "VERIFIED_ITEMS:" + total.verifiedItems,
+    "WITHHELD_ITEMS:" + total.withheldItems,
+    "",
+    "",
+    "",
+    "",
+  ] satisfies IntelligenceCsvCell[]);
+  return serializeIntelligenceCsv([
+    ["تقرير", "حركة المخزون والأصناف الراكدة"],
+    ["حالة التقرير", report.status],
+    ["وقت اللقطة", report.asOf],
+    ["الفترة", report.period.from, report.period.to],
+    ["قاعدة التصنيف", report.ruleId + "@" + report.ruleVersion],
+    ["عدد الأصناف", report.items.length],
+    ["ضابط التعرض المالي", "لا يصدر تعرض مالي إلا إذا كانت التكلفة والعملة مثبتتين؛ القيم غير المتاحة تبقى فارغة."],
+    ["ضابط العملات", "إجماليات العملات أسطر مستقلة؛ لا يتم تحويل أو جمع عملات مختلفة."],
+    [],
+    [
+      "نوع السطر", "مرجع المنتج", "التصنيف", "الأيام منذ آخر حركة", "دوران منخفض",
+      "معدل الدوران", "الكمية المتاحة", "تكلفة الوحدة", "العملة", "التعرض المالي المثبت",
+      "حالة التكلفة", "حالة الحركة", "المعادلة", "إصدار المعادلة", "مراجع الإثبات", "التحذيرات",
+    ],
+    ...itemRows,
+    ...currencyRows,
+    ...(report.warnings.length ? [["REPORT_WARNINGS", "", "", null, null, null, null, null, "", null, "", "", "", "", "", report.warnings.join(" | ")] as IntelligenceCsvCell[]] : []),
+  ]);
 }
