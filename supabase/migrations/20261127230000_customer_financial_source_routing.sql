@@ -1334,7 +1334,7 @@ CREATE OR REPLACE FUNCTION public.get_customer_payment_receipt_print_options(
 )
 RETURNS jsonb
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
@@ -1379,6 +1379,23 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '22023',
       MESSAGE = 'receipt print page must use a limit of 1..200 and an offset of 0..10000000';
   END IF;
+
+  -- This SECURITY DEFINER reader bypasses receipt-table RLS. Lock every APP_ONLY
+  -- binding that can contribute a receipt before building the page, in deterministic
+  -- customer order. Maker/Checker source cutover uses FOR UPDATE on the same rows.
+  PERFORM b.customer_id
+    FROM public.customer_financial_source_bindings b
+   WHERE b.organization_id=v_org
+     AND b.source_mode='APP_ONLY'
+     AND b.source_status='active'
+     AND EXISTS (
+       SELECT 1
+         FROM public.customer_payment_receipts r
+        WHERE r.organization_id=b.organization_id
+          AND r.customer_id=b.customer_id
+     )
+   ORDER BY b.customer_id
+   FOR SHARE OF b;
 
   -- One statement snapshot keeps total, page rows and has_more consistent
   -- while receipts are recorded and customer financial sources are cut over.

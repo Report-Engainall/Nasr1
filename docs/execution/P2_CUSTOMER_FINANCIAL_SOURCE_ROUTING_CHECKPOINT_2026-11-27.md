@@ -199,3 +199,10 @@ Fetch the exact-head workflow runs for `541bb5fa4f68460e26f424f328b78f8e712f59a2
 - Added exact acceptance cases for ONYX: new single payment, prior single-payment replay, prior multi-invoice receipt replay, and direct owner INSERTs to both payment/receipt tables must all fail with `55000`; before/after row counts and amounts must be identical. MUTAKAMEL independently rejects internal payment writes.
 - After Maker/Checker returns the account to APP_ONLY, the test proves old idempotent replays work again and new single-payment plus two-invoice receipt writes persist, with one receipt header and two actual allocation rows. Existing app-ledger equality is asserted before these post-return fixtures are added.
 - No payment, receipt, balance or journal was written to production. All writes in acceptance are disposable local PostgreSQL 17 fixtures.
+
+## 2026-11-28 — Staff receipt-page RPC now source-locks its complete result scope
+
+- Changed `get_customer_payment_receipt_print_options(integer,integer)` from `STABLE` to `VOLATILE` because it now acquires transaction-held row locks. Before its materialized count/page query, it takes `FOR SHARE OF b` on every active APP_ONLY customer binding in the organization that has at least one saved receipt, in deterministic customer-ID order.
+- The reader is `SECURITY DEFINER` and bypasses receipt RLS. This lock therefore belongs inside the RPC, not only in table policies. It serializes the entire cross-customer receipt page against Maker/Checker `FOR UPDATE` source cutovers; a page that arrives after cutover sees the current external source and excludes that customer's APP_ONLY receipts.
+- Added PostgreSQL acceptance that fetches the actual accountant receipt page inside an open transaction, confirms the APP_ONLY fixture receipt is present, then proves an independent service-role `FOR UPDATE NOWAIT` on its source binding fails with `55P03` until the page transaction ends.
+- Customer self-service receipt listing already locks its single authenticated customer binding; staff/customer receipt print DTOs and invoice/statement readers retain their own source locks.

@@ -369,6 +369,25 @@ async function main() {
   assert.ok(appOnlyReceiptOptions.receipts.some(row => row.id === sourceTestReceiptId),
     "APP_ONLY receipt selector includes the saved receipt");
 
+  // The SECURITY DEFINER staff receipt-page RPC bypasses RLS, so it must lock
+  // every eligible source binding itself before composing the cross-customer page.
+  await accountantDb.begin(async tx => {
+    await setIdentity(tx, accountant.auth_user_id, accountant.email);
+    const lockedReceiptPage = await rpc(tx,
+      "select public.get_customer_payment_receipt_print_options(100,0) as result");
+    assert.ok(lockedReceiptPage.receipts.some(row => row.id === sourceTestReceiptId),
+      "staff receipt page returns APP_ONLY receipt while holding eligible source bindings");
+    await expectFailure(
+      "staff receipt page source snapshot blocks concurrent cutover",
+      serviceDb.unsafe(
+        "select 1 from public.customer_financial_source_bindings where organization_id=$1::uuid and customer_id=$2::uuid for update nowait",
+        [orgId, customerId],
+      ),
+      "55P03",
+      "could not obtain lock on row",
+    );
+  });
+
   // Direct finance staff receipt-history reads must hold the source binding just
   // like invoice RLS, receipt print and statement RPCs do.
   await accountantDb.begin(async tx => {
