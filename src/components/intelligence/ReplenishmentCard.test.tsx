@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProductDemandForecast } from "@/lib/intelligence/demand-forecast";
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
@@ -12,7 +12,7 @@ vi.mock("./ReplenishmentPurchaseDraft", () => ({
   ReplenishmentPurchaseDraft: () => <div>مسودة شراء اختبارية</div>,
 }));
 
-import { ReplenishmentCard } from "./ReplenishmentCard";
+import { ReplenishmentCard, selectReplenishmentRecommendations } from "./ReplenishmentCard";
 
 const recommendation: ReplenishmentRecommendation = {
   productRef: "product-a",
@@ -115,5 +115,69 @@ describe("ReplenishmentCard demand forecast context", () => {
       />,
     );
     expect(screen.queryByRole("complementary", { name: "سياق توقع الطلب" })).not.toBeInTheDocument();
+  });
+});
+
+
+describe("ReplenishmentCard prioritization and triage", () => {
+  const scenario = {
+    ...recommendation,
+    productRef: "scenario-product",
+    action: "RECOMMEND" as const,
+    status: "VERIFIED" as const,
+    coveredAfterIncoming: 25,
+    leadTimeDemand: 20,
+    demandSource: "FORECAST" as const,
+    demandTrend: "INCREASING" as const,
+    forecastLeadTimeDemand: { horizonDays: 30 as const, lowQuantity: 18, expectedQuantity: 24, highQuantity: 36 },
+  };
+  const noAction = {
+    ...recommendation,
+    productRef: "covered-product",
+    action: "NO_ACTION" as const,
+    coveredAfterIncoming: 40,
+    leadTimeDemand: 30,
+    recommendedQuantity: 0,
+  };
+  const withheld = {
+    ...recommendation,
+    productRef: "unverified-product",
+    status: "NEEDS_REVIEW" as const,
+    action: "WITHHELD" as const,
+    recommendedQuantity: null,
+  };
+
+  it("orders confirmed lead-time deficits before scenario and routine recommendations", () => {
+    const selected = selectReplenishmentRecommendations([scenario, noAction, withheld, recommendation]);
+    expect(selected.map(item => item.productRef)).toEqual([
+      "product-a", "scenario-product", "covered-product", "unverified-product",
+    ]);
+  });
+
+  it("keeps expected-demand coverage distinct from upper-scenario exposure", () => {
+    expect(selectReplenishmentRecommendations([scenario, recommendation], "URGENT"))
+      .toEqual([recommendation]);
+    expect(selectReplenishmentRecommendations([scenario, recommendation], "SCENARIO"))
+      .toEqual([scenario]);
+  });
+
+  it("filters by item reference or loaded product label without changing the original list", () => {
+    expect(selectReplenishmentRecommendations(
+      [scenario, recommendation], "ALL", "basmati", { "product-a": "أرز بسمتي" },
+    ).map(item => item.productRef)).toEqual(["product-a"]);
+    expect([scenario, recommendation]).toHaveLength(2);
+  });
+
+  it("exposes the highest-priority filter in the existing replenishment card", () => {
+    render(
+      <ReplenishmentCard
+        recommendations={[scenario, recommendation]}
+        canManagePurchases
+      />,
+    );
+    const region = screen.getByRole("region", { name: "توصيات إعادة التوريد" });
+    fireEvent.click(within(region).getByRole("button", { name: /عجز خلال مهلة المورد/ }));
+    expect(within(region).getByText(/عجز مثبت خلال مهلة المورد/)).toBeInTheDocument();
+    expect(within(region).getByText(/1 من 2 توصية/)).toBeInTheDocument();
   });
 });
