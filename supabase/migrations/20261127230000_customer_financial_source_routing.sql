@@ -2874,6 +2874,20 @@ BEGIN
      WHERE p.organization_id=p_organization_id
        AND p.id::text=p_source_reference
      FOR SHARE OF p,i;
+  ELSIF p_source_type='customer_invoice' THEN
+    SELECT i.customer_id INTO v_customer_id
+      FROM public.customer_invoices i
+     WHERE i.organization_id=p_organization_id
+       AND i.id::text=p_source_reference
+     FOR SHARE;
+  ELSIF p_source_type='customer_payment' THEN
+    SELECT i.customer_id INTO v_customer_id
+      FROM public.customer_payments p
+      JOIN public.customer_invoices i
+        ON i.organization_id=p.organization_id AND i.id=p.invoice_id
+     WHERE p.organization_id=p_organization_id
+       AND p.id::text=p_source_reference
+     FOR SHARE OF p,i;
   ELSE
     RETURN false;
   END IF;
@@ -2988,6 +3002,44 @@ END
 $function$;
 REVOKE ALL ON FUNCTION public.enforce_customer_app_only_customer_journal_line_source()
   FROM PUBLIC,anon,authenticated,service_role;
+
+
+CREATE OR REPLACE FUNCTION public.enforce_customer_app_only_customer_source_posting()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+BEGIN
+  IF TG_OP<>'INSERT' THEN
+    PERFORM public.assert_customer_app_only_customer_journal_source(
+      OLD.organization_id,OLD.source_type,OLD.source_id::text
+    );
+  END IF;
+
+  IF TG_OP<>'DELETE' THEN
+    PERFORM public.assert_customer_app_only_customer_journal_source(
+      NEW.organization_id,NEW.source_type,NEW.source_id::text
+    );
+  END IF;
+
+  IF TG_OP<>'INSERT' THEN
+    RAISE EXCEPTION USING ERRCODE='55000',
+      MESSAGE='customer accounting source-posting evidence is append-only';
+  END IF;
+
+  RETURN NEW;
+END
+$function$;
+REVOKE ALL ON FUNCTION public.enforce_customer_app_only_customer_source_posting()
+  FROM PUBLIC,anon,authenticated,service_role;
+
+DROP TRIGGER IF EXISTS accounting_customer_source_postings_app_only_customer_source_guard
+  ON public.accounting_customer_source_postings;
+CREATE TRIGGER accounting_customer_source_postings_app_only_customer_source_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.accounting_customer_source_postings
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_customer_app_only_customer_source_posting();
 
 DROP TRIGGER IF EXISTS accounting_journal_entries_app_only_credit_memo_source_guard
   ON public.accounting_journal_entries;
