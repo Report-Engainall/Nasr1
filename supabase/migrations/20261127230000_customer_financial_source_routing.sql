@@ -3012,24 +3012,18 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 BEGIN
-  IF TG_OP<>'INSERT' THEN
-    PERFORM public.assert_customer_app_only_customer_journal_source(
-      OLD.organization_id,OLD.source_type,OLD.source_id::text
-    );
-  END IF;
-
-  IF TG_OP<>'DELETE' THEN
+  IF TG_OP='INSERT' THEN
     PERFORM public.assert_customer_app_only_customer_journal_source(
       NEW.organization_id,NEW.source_type,NEW.source_id::text
     );
+    RETURN NEW;
   END IF;
 
-  IF TG_OP<>'INSERT' THEN
-    RAISE EXCEPTION USING ERRCODE='55000',
-      MESSAGE='customer accounting source-posting evidence is append-only';
-  END IF;
-
-  RETURN NEW;
+  PERFORM public.assert_customer_app_only_customer_journal_source(
+    OLD.organization_id,OLD.source_type,OLD.source_id::text
+  );
+  RAISE EXCEPTION USING ERRCODE='55000',
+    MESSAGE='customer accounting source-posting evidence is append-only';
 END
 $function$;
 REVOKE ALL ON FUNCTION public.enforce_customer_app_only_customer_source_posting()
