@@ -17,6 +17,15 @@ import {
   type DecisionPolicyLearningCandidate,
   type DecisionPolicyLearningEventType,
 } from "@/lib/intelligence/decision-policy-learning-client";
+import {
+  decisionPolicyLearningTransitionKey,
+  resolveDecisionPolicyLearningCreation,
+  resolveDecisionPolicyLearningTransition,
+} from "@/lib/intelligence/decision-policy-learning-commands";
+import type {
+  PendingDecisionPolicyLearningCreation,
+  PendingDecisionPolicyLearningTransition,
+} from "@/lib/intelligence/decision-policy-learning-commands";
 import type {
   DecisionMemoryBookResult,
   DecisionMemoryPrecedentFilter,
@@ -351,8 +360,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [learningLoadError,setLearningLoadError]=useState("");
   const [learningBusy,setLearningBusy]=useState("");
   const [learningReason,setLearningReason]=useState<Record<string,string>>({});
-  const [learningCreateKeys,setLearningCreateKeys]=useState<Record<string,string>>({});
-  const [learningCommandKeys,setLearningCommandKeys]=useState<Record<string,string>>({});
+  const [pendingLearningCreations,setPendingLearningCreations]=useState<Record<string,PendingDecisionPolicyLearningCreation>>({});
+  const [pendingLearningCommands,setPendingLearningCommands]=useState<Record<string,PendingDecisionPolicyLearningTransition>>({});
   const [learningActionMessage,setLearningActionMessage]=useState("");
   const [learningActionError,setLearningActionError]=useState(false);
   const [learningRefreshKey,setLearningRefreshKey]=useState(0);
@@ -382,26 +391,37 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   async function createLearningCandidate(suggestion:ReturnType<typeof buildDecisionPolicyReviewSuggestions>[number]){
     const eligible=result?.status==="VERIFIED"&&result.loadedCount===result.totalCount&&
       suggestion.observations.length>0&&suggestion.observations.length<=100;
-    if(!eligible){
+    if(!eligible&&!pendingLearningCreations[suggestion.id]){
       setLearningActionMessage("لا يمكن إنشاء المرشح من سجل جزئي أو من أكثر من 100 قرار؛ أكمل تغطية المصدر أولاً.");
       setLearningActionError(true);
       return;
     }
-    const idempotencyKey=learningCreateKeys[suggestion.id]??crypto.randomUUID();
-    if(!learningCreateKeys[suggestion.id])setLearningCreateKeys(current=>({...current,[suggestion.id]:idempotencyKey}));
+    const resolved=resolveDecisionPolicyLearningCreation(
+      suggestion.id,
+      suggestion.observations.map(observation=>observation.decisionId),
+      pendingLearningCreations[suggestion.id],
+    );
+    const command=resolved.command;
+    if(!resolved.reused){
+      setPendingLearningCreations(current=>({...current,[suggestion.id]:command}));
+    }
     setLearningBusy("create:"+suggestion.id);
     setLearningActionMessage("");
     try{
       const response=await createDecisionPolicyLearningCandidate({
-        decisionIds:suggestion.observations.map(observation=>observation.decisionId),
-        idempotencyKey,
+        decisionIds:command.decisionIds,
+        idempotencyKey:command.idempotencyKey,
       });
       if(!response.ok){
         setLearningActionMessage(response.message);
         setLearningActionError(true);
+        if(response.status!=="UNAVAILABLE"){
+          setPendingLearningCreations(current=>{const next={...current};delete next[suggestion.id];return next;});
+          if(response.status==="STALE"||response.status==="CONFLICT")setLearningRefreshKey(value=>value+1);
+        }
         return;
       }
-      setLearningCreateKeys(current=>{const next={...current};delete next[suggestion.id];return next;});
+      setPendingLearningCreations(current=>{const next={...current};delete next[suggestion.id];return next;});
       setLearningCandidates(current=>[
         response.candidate,
         ...current.filter(candidate=>candidate.id!==response.candidate.id),
@@ -410,6 +430,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         ?"هذا المصدر مرتبط مسبقاً بالمرشح المحفوظ؛ لم يُنشأ إصدار مكرر."
         :"حُفظ مرشح جديد من الأدلة المصدرية، وأصبح في انتظار الإرسال للمراجعة.");
       setLearningActionError(false);
+    }catch{
+      setLearningActionMessage("تعذر تأكيد نتيجة الإنشاء؛ ستُعاد المحاولة بنفس القرارات المصدرية ومفتاح التكرار المحفوظ.");
+      setLearningActionError(true);
     }finally{
       setLearningBusy("");
     }
@@ -419,31 +442,44 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
     candidate:DecisionPolicyLearningCandidate,
     eventType:Exclude<DecisionPolicyLearningEventType,"CREATE">,
   ){
+    const commandKey=decisionPolicyLearningTransitionKey(candidate.id,eventType);
+    const pendingForCandidate=Object.entries(pendingLearningCommands).find(([key])=>key.startsWith(candidate.id+":"));
+    const existing=pendingLearningCommands[commandKey];
+    if(pendingForCandidate&&pendingForCandidate[0]!==commandKey){
+      setLearningActionMessage("لدى هذا المرشح أمر غير محسوم من نوع آخر؛ أعد المحاولة بنفس الإجراء قبل إصدار أمر جديد.");
+      setLearningActionError(true);
+      return;
+    }
     const reason=(learningReason[candidate.id]??"").trim();
-    if(reason.length<3){
+    if(!existing&&reason.length<3){
       setLearningActionMessage("اكتب سبباً واضحاً من 3 أحرف على الأقل قبل تغيير حالة المرشح.");
       setLearningActionError(true);
       return;
     }
-    const commandKey=candidate.id+":"+eventType;
-    const idempotencyKey=learningCommandKeys[commandKey]??crypto.randomUUID();
-    if(!learningCommandKeys[commandKey])setLearningCommandKeys(current=>({...current,[commandKey]:idempotencyKey}));
+    const resolved=resolveDecisionPolicyLearningTransition({
+      candidateId:candidate.id,
+      expectedVersion:candidate.version,
+      eventType,
+      reason:existing?.reason??reason,
+    },existing);
+    const command=resolved.command;
+    if(!resolved.reused){
+      setPendingLearningCommands(current=>({...current,[commandKey]:command}));
+    }
     setLearningBusy(commandKey);
     setLearningActionMessage("");
     try{
-      const response=await commandDecisionPolicyLearningCandidate({
-        candidateId:candidate.id,
-        expectedVersion:candidate.version,
-        eventType,
-        reason,
-        idempotencyKey,
-      });
+      const response=await commandDecisionPolicyLearningCandidate(command);
       if(!response.ok){
         setLearningActionMessage(response.message);
         setLearningActionError(true);
+        if(response.status!=="UNAVAILABLE"){
+          setPendingLearningCommands(current=>{const next={...current};delete next[commandKey];return next;});
+          if(response.status==="STALE"||response.status==="CONFLICT")setLearningRefreshKey(value=>value+1);
+        }
         return;
       }
-      setLearningCommandKeys(current=>{const next={...current};delete next[commandKey];return next;});
+      setPendingLearningCommands(current=>{const next={...current};delete next[commandKey];return next;});
       setLearningCandidates(current=>current.map(item=>item.id===response.candidate.id?response.candidate:item));
       setLearningReason(current=>({...current,[candidate.id]:""}));
       setLearningActionMessage(eventType==="SUBMIT_FOR_REVIEW"
@@ -452,6 +488,9 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           ?"اعتمد المرشح للمراجعة فقط؛ لم يتغير Profile v1 ولم تُفعّل أي قاعدة."
           :"رُفض المرشح وحُفظ سبب الرفض في سجل الأحداث.");
       setLearningActionError(false);
+    }catch{
+      setLearningActionMessage("تعذر تأكيد نتيجة الأمر؛ احتُفظ بالسبب والإصدار ومعرّفات الأمر لإعادة المحاولة دون تغيير.");
+      setLearningActionError(true);
     }finally{
       setLearningBusy("");
     }
@@ -608,6 +647,8 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           }>;
           const sampleCount=observations.length;
           const busy=learningBusy.startsWith(candidate.id+":");
+          const pendingCommandEntry=Object.entries(pendingLearningCommands).find(([key])=>key.startsWith(candidate.id+":"));
+          const pendingCommand=pendingCommandEntry?.[1];
           return <article key={candidate.id} className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <strong className="text-sm">Candidate v{candidate.candidateVersion} · {candidate.ruleId}</strong>
@@ -671,17 +712,31 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
                   className="w-full rounded-lg border bg-background p-2"
                   rows={2}
                   maxLength={2000}
-                  value={learningReason[candidate.id]??""}
+                  value={pendingCommand?.reason??learningReason[candidate.id]??""}
+                  disabled={Boolean(pendingCommand)||learningBusy!==""}
                   onChange={event=>setLearningReason(current=>({...current,[candidate.id]:event.target.value}))}
                   placeholder={candidate.state==="DRAFT"?"سبب الإرسال للمراجعة":"مبرر الاعتماد أو الرفض"}
                 />
+                {pendingCommand?<p role="status" className="text-xs text-amber-700">هناك أمر سابق لم تصل نتيجته النهائية؛ السبب والإصدار ثابتان. أعد إرسال الأمر نفسه قبل تغيير الإجراء.</p>:null}
               </label>
               <div className="flex flex-wrap gap-2">
                 {candidate.state==="DRAFT"
-                  ?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button>
+                  ?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+                    disabled={learningBusy!==""||(Boolean(pendingCommand)&&pendingCommand.eventType!=="SUBMIT_FOR_REVIEW")}
+                    onClick={()=>void transitionLearningCandidate(candidate,"SUBMIT_FOR_REVIEW")}>
+                    {pendingCommand?.eventType==="SUBMIT_FOR_REVIEW"?"إعادة المحاولة بنفس الأمر":busy?"جارٍ الإرسال…":"إرسال للمراجعة"}
+                  </button>
                   :<>
-                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"APPROVE")}>اعتماد Candidate</button>
-                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"REJECT")}>رفض Candidate</button>
+                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+                      disabled={learningBusy!==""||(Boolean(pendingCommand)&&pendingCommand.eventType!=="APPROVE")}
+                      onClick={()=>void transitionLearningCandidate(candidate,"APPROVE")}>
+                      {pendingCommand?.eventType==="APPROVE"?"إعادة المحاولة بنفس الأمر":busy?"جارٍ الإرسال…":"اعتماد Candidate"}
+                    </button>
+                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium"
+                      disabled={learningBusy!==""||(Boolean(pendingCommand)&&pendingCommand.eventType!=="REJECT")}
+                      onClick={()=>void transitionLearningCandidate(candidate,"REJECT")}>
+                      {pendingCommand?.eventType==="REJECT"?"إعادة المحاولة بنفس الأمر":busy?"جارٍ الإرسال…":"رفض Candidate"}
+                    </button>
                   </>}
               </div>
             </>:null}
@@ -723,11 +778,12 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           <button
             type="button"
             className="rounded-lg border px-3 py-2 text-xs font-medium"
-            disabled={learningBusy!==""||learningLoading||result.status!=="VERIFIED"||result.loadedCount!==result.totalCount||suggestion.observations.length<1||suggestion.observations.length>100}
+            disabled={learningBusy!==""||learningLoading||(!pendingLearningCreations[suggestion.id]&&(result.status!=="VERIFIED"||result.loadedCount!==result.totalCount||suggestion.observations.length<1||suggestion.observations.length>100))}
             onClick={()=>void createLearningCandidate(suggestion)}
           >
-            {learningBusy==="create:"+suggestion.id?"جارٍ الحفظ…":"إنشاء مرشح تعلم من الأدلة"}
+            {learningBusy==="create:"+suggestion.id?"جارٍ الحفظ…":pendingLearningCreations[suggestion.id]?"إعادة المحاولة بنفس القرارات":"إنشاء مرشح تعلم من الأدلة"}
           </button>
+          {pendingLearningCreations[suggestion.id]?<p role="status" className="text-xs text-amber-700">لم تصل نتيجة الإنشاء السابقة؛ ستُعاد المحاولة بنفس {pendingLearningCreations[suggestion.id].decisionIds.length} قراراً ومفتاح التكرار المحفوظ، حتى لو تغيرت اللقطة الحالية.</p>:null}
           {(result.status!=="VERIFIED"||result.loadedCount!==result.totalCount)
             ?<p className="text-xs text-amber-700">يُحجب الإنشاء حتى اكتمال قراءة كامل سجل القرارات وذاكرته.</p>:null}
           {suggestion.observations.length>100?<p className="text-xs text-amber-700">تتجاوز العينة حد 100 قرار لعملية واحدة؛ لن يُرسل طلب مبتور.</p>:null}
