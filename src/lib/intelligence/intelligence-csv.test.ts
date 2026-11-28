@@ -195,7 +195,7 @@ describe("intelligence spreadsheet exports", () => {
     expect(csv).toContain("USD");
     expect(csv).toContain("لا يتم تحويل أو جمع عملات مختلفة");
     expect(csv).toContain("PARTIAL_SOURCE_COVERAGE");
-    expect(csv).toContain(",40,VERIFIED,VERIFIED,dead-stock.exposure,1.1.0,");
+    expect(csv).toContain(',40,"VERIFIED","VERIFIED","dead-stock.exposure","1.1.0","stock-evidence",');
   });
 
   it("escapes formula-like product labels and never changes numeric quantities into text", () => {
