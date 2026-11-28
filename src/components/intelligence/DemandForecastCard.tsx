@@ -185,7 +185,7 @@ function DemandScenarioLab({ result, onSaveScenario, replenishmentRecommendation
                 <table className="w-full min-w-[620px] text-xs">
                   <thead><tr className="border-b text-right">
                     <th className="p-2">الأفق</th><th className="p-2">طلب الأساس</th><th className="p-2">طلب السيناريو</th>
-                    <th className="p-2">المتبقي الأساسي من ATP</th><th className="p-2">المتبقي في السيناريو</th><th className="p-2">العجز المحتمل</th>
+                    <th className="p-2">المتبقي الأساسي من ATP</th><th className="p-2">المتبقي في السيناريو</th><th className="p-2">العجز المحتمل</th><th className="p-2">مقارنة بنقطة إعادة الطلب</th>
                   </tr></thead>
                   <tbody>{stockImpact.horizons.map(item => (
                     <tr key={item.days} className="border-b last:border-0">
@@ -195,6 +195,7 @@ function DemandScenarioLab({ result, onSaveScenario, replenishmentRecommendation
                       <td className="p-2">{formatQuantity(item.baselineRemainingAtp, stockImpact.quantityUnit ?? "")}</td>
                       <td className="p-2">{formatQuantity(item.scenarioRemainingAtp, stockImpact.quantityUnit ?? "")}</td>
                       <td className="p-2">{formatQuantity(item.scenarioPotentialShortfall, stockImpact.quantityUnit ?? "")}</td>
+                      <td className="p-2">{item.belowReorderPoint ? "دون نقطة إعادة الطلب" : "فوق نقطة إعادة الطلب"}</td>
                     </tr>
                   ))}</tbody>
                 </table>

@@ -119,6 +119,7 @@ describe("DemandForecastCard", () => {
     expect(impact).toHaveTextContent("100");
     expect(impact).toHaveTextContent("90 يوم");
     expect(impact).toHaveTextContent("العجز المحتمل");
+    expect(impact).toHaveTextContent("دون نقطة إعادة الطلب");
     expect(impact).toHaveTextContent("لا تُحتسب أوامر الشراء الواردة");
   });
 
