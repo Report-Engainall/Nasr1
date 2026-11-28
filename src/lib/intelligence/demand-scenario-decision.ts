@@ -47,6 +47,10 @@ function validStockHorizon(value: unknown, days: 7 | 30 | 90): value is DemandSc
     typeof horizon.belowReorderPoint === "boolean";
 }
 
+function matchesQuantity(actual: number, expected: number): boolean {
+  return Math.abs(actual - expected) <= 0.000001;
+}
+
 function validStockImpactForScenario(
   impact: DemandScenarioStockImpact | null | undefined,
   scenario: DemandScenarioResult,
@@ -77,12 +81,28 @@ function validStockImpactForScenario(
     return false;
   }
 
-  return [7, 30, 90].every(days => {
+  const horizonsMatchScenario = [7, 30, 90].every(days => {
     const scenarioHorizon = scenario.horizons.find(item => item.days === days);
     const impactHorizon = impact.horizons.find(item => item.days === days);
     return Boolean(scenarioHorizon && impactHorizon &&
       impactHorizon.scenarioDemand.expected === scenarioHorizon.scenarioExpectedQuantity);
   });
+  const horizonBalancesAreCoherent = impact.horizons.every(item =>
+    matchesQuantity(item.baselineRemainingAtp, impact.availableToPromise! - item.baselineDemand.expected) &&
+    matchesQuantity(item.scenarioRemainingAtp, impact.availableToPromise! - item.scenarioDemand.expected) &&
+    matchesQuantity(item.scenarioPotentialShortfall,
+      Math.max(0, item.scenarioDemand.expected - impact.availableToPromise!)) &&
+    item.belowReorderPoint === (item.scenarioRemainingAtp < impact.reorderPoint!)
+  );
+  const leadTimeBalancesAreCoherent =
+    matchesQuantity(impact.leadTime.baselineRemainingAtp,
+      impact.availableToPromise - impact.leadTime.baselineDemand.expected) &&
+    matchesQuantity(impact.leadTime.scenarioRemainingAtp,
+      impact.availableToPromise - impact.leadTime.scenarioDemand.expected) &&
+    matchesQuantity(impact.leadTime.scenarioPotentialShortfall,
+      Math.max(0, impact.leadTime.scenarioDemand.expected - impact.availableToPromise)) &&
+    impact.leadTime.belowReorderPoint === (impact.leadTime.scenarioRemainingAtp < impact.reorderPoint);
+  return horizonsMatchScenario && horizonBalancesAreCoherent && leadTimeBalancesAreCoherent;
 }
 
 /**

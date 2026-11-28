@@ -115,6 +115,22 @@ describe("demand scenario decision candidate", () => {
       ...stockImpact,
       leadTime: { ...stockImpact.leadTime, scenarioPotentialShortfall: Number.NaN },
     })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, {
+      ...stockImpact,
+      horizons: stockImpact.horizons.map(item => item.days === 7
+        ? { ...item, scenarioRemainingAtp: 17 }
+        : item),
+    })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, {
+      ...stockImpact,
+      horizons: stockImpact.horizons.map(item => item.days === 7
+        ? { ...item, belowReorderPoint: false }
+        : item),
+    })).toBeNull();
+    expect(buildDemandScenarioDecisionCandidate(scenario, {
+      ...stockImpact,
+      leadTime: { ...stockImpact.leadTime, scenarioRemainingAtp: 999 },
+    })).toBeNull();
   });
 
   it("uses the same id for an exact replay and a different id for a changed assumption", () => {
